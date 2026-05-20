@@ -2,6 +2,8 @@ const { Router } = require('express');
 const controller = require('./social.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
 const { requireApproved } = require('../../middleware/requireApproved');
+const { rawBody } = require('../../middleware/rawBody');
+const { verifyWebhook, handleWebhook } = require('./social.webhook');
 
 const router = Router();
 
@@ -22,6 +24,10 @@ router.get('/connect/:platform', async (req, res, next) => {
 
 // GET  /api/v1/social/callback/:platform  — OAuth callback (no auth — state contains userId)
 router.get('/callback/:platform', controller.oauthCallback);
+
+// Webhook routes — no auth, need raw body
+router.get('/webhook/facebook', verifyWebhook);
+router.post('/webhook/facebook', rawBody, handleWebhook);
 
 // All other routes require standard auth
 router.use(authenticate);

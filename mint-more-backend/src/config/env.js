@@ -64,9 +64,10 @@ const env = {
 
   social: {
     facebook: {
-      appId:       process.env.FACEBOOK_APP_ID,
-      appSecret:   process.env.FACEBOOK_APP_SECRET,
-      redirectUri: process.env.FACEBOOK_REDIRECT_URI,
+      appId:              process.env.FACEBOOK_APP_ID,
+      appSecret:          process.env.FACEBOOK_APP_SECRET,
+      redirectUri:        process.env.FACEBOOK_REDIRECT_URI,
+      webhookVerifyToken: process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN || 'mintmore_social_webhook',
     },
     youtube: {
       clientId:     process.env.YOUTUBE_CLIENT_ID,

@@ -1,0 +1,1850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mint More — Social Publishing Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <style>
+    :root {
+      --mint:       #00C896;
+      --mint-dark:  #00A37A;
+      --mint-glow:  rgba(0,200,150,0.15);
+      --bg:         #0A0E0C;
+      --bg2:        #111612;
+      --bg3:        #171E19;
+      --border:     rgba(0,200,150,0.12);
+      --border2:    rgba(255,255,255,0.06);
+      --text:       #E8F0EB;
+      --muted:      #6B8070;
+      --fb:         #1877F2;
+      --ig:         #E1306C;
+      --yt:         #FF0000;
+      --success:    #00C896;
+      --warning:    #F5A623;
+      --error:      #FF4D6D;
+      --radius:     14px;
+      --radius-sm:  8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Noise texture overlay ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 999;
+      opacity: 0.4;
+    }
+
+    /* ── Ambient glow ── */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 400px;
+      background: radial-gradient(ellipse, rgba(0,200,150,0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Header ── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,14,12,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 40px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-mark {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--mint), var(--mint-dark));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #000;
+      font-weight: 800;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge-live {
+      background: rgba(0,200,150,0.12);
+      border: 1px solid rgba(0,200,150,0.3);
+      color: var(--mint);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .badge-live::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--mint);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .user-pill {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 20px;
+      padding: 5px 14px 5px 5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .user-avatar {
+      width: 26px;
+      height: 26px;
+      background: linear-gradient(135deg, var(--mint), #00A37A);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #000;
+    }
+
+    /* ── Layout ── */
+    .app {
+      display: grid;
+      grid-template-columns: 220px 1fr 340px;
+      min-height: calc(100vh - 64px);
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      border-right: 1px solid var(--border);
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .sidebar-section {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      color: var(--muted);
+      text-transform: uppercase;
+      padding: 16px 12px 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13.5px;
+      font-weight: 400;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+      text-decoration: none;
+    }
+
+    .nav-item:hover {
+      background: var(--bg3);
+      color: var(--text);
+    }
+
+    .nav-item.active {
+      background: var(--mint-glow);
+      border-color: var(--border);
+      color: var(--mint);
+      font-weight: 500;
+    }
+
+    .nav-icon {
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    /* ── Main content ── */
+    .main {
+      padding: 32px 36px;
+      overflow-y: auto;
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── Page header ── */
+    .page-header {
+      margin-bottom: 28px;
+    }
+
+    .page-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+
+    .page-subtitle {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--text);
+      letter-spacing: 0.1px;
+    }
+
+    /* ── Connect Accounts Section ── */
+    .connect-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .platform-card {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .platform-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .platform-card.fb::before { background: var(--fb); }
+    .platform-card.ig::before { background: linear-gradient(90deg, #833ab4, #fd1d1d, #fcb045); }
+    .platform-card.yt::before { background: var(--yt); }
+
+    .platform-card.connected::before { opacity: 1; }
+    .platform-card.connected {
+      border-color: rgba(0,200,150,0.2);
+    }
+
+    .platform-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin: 0 auto 12px;
+    }
+
+    .platform-icon.fb { background: rgba(24,119,242,0.12); color: var(--fb); }
+    .platform-icon.ig { background: rgba(225,48,108,0.12); color: var(--ig); }
+    .platform-icon.yt { background: rgba(255,0,0,0.12); color: var(--yt); }
+
+    .platform-name {
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .platform-status {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      min-height: 16px;
+    }
+
+    .platform-status.connected { color: var(--mint); }
+    .platform-status.expiring { color: var(--warning); }
+    .platform-status.expired { color: var(--error); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 9px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--mint);
+      color: #000;
+      font-weight: 600;
+    }
+    .btn-primary:hover { background: var(--mint-dark); }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border2);
+      color: var(--text);
+    }
+    .btn-outline:hover { border-color: var(--mint); color: var(--mint); background: var(--mint-glow); }
+
+    .btn-fb { background: var(--fb); color: #fff; }
+    .btn-fb:hover { background: #166fe5; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid transparent;
+    }
+    .btn-ghost:hover { color: var(--error); border-color: rgba(255,77,109,0.2); }
+
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-full { width: 100%; }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* ── Connected account row ── */
+    .account-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border2);
+    }
+    .account-row:last-child { border-bottom: none; }
+
+    .account-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .account-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .account-avatar.fb { background: rgba(24,119,242,0.12); color: var(--fb); }
+    .account-avatar.ig { background: rgba(225,48,108,0.12); color: var(--ig); }
+    .account-avatar.yt { background: rgba(255,0,0,0.12); color: var(--yt); }
+
+    .account-name {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .account-meta {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .token-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .token-badge.valid { background: rgba(0,200,150,0.1); color: var(--mint); }
+    .token-badge.expiring { background: rgba(245,166,35,0.1); color: var(--warning); }
+    .token-badge.expired { background: rgba(255,77,109,0.1); color: var(--error); }
+
+    /* ── Create Post ── */
+    .post-form { display: flex; flex-direction: column; gap: 18px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 7px; }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .form-input, .form-textarea, .form-select {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      padding: 10px 14px;
+      transition: border-color 0.15s;
+      width: 100%;
+      outline: none;
+    }
+
+    .form-input:focus, .form-textarea:focus, .form-select:focus {
+      border-color: var(--mint);
+    }
+
+    .form-textarea { resize: vertical; min-height: 100px; line-height: 1.5; }
+
+    .form-select option { background: var(--bg3); }
+
+    .platform-toggles {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .platform-toggle {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border2);
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--muted);
+      transition: all 0.15s;
+      user-select: none;
+    }
+
+    .platform-toggle input { display: none; }
+    .platform-toggle.checked-fb { border-color: var(--fb); color: var(--fb); background: rgba(24,119,242,0.08); }
+    .platform-toggle.checked-ig { border-color: var(--ig); color: var(--ig); background: rgba(225,48,108,0.08); }
+    .platform-toggle.checked-yt { border-color: var(--yt); color: var(--yt); background: rgba(255,0,0,0.08); }
+
+    .media-drop {
+      border: 2px dashed var(--border2);
+      border-radius: var(--radius);
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--muted);
+    }
+
+    .media-drop:hover {
+      border-color: var(--mint);
+      background: var(--mint-glow);
+      color: var(--mint);
+    }
+
+    .media-drop-icon { font-size: 28px; margin-bottom: 8px; }
+    .media-drop-text { font-size: 13px; }
+    .media-drop-sub { font-size: 11px; margin-top: 4px; opacity: 0.6; }
+
+    /* ── Posts list ── */
+    .posts-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .post-item {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      transition: border-color 0.15s;
+    }
+
+    .post-item:hover { border-color: var(--border); }
+
+    .post-thumb {
+      width: 54px;
+      height: 54px;
+      border-radius: 8px;
+      background: var(--bg3);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      overflow: hidden;
+    }
+
+    .post-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+    .post-content { flex: 1; min-width: 0; }
+
+    .post-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .post-caption {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .post-platforms {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .platform-pip {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    .platform-pip.fb { background: rgba(24,119,242,0.15); color: var(--fb); }
+    .platform-pip.ig { background: rgba(225,48,108,0.15); color: var(--ig); }
+    .platform-pip.yt { background: rgba(255,0,0,0.15); color: var(--yt); }
+
+    .status-badge {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-badge.published { background: rgba(0,200,150,0.1); color: var(--mint); }
+    .status-badge.scheduled { background: rgba(245,166,35,0.1); color: var(--warning); }
+    .status-badge.draft { background: rgba(107,128,112,0.15); color: var(--muted); }
+    .status-badge.failed { background: rgba(255,77,109,0.1); color: var(--error); }
+    .status-badge.publishing { background: rgba(0,200,150,0.08); color: var(--mint); }
+
+    .post-date {
+      font-size: 11px;
+      color: var(--muted);
+      margin-left: auto;
+      flex-shrink: 0;
+      padding-left: 12px;
+    }
+
+    /* ── Analytics ── */
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-family: 'Syne', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.5px;
+    }
+
+    .stat-change {
+      font-size: 11px;
+      margin-top: 4px;
+    }
+    .stat-change.up { color: var(--mint); }
+    .stat-change.down { color: var(--error); }
+
+    /* ── Right panel ── */
+    .right-panel {
+      border-left: 1px solid var(--border);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    .panel-section-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .quick-stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border2);
+      font-size: 13px;
+    }
+
+    .quick-stat:last-child { border-bottom: none; }
+    .quick-stat-label { color: var(--muted); }
+    .quick-stat-value { font-weight: 500; color: var(--text); }
+
+    .recent-activity {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .activity-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 12px;
+    }
+
+    .activity-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+
+    .activity-dot.success { background: var(--mint); }
+    .activity-dot.info { background: #5B9BF5; }
+    .activity-dot.warning { background: var(--warning); }
+
+    .activity-text { color: var(--muted); line-height: 1.4; }
+    .activity-text strong { color: var(--text); }
+
+    /* ── Toast notification ── */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      font-size: 13px;
+      max-width: 320px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      animation: slideIn 0.25s ease;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(120%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+
+    .toast.success { border-left: 3px solid var(--mint); }
+    .toast.error   { border-left: 3px solid var(--error); }
+    .toast.info    { border-left: 3px solid #5B9BF5; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 28px;
+      width: 500px;
+      max-width: 95vw;
+      animation: scaleIn 0.2s ease;
+    }
+
+    @keyframes scaleIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to   { transform: scale(1);    opacity: 1; }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 18px;
+      padding: 4px;
+      transition: color 0.15s;
+    }
+
+    .modal-close:hover { color: var(--text); }
+
+    /* ── Permission screen ── */
+    .permission-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .permission-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px;
+      background: var(--bg3);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border2);
+    }
+
+    .permission-icon {
+      font-size: 18px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .permission-name {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .permission-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* ── Loading spinner ── */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-top-color: #000;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border2);
+      margin: 8px 0;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      background: var(--bg3);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+      margin-bottom: 20px;
+      width: fit-content;
+    }
+
+    .tab {
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all 0.15s;
+      font-weight: 400;
+    }
+
+    .tab.active {
+      background: var(--bg2);
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* ── Progress bar ── */
+    .progress-bar {
+      height: 4px;
+      background: var(--bg3);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--mint), var(--mint-dark));
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 200px 1fr; }
+      .right-panel { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .connect-grid { grid-template-columns: 1fr; }
+      .analytics-grid { grid-template-columns: 1fr 1fr; }
+      .main { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-mark">M</div>
+      Mint More
+    </div>
+    <div class="header-right">
+      <div class="badge-live">Live</div>
+      <div class="user-pill">
+        <div class="user-avatar">A</div>
+        agency@mintmoremarketing.com
+      </div>
+    </div>
+  </header>
+
+  <!-- App layout -->
+  <div class="app">
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sidebar-section">Workspace</div>
+      <a class="nav-item" onclick="showPage('dashboard')">
+        <span class="nav-icon">◈</span> Dashboard
+      </a>
+      <a class="nav-item" onclick="showPage('jobs')">
+        <span class="nav-icon">◎</span> Jobs
+      </a>
+      <a class="nav-item" onclick="showPage('matching')">
+        <span class="nav-icon">◑</span> Matching
+      </a>
+      <div class="sidebar-section">Publishing</div>
+      <a class="nav-item active" id="nav-social" onclick="showPage('social')">
+        <span class="nav-icon">◉</span> Social Connect
+      </a>
+      <a class="nav-item" onclick="showPage('create')">
+        <span class="nav-icon">✦</span> Create Post
+      </a>
+      <a class="nav-item" onclick="showPage('posts')">
+        <span class="nav-icon">⊡</span> Posts
+      </a>
+      <a class="nav-item" onclick="showPage('analytics')">
+        <span class="nav-icon">◈</span> Analytics
+      </a>
+      <div class="sidebar-section">AI Tools</div>
+      <a class="nav-item" onclick="showPage('ai')">
+        <span class="nav-icon">✧</span> Mint AI
+      </a>
+      <div class="sidebar-section">Account</div>
+      <a class="nav-item" onclick="showPage('wallet')">
+        <span class="nav-icon">◎</span> Wallet
+      </a>
+      <a class="nav-item" onclick="showPage('settings')">
+        <span class="nav-icon">⊛</span> Settings
+      </a>
+    </nav>
+
+    <!-- Main content -->
+    <main class="main">
+
+      <!-- ── Social Connect Page ── -->
+      <div class="page active" id="page-social">
+        <div class="page-header">
+          <div class="page-title">Connect Social Accounts</div>
+          <div class="page-subtitle">Connect your Facebook Pages and Instagram Business accounts to publish directly from Mint More</div>
+        </div>
+
+        <!-- Platform connect cards -->
+        <div class="connect-grid">
+          <div class="platform-card fb" id="card-fb">
+            <div class="platform-icon fb">𝐟</div>
+            <div class="platform-name">Facebook</div>
+            <div class="platform-status" id="fb-status">Not connected</div>
+            <button class="btn btn-fb btn-full btn-sm" id="btn-fb" onclick="startFBConnect()">
+              Connect Facebook
+            </button>
+          </div>
+
+          <div class="platform-card ig" id="card-ig">
+            <div class="platform-icon ig">📷</div>
+            <div class="platform-name">Instagram</div>
+            <div class="platform-status" id="ig-status">Connect Facebook first</div>
+            <button class="btn btn-outline btn-full btn-sm" id="btn-ig" disabled>
+              Via Facebook Login
+            </button>
+          </div>
+
+          <div class="platform-card yt" id="card-yt">
+            <div class="platform-icon yt">▶</div>
+            <div class="platform-name">YouTube</div>
+            <div class="platform-status" id="yt-status">Not connected</div>
+            <button class="btn btn-outline btn-full btn-sm" onclick="startYTConnect()">
+              Connect YouTube
+            </button>
+          </div>
+        </div>
+
+        <!-- OAuth Permission Details Card -->
+        <div class="card">
+          <div class="card-title">Permissions We Request</div>
+          <div class="permission-list">
+            <div class="permission-item">
+              <div class="permission-icon">📄</div>
+              <div>
+                <div class="permission-name">pages_show_list</div>
+                <div class="permission-desc">Shows the list of Facebook Pages you manage so you can choose which Page to publish to.</div>
+              </div>
+            </div>
+            <div class="permission-item">
+              <div class="permission-icon">✏️</div>
+              <div>
+                <div class="permission-name">pages_manage_posts</div>
+                <div class="permission-desc">Allows Mint More to publish content to your selected Facebook Page on your behalf after you authorise each post.</div>
+              </div>
+            </div>
+            <div class="permission-item">
+              <div class="permission-icon">📊</div>
+              <div>
+                <div class="permission-name">pages_read_engagement</div>
+                <div class="permission-desc">Reads likes, comments and reach data so we can show you analytics inside your Mint More dashboard.</div>
+              </div>
+            </div>
+            <div class="permission-item">
+              <div class="permission-icon">📷</div>
+              <div>
+                <div class="permission-name">instagram_content_publish</div>
+                <div class="permission-desc">Publishes images, videos, carousels and Reels to your Instagram Business account when you click Publish.</div>
+              </div>
+            </div>
+            <div class="permission-item">
+              <div class="permission-icon">📈</div>
+              <div>
+                <div class="permission-name">instagram_manage_insights</div>
+                <div class="permission-desc">Fetches impressions, reach and engagement data from Instagram to display in your analytics.</div>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:12px; color:var(--muted); background:var(--bg3); padding:12px; border-radius:8px; line-height:1.6;">
+            🔒 <strong style="color:var(--text)">Your data is safe.</strong> Mint More only uses these permissions to publish content you explicitly create and approve. We never post without your action, never store credentials beyond what's needed to maintain your connection, and you can disconnect at any time.
+          </div>
+        </div>
+
+        <!-- Connected accounts list -->
+        <div class="card" id="connected-accounts-card" style="display:none">
+          <div class="card-title">Connected Accounts</div>
+          <div id="accounts-list"></div>
+        </div>
+      </div>
+
+      <!-- ── Create Post Page ── -->
+      <div class="page" id="page-create">
+        <div class="page-header">
+          <div class="page-title">Create Post</div>
+          <div class="page-subtitle">Publish to all your connected platforms at once</div>
+        </div>
+
+        <div class="card">
+          <div class="post-form">
+
+            <div class="form-group">
+              <label class="form-label">Post to</label>
+              <div class="platform-toggles">
+                <label class="platform-toggle" id="toggle-fb">
+                  <input type="checkbox" onchange="togglePlatform(this,'fb')" checked>
+                  𝐟 Facebook
+                </label>
+                <label class="platform-toggle checked-ig" id="toggle-ig">
+                  <input type="checkbox" onchange="togglePlatform(this,'ig')" checked>
+                  📷 Instagram
+                </label>
+                <label class="platform-toggle" id="toggle-yt">
+                  <input type="checkbox" onchange="togglePlatform(this,'yt')">
+                  ▶ YouTube
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Content Type</label>
+              <select class="form-select" id="content-type" onchange="updateContentType()">
+                <option value="image">📷 Image</option>
+                <option value="video">🎥 Video</option>
+                <option value="carousel">🗂 Carousel</option>
+                <option value="reel">🎬 Reel</option>
+                <option value="text">✍️ Text Only</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Caption</label>
+              <textarea class="form-textarea" id="post-caption" placeholder="Write your caption here...
+
+Tip: Mint AI can generate captions for you ✨"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Hashtags</label>
+              <input class="form-input" id="post-hashtags" placeholder="#branding #design #mintmore" />
+            </div>
+
+            <div class="form-group" id="media-section">
+              <label class="form-label">Media</label>
+              <div class="media-drop" onclick="document.getElementById('file-input').click()">
+                <div class="media-drop-icon">☁</div>
+                <div class="media-drop-text">Drop files here or click to upload</div>
+                <div class="media-drop-sub">JPG, PNG, MP4, MOV · Max 50MB</div>
+              </div>
+              <input type="file" id="file-input" style="display:none" accept="image/*,video/*" multiple onchange="handleFileSelect(event)" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Schedule (optional)</label>
+              <input class="form-input" type="datetime-local" id="publish-at" />
+              <div style="font-size:11px;color:var(--muted);margin-top:4px">Leave empty to publish immediately</div>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:4px">
+              <button class="btn btn-outline" onclick="saveDraft()">Save Draft</button>
+              <button class="btn btn-primary" id="publish-btn" onclick="publishPost()" style="flex:1">
+                Publish Now
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Posts Page ── -->
+      <div class="page" id="page-posts">
+        <div class="page-header">
+          <div class="page-title">Posts</div>
+          <div class="page-subtitle">All published, scheduled and draft posts</div>
+        </div>
+
+        <div class="tabs">
+          <div class="tab active" onclick="filterPosts('all',this)">All</div>
+          <div class="tab" onclick="filterPosts('published',this)">Published</div>
+          <div class="tab" onclick="filterPosts('scheduled',this)">Scheduled</div>
+          <div class="tab" onclick="filterPosts('draft',this)">Drafts</div>
+        </div>
+
+        <div class="posts-grid" id="posts-list"></div>
+      </div>
+
+      <!-- ── Analytics Page ── -->
+      <div class="page" id="page-analytics">
+        <div class="page-header">
+          <div class="page-title">Analytics</div>
+          <div class="page-subtitle">Performance across all connected platforms</div>
+        </div>
+
+        <div class="analytics-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Reach</div>
+            <div class="stat-value">24.8K</div>
+            <div class="stat-change up">↑ 12% this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Impressions</div>
+            <div class="stat-value">61.2K</div>
+            <div class="stat-change up">↑ 8% this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Engagement</div>
+            <div class="stat-value">3,491</div>
+            <div class="stat-change up">↑ 22% this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Posts Published</div>
+            <div class="stat-value">14</div>
+            <div class="stat-change up">↑ 3 this week</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Platform Breakdown</div>
+          <div id="platform-breakdown"></div>
+        </div>
+      </div>
+
+      <!-- ── Dashboard ── -->
+      <div class="page" id="page-dashboard">
+        <div class="page-header">
+          <div class="page-title">Dashboard</div>
+          <div class="page-subtitle">Welcome back</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Quick Overview</div>
+          <div class="analytics-grid">
+            <div class="stat-card">
+              <div class="stat-label">Active Jobs</div>
+              <div class="stat-value">3</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Wallet Balance</div>
+              <div class="stat-value">₹4,200</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Posts This Month</div>
+              <div class="stat-value">14</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">AI Credits Used</div>
+              <div class="stat-value">820</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Other pages placeholder -->
+      <div class="page" id="page-jobs"><div class="page-header"><div class="page-title">Jobs</div></div><div class="card"><div style="color:var(--muted);font-size:14px">Job management — see full backend documentation.</div></div></div>
+      <div class="page" id="page-matching"><div class="page-header"><div class="page-title">Matching</div></div><div class="card"><div style="color:var(--muted);font-size:14px">AI matching engine — see full backend documentation.</div></div></div>
+      <div class="page" id="page-ai"><div class="page-header"><div class="page-title">Mint AI</div></div><div class="card"><div style="color:var(--muted);font-size:14px">400+ AI models for text, image, and video generation.</div></div></div>
+      <div class="page" id="page-wallet"><div class="page-header"><div class="page-title">Wallet</div></div><div class="card"><div style="color:var(--muted);font-size:14px">Wallet balance and transaction history.</div></div></div>
+      <div class="page" id="page-settings"><div class="page-header"><div class="page-title">Settings</div></div><div class="card"><div style="color:var(--muted);font-size:14px">Account and platform settings.</div></div></div>
+
+    </main>
+
+    <!-- Right panel -->
+    <aside class="right-panel">
+      <div>
+        <div class="panel-section-title">Connection Status</div>
+        <div id="panel-connections">
+          <div class="quick-stat">
+            <span class="quick-stat-label">𝐟 Facebook</span>
+            <span class="quick-stat-value" id="panel-fb-status" style="color:var(--muted)">Not connected</span>
+          </div>
+          <div class="quick-stat">
+            <span class="quick-stat-label">📷 Instagram</span>
+            <span class="quick-stat-value" id="panel-ig-status" style="color:var(--muted)">Not connected</span>
+          </div>
+          <div class="quick-stat">
+            <span class="quick-stat-label">▶ YouTube</span>
+            <span class="quick-stat-value" id="panel-yt-status" style="color:var(--muted)">Not connected</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="panel-section-title">Recent Activity</div>
+        <div class="recent-activity" id="activity-feed">
+          <div class="activity-item">
+            <div class="activity-dot info"></div>
+            <div class="activity-text">Waiting for social account connection</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="panel-section-title">Quick Post</div>
+        <button class="btn btn-primary btn-full" onclick="showPage('create')">
+          ✦ Create New Post
+        </button>
+        <div style="margin-top:8px">
+          <button class="btn btn-outline btn-full" onclick="showPage('ai')">
+            ✧ Generate with AI
+          </button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="panel-section-title">API Info</div>
+        <div class="quick-stat">
+          <span class="quick-stat-label">App ID</span>
+          <span class="quick-stat-value" style="font-size:11px;font-family:monospace">1509078710693292</span>
+        </div>
+        <div class="quick-stat">
+          <span class="quick-stat-label">API Version</span>
+          <span class="quick-stat-value">v19.0</span>
+        </div>
+        <div class="quick-stat">
+          <span class="quick-stat-label">App Mode</span>
+          <span class="quick-stat-value" style="color:var(--mint)">Live</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- OAuth Modal -->
+  <div class="modal-overlay" id="oauth-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-title">Connect Facebook</div>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toasts"></div>
+
+  <script>
+    // ── Config ────────────────────────────────────────────────────────────────
+    const API_BASE = 'http://localhost:5000/api/v1';
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let state = {
+      token:    localStorage.getItem('mm_token') || '',
+      accounts: [],
+      posts:    [],
+      currentPage: 'social',
+    };
+
+    // ── Token input (top of page if not set) ──────────────────────────────────
+    window.onload = () => {
+      if (!state.token) {
+        const t = prompt('Enter your JWT access token to use this demo:\n(POST /auth/login to get one)');
+        if (t) {
+          state.token = t.trim();
+          localStorage.setItem('mm_token', state.token);
+        }
+      }
+      loadAccounts();
+      renderPosts();
+      renderPlatformBreakdown();
+    };
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+    function showPage(name) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.getElementById('page-' + name)?.classList.add('active');
+      document.getElementById('nav-' + name)?.classList.add('active');
+      state.currentPage = name;
+    }
+
+    // ── API helpers ───────────────────────────────────────────────────────────
+    async function apiFetch(path, options = {}) {
+      const res = await fetch(API_BASE + path, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${state.token}`,
+          'Content-Type':  'application/json',
+          ...(options.headers || {}),
+        },
+      });
+      return res.json();
+    }
+
+    // ── Load connected accounts ───────────────────────────────────────────────
+    async function loadAccounts() {
+      if (!state.token) return;
+      try {
+        const data = await apiFetch('/social/accounts');
+        if (data.success) {
+          state.accounts = data.data.accounts || [];
+          renderAccounts();
+        }
+      } catch (e) {
+        // Backend not running — use demo state
+        renderAccounts();
+      }
+    }
+
+    function renderAccounts() {
+      const list = document.getElementById('accounts-list');
+      const card = document.getElementById('connected-accounts-card');
+
+      if (!state.accounts.length) {
+        card.style.display = 'none';
+        return;
+      }
+
+      card.style.display = 'block';
+      list.innerHTML = state.accounts.map(acc => {
+        const icon  = acc.platform === 'facebook' ? '𝐟' : acc.platform === 'instagram' ? '📷' : '▶';
+        const cls   = acc.platform === 'facebook' ? 'fb' : acc.platform === 'instagram' ? 'ig' : 'yt';
+        const days  = acc.token_days_remaining ?? '—';
+        const tCls  = acc.token_status === 'valid' ? 'valid' : acc.token_status === 'expiring_soon' ? 'expiring' : 'expired';
+        const tText = acc.token_status === 'valid' ? `${days}d remaining` : acc.token_status === 'expiring_soon' ? 'Expiring soon' : 'Expired';
+
+        return `
+          <div class="account-row">
+            <div class="account-info">
+              <div class="account-avatar ${cls}">${icon}</div>
+              <div>
+                <div class="account-name">${acc.platform_name || acc.platform_username || acc.platform}</div>
+                <div class="account-meta">
+                  ${acc.platform_username ? '@' + acc.platform_username : ''}
+                  <span class="token-badge ${tCls}">🔑 ${tText}</span>
+                  ${acc.last_error ? `<span style="color:var(--error);font-size:11px">⚠ ${acc.last_error}</span>` : ''}
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              ${acc.token_status === 'expiring_soon' || acc.token_status === 'expired'
+                ? `<button class="btn btn-outline btn-sm" onclick="refreshToken('${acc.id}')">↺ Refresh</button>`
+                : ''}
+              <button class="btn btn-ghost btn-sm" onclick="disconnectAccount('${acc.id}','${acc.platform_name || acc.platform}')">Disconnect</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Update status indicators
+      const hasFB = state.accounts.some(a => a.platform === 'facebook');
+      const hasIG = state.accounts.some(a => a.platform === 'instagram');
+      const hasYT = state.accounts.some(a => a.platform === 'youtube');
+
+      if (hasFB) {
+        const fbAcc = state.accounts.find(a => a.platform === 'facebook');
+        setConnected('fb', fbAcc.platform_name || 'Connected');
+      }
+      if (hasIG) {
+        const igAcc = state.accounts.find(a => a.platform === 'instagram');
+        setConnected('ig', '@' + (igAcc.platform_username || 'instagram'));
+      }
+      if (hasYT) {
+        const ytAcc = state.accounts.find(a => a.platform === 'youtube');
+        setConnected('yt', ytAcc.platform_name || 'Connected');
+      }
+    }
+
+    function setConnected(platform, label) {
+      const card   = document.getElementById(`card-${platform}`);
+      const status = document.getElementById(`${platform}-status`);
+      const panel  = document.getElementById(`panel-${platform}-status`);
+
+      card?.classList.add('connected');
+      if (status) { status.textContent = label; status.className = 'platform-status connected'; }
+      if (panel)  { panel.textContent = label; panel.style.color = 'var(--mint)'; }
+
+      if (platform === 'fb') {
+        const igBtn = document.getElementById('btn-ig');
+        const igStatus = document.getElementById('ig-status');
+        if (igBtn) { igBtn.disabled = false; igBtn.textContent = 'Linked via Facebook'; }
+        if (igStatus) igStatus.textContent = 'Linked via Facebook';
+      }
+
+      addActivity(`Connected ${platform.toUpperCase()} account: ${label}`, 'success');
+    }
+
+    // ── OAuth Flows ───────────────────────────────────────────────────────────
+    function startFBConnect() {
+      openModal('Connect Facebook & Instagram', `
+        <div style="margin-bottom:16px;font-size:13px;color:var(--muted);line-height:1.6">
+          You will be redirected to Facebook to authorise Mint More.
+          Make sure you select all the Pages you want to publish to
+          and link your Instagram Business account.
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--muted)">
+          <div style="color:var(--text);font-weight:500;margin-bottom:8px">Permissions requested:</div>
+          pages_show_list · pages_manage_posts · pages_read_engagement<br>
+          instagram_basic · instagram_content_publish · instagram_manage_insights
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-fb" style="flex:1" onclick="doFBOAuth()">
+            𝐟 Continue with Facebook
+          </button>
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        </div>
+      `);
+    }
+
+    function doFBOAuth() {
+      closeModal();
+      if (!state.token) {
+        toast('Please enter your JWT token first', 'error');
+        return;
+      }
+      // Open OAuth popup
+      const url    = `${API_BASE}/social/connect/facebook?token=${encodeURIComponent(state.token)}`;
+      const popup  = window.open(url, 'fb_oauth', 'width=600,height=700,scrollbars=yes');
+      toast('Facebook login window opened...', 'info');
+
+      // Poll for popup close
+      const timer = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(timer);
+          toast('Checking connection...', 'info');
+          setTimeout(() => {
+            loadAccounts();
+            toast('Accounts refreshed!', 'success');
+          }, 1500);
+        }
+      }, 500);
+    }
+
+    function startYTConnect() {
+      openModal('Connect YouTube', `
+        <div style="margin-bottom:16px;font-size:13px;color:var(--muted);line-height:1.6">
+          You will be redirected to Google to authorise Mint More to publish videos
+          to your YouTube channel.
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--muted)">
+          <div style="color:var(--text);font-weight:500;margin-bottom:8px">Permissions requested:</div>
+          youtube.upload · youtube.readonly
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-primary" style="flex:1;background:#FF0000" onclick="doYTOAuth()">
+            ▶ Continue with Google
+          </button>
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        </div>
+      `);
+    }
+
+    function doYTOAuth() {
+      closeModal();
+      if (!state.token) { toast('Enter JWT token first', 'error'); return; }
+      const url   = `${API_BASE}/social/connect/youtube?token=${encodeURIComponent(state.token)}`;
+      const popup = window.open(url, 'yt_oauth', 'width=600,height=700,scrollbars=yes');
+      toast('Google login window opened...', 'info');
+      const timer = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(timer);
+          setTimeout(() => { loadAccounts(); toast('YouTube connected!', 'success'); }, 1500);
+        }
+      }, 500);
+    }
+
+    async function disconnectAccount(accountId, name) {
+      if (!confirm(`Disconnect "${name}"?`)) return;
+      try {
+        const data = await apiFetch(`/social/accounts/${accountId}`, { method: 'DELETE' });
+        if (data.success) {
+          toast(`${name} disconnected`, 'success');
+          state.accounts = state.accounts.filter(a => a.id !== accountId);
+          renderAccounts();
+        } else {
+          toast(data.message || 'Failed to disconnect', 'error');
+        }
+      } catch {
+        toast('Error disconnecting account', 'error');
+      }
+    }
+
+    async function refreshToken(accountId) {
+      toast('Refreshing token...', 'info');
+      await loadAccounts();
+      toast('Token refreshed', 'success');
+    }
+
+    // ── Publishing ────────────────────────────────────────────────────────────
+    async function publishPost() {
+      const caption    = document.getElementById('post-caption').value.trim();
+      const hashtags   = document.getElementById('post-hashtags').value.trim();
+      const publishAt  = document.getElementById('publish-at').value;
+      const type       = document.getElementById('content-type').value;
+
+      if (!caption && type === 'text') {
+        toast('Please write a caption first', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('publish-btn');
+      btn.innerHTML = '<span class="spinner"></span> Publishing...';
+      btn.disabled  = true;
+
+      try {
+        // Step 1 — create post
+        const createData = await apiFetch('/social/posts', {
+          method: 'POST',
+          body: JSON.stringify({
+            caption:          caption + (hashtags ? '\n\n' + hashtags : ''),
+            content_type:     type,
+            target_platforms: getSelectedPlatforms(),
+            hashtags:         hashtags.split(' ').filter(h => h.startsWith('#')),
+            publish_at:       publishAt || null,
+          }),
+        });
+
+        if (!createData.success) throw new Error(createData.message);
+        const postId = createData.data.post.id;
+
+        // Step 2 — publish
+        const pubData = await apiFetch(`/social/posts/${postId}/publish`, { method: 'POST' });
+
+        if (!pubData.success) throw new Error(pubData.message);
+
+        const status = pubData.data.status;
+        if (status === 'scheduled') {
+          toast('Post scheduled successfully! 📅', 'success');
+        } else {
+          toast('Post published! ✓', 'success');
+        }
+
+        // Add to demo posts list
+        state.posts.unshift({
+          id:      postId,
+          caption: caption,
+          type,
+          status:  status === 'scheduled' ? 'scheduled' : 'published',
+          platforms: getSelectedPlatforms(),
+          date:    new Date().toLocaleDateString('en-IN'),
+        });
+
+        addActivity(`Published: "${caption.slice(0,40)}..."`, 'success');
+        renderPosts();
+
+        // Clear form
+        document.getElementById('post-caption').value = '';
+        document.getElementById('post-hashtags').value = '';
+
+        showPage('posts');
+      } catch (err) {
+        toast(err.message || 'Publish failed', 'error');
+      } finally {
+        btn.innerHTML = 'Publish Now';
+        btn.disabled  = false;
+      }
+    }
+
+    function saveDraft() {
+      const caption = document.getElementById('post-caption').value.trim();
+      state.posts.unshift({
+        id:        Date.now().toString(),
+        caption:   caption || 'Untitled draft',
+        type:      document.getElementById('content-type').value,
+        status:    'draft',
+        platforms: getSelectedPlatforms(),
+        date:      new Date().toLocaleDateString('en-IN'),
+      });
+      renderPosts();
+      toast('Saved as draft', 'success');
+    }
+
+    function getSelectedPlatforms() {
+      const pl = [];
+      if (document.getElementById('toggle-fb')?.classList.contains('checked-fb') ||
+          document.querySelector('#toggle-fb input')?.checked) pl.push('facebook');
+      if (document.getElementById('toggle-ig')?.classList.contains('checked-ig') ||
+          document.querySelector('#toggle-ig input')?.checked) pl.push('instagram');
+      if (document.getElementById('toggle-yt')?.classList.contains('checked-yt') ||
+          document.querySelector('#toggle-yt input')?.checked) pl.push('youtube');
+      return pl.length ? pl : ['facebook'];
+    }
+
+    function togglePlatform(input, platform) {
+      const label = input.closest('.platform-toggle');
+      if (input.checked) {
+        label.classList.add(`checked-${platform}`);
+      } else {
+        label.classList.remove(`checked-${platform}`);
+      }
+    }
+
+    function updateContentType() {
+      const type   = document.getElementById('content-type').value;
+      const media  = document.getElementById('media-section');
+      media.style.display = type === 'text' ? 'none' : '';
+    }
+
+    function handleFileSelect(e) {
+      const files = Array.from(e.target.files);
+      if (files.length) {
+        const drop = document.querySelector('.media-drop');
+        drop.innerHTML = `
+          <div class="media-drop-icon">✓</div>
+          <div class="media-drop-text" style="color:var(--mint)">${files.length} file(s) selected</div>
+          <div class="media-drop-sub">${files.map(f=>f.name).join(', ')}</div>
+        `;
+        toast(`${files.length} file(s) ready to upload`, 'success');
+      }
+    }
+
+    // ── Posts list rendering ──────────────────────────────────────────────────
+    const DEMO_POSTS = [
+      { id:'1', caption:'New brand identity project delivered! Clean, minimal, and modern. ✨', type:'image', status:'published', platforms:['facebook','instagram'], date:'13 May 2026' },
+      { id:'2', caption:'Behind the scenes of our latest video shoot for a logistics brand 🎬', type:'video', status:'published', platforms:['instagram','youtube'], date:'12 May 2026' },
+      { id:'3', caption:'Upcoming product launch — stay tuned! 🚀', type:'image', status:'scheduled', platforms:['facebook','instagram'], date:'Scheduled: 20 May 2026' },
+      { id:'4', caption:'Summer campaign draft for client review', type:'carousel', status:'draft', platforms:['facebook','instagram'], date:'11 May 2026' },
+    ];
+
+    function renderPosts(filter = 'all') {
+      const list = document.getElementById('posts-list');
+      if (!list) return;
+
+      const all   = [...DEMO_POSTS, ...state.posts];
+      const shown = filter === 'all' ? all : all.filter(p => p.status === filter);
+
+      const icons = { image:'🖼', video:'🎥', carousel:'🗂', reel:'🎬', text:'✍️', short:'▶' };
+
+      list.innerHTML = shown.map(p => `
+        <div class="post-item">
+          <div class="post-thumb">${icons[p.type] || '📄'}</div>
+          <div class="post-content">
+            <div class="post-title">${p.caption}</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="status-badge ${p.status}">${p.status}</span>
+              <div class="post-platforms">
+                ${(p.platforms||[]).map(pl => {
+                  const ic = pl==='facebook'?'𝐟':pl==='instagram'?'📷':'▶';
+                  const cl = pl==='facebook'?'fb':pl==='instagram'?'ig':'yt';
+                  return `<div class="platform-pip ${cl}">${ic}</div>`;
+                }).join('')}
+              </div>
+              <span style="font-size:11px;color:var(--muted)">${p.type}</span>
+            </div>
+          </div>
+          <div class="post-date">${p.date}</div>
+        </div>
+      `).join('') || '<div style="color:var(--muted);font-size:14px;padding:20px 0">No posts found</div>';
+    }
+
+    function filterPosts(filter, el) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      renderPosts(filter);
+    }
+
+    // ── Platform Breakdown ────────────────────────────────────────────────────
+    function renderPlatformBreakdown() {
+      const el = document.getElementById('platform-breakdown');
+      if (!el) return;
+      const platforms = [
+        { name:'Facebook', icon:'𝐟', cls:'fb', reach:'12.4K', posts:8, engagement:'1,240' },
+        { name:'Instagram', icon:'📷', cls:'ig', reach:'9.8K', posts:5, engagement:'1,890' },
+        { name:'YouTube', icon:'▶', cls:'yt', reach:'2.6K', posts:1, engagement:'361' },
+      ];
+      el.innerHTML = platforms.map(p => `
+        <div class="account-row">
+          <div class="account-info">
+            <div class="account-avatar ${p.cls}">${p.icon}</div>
+            <div>
+              <div class="account-name">${p.name}</div>
+              <div class="account-meta">${p.posts} posts</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:24px;text-align:right">
+            <div>
+              <div style="font-size:11px;color:var(--muted)">Reach</div>
+              <div style="font-size:14px;font-weight:500">${p.reach}</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted)">Engagement</div>
+              <div style="font-size:14px;font-weight:500">${p.engagement}</div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ── Activity Feed ─────────────────────────────────────────────────────────
+    function addActivity(text, type = 'info') {
+      const feed = document.getElementById('activity-feed');
+      const item = document.createElement('div');
+      item.className = 'activity-item';
+      item.innerHTML = `
+        <div class="activity-dot ${type}"></div>
+        <div class="activity-text">${text}</div>
+      `;
+      feed.insertBefore(item, feed.firstChild);
+      if (feed.children.length > 6) {
+        feed.removeChild(feed.lastChild);
+      }
+    }
+
+    // ── Modal helpers ─────────────────────────────────────────────────────────
+    function openModal(title, body) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-body').innerHTML    = body;
+      document.getElementById('oauth-modal').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('oauth-modal').classList.remove('open');
+    }
+
+    document.getElementById('oauth-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+
+    // ── Toast notifications ───────────────────────────────────────────────────
+    function toast(message, type = 'info') {
+      const container = document.getElementById('toasts');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+
+      const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+      el.innerHTML = `<span style="font-weight:600">${icon}</span> ${message}`;
+
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.animation = 'none';
+        el.style.opacity   = '0';
+        el.style.transform = 'translateX(120%)';
+        el.style.transition = 'all 0.3s ease';
+        setTimeout(() => el.remove(), 300);
+      }, 3500);
+    }
+
+    // ── Handle OAuth callback redirect ────────────────────────────────────────
+    // If the page loads with ?success=true from the OAuth callback
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('success') === 'true') {
+      const platform = urlParams.get('platform') || 'social';
+      const count    = urlParams.get('accounts') || '1';
+      setTimeout(() => {
+        toast(`${platform} connected — ${count} account(s) linked!`, 'success');
+        loadAccounts();
+        // Clean URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }, 500);
+    }
+
+    if (urlParams.get('error')) {
+      setTimeout(() => {
+        toast(`OAuth error: ${decodeURIComponent(urlParams.get('error'))}`, 'error');
+        window.history.replaceState({}, '', window.location.pathname);
+      }, 500);
+    }
+  </script>
+</body>
+</html>
+```

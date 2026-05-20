@@ -8,6 +8,7 @@ const requestLogger = require('./middleware/requestLogger');
 const { globalRateLimiter } = require('./middleware/rateLimiter');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const { initSSESubscriber } = require('./middleware/sse');
+const { rawBody } = require('./middleware/rawBody');
 
 const healthRouter       = require('./modules/health/health.routes');
 const authRouter         = require('./modules/auth/auth.routes');
@@ -25,6 +26,7 @@ const paymentRouter      = require('./modules/payments/payment.routes');
 const chatRouter         = require('./modules/chat/chat.routes');
 const whatsappRouter     = require('./modules/whatsapp/webhook.routes');
 const socialRouter       = require('./modules/social/social.routes');
+const { verifyWebhook: fbVerify, handleWebhook: fbWebhook } = require('./modules/social/social.webhook');
 const aiRouter           = require('./modules/ai/ai.routes');
 const addonRouter        = require('./modules/addons/addon.routes');
 const freelancerRouter   = require('./modules/freelancers/freelancer.routes');
@@ -56,6 +58,10 @@ app.use(cors({
 // ── Raw body routes BEFORE express.json() ────────────────────────────────────
 app.use(`/api/${env.apiVersion}/payments`,  paymentRouter);
 app.use(`/api/${env.apiVersion}/whatsapp`,  whatsappRouter);
+
+// Social webhooks also need raw body
+app.get(`/api/${env.apiVersion}/social/webhook/facebook`, fbVerify);
+app.post(`/api/${env.apiVersion}/social/webhook/facebook`, rawBody, fbWebhook);
 
 // ── Standard body parsing ─────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));

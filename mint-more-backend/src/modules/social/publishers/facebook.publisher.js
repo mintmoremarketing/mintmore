@@ -179,4 +179,118 @@ const buildFacebookCaption = (post) => {
   return parts.join('\n\n');
 };
 
-module.exports = { publishToFacebook, getFacebookAnalytics, refreshFacebookToken };
+/**
+ * Validate that a page token is still valid and has required permissions.
+ * Call this before attempting to post.
+ */
+const validatePageToken = async (account) => {
+  try {
+    const res = await axios.get(`${FB_API}/me`, {
+      params: {
+        fields:       'id,name,tasks',
+        access_token: account.access_token,
+      },
+    });
+
+    if (!res.data.id) {
+      return { valid: false, reason: 'Token returned no page data' };
+    }
+
+    // Check page has CREATE_CONTENT task (required for posting)
+    const tasks = res.data.tasks || [];
+    if (!tasks.includes('CREATE_CONTENT') && !tasks.includes('MANAGE')) {
+      return {
+        valid:  false,
+        reason: 'Page token does not have CREATE_CONTENT permission. User may have revoked access.',
+      };
+    }
+
+    return { valid: true, page_id: res.data.id, page_name: res.data.name };
+  } catch (err) {
+    const errorCode = err.response?.data?.error?.code;
+    const errorMsg  = err.response?.data?.error?.message || err.message;
+
+    // Error code 190 = invalid/expired token
+    // Error code 200 = permission error
+    if (errorCode === 190) {
+      return { valid: false, reason: 'Token expired or invalid', code: 190 };
+    }
+    if (errorCode === 200) {
+      return { valid: false, reason: 'Permission revoked by user', code: 200 };
+    }
+
+    return { valid: false, reason: errorMsg };
+  }
+};
+
+/**
+ * Check if a page still exists and the app has access to it.
+ */
+const validatePageAccess = async (pageId, accessToken) => {
+  try {
+    const res = await axios.get(`${FB_API}/${pageId}`, {
+      params: {
+        fields:       'id,name,is_published',
+        access_token: accessToken,
+      },
+    });
+    return { accessible: true, page: res.data };
+  } catch (err) {
+    const code = err.response?.data?.error?.code;
+    if (code === 803 || code === 100) {
+      return { accessible: false, reason: 'Page no longer exists or was removed' };
+    }
+    return { accessible: false, reason: err.response?.data?.error?.message || err.message };
+  }
+};
+
+/**
+ * Handle Meta API rate limit.
+ * Returns true if we hit a rate limit and should retry after delay.
+ */
+const handleRateLimit = (error) => {
+  const code    = error.response?.data?.error?.code;
+  const subcode = error.response?.data?.error?.error_subcode;
+  const headers = error.response?.headers || {};
+
+  // Code 32 = app rate limit, code 613 = custom rate limit
+  if (code === 32 || code === 613 || error.response?.status === 429) {
+    const retryAfter = parseInt(headers['retry-after'] || headers['x-ratelimit-reset'] || '60', 10);
+    return { isRateLimit: true, retryAfterSeconds: retryAfter };
+  }
+  return { isRateLimit: false };
+};
+
+/**
+ * Publish with retry logic for rate limits.
+ * Wraps any publisher call with up to 3 retries on rate limit.
+ */
+const withRateLimitRetry = async (fn, maxRetries = 3) => {
+  let lastError;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      const { isRateLimit, retryAfterSeconds } = handleRateLimit(err);
+      if (isRateLimit && attempt < maxRetries) {
+        logger.warn(`Meta rate limit hit — retrying in ${retryAfterSeconds}s`, {
+          attempt, retryAfterSeconds,
+        });
+        await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
+};
+
+module.exports = {
+  publishToFacebook,
+  getFacebookAnalytics,
+  refreshFacebookToken,
+  validatePageToken,
+  validatePageAccess,
+  withRateLimitRetry,
+};

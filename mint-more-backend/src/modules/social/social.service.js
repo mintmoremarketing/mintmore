@@ -266,6 +266,15 @@ const getMyAccounts = async (userId) => {
        page_id, page_name,
        is_active, last_used_at, last_error,
        token_expires_at,
+       -- Days until token expires
+       GREATEST(0, EXTRACT(DAY FROM (token_expires_at - NOW()))::INTEGER) AS token_days_remaining,
+       -- Token expiry warning
+       CASE
+         WHEN token_expires_at IS NULL THEN 'unknown'
+         WHEN token_expires_at < NOW() THEN 'expired'
+         WHEN token_expires_at < NOW() + INTERVAL '7 days' THEN 'expiring_soon'
+         ELSE 'valid'
+       END AS token_status,
        created_at
      FROM social_accounts
      WHERE user_id = $1 AND is_active = true
@@ -492,16 +501,55 @@ const executePublish = async (postId) => {
   // Publish to each platform in parallel
   const results = await Promise.allSettled(
     platforms.map(async (platformRow) => {
-      // Refresh token if needed
+      // 1. Refresh token if expiring
       const account = await refreshTokenIfNeeded(platformRow);
+
+      // 2. Pre-flight validation
+      if (platformRow.platform === 'facebook') {
+        const { validatePageToken, validatePageAccess } = require('./publishers/facebook.publisher');
+
+        const tokenCheck = await validatePageToken(account);
+        if (!tokenCheck.valid) {
+          // Mark account inactive so user knows they need to reconnect
+          await query(
+            `UPDATE social_accounts SET is_active = false, last_error = $1 WHERE id = $2`,
+            [tokenCheck.reason, account.id]
+          );
+          throw new Error(`Facebook validation failed: ${tokenCheck.reason}`);
+        }
+
+        const pageCheck = await validatePageAccess(account.page_id, account.access_token);
+        if (!pageCheck.accessible) {
+          await query(
+            `UPDATE social_accounts SET is_active = false, last_error = $1 WHERE id = $2`,
+            [pageCheck.reason, account.id]
+          );
+          throw new Error(`Facebook page inaccessible: ${pageCheck.reason}`);
+        }
+      }
+
+      if (platformRow.platform === 'instagram') {
+        const { validateIGAccount } = require('./publishers/instagram.publisher');
+        const igCheck = await validateIGAccount(account);
+        if (!igCheck.valid) {
+          await query(
+            `UPDATE social_accounts SET last_error = $1 WHERE id = $2`,
+            [igCheck.reason, account.id]
+          );
+          throw new Error(`Instagram validation failed: ${igCheck.reason}`);
+        }
+      }
+
+      // 3. Publish with rate limit retry
+      const { withRateLimitRetry } = require('./publishers/facebook.publisher');
 
       let result;
       switch (platformRow.platform) {
         case 'facebook':
-          result = await publishToFacebook(account, post, media);
+          result = await withRateLimitRetry(() => publishToFacebook(account, post, media));
           break;
         case 'instagram':
-          result = await publishToInstagram(account, post, media);
+          result = await withRateLimitRetry(() => publishToInstagram(account, post, media));
           break;
         case 'youtube':
           result = await publishToYouTube(account, post, media);
@@ -510,21 +558,20 @@ const executePublish = async (postId) => {
           throw new Error(`Unknown platform: ${platformRow.platform}`);
       }
 
-      // Mark platform as published
+      // 4. Mark published
       await query(
         `UPDATE social_post_platforms
-         SET status           = 'published',
-             platform_post_id = $1,
+         SET status            = 'published',
+             platform_post_id  = $1,
              platform_post_url = $2,
-             published_at     = NOW(),
-             error_message    = NULL
+             published_at      = NOW(),
+             error_message     = NULL
          WHERE id = $3`,
         [result.platform_post_id, result.platform_post_url, platformRow.platform_row_id]
       );
 
-      // Update account last_used_at
       await query(
-        'UPDATE social_accounts SET last_used_at = NOW() WHERE id = $1',
+        'UPDATE social_accounts SET last_used_at = NOW(), last_error = NULL WHERE id = $1',
         [platformRow.id]
       );
 

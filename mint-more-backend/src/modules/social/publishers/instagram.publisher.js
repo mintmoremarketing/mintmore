@@ -17,7 +17,12 @@ const publishToInstagram = async (account, post, media) => {
   const accessToken = account.access_token;
 
   if (!igAccountId) {
-    throw new Error('No Instagram Business Account ID. Please reconnect your Facebook Page with Instagram.');
+    throw new Error(
+      'No Instagram Business Account found. To publish to Instagram, the user must: ' +
+      '(1) Have an Instagram Business or Creator account, ' +
+      '(2) Connect it to their Facebook Page in Instagram Settings → Account → Switch to Professional Account, ' +
+      '(3) Link the Instagram account to their Facebook Page in Page Settings → Instagram.'
+    );
   }
 
   try {
@@ -182,6 +187,62 @@ const getIgShortcode = async (mediaId, accessToken) => {
 };
 
 /**
+ * Validate Instagram Business Account is still accessible.
+ */
+const validateIGAccount = async (account) => {
+  if (!account.instagram_account_id) {
+    return {
+      valid:  false,
+      reason: 'No Instagram Business Account linked. The user must connect an Instagram Business or Creator account to their Facebook Page.',
+    };
+  }
+
+  try {
+    const res = await axios.get(
+      `${FB_API}/${account.instagram_account_id}`,
+      {
+        params: {
+          fields:       'id,name,username,account_type',
+          access_token: account.access_token,
+        },
+      }
+    );
+
+    const accountType = res.data.account_type;
+    if (!['BUSINESS', 'CREATOR'].includes(accountType)) {
+      return {
+        valid:  false,
+        reason: `Instagram account type is "${accountType}". Only Business or Creator accounts can publish via API. The user must convert their personal account.`,
+      };
+    }
+
+    return { valid: true, account_type: accountType };
+  } catch (err) {
+    const code = err.response?.data?.error?.code;
+    if (code === 190) {
+      return { valid: false, reason: 'Instagram access token expired or revoked' };
+    }
+    return { valid: false, reason: err.response?.data?.error?.message || err.message };
+  }
+};
+
+/**
+ * Check if a specific permission is granted on the current token.
+ */
+const checkPermission = async (accessToken, permission) => {
+  try {
+    const res = await axios.get(`${FB_API}/me/permissions`, {
+      params: { access_token: accessToken },
+    });
+    const perms   = res.data.data || [];
+    const granted = perms.find((p) => p.permission === permission && p.status === 'granted');
+    return !!granted;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Pull Instagram insights for a published post.
  */
 const getInstagramAnalytics = async (account, platformPostId) => {
@@ -220,4 +281,9 @@ const buildInstagramCaption = (post) => {
   return parts.join('\n\n');
 };
 
-module.exports = { publishToInstagram, getInstagramAnalytics };
+module.exports = {
+  publishToInstagram,
+  getInstagramAnalytics,
+  validateIGAccount,
+  checkPermission,
+};
