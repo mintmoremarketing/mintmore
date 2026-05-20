@@ -8,7 +8,11 @@ const stream = {
 
 const requestLogger = morgan(
   ':method :url :status :res[content-length] - :response-time ms',
-  { stream }
+  { 
+    stream,
+    // ✅ Skip logging if the request URL contains '/health'
+    skip: (req, res) => req.originalUrl.includes('/health')
+  }
 );
 
 module.exports = requestLogger;
