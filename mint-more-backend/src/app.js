@@ -68,9 +68,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(compression());
 app.use(requestLogger);
+app.use(`/api/${env.apiVersion}/health`,        healthRouter);
 app.use(`/api/${env.apiVersion}`, globalRateLimiter);
 
-app.use(`/api/${env.apiVersion}/health`,        healthRouter);
 app.use(`/api/${env.apiVersion}/auth`,          authRouter);
 app.use(`/api/${env.apiVersion}/profile`,       profileRouter);
 app.use(`/api/${env.apiVersion}/kyc`,           kycRouter);
