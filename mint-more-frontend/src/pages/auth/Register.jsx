@@ -12,6 +12,7 @@ export default function Register() {
 	const [password, setPassword] = useState('')
 	const [agreed, setAgreed] = useState(false)
 	const [error, setError] = useState('')
+	const [errorList, setErrorList] = useState([])
 
 	const { mutate, isPending } = useMutation({
 		mutationFn: () => authApi.register({ full_name: fullName, email, password, role }),
@@ -19,7 +20,10 @@ export default function Register() {
 			navigate('/pending-approval')
 		},
 		onError: (err) => {
-			setError(err.response?.data?.message || 'Registration failed')
+			const message = err.response?.data?.message || 'Registration failed'
+			const errors = err.response?.data?.errors
+			setError(message)
+			setErrorList(Array.isArray(errors) ? errors : [])
 		},
 	})
 
@@ -27,9 +31,11 @@ export default function Register() {
 		e.preventDefault()
 		if (!agreed) {
 			setError('Please accept the terms')
+			setErrorList([])
 			return
 		}
 		setError('')
+		setErrorList([])
 		mutate()
 	}
 
@@ -61,7 +67,18 @@ export default function Register() {
 					{error && (
 						<div className="error-banner" style={{ marginBottom: 16 }}>
 							<Icon name="shield" size={14} />
-							<span>{error}</span>
+							<div>
+								<div>{error}</div>
+								{errorList.length > 0 && (
+									<ul style={{ margin: '6px 0 0 16px', padding: 0, color: 'inherit' }}>
+										{errorList.map((item) => (
+											<li key={item} style={{ fontSize: 12 }}>
+												{item}
+											</li>
+										))}
+									</ul>
+								)}
+							</div>
 						</div>
 					)}
 
@@ -91,6 +108,9 @@ export default function Register() {
 					<div className="field" style={{ marginBottom: 12 }}>
 						<label className="field-label">Password</label>
 						<input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+						<div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+							At least 8 characters, 1 uppercase letter, and 1 number.
+						</div>
 					</div>
 
 					<div className="row" style={{ gap: 8, alignItems: 'flex-start', marginTop: 8, marginBottom: 8 }}>

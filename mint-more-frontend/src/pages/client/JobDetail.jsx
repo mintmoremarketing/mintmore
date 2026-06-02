@@ -1,119 +1,876 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { jobsApi } from '../../api/jobs'
+import { negotiationsApi } from '../../api/negotiations'
+import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import StatusChip from '../../components/ui/StatusChip'
+import Avatar from '../../components/ui/Avatar'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 
-export default function JobDetail() {
-	const { id } = useParams()
-	const navigate = useNavigate()
+// ── Progress timeline ─────────────────────────────────────────────────────────
 
-	const { data, isLoading } = useQuery({
-		queryKey: ['job', id],
-		queryFn: () => jobsApi.get(id).then((r) => r.data.data.job),
-	})
+const STAGES = [
+  { key: 'draft',      label: 'Drafted' },
+  { key: 'matching',   label: 'Matching' },
+  { key: 'negotiating',label: 'Negotiating' },
+  { key: 'in_progress',label: 'In progress' },
+  { key: 'completed',  label: 'Completed' },
+]
 
-	if (isLoading) {
-		return (
-			<div className="stack-6">
-				<SkeletonCard /><SkeletonCard />
-			</div>
-		)
-	}
-
-	if (!data) {
-		return (
-			<div className="empty">
-				<h3>Job not found</h3>
-				<button className="btn ghost" onClick={() => navigate('/jobs')}>Back to jobs</button>
-			</div>
-		)
-	}
-
-	const j = data
-
-	return (
-		<div className="stack-6">
-			<div>
-				<button className="btn link sm" onClick={() => navigate('/jobs')} style={{ padding: 0, color: 'var(--ink-500)', fontSize: 12 }}>
-					<Icon name="arrowLeft" size={12} /> All jobs
-				</button>
-				<div className="row between" style={{ marginTop: 8, flexWrap: 'wrap', gap: 10 }}>
-					<div>
-						<div className="row" style={{ gap: 8, marginBottom: 6 }}>
-							<span className="badge neutral">{j.category?.name}</span>
-							<StatusChip status={j.status} />
-						</div>
-						<h1 className="h-display h-1" style={{ margin: 0 }}>{j.title}</h1>
-					</div>
-				</div>
-			</div>
-
-			<div className="grid-2" style={{ gridTemplateColumns: '1fr 320px', gap: 18 }}>
-				<div className="stack" style={{ gap: 18 }}>
-					<div className="card" style={{ padding: 22 }}>
-						<div className="h-eyebrow" style={{ marginBottom: 10 }}>Brief</div>
-						<p style={{ fontSize: 13.5, lineHeight: 1.65, color: 'var(--ink-700)', margin: 0 }}>{j.description}</p>
-					</div>
-
-					{['locked', 'negotiating', 'pending_admin_approval'].includes(j.status) && (
-						<NegotiationPanel job={j} />
-					)}
-
-					{j.status === 'in_progress' && (
-						<div className="card" style={{ padding: 22 }}>
-							<div className="h-eyebrow" style={{ marginBottom: 10 }}>Messages</div>
-							<button className="btn ghost" onClick={() => navigate('/chat')}>
-								<Icon name="chat" /> Open full chat
-							</button>
-						</div>
-					)}
-				</div>
-
-				<div className="stack" style={{ gap: 14 }}>
-					<div className="card" style={{ padding: 18 }}>
-						<div className="h-eyebrow" style={{ marginBottom: 10 }}>Details</div>
-						<div className="stack" style={{ gap: 10, fontSize: 13 }}>
-							<div className="row between">
-								<span className="muted">Budget</span>
-								<span className="mono">{rupee(j.budget_amount || 0)}</span>
-							</div>
-							<div className="row between">
-								<span className="muted">Pricing</span>
-								<span style={{ textTransform: 'capitalize' }}>{j.pricing_mode}</span>
-							</div>
-							<div className="row between">
-								<span className="muted">Level</span>
-								<span style={{ textTransform: 'capitalize' }}>{j.required_level}</span>
-							</div>
-							{j.deadline && (
-								<div className="row between">
-									<span className="muted">Deadline</span>
-									<span>{new Date(j.deadline).toLocaleDateString('en-IN')}</span>
-								</div>
-							)}
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	)
+const STAGE_ORDER = {
+  draft: 0, open: 1, matching: 1,
+  locked: 2, negotiating: 2, pending_admin_approval: 2,
+  assigned: 3, in_progress: 3,
+  completed: 4, cancelled: -1,
 }
 
+function Timeline({ status }) {
+  const current = STAGE_ORDER[status] ?? 0
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 0,
+      padding: '18px 22px',
+      background: 'var(--paper)',
+      border: '1px solid var(--hairline)',
+      borderRadius: 'var(--radius-lg)',
+      overflow: 'auto',
+    }}>
+      {STAGES.map((stage, i) => {
+        const done    = current > i
+        const active  = current === i
+        const pending = current < i
+        return (
+          <div key={stage.key} style={{ display: 'flex', alignItems: 'center', flex: i < STAGES.length - 1 ? 1 : 'none', minWidth: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: done ? 'var(--ink-950)' : active ? 'var(--mint-500)' : 'var(--paper-tint)',
+                border: `2px solid ${done ? 'var(--ink-950)' : active ? 'var(--mint-500)' : 'var(--hairline-strong)'}`,
+                color: done || active ? 'white' : 'var(--ink-400)',
+                transition: 'all 0.2s ease',
+              }}>
+                {done
+                  ? <Icon name="check" size={12} strokeWidth={2.5} />
+                  : active
+                  ? <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />
+                  : <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ink-300)' }} />
+                }
+              </div>
+              <span style={{
+                fontSize: 11.5, fontWeight: active ? 600 : 400,
+                color: active ? 'var(--ink-950)' : done ? 'var(--ink-700)' : 'var(--ink-400)',
+                whiteSpace: 'nowrap',
+              }}>
+                {stage.label}
+              </span>
+            </div>
+            {i < STAGES.length - 1 && (
+              <div style={{
+                flex: 1, height: 2, margin: '0 6px',
+                marginBottom: 20,
+                background: done ? 'var(--ink-950)' : 'var(--hairline)',
+                transition: 'background 0.3s ease',
+              }} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Matching animation panel ──────────────────────────────────────────────────
+
+function MatchingPanel({ job }) {
+  const candidates = job.matched_candidates || []
+
+  return (
+    <div className="card" style={{ padding: 32, textAlign: 'center' }}>
+      {/* Radar animation */}
+      <div style={{ position: 'relative', width: 160, height: 160, margin: '0 auto 28px' }}>
+        {[120, 90, 60].map((size, i) => (
+          <div key={size} style={{
+            position: 'absolute',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: size, height: size,
+            borderRadius: '50%',
+            border: `1.5px solid var(--mint-${i === 0 ? '200' : i === 1 ? '300' : '400'})`,
+            animation: `pulse ${1.8 + i * 0.4}s ease-out infinite`,
+            animationDelay: `${i * 0.3}s`,
+            opacity: 0.7,
+          }} />
+        ))}
+        {/* Orbiting dots */}
+        <div style={{ position: 'absolute', top: '50%', left: '50%', width: 120, height: 120,
+          transform: 'translate(-50%, -50%)', animation: 'spin 4s linear infinite' }}>
+          <div style={{ position: 'absolute', top: 4, left: '50%', transform: 'translateX(-50%)',
+            width: 8, height: 8, borderRadius: '50%', background: 'var(--mint-500)' }} />
+        </div>
+        <div style={{ position: 'absolute', top: '50%', left: '50%', width: 90, height: 90,
+          transform: 'translate(-50%, -50%)', animation: 'spin 3s linear infinite reverse' }}>
+          <div style={{ position: 'absolute', top: 4, left: '50%', transform: 'translateX(-50%)',
+            width: 6, height: 6, borderRadius: '50%', background: 'var(--mint-400)' }} />
+        </div>
+        {/* Core */}
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 44, height: 44, borderRadius: '50%',
+          background: 'var(--mint-500)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'white', boxShadow: '0 0 0 6px rgba(16,185,129,0.15)',
+        }}>
+          <Icon name="radar" size={18} />
+        </div>
+      </div>
+
+      <div className="h-eyebrow" style={{ color: 'var(--mint-700)', marginBottom: 8 }}>MATCHING NOW</div>
+      <h2 className="h-display h-2" style={{ margin: '0 0 8px' }}>Finding the right creative.</h2>
+      <p className="muted" style={{ fontSize: 13.5, maxWidth: 380, margin: '0 auto 20px', lineHeight: 1.6 }}>
+        We're scanning 2,400+ verified {job.category?.name?.toLowerCase() || 'creative'}s across India.
+        Average match time is ~6 minutes.
+      </p>
+
+      {candidates.length > 0 && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', marginBottom: 20 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--mint-500)' }} />
+            <span style={{ fontSize: 13.5, fontWeight: 500 }}>
+              <strong>{candidates.length}</strong> of 4 creatives short-listed
+            </span>
+            <span className="muted" style={{ fontSize: 12 }}>~ 3 min remaining</span>
+          </div>
+          <div className="row" style={{ gap: 10, justifyContent: 'center', marginBottom: 24 }}>
+            <button className="btn ghost">Pause matching</button>
+            <button className="btn ghost"><Icon name="edit" size={13} /> Edit brief</button>
+          </div>
+          <div style={{ textAlign: 'left', marginTop: 4 }}>
+            <div className="h-eyebrow" style={{ marginBottom: 10 }}>SHORT-LIST ({candidates.length})</div>
+            <div className="stack" style={{ gap: 8 }}>
+              {candidates.map((c, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 14px',
+                  background: 'var(--paper-tint)',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: 'var(--radius-md)',
+                }}>
+                  <Avatar name={c.freelancer?.full_name || 'F'} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-950)' }}>
+                      {c.freelancer?.full_name || 'Matched creative'}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>
+                      {c.freelancer?.tagline || c.freelancer?.bio?.slice(0, 60) || 'Creative professional'}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--mint-700)' }}>
+                      {Math.round((c.score || 0.88) * 100)}% fit
+                    </div>
+                    {c.freelancer?.average_rating && (
+                      <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 2 }}>
+                        {c.freelancer.average_rating} ★ ({c.freelancer.review_count || 0})
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {candidates.length === 0 && (
+        <div className="row" style={{ gap: 10, justifyContent: 'center', marginTop: 4 }}>
+          <button className="btn ghost">Pause matching</button>
+          <button className="btn ghost"><Icon name="edit" size={13} /> Edit brief</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Negotiation panel ─────────────────────────────────────────────────────────
+
 function NegotiationPanel({ job }) {
-	return (
-		<div className="card" style={{ padding: 22 }}>
-			<div className="h-eyebrow" style={{ marginBottom: 10 }}>Negotiation</div>
-			<div style={{ padding: 14, background: 'var(--amber-bg)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(217,119,6,0.2)' }}>
-				<div style={{ fontSize: 13, fontWeight: 500, color: 'var(--amber)' }}>
-					Status: {job.status.replace(/_/g, ' ')}
-				</div>
-				<div style={{ fontSize: 12, color: 'var(--ink-600)', marginTop: 4 }}>
-					Full negotiation UI comes in Phase 2
-				</div>
-			</div>
-		</div>
-	)
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore((s) => s.pushToast)
+  const [showCounter, setShowCounter] = useState(false)
+  const [counterPrice, setCounterPrice] = useState('')
+  const [counterDays, setCounterDays] = useState('')
+  const [counterMsg, setCounterMsg] = useState('')
+
+  const neg = job.negotiation
+
+  const acceptMutation = useMutation({
+    mutationFn: () =>
+      negotiationsApi.clientRespond(job.id, { action: 'accept' }),
+    onSuccess: () => {
+      pushToast({
+        title: 'Offer accepted!',
+        body: 'Waiting for admin approval',
+        icon: 'check',
+      })
+      queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+    },
+    onError: (err) => {
+      pushToast({
+        title: 'Failed',
+        body: err.response?.data?.message || 'Try again',
+        tone: 'amber',
+        icon: 'x',
+      })
+    },
+  })
+
+  const counterMutation = useMutation({
+    mutationFn: () =>
+      negotiationsApi.clientRespond(job.id, {
+        action: 'counter',
+        proposed_price: parseFloat(counterPrice),
+        proposed_days: parseInt(counterDays, 10),
+        message: counterMsg || undefined,
+      }),
+    onSuccess: () => {
+      pushToast({
+        title: 'Counter sent',
+        body: 'Waiting for freelancer response',
+        icon: 'refresh',
+      })
+      queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+      setShowCounter(false)
+      setCounterPrice('')
+      setCounterDays('')
+      setCounterMsg('')
+    },
+    onError: (err) => {
+      pushToast({
+        title: 'Counter failed',
+        body: err.response?.data?.message || 'Try again',
+        tone: 'amber',
+        icon: 'x',
+      })
+    },
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: () =>
+      negotiationsApi.clientRespond(job.id, { action: 'reject' }),
+    onSuccess: () => {
+      pushToast({
+        title: 'Offer declined',
+        body: 'Job will be re-matched',
+        icon: 'refresh',
+      })
+      queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+    },
+    onError: (err) => {
+      pushToast({
+        title: 'Failed',
+        body: err.response?.data?.message || 'Try again',
+        tone: 'amber',
+        icon: 'x',
+      })
+    },
+  })
+
+  if (!neg)
+    return (
+      <div className="card" style={{ padding: 22 }}>
+        <div className="h-eyebrow" style={{ marginBottom: 10 }}>
+          Negotiation
+        </div>
+        <div
+          style={{
+            padding: 14,
+            background: 'var(--paper-tint)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--hairline)',
+            fontSize: 13,
+            color: 'var(--ink-600)',
+          }}
+        >
+          {job.status === 'locked'
+            ? 'A creative has been matched. Negotiation starting soon...'
+            : 'Negotiation details will appear here.'}
+        </div>
+      </div>
+    )
+
+  const rounds = neg.rounds || []
+  const lastRound = rounds[rounds.length - 1]
+  const isMyTurn =
+    neg.status === 'active' && lastRound?.sender_role === 'freelancer'
+  const isAgreed = neg.status === 'agreed'
+  const isRejected = neg.status === 'failed'
+  const isPendingAdmin = job.status === 'pending_admin_approval'
+
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <div className="row between" style={{ marginBottom: 16 }}>
+        <div className="h-eyebrow">Negotiation</div>
+        <div className="row" style={{ gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--ink-500)' }}>
+            Round {neg.current_round || 1} of {neg.max_rounds || 2}
+          </span>
+          {Array.from({ length: neg.max_rounds || 2 }).map((_, i) => (
+            <div
+              key={i}
+              style={{
+                width: 24,
+                height: 6,
+                borderRadius: 3,
+                background:
+                  i < (neg.current_round || 1)
+                    ? 'var(--ink-950)'
+                    : 'var(--hairline)',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {rounds.length > 0 && (
+        <div className="stack" style={{ gap: 10, marginBottom: 18 }}>
+          {rounds.map((r, i) => {
+            const isClient = r.sender_role === 'client'
+            return (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  flexDirection: isClient ? 'row-reverse' : 'row',
+                }}
+              >
+                <div
+                  className="avatar sm"
+                  style={{
+                    background: isClient ? 'var(--ink-950)' : 'var(--mint-100)',
+                    color: isClient ? 'white' : 'var(--mint-800)',
+                    flexShrink: 0,
+                  }}
+                >
+                  {isClient ? 'You' : 'C'}
+                </div>
+                <div
+                  style={{
+                    maxWidth: '72%',
+                    padding: '12px 14px',
+                    background: isClient ? 'var(--ink-950)' : 'var(--paper-tint)',
+                    color: isClient ? 'white' : 'var(--ink-900)',
+                    borderRadius: isClient ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
+                    border: isClient ? 'none' : '1px solid var(--hairline)',
+                  }}
+                >
+                  <div
+                    style={{ fontWeight: 600, fontSize: 16, marginBottom: 2 }}
+                  >
+                    ₹{Number(r.proposed_price || 0).toLocaleString('en-IN')}
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 400,
+                        opacity: 0.7,
+                        marginLeft: 8,
+                      }}
+                    >
+                      · {r.proposed_days} days
+                    </span>
+                  </div>
+                  {r.message && (
+                    <div
+                      style={{
+                        fontSize: 13,
+                        lineHeight: 1.55,
+                        opacity: 0.9,
+                        marginTop: 4,
+                      }}
+                    >
+                      {r.message}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {isMyTurn && !showCounter && (
+        <div
+          style={{
+            padding: 16,
+            background: 'var(--paper-tint)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--hairline)',
+          }}
+        >
+          <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 4 }}>
+            Creative offered ₹
+            {Number(lastRound?.proposed_price || 0).toLocaleString('en-IN')} ·{' '}
+            {lastRound?.proposed_days} days
+          </div>
+          {lastRound?.message && (
+            <div style={{ fontSize: 12.5, color: 'var(--ink-600)', marginBottom: 12 }}>
+              "{lastRound.message}"
+            </div>
+          )}
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              className="btn primary"
+              onClick={() => acceptMutation.mutate()}
+              disabled={acceptMutation.isPending}
+            >
+              <Icon name="check" size={13} />
+              {acceptMutation.isPending ? 'Accepting...' : 'Accept offer'}
+            </button>
+            {neg.current_round < (neg.max_rounds || 2) && (
+              <button className="btn ghost" onClick={() => setShowCounter(true)}>
+                Counter offer
+              </button>
+            )}
+            <button
+              className="btn ghost"
+              style={{ color: 'var(--rose)', borderColor: 'rgba(225,29,72,0.2)' }}
+              onClick={() => rejectMutation.mutate()}
+              disabled={rejectMutation.isPending}
+            >
+              {rejectMutation.isPending ? 'Declining...' : 'Decline'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showCounter && (
+        <div
+          style={{
+            padding: 16,
+            background: 'var(--paper-tint)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--hairline)',
+          }}
+        >
+          <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 14 }}>
+            Your counter offer
+          </div>
+          <div className="grid-2" style={{ gap: 10, marginBottom: 10 }}>
+            <div className="field">
+              <label className="field-label">Your price (₹)</label>
+              <input
+                className="input"
+                type="number"
+                value={counterPrice}
+                onChange={(e) => setCounterPrice(e.target.value)}
+                placeholder={String(lastRound?.proposed_price || '')}
+              />
+            </div>
+            <div className="field">
+              <label className="field-label">Delivery (days)</label>
+              <input
+                className="input"
+                type="number"
+                value={counterDays}
+                onChange={(e) => setCounterDays(e.target.value)}
+                placeholder={String(lastRound?.proposed_days || '')}
+              />
+            </div>
+          </div>
+          <div className="field" style={{ marginBottom: 12 }}>
+            <label className="field-label">Message (optional)</label>
+            <textarea
+              className="textarea"
+              rows={2}
+              value={counterMsg}
+              onChange={(e) => setCounterMsg(e.target.value)}
+              placeholder="Explain your counter offer..."
+            />
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              className="btn primary"
+              onClick={() => counterMutation.mutate()}
+              disabled={
+                counterMutation.isPending || !counterPrice || !counterDays
+              }
+            >
+              {counterMutation.isPending ? 'Sending...' : 'Send counter'}
+            </button>
+            <button className="btn ghost" onClick={() => setShowCounter(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(isAgreed || isPendingAdmin) && (
+        <div
+          style={{
+            padding: 14,
+            background: 'rgba(16,185,129,0.08)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid rgba(16,185,129,0.25)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13.5,
+              fontWeight: 500,
+              color: 'var(--mint-700)',
+              marginBottom: 4,
+            }}
+          >
+            ✓ Deal agreed at ₹
+            {Number(neg.agreed_price || 0).toLocaleString('en-IN')} ·{' '}
+            {neg.agreed_days} days
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>
+            Waiting for admin approval · Escrow will be held on approval
+          </div>
+        </div>
+      )}
+
+      {isRejected && (
+        <div
+          style={{
+            padding: 14,
+            background: 'rgba(225,29,72,0.06)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid rgba(225,29,72,0.2)',
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--rose)' }}>
+            Negotiation ended · Re-matching in progress
+          </div>
+        </div>
+      )}
+
+      {neg.status === 'active' && lastRound?.sender_role === 'client' && (
+        <div
+          style={{
+            padding: 14,
+            background: 'var(--paper-tint)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--hairline)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              color: 'var(--ink-600)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span className="typing-dots">
+              <span />
+              <span />
+              <span />
+            </span>
+            Waiting for creative's response...
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── In-progress panel ─────────────────────────────────────────────────────────
+
+function InProgressPanel({ job, navigate }) {
+  const freelancer = job.active_freelancer
+
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <div className="row between" style={{ marginBottom: 16 }}>
+        <div className="h-eyebrow">Active project</div>
+        <StatusChip status="in_progress" />
+      </div>
+
+      {freelancer && (
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, padding: '12px 14px', background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
+          <Avatar name={freelancer.full_name} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-950)' }}>{freelancer.full_name}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>{freelancer.tagline || 'Your assigned creative'}</div>
+          </div>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--mint-500)' }} />
+        </div>
+      )}
+
+      <button className="btn primary block" onClick={() => navigate('/chat')}>
+        <Icon name="chat" /> Open messages
+      </button>
+    </div>
+  )
+}
+
+// ── Completed panel ───────────────────────────────────────────────────────────
+
+function CompletedPanel({ job }) {
+  return (
+    <div className="card" style={{ padding: 22 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--mint-100)', color: 'var(--mint-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon name="check" size={16} strokeWidth={2.5} />
+        </div>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink-950)', marginBottom: 4 }}>Project completed</div>
+          <div style={{ fontSize: 13, color: 'var(--ink-600)', lineHeight: 1.55 }}>
+            Escrow has been released to the creative. Leave a review to help others find the right match.
+          </div>
+          <button className="btn primary" style={{ marginTop: 14 }}>
+            <Icon name="star" /> Leave a review
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+
+export default function JobDetail() {
+  const { id }   = useParams()
+  const navigate = useNavigate()
+
+  const { data: job, isLoading } = useQuery({
+    queryKey: ['job', id],
+    queryFn: async () => {
+      const res = await jobsApi.get(id)
+      const d   = res.data
+      const job = d?.data?.job ?? d?.data ?? null
+      if (!job || !job.id) throw new Error('Job not found')
+      return job
+    },
+  })
+
+  if (isLoading) return (
+    <div className="stack-6">
+      <div style={{ height: 40 }}><div className="skeleton" style={{ width: 120, height: 14, borderRadius: 6 }} /></div>
+      <SkeletonCard />
+      <SkeletonCard />
+    </div>
+  )
+
+  if (!job) return (
+    <div className="empty">
+      <h3>Job not found</h3>
+      <button className="btn ghost" onClick={() => navigate('/jobs')}>Back to jobs</button>
+    </div>
+  )
+
+  const isMatching    = ['open','matching'].includes(job.status)
+  const isNegotiating = ['locked','negotiating','pending_admin_approval'].includes(job.status)
+  const isInProgress  = ['assigned','in_progress'].includes(job.status)
+  const isCompleted   = job.status === 'completed'
+
+  return (
+    <div className="stack-6">
+
+      {/* Header */}
+      <div className="reveal" data-d="0">
+        <button
+          className="btn link sm"
+          onClick={() => navigate('/jobs')}
+          style={{ padding: 0, color: 'var(--ink-500)', fontSize: 12, marginBottom: 10 }}
+        >
+          <Icon name="arrowLeft" size={12} /> All jobs
+        </button>
+        <div className="row" style={{ gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+          {job.category?.name && <span className="badge neutral">{job.category.name}</span>}
+          <StatusChip status={job.status} />
+          <span style={{ fontSize: 12, color: 'var(--ink-500)' }}>
+            Posted {job.created_at ? new Date(job.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : ''}
+          </span>
+        </div>
+        <h1 className="h-display" style={{ fontSize: 32, margin: 0, lineHeight: 1.1, letterSpacing: '-0.02em' }}>
+          {job.title}
+        </h1>
+      </div>
+
+      {/* Timeline */}
+      <div className="reveal" data-d="1">
+        <Timeline status={job.status} />
+      </div>
+
+      {/* Body: 2-col layout */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) 300px',
+        gap: 18,
+        alignItems: 'start',
+      }}>
+
+        {/* Left column */}
+        <div className="stack" style={{ gap: 14 }}>
+
+          {/* Status-specific main panel */}
+          {isMatching    && <MatchingPanel job={job} />}
+          {isNegotiating && <NegotiationPanel job={job} />}
+          {isInProgress  && <InProgressPanel job={job} navigate={navigate} />}
+          {isCompleted   && <CompletedPanel job={job} />}
+
+          {/* The brief */}
+          <div className="card reveal" data-d="2" style={{ padding: 22 }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 12px', letterSpacing: '-0.01em' }}>
+              The brief
+            </h3>
+            <p style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--ink-700)', margin: '0 0 16px' }}>
+              {job.description}
+            </p>
+
+            {/* Skills tags */}
+            {job.required_skills?.length > 0 && (
+              <div className="row wrap" style={{ gap: 6, marginTop: 14 }}>
+                {job.required_skills.map(s => (
+                  <span key={s} className="badge neutral" style={{ padding: '5px 10px', fontSize: 12 }}>{s}</span>
+                ))}
+              </div>
+            )}
+
+            {/* Attachments */}
+            {job.attachments?.length > 0 && (
+              <>
+                <div style={{ height: 1, background: 'var(--hairline)', margin: '16px 0' }} />
+                <div className="h-eyebrow" style={{ marginBottom: 8 }}>Attachments</div>
+                <div className="row wrap" style={{ gap: 8 }}>
+                  {job.attachments.map((a, i) => (
+                    <a key={i} href={a.url || '#'} target="_blank" rel="noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '6px 12px', fontSize: 12.5, fontWeight: 400,
+                        background: 'var(--paper-tint)', border: '1px solid var(--hairline)',
+                        borderRadius: 'var(--radius-md)', color: 'var(--ink-800)',
+                        textDecoration: 'none', cursor: 'pointer',
+                      }}>
+                      <Icon name="paperclip" size={12} />
+                      {typeof a === 'string' ? a : a.name || `File ${i + 1}`}
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Right sidebar */}
+        <div className="stack" style={{ gap: 14 }}>
+
+          {/* At a glance */}
+          <div className="card reveal" data-d="3" style={{ padding: 18 }}>
+            <div className="h-eyebrow" style={{ marginBottom: 12 }}>At a glance</div>
+            <div className="stack" style={{ gap: 12 }}>
+
+              <div className="row between" style={{ fontSize: 13 }}>
+                <span style={{ color: 'var(--ink-500)' }}>Status</span>
+                <StatusChip status={job.status} />
+              </div>
+
+              <div style={{ height: 1, background: 'var(--hairline)' }} />
+
+              <div className="row between" style={{ fontSize: 13 }}>
+                <span style={{ color: 'var(--ink-500)' }}>Budget</span>
+                <span className="mono" style={{ fontWeight: 500, color: 'var(--ink-950)' }}>
+                  {job.pricing_mode === 'expert' ? '~' : ''}{rupee(job.budget_amount || 0)}
+                </span>
+              </div>
+
+              {job.deadline && (
+                <div className="row between" style={{ fontSize: 13 }}>
+                  <span style={{ color: 'var(--ink-500)' }}>Deadline</span>
+                  <span>{new Date(job.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                </div>
+              )}
+
+              <div className="row between" style={{ fontSize: 13 }}>
+                <span style={{ color: 'var(--ink-500)' }}>Level</span>
+                <span style={{ textTransform: 'capitalize' }}>{job.required_level || 'Any'}</span>
+              </div>
+
+              <div className="row between" style={{ fontSize: 13 }}>
+                <span style={{ color: 'var(--ink-500)' }}>Pricing</span>
+                <span style={{ textTransform: 'capitalize' }}>{job.pricing_mode || 'Budget'}</span>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Assigned freelancer (if any) */}
+          {job.active_freelancer && (
+            <div className="card reveal" data-d="4" style={{ padding: 18 }}>
+              <div className="h-eyebrow" style={{ marginBottom: 12 }}>Assigned creative</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <Avatar name={job.active_freelancer.full_name} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--ink-950)' }}>
+                    {job.active_freelancer.full_name}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>
+                    {job.active_freelancer.tagline || 'Creative professional'}
+                  </div>
+                </div>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--mint-500)', flexShrink: 0 }} />
+              </div>
+              {job.active_freelancer.average_rating > 0 && (
+                <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-600)' }}>
+                  ★ {job.active_freelancer.average_rating} · {job.active_freelancer.review_count} reviews
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Escrow info (if deal approved) */}
+          {['assigned','in_progress','completed'].includes(job.status) && (
+            <div className="card reveal" data-d="5" style={{ padding: 18 }}>
+              <div className="row between" style={{ marginBottom: 8 }}>
+                <div className="h-eyebrow">Escrow</div>
+                <Icon name="shield" size={13} style={{ color: 'var(--mint-600)' }} />
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--ink-700)', lineHeight: 1.55 }}>
+                {isCompleted
+                  ? 'Funds have been released to the creative.'
+                  : `${rupee(job.budget_amount || 0)} is securely held. Released only on your approval.`
+                }
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          {job.status === 'draft' && (
+            <div className="card reveal" data-d="5" style={{ padding: 18 }}>
+              <div className="h-eyebrow" style={{ marginBottom: 12 }}>Actions</div>
+              <div className="stack" style={{ gap: 8 }}>
+                <button className="btn primary block">
+                  <Icon name="radar" /> Publish brief
+                </button>
+                <button className="btn ghost block">
+                  <Icon name="edit" /> Edit brief
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Inline CSS for animations */}
+      <style>{`
+        @keyframes pulse {
+          0%   { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+          100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+        }
+        @keyframes spin {
+          from { transform: translate(-50%, -50%) rotate(0deg); }
+          to   { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  )
 }

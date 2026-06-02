@@ -1,0 +1,509 @@
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '../../store/auth'
+import { socialApi } from '../../api/social'
+import { useUIStore } from '../../store/ui'
+import Icon from '../../components/ui/Icon'
+import Tabs from '../../components/ui/Tabs'
+import Modal from '../../components/ui/Modal'
+import StatusChip from '../../components/ui/StatusChip'
+import { SkeletonCard } from '../../components/ui/Skeleton'
+import { timeAgo } from '../../utils/format'
+
+const PLATFORM_META = {
+  facebook:  { icon: 'facebook',  label: 'Facebook',  color: '#1877F2' },
+  instagram: { icon: 'instagram', label: 'Instagram',  color: '#E1306C' },
+  youtube:   { icon: 'youtube',   label: 'YouTube',    color: '#FF0000' },
+}
+
+function AccountCard({ account, onDisconnect }) {
+  const meta   = PLATFORM_META[account.platform] || {}
+  const isLow  = account.token_status === 'expiring_soon'
+  const isExp  = account.token_status === 'expired'
+
+  return (
+    <div style={{
+      background: 'var(--paper)', border: `1px solid ${isExp ? 'rgba(225,29,72,0.3)' : isLow ? 'rgba(217,119,6,0.3)' : 'var(--hairline)'}`,
+      borderRadius: 'var(--radius-lg)', padding: 18,
+    }}>
+      <div className="row between" style={{ marginBottom: 12 }}>
+        <div className="row" style={{ gap: 10 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: `${meta.color}18`, color: meta.color,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <Icon name={meta.icon} size={18} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 500, fontSize: 14 }}>
+              {account.page_name || account.platform_name || account.platform_username}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-500)', textTransform: 'capitalize' }}>
+              {meta.label}
+            </div>
+          </div>
+        </div>
+        <button
+          className="btn ghost"
+          style={{ fontSize: 12, color: 'var(--rose)' }}
+          onClick={() => onDisconnect(account.id)}
+        >
+          Disconnect
+        </button>
+      </div>
+
+      {/* Token status */}
+      <div style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{
+          width: 7, height: 7, borderRadius: '50%',
+          background: isExp ? 'var(--rose)' : isLow ? 'var(--amber)' : 'var(--mint-500)',
+        }} />
+        {isExp ? (
+          <span style={{ color: 'var(--rose)', fontWeight: 500 }}>Token expired — reconnect needed</span>
+        ) : isLow ? (
+          <span style={{ color: 'var(--amber)' }}>
+            Expires in {account.token_days_remaining} days
+          </span>
+        ) : (
+          <span style={{ color: 'var(--ink-500)' }}>
+            Connected · {account.token_days_remaining ? `${account.token_days_remaining} days remaining` : 'Valid'}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CreatePostModal({ accounts, onClose, onCreated }) {
+  const pushToast   = useUIStore(s => s.pushToast)
+  const queryClient = useQueryClient()
+  const fileRef     = useState(null)
+
+  const [caption,     setCaption]     = useState('')
+  const [hashtags,    setHashtags]    = useState('')
+  const [contentType, setContentType] = useState('text')
+  const [selectedPlatforms, setSelectedPlatforms] = useState([])
+  const [scheduleDate, setScheduleDate] = useState('')
+  const [mediaFile,   setMediaFile]   = useState(null)
+  const [step,        setStep]        = useState(1)
+
+  const togglePlatform = (id) => {
+    setSelectedPlatforms(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    )
+  }
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      // 1. Create post
+      const postRes = await socialApi.createPost({
+        caption,
+        hashtags: hashtags.split(' ').filter(Boolean),
+        content_type:     contentType,
+        target_platforms: selectedPlatforms,
+      })
+      const post = postRes.data.data.post
+
+      // 2. Upload media if any
+      if (mediaFile) {
+        const fd = new FormData()
+        fd.append('media', mediaFile)
+        fd.append('media_type', mediaFile.type.startsWith('video') ? 'video' : 'image')
+        await socialApi.addMedia(post.id, fd)
+      }
+
+      // 3. Publish or schedule
+      await socialApi.publishPost(post.id, {
+        publish_at: scheduleDate || undefined,
+        platforms:  selectedPlatforms,
+      })
+
+      return post
+    },
+    onSuccess: () => {
+      pushToast({ title: scheduleDate ? 'Post scheduled!' : 'Post published!', icon: 'check' })
+      queryClient.invalidateQueries({ queryKey: ['social-posts'] })
+      onCreated()
+      onClose()
+    },
+    onError: err => pushToast({ title: 'Failed', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
+  })
+
+  const connectedPlatforms = accounts.filter(a => a.is_active)
+
+  return (
+    <Modal
+      title="Create post"
+      subtitle={`Step ${step} of 3`}
+      onClose={onClose}
+      maxWidth={520}
+      footer={
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          {step > 1 && <button className="btn ghost" onClick={() => setStep(s => s - 1)}>Back</button>}
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          {step < 3 ? (
+            <button className="btn primary" onClick={() => setStep(s => s + 1)}
+              disabled={step === 1 && !caption.trim()}>
+              Continue <Icon name="arrowRight" />
+            </button>
+          ) : (
+            <button
+              className="btn primary"
+              onClick={() => createMutation.mutate()}
+              disabled={createMutation.isPending || selectedPlatforms.length === 0}
+            >
+              {createMutation.isPending ? 'Publishing…' : scheduleDate ? 'Schedule post' : 'Publish now'}
+            </button>
+          )}
+        </div>
+      }
+    >
+      {step === 1 && (
+        <div className="stack" style={{ gap: 16 }}>
+          <div>
+            <label className="field-label" style={{ marginBottom: 8, display: 'block' }}>Content type</label>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              {['text','image','video','carousel','reel'].map(type => (
+                <button
+                  key={type}
+                  className={`badge ${contentType === type ? 'violet' : 'neutral'}`}
+                  style={{ padding: '6px 12px', cursor: 'pointer', border: 'none', textTransform: 'capitalize' }}
+                  onClick={() => setContentType(type)}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="field">
+            <label className="field-label">Caption</label>
+            <textarea
+              className="textarea"
+              rows={5}
+              value={caption}
+              onChange={e => setCaption(e.target.value)}
+              placeholder="Write your caption…"
+            />
+            <div style={{ fontSize: 11.5, color: 'var(--ink-400)', marginTop: 4 }}>
+              {caption.length} characters
+            </div>
+          </div>
+
+          <div className="field">
+            <label className="field-label">Hashtags</label>
+            <input
+              className="input"
+              value={hashtags}
+              onChange={e => setHashtags(e.target.value)}
+              placeholder="#marketing #india #creative"
+            />
+          </div>
+
+          {contentType !== 'text' && (
+            <div className="field">
+              <label className="field-label">Media file</label>
+              <div
+                style={{
+                  height: 100, borderRadius: 'var(--radius-md)',
+                  border: '2px dashed var(--hairline)', background: 'var(--paper-tint)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: 'var(--ink-400)',
+                }}
+                onClick={() => document.getElementById('social-media-upload')?.click()}
+              >
+                {mediaFile ? (
+                  <span style={{ fontSize: 13, color: 'var(--ink-700)' }}>
+                    <Icon name="check" size={13} style={{ color: 'var(--mint-600)' }} /> {mediaFile.name}
+                  </span>
+                ) : (
+                  <div style={{ textAlign: 'center' }}>
+                    <Icon name="upload" size={20} />
+                    <div style={{ fontSize: 12, marginTop: 6 }}>Click to upload</div>
+                  </div>
+                )}
+              </div>
+              <input
+                id="social-media-upload"
+                type="file"
+                accept="image/*,video/*"
+                style={{ display: 'none' }}
+                onChange={e => setMediaFile(e.target.files?.[0] || null)}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="stack" style={{ gap: 12 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 4 }}>
+            Select platforms to publish to
+          </div>
+          {connectedPlatforms.length === 0 ? (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-500)', fontSize: 13 }}>
+              No connected accounts. Go to the Accounts tab to connect.
+            </div>
+          ) : (
+            connectedPlatforms.map(acc => {
+              const meta    = PLATFORM_META[acc.platform] || {}
+              const selected = selectedPlatforms.includes(acc.id)
+              return (
+                <div
+                  key={acc.id}
+                  onClick={() => togglePlatform(acc.id)}
+                  style={{
+                    display: 'flex', gap: 12, alignItems: 'center',
+                    padding: '12px 14px',
+                    background: selected ? 'rgba(16,185,129,0.06)' : 'var(--paper-tint)',
+                    border: `1.5px solid ${selected ? 'rgba(16,185,129,0.4)' : 'var(--hairline)'}`,
+                    borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                    transition: 'all 0.12s',
+                  }}
+                >
+                  <Icon name={meta.icon} size={16} style={{ color: meta.color }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 500 }}>
+                      {acc.page_name || acc.platform_name}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-500)', textTransform: 'capitalize' }}>
+                      {meta.label}
+                    </div>
+                  </div>
+                  <div style={{
+                    width: 20, height: 20, borderRadius: '50%',
+                    border: `2px solid ${selected ? 'var(--mint-500)' : 'var(--hairline-strong)'}`,
+                    background: selected ? 'var(--mint-500)' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {selected && <Icon name="check" size={11} strokeWidth={3} style={{ color: 'white' }} />}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="stack" style={{ gap: 18 }}>
+          <div style={{ padding: 16, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
+            <div className="h-eyebrow" style={{ marginBottom: 8 }}>Post summary</div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--ink-700)', marginBottom: 10 }}>
+              {caption.slice(0, 120)}{caption.length > 120 ? '…' : ''}
+            </div>
+            <div className="row" style={{ gap: 8 }}>
+              {selectedPlatforms.map(id => {
+                const acc  = connectedPlatforms.find(a => a.id === id)
+                const meta = PLATFORM_META[acc?.platform] || {}
+                return (
+                  <span key={id} className="badge neutral" style={{ fontSize: 12 }}>
+                    <Icon name={meta.icon} size={11} style={{ color: meta.color }} />
+                    &nbsp;{acc?.page_name || meta.label}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="field">
+            <label className="field-label">Schedule (leave empty to publish now)</label>
+            <input
+              className="input"
+              type="datetime-local"
+              value={scheduleDate}
+              onChange={e => setScheduleDate(e.target.value)}
+            />
+          </div>
+
+          {scheduleDate && (
+            <div style={{ fontSize: 13, color: 'var(--ink-600)', display: 'flex', gap: 6, alignItems: 'center' }}>
+              <Icon name="clock" size={13} />
+              Scheduled for {new Date(scheduleDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+export default function Social() {
+  const { accessToken } = useAuthStore()
+  const queryClient     = useQueryClient()
+  const pushToast       = useUIStore(s => s.pushToast)
+  const [tab,          setTab]         = useState('accounts')
+  const [showCreate,   setShowCreate]  = useState(false)
+  const [postFilter,   setPostFilter]  = useState('all')
+
+  const { data: accountsData, isLoading: accLoading } = useQuery({
+    queryKey: ['social-accounts'],
+    queryFn:  () => socialApi.getAccounts().then(r => r.data.data),
+  })
+
+  const { data: postsData, isLoading: postsLoading } = useQuery({
+    queryKey: ['social-posts', postFilter],
+    queryFn:  () => socialApi.listPosts(postFilter !== 'all' ? { status: postFilter } : {}).then(r => r.data.data),
+    enabled:  tab === 'posts',
+  })
+
+  const disconnectMutation = useMutation({
+    mutationFn: (id) => socialApi.disconnect(id),
+    onSuccess: () => {
+      pushToast({ title: 'Account disconnected', icon: 'check' })
+      queryClient.invalidateQueries({ queryKey: ['social-accounts'] })
+    },
+  })
+
+  const accounts = accountsData?.accounts || []
+  const posts    = postsData?.posts || []
+
+  return (
+    <div className="stack-6">
+      <div className="row between reveal">
+        <div>
+          <div className="h-eyebrow" style={{ marginBottom: 4 }}>Social media</div>
+          <h1 className="h-display h-1" style={{ margin: 0 }}>Publish &amp; schedule</h1>
+        </div>
+        {tab === 'posts' && (
+          <button className="btn primary" onClick={() => setShowCreate(true)}>
+            <Icon name="plus" /> Create post
+          </button>
+        )}
+      </div>
+
+      <Tabs value={tab} onChange={setTab} items={[
+        { value: 'accounts', label: 'Connected accounts' },
+        { value: 'posts',    label: 'Posts' },
+      ]} />
+
+      {/* Accounts tab */}
+      {tab === 'accounts' && (
+        <div className="stack" style={{ gap: 14 }}>
+          {/* Connect buttons */}
+          <div className="card reveal" style={{ padding: 20 }}>
+            <div className="h-eyebrow" style={{ marginBottom: 14 }}>Add account</div>
+            <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+              <button
+                className="btn ghost"
+                onClick={() => socialApi.connectFacebook(accessToken)}
+              >
+                <Icon name="facebook" size={14} style={{ color: '#1877F2' }} />
+                Connect Facebook &amp; Instagram
+              </button>
+              <button
+                className="btn ghost"
+                onClick={() => socialApi.connectYouTube(accessToken)}
+              >
+                <Icon name="youtube" size={14} style={{ color: '#FF0000' }} />
+                Connect YouTube
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 10 }}>
+              You'll be redirected to connect your own Facebook Pages and Instagram accounts.
+            </div>
+          </div>
+
+          {/* Connected accounts */}
+          {accLoading ? (
+            <SkeletonCard />
+          ) : accounts.length === 0 ? (
+            <div className="empty">
+              <div className="empty-glyph"><Icon name="layers" size={22} /></div>
+              <h3>No accounts connected</h3>
+              <p>Connect your Facebook Pages, Instagram Business accounts, or YouTube channel.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+              {accounts.map(acc => (
+                <AccountCard
+                  key={acc.id}
+                  account={acc}
+                  onDisconnect={(id) => disconnectMutation.mutate(id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Posts tab */}
+      {tab === 'posts' && (
+        <div className="stack" style={{ gap: 14 }}>
+          <div className="row" style={{ gap: 10 }}>
+            <Tabs value={postFilter} onChange={setPostFilter} items={[
+              { value: 'all',       label: 'All' },
+              { value: 'draft',     label: 'Drafts' },
+              { value: 'scheduled', label: 'Scheduled' },
+              { value: 'published', label: 'Published' },
+              { value: 'failed',    label: 'Failed' },
+            ]} />
+            <button className="btn primary" style={{ marginLeft: 'auto' }} onClick={() => setShowCreate(true)}>
+              <Icon name="plus" /> Create post
+            </button>
+          </div>
+
+          {postsLoading ? (
+            <div className="stack" style={{ gap: 10 }}>
+              <SkeletonCard /><SkeletonCard />
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="empty">
+              <div className="empty-glyph"><Icon name="layers" size={22} /></div>
+              <h3>No {postFilter !== 'all' ? postFilter : ''} posts</h3>
+              <p>Create and schedule posts to your connected accounts.</p>
+              <button className="btn primary" onClick={() => setShowCreate(true)}>
+                <Icon name="plus" /> Create post
+              </button>
+            </div>
+          ) : (
+            <div className="stack" style={{ gap: 10 }}>
+              {posts.map(post => (
+                <div key={post.id} style={{ background: 'var(--paper)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-lg)', padding: 18 }}>
+                  <div className="row between" style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 500, flex: 1, minWidth: 0 }}>
+                      {post.caption?.slice(0, 80)}{post.caption?.length > 80 ? '…' : ''}
+                    </div>
+                    <span className={`badge ${post.status === 'published' ? 'mint' : post.status === 'failed' ? 'rose' : post.status === 'scheduled' ? 'violet' : 'neutral'}`} style={{ flexShrink: 0, marginLeft: 10 }}>
+                      <span className="bdot" />{post.status}
+                    </span>
+                  </div>
+
+                  <div className="row" style={{ gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                    {(post.target_platforms || []).map(p => {
+                      const meta = PLATFORM_META[p] || {}
+                      return (
+                        <span key={p} style={{ fontSize: 12, display: 'flex', gap: 4, alignItems: 'center', color: 'var(--ink-500)' }}>
+                          <Icon name={meta.icon} size={12} style={{ color: meta.color }} />
+                          {meta.label}
+                        </span>
+                      )
+                    })}
+                  </div>
+
+                  <div style={{ fontSize: 12, color: 'var(--ink-400)' }}>
+                    {post.publish_at
+                      ? `Scheduled: ${new Date(post.publish_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`
+                      : post.published_at
+                      ? `Published: ${timeAgo(post.published_at)}`
+                      : `Created: ${timeAgo(post.created_at)}`
+                    }
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showCreate && (
+        <CreatePostModal
+          accounts={accounts}
+          onClose={() => setShowCreate(false)}
+          onCreated={() => queryClient.invalidateQueries({ queryKey: ['social-posts'] })}
+        />
+      )}
+    </div>
+  )
+}
