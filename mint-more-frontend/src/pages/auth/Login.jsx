@@ -1,13 +1,29 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react' // --- RECENTLY CHANGED PART --- Added useEffect
 import { useNavigate, Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { authApi } from '../../api/auth'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../../components/ui/Icon'
 
+// --- RECENTLY CHANGED PART ---
+// Added the useIsMobile hook for responsive layout
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  return isMobile
+}
+// -----------------------------
+
 export default function Login() {
 	const navigate = useNavigate()
 	const setAuth = useAuthStore((s) => s.setAuth)
+	const isMobile = useIsMobile() // --- RECENTLY CHANGED PART --- Call the hook
 
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
@@ -17,7 +33,10 @@ export default function Login() {
 	const { mutate, isPending } = useMutation({
 		mutationFn: () => authApi.login(email, password),
 		onSuccess: ({ data }) => {
+			// --- RECENTLY CHANGED PART ---
+			// Restored accessToken and refreshToken to fix the routing loop!
 			setAuth(data.data.user, data.data.accessToken, data.data.refreshToken)
+			// -----------------------------
 			const role = data.data.user.role
 			navigate(role === 'admin' ? '/admin' : '/dashboard')
 		},
@@ -33,7 +52,10 @@ export default function Login() {
 	}
 
 	return (
-		<div className="auth-shell">
+		// --- RECENTLY CHANGED PART ---
+		// Dynamically append 'mobile' class
+		<div className={`auth-shell${isMobile ? ' mobile' : ''}`}>
+		{/* ----------------------------- */}
 			<aside className="auth-aside">
 				<div>
 					<div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>
@@ -78,6 +100,38 @@ export default function Login() {
 
 			<div className="auth-form-wrap">
 				<form className="auth-form" onSubmit={submit}>
+
+					{/* --- RECENTLY CHANGED PART --- */}
+					{/* Expanded mobile-only branding */}
+					{isMobile && (
+						<div style={{ textAlign: 'center', marginBottom: 32 }}>
+							<div style={{
+								fontFamily: 'var(--font-display)', fontSize: 26,
+								fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 8
+							}}>
+								Mint<span style={{ color: 'var(--mint-500)', fontStyle: 'italic', fontWeight: 500 }}>more</span>
+							</div>
+							<p style={{ 
+								color: 'var(--ink-500)', fontSize: 13.5, lineHeight: 1.5, 
+								maxWidth: 280, margin: '0 auto' 
+							}}>
+								Creative services for Indian businesses. We find the right talent for you.
+							</p>
+							<div style={{
+								display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center',
+								color: 'var(--ink-400)', fontSize: 12, marginTop: 16,
+								padding: '10px', background: 'var(--ink-50)', borderRadius: '8px'
+							}}>
+								<span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+									 200+ brands
+								</span>
+								<span>·</span>
+								<span>2,400+ creatives</span>
+							</div>
+						</div>
+					)}
+					{/* ----------------------------- */}
+
 					<div className="h-eyebrow" style={{ marginBottom: 6 }}>Welcome back</div>
 					<h1 className="h-display h-1" style={{ marginTop: 0, marginBottom: 6 }}>Sign in to your studio</h1>
 					<p className="muted" style={{ fontSize: 13.5, marginBottom: 26 }}>Pick up where you left off.</p>

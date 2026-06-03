@@ -14,6 +14,7 @@ const TOOLS = [
   { value: 'video',        icon: 'radar',       label: 'Generate video',  desc: 'Text-to-video, image-to-video' },
 ]
 
+
 const TRAFFIC_COLORS = {
   idle:     'var(--mint-500)',
   low:      'var(--mint-600)',
@@ -179,6 +180,17 @@ export default function MintAI() {
     refetchInterval: 30_000,
   })
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 900)
+
+useEffect(() => {
+  const handleResize = () => {
+    setIsMobile(window.innerWidth < 900)
+  }
+
+  window.addEventListener('resize', handleResize)
+  return () => window.removeEventListener('resize', handleResize)
+}, [])
+
   const { data: usageData } = useQuery({
     queryKey: ['ai-usage'],
     queryFn:  () => aiApi.getUsage().then(r => r.data.data),
@@ -253,201 +265,287 @@ export default function MintAI() {
   const totalRate = Number.isFinite(Number(totalRateRaw)) ? Number(totalRateRaw) : 20
 
   return (
-    <div className="stack-6">
-      <div className="reveal">
-        <div className="h-eyebrow" style={{ marginBottom: 4 }}>Mint AI</div>
-        <h1 className="h-display h-1" style={{ margin: 0 }}>Generate content</h1>
+  <div className="stack-6">
+
+    {/* Hero */}
+    <div
+      className="card reveal"
+      style={{
+        padding: isMobile ? 20 : 32,
+      }}
+    >
+      <div className="h-eyebrow">Mint AI</div>
+
+      <h1
+        className="h-display h-1"
+        style={{
+          marginTop: 8,
+          marginBottom: 8
+        }}
+      >
+        Generate content
+      </h1>
+
+      <div style={{ color: 'var(--ink-500)' }}>
+        Create text, captions, scripts, images and videos using AI.
+      </div>
+    </div>
+
+    {/* Tools */}
+    <div
+      className="card reveal"
+      style={{
+        padding: 14
+      }}
+    >
+      <div className="h-eyebrow" style={{ marginBottom: 10 }}>
+        Tool type
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 260px', gap: 18, alignItems: 'start' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'row' : 'column',
+          overflowX: isMobile ? 'auto' : 'visible',
+          gap: 8
+        }}
+      >
+        {TOOLS.map(tool => (
+          <button
+            key={tool.value}
+            onClick={() => {
+              setActiveTool(tool.value)
+              setResult(null)
+              setPrompt('')
+            }}
+            style={{
+              minWidth: isMobile ? 180 : 'auto',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+              padding: '12px',
+              textAlign: 'left',
+              background:
+                activeTool === tool.value
+                  ? 'var(--ink-950)'
+                  : 'transparent',
+              color:
+                activeTool === tool.value
+                  ? 'white'
+                  : 'var(--ink-700)',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              cursor: 'pointer'
+            }}
+          >
+            <Icon name={tool.icon} size={14} />
 
-        {/* Left — tool selector */}
-        <div className="card reveal" style={{ padding: 14 }}>
-          <div className="h-eyebrow" style={{ marginBottom: 10 }}>Tool type</div>
-          <div className="stack" style={{ gap: 4 }}>
-            {TOOLS.map(tool => (
-              <button
-                key={tool.value}
-                onClick={() => { setActiveTool(tool.value); setResult(null); setPrompt('') }}
+            <div>
+              <div
                 style={{
-                  display: 'flex', gap: 10, alignItems: 'center',
-                  padding: '10px 12px', textAlign: 'left',
-                  background: activeTool === tool.value ? 'var(--ink-950)' : 'transparent',
-                  color:      activeTool === tool.value ? 'white' : 'var(--ink-700)',
-                  border: 'none', borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer', transition: 'all 0.1s',
+                  fontSize: 13,
+                  fontWeight: 500
                 }}
               >
-                <Icon name={tool.icon} size={14} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{tool.label}</div>
-                  <div style={{ fontSize: 11, opacity: 0.7, marginTop: 1 }}>{tool.desc}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Usage indicator */}
-          <div style={{ marginTop: 20, padding: '10px 12px', background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
-            <div style={{ fontSize: 11, color: 'var(--ink-500)', marginBottom: 6 }}>
-              Requests this hour
-            </div>
-            <div style={{ height: 4, background: 'var(--hairline)', borderRadius: 2, overflow: 'hidden', marginBottom: 6 }}>
-              <div style={{
-                height: '100%', borderRadius: 2,
-                width: `${(rateLimit / totalRate) * 100}%`,
-                background: rateLimit < 5 ? 'var(--rose)' : 'var(--mint-500)',
-                transition: 'width 0.3s',
-              }} />
-            </div>
-            <div style={{ fontSize: 11.5, color: 'var(--ink-600)' }}>
-              {rateLimit}/{totalRate} remaining
-            </div>
-          </div>
-        </div>
-
-        {/* Centre — generate */}
-        <div className="stack reveal" style={{ gap: 14 }}>
-
-          {/* Model selector */}
-          <div style={{
-            padding: 14, background: 'var(--paper)',
-            border: '1px solid var(--hairline)', borderRadius: 'var(--radius-lg)',
-          }}>
-            <div className="row between" style={{ marginBottom: showPicker ? 14 : 0 }}>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                {selectedModel ? (
-                  <>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: TRAFFIC_COLORS[selectedModel.traffic_status || 'idle'] }} />
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>{selectedModel.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>{selectedModel.provider_name}</div>
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ fontSize: 13.5, color: 'var(--ink-500)' }}>Select an AI model</div>
-                )}
+                {tool.label}
               </div>
-              <button
-                className="btn ghost"
-                style={{ fontSize: 12 }}
-                onClick={() => setShowPicker(!showPicker)}
+
+              <div
+                style={{
+                  fontSize: 11,
+                  opacity: .7
+                }}
               >
-                {showPicker ? 'Close' : 'Change model'} <Icon name={showPicker ? 'chevronDown' : 'chevronRight'} size={12} />
-              </button>
+                {tool.desc}
+              </div>
             </div>
-            {showPicker && (
+          </button>
+        ))}
+      </div>
+    </div>
+
+    {/* Main content */}
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns:
+          isMobile
+            ? '1fr'
+            : '1fr 280px',
+        gap: 18
+      }}
+    >
+
+      {/* Left */}
+      <div className="stack" style={{ gap: 14 }}>
+
+        {/* Model */}
+        <div
+          className="card"
+          style={{ padding: 14 }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: isMobile ? 'flex-start' : 'center',
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: 10
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: 'var(--ink-500)'
+                }}
+              >
+                Active model
+              </div>
+
+              <div
+                style={{
+                  fontWeight: 600
+                }}
+              >
+                {selectedModel?.name || 'No model selected'}
+              </div>
+            </div>
+
+            <button
+              className="btn ghost"
+              onClick={() => setShowPicker(!showPicker)}
+            >
+              Change model
+            </button>
+          </div>
+
+          {showPicker && (
+            <div style={{ marginTop: 14 }}>
               <ModelPicker
                 models={models}
                 selected={selectedModel}
-                onSelect={(m) => { setSelectedModel(m); setShowPicker(false) }}
+                onSelect={(m) => {
+                  setSelectedModel(m)
+                  setShowPicker(false)
+                }}
                 toolType={activeTool}
-              />
-            )}
-          </div>
-
-          {/* Prompt */}
-          <div className="field">
-            <div className="row between" style={{ marginBottom: 6 }}>
-              <label className="field-label">{currentTool?.label} prompt</label>
-              <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>{currentTool?.desc}</span>
-            </div>
-            <textarea
-              className="textarea"
-              rows={6}
-              value={prompt}
-              onChange={e => setPrompt(e.target.value)}
-              placeholder={
-                activeTool === 'text'         ? 'Write a 500-word blog post about sustainable fashion for Indian women aged 25-35…' :
-                activeTool === 'caption'      ? 'Write an Instagram caption for a new collection of handloom sarees launching for Diwali…' :
-                activeTool === 'video_script' ? 'Write a 60-second Reels script for a Diwali campaign for a handloom saree brand…' :
-                activeTool === 'image'        ? 'A minimal product photo of a handwoven silk saree on a clean white background, studio lighting…' :
-                activeTool === 'video'        ? 'A slow pan over a handloom weaving loom in Varanasi, golden morning light, cinematic…' :
-                'Describe your content…'
-              }
-            />
-          </div>
-
-          {/* Generate button */}
-          <button
-            className="btn primary block lg"
-            onClick={() => generateMutation.mutate()}
-            disabled={generateMutation.isPending || !selectedModel || !prompt.trim() || pollingId}
-          >
-            {pollingId ? (
-              <>
-                <span className="typing-dots" style={{ marginLeft: -4 }}>
-                  <span style={{ background: 'white' }} /><span style={{ background: 'white' }} /><span style={{ background: 'white' }} />
-                </span>
-                Generating…
-              </>
-            ) : (
-              <><Icon name="sparkles" /> Generate with {selectedModel?.name || '—'}</>
-            )}
-          </button>
-
-          {/* Result */}
-          {result && (
-            <div style={{ background: 'var(--paper)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
-              <div className="h-eyebrow" style={{ marginBottom: 14 }}>Result</div>
-              <GenerationResult
-                generation={result}
-                onCopy={() => pushToast({ title: 'Copied to clipboard', icon: 'copy' })}
               />
             </div>
           )}
         </div>
 
-        {/* Right — history */}
-        <div style={{ position: 'sticky', top: 80 }}>
-          <div className="card reveal" style={{ padding: 16 }}>
-            <div className="h-eyebrow" style={{ marginBottom: 12 }}>Recent generations</div>
-            {history.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--ink-500)', textAlign: 'center', padding: '16px 0' }}>
-                No generations yet
-              </div>
-            ) : (
-              <div className="stack" style={{ gap: 8 }}>
-                {history.map(gen => (
-                  <button
-                    key={gen.id}
-                    onClick={() => setResult(gen)}
-                    style={{
-                      display: 'flex', gap: 8, alignItems: 'flex-start',
-                      padding: '10px 12px', textAlign: 'left',
-                      background: 'var(--paper-tint)',
-                      border: '1px solid var(--hairline)',
-                      borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                      transition: 'all 0.1s',
-                      width: '100%',
-                    }}
-                  >
-                    <Icon
-                      name={TOOLS.find(t => t.value === gen.tool_type)?.icon || 'sparkles'}
-                      size={13}
-                      style={{ color: 'var(--ink-500)', flexShrink: 0, marginTop: 1 }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--ink-800)', textTransform: 'capitalize' }}>
-                        {gen.tool_type?.replace('_', ' ')}
-                      </div>
-                      <div style={{
-                        fontSize: 11.5, color: 'var(--ink-500)', marginTop: 2,
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        {gen.prompt?.slice(0, 40)}…
-                      </div>
-                    </div>
-                    <span className={`badge ${gen.status === 'completed' ? 'mint' : gen.status === 'failed' ? 'rose' : 'neutral'}`} style={{ fontSize: 10, flexShrink: 0 }}>
-                      <span className="bdot" />{gen.status}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
+        {/* Prompt */}
+        <div className="field">
+          <label className="field-label">
+            {currentTool?.label}
+          </label>
+
+          <textarea
+            className="textarea"
+            rows={isMobile ? 10 : 6}
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            placeholder="Describe your content..."
+          />
+        </div>
+
+        {/* Generate */}
+        <button
+          className="btn primary block lg"
+          onClick={() => generateMutation.mutate()}
+          disabled={
+            generateMutation.isPending ||
+            !selectedModel ||
+            !prompt.trim() ||
+            pollingId
+          }
+        >
+          <Icon name="sparkles" />
+          Generate
+        </button>
+
+        {/* Result */}
+        {result && (
+          <div
+            className="card"
+            style={{ padding: 20 }}
+          >
+            <div
+              className="h-eyebrow"
+              style={{ marginBottom: 14 }}
+            >
+              Result
+            </div>
+
+            <GenerationResult
+              generation={result}
+              onCopy={() =>
+                pushToast({
+                  title: 'Copied to clipboard',
+                  icon: 'copy'
+                })
+              }
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Right */}
+      <div>
+
+        <div
+          className="card"
+          style={{ padding: 16 }}
+        >
+          <div
+            className="h-eyebrow"
+            style={{ marginBottom: 12 }}
+          >
+            Recent generations
+          </div>
+
+          <div className="stack" style={{ gap: 8 }}>
+            {history.map(gen => (
+              <button
+                key={gen.id}
+                onClick={() => setResult(gen)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '10px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--hairline)',
+                  background: 'var(--paper-tint)',
+                  cursor: 'pointer'
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: 500,
+                    textTransform: 'capitalize'
+                  }}
+                >
+                  {gen.tool_type?.replace('_', ' ')}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--ink-500)',
+                    marginTop: 4
+                  }}
+                >
+                  {gen.prompt?.slice(0, 50)}...
+                </div>
+              </button>
+            ))}
           </div>
         </div>
+
       </div>
+
     </div>
-  )
+  </div>
+)
 }
