@@ -178,7 +178,7 @@ const adminGetAllPlans = async (includeInactive = false) => {
 
 const adminCreatePlan = async (adminId, {
 	name, description, price, duration_days,
-	features, is_featured, sort_order,
+	features, is_featured, sort_order, storage_gb,
 }) => {
 	if (!name || !price || !duration_days || !features?.length) {
 		throw new AppError('name, price, duration_days, and features are required', 400);
@@ -187,14 +187,14 @@ const adminCreatePlan = async (adminId, {
 	const result = await query(
 		`INSERT INTO addon_plans
 			 (name, description, price, duration_days,
-				features, is_featured, sort_order, created_by)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+				features, storage_gb, is_featured, sort_order, created_by)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		 RETURNING *`,
 		[
 			name, description || null,
 			parseFloat(price), parseInt(duration_days, 10),
-			features, is_featured || false,
-			sort_order || 0, adminId,
+			features, parseInt(storage_gb || 0, 10),
+			is_featured || false, sort_order || 0, adminId,
 		]
 	);
 
@@ -205,7 +205,7 @@ const adminCreatePlan = async (adminId, {
 const adminUpdatePlan = async (planId, updates) => {
 	const allowed = [
 		'name', 'description', 'price', 'duration_days',
-		'features', 'is_featured', 'is_active', 'sort_order',
+		'features', 'storage_gb', 'is_featured', 'is_active', 'sort_order',
 	];
 	const fields  = Object.keys(updates).filter((k) => allowed.includes(k));
 	if (!fields.length) throw new AppError('No valid fields to update', 400);

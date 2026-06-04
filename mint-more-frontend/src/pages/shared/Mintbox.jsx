@@ -2,10 +2,13 @@ import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { mintboxApi } from '../../api/mintbox'
+import { addonsApi } from '../../api/addons'
+import { walletApi } from '../../api/wallet'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
-import { timeAgo } from '../../utils/format'
+import Modal from '../../components/ui/Modal'
+import { rupee, timeAgo } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 
 const GB = 1024 * 1024 * 1024
@@ -47,6 +50,7 @@ export default function Mintbox() {
 	const pushToast = useUIStore(s => s.pushToast)
 	const [note, setNote] = useState('')
 	const [reviewNotes, setReviewNotes] = useState({})
+	const [confirmPlan, setConfirmPlan] = useState(null)
 
 	const isOverview = !jobId && !token
 	const queryKey = token ? ['mintbox-share', token] : jobId ? ['mintbox-job', jobId] : ['mintbox']
@@ -67,6 +71,23 @@ export default function Mintbox() {
 	const files = data?.files || []
 	const quota = data?.quota
 	const shareUrl = folder?.share_token ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
+
+	const { data: plansData } = useQuery({
+		queryKey: ['addon-plans'],
+		queryFn: () => addonsApi.plans().then(r => r.data?.data),
+		enabled: role === 'client',
+	})
+
+	const { data: walletData } = useQuery({
+		queryKey: ['wallet'],
+		queryFn: () => walletApi.get().then(r => r.data?.data),
+		enabled: role === 'client',
+	})
+
+	const storagePlans = (plansData?.plans || []).filter(plan =>
+		Number(plan.storage_gb || 0) > 0 || plan.features?.includes('mintbox_storage')
+	)
+	const walletBalance = Number(walletData?.wallet?.balance ?? 0)
 
 	const uploadMutation = useMutation({
 		mutationFn: (file) => {
@@ -95,12 +116,50 @@ export default function Mintbox() {
 		onError: err => pushToast({ title: 'Review failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
 	})
 
+	const purchaseMutation = useMutation({
+		mutationFn: (planId) => addonsApi.purchase(planId),
+		onSuccess: (res) => {
+			pushToast({ title: `${res.data?.data?.plan?.name || 'Storage'} added`, icon: 'check' })
+			setConfirmPlan(null)
+			queryClient.invalidateQueries({ queryKey: ['mintbox'] })
+			queryClient.invalidateQueries({ queryKey: ['addon-plans'] })
+			queryClient.invalidateQueries({ queryKey: ['wallet'] })
+			if (jobId) queryClient.invalidateQueries({ queryKey: ['mintbox-job', jobId] })
+		},
+		onError: err => pushToast({ title: 'Purchase failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+	})
+
 	const copyShare = async () => {
 		await navigator.clipboard.writeText(shareUrl)
 		pushToast({ title: 'Folder link copied', icon: 'copy' })
 	}
 
 	const sortedFiles = useMemo(() => files, [files])
+	const purchaseModal = confirmPlan && (
+		<Modal
+			title="Confirm storage add-on"
+			subtitle={confirmPlan.name}
+			onClose={() => setConfirmPlan(null)}
+			maxWidth={420}
+			footer={(
+				<>
+					<button className="btn ghost" onClick={() => setConfirmPlan(null)}>Cancel</button>
+					<button className="btn primary" onClick={() => purchaseMutation.mutate(confirmPlan.id)} disabled={purchaseMutation.isPending || walletBalance < Number(confirmPlan.price)}>
+						{purchaseMutation.isPending ? 'Processing...' : `Pay ${rupee(confirmPlan.price)}`}
+					</button>
+				</>
+			)}
+		>
+			<div className="stack" style={{ gap: 12 }}>
+				<div className="row between"><span className="muted">Storage</span><strong>{confirmPlan.storage_gb} GB</strong></div>
+				<div className="row between"><span className="muted">Duration</span><strong>{confirmPlan.duration_days} days</strong></div>
+				<div className="row between"><span className="muted">Price</span><strong className="mono">{rupee(confirmPlan.price)}</strong></div>
+				{walletBalance < Number(confirmPlan.price) && (
+					<div style={{ color: 'var(--amber)', fontSize: 12 }}>Add {rupee(Number(confirmPlan.price) - walletBalance)} to your wallet first.</div>
+				)}
+			</div>
+		</Modal>
+	)
 
 	if (isLoading) return (
 		<div className="stack-6">
@@ -125,6 +184,32 @@ export default function Mintbox() {
 			</div>
 
 			<StorageBar quota={quota} />
+
+			{storagePlans.length > 0 && (
+				<div className="card reveal" style={{ padding: 18 }}>
+					<div className="row between" style={{ gap: 14, marginBottom: 14 }}>
+						<div>
+							<div className="h-eyebrow" style={{ marginBottom: 6 }}>Storage add-ons</div>
+							<div style={{ fontSize: 13, color: 'var(--ink-600)' }}>Add more Mintbox space when projects need larger files.</div>
+						</div>
+					</div>
+					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
+						{storagePlans.map(plan => (
+							<div key={plan.id} style={{ border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)', padding: 14 }}>
+								<div className="row between" style={{ marginBottom: 8 }}>
+									<div style={{ fontWeight: 600, color: 'var(--ink-950)' }}>{plan.name}</div>
+									<span className="badge mint">{Number(plan.storage_gb || 0)} GB</span>
+								</div>
+								<div className="mono" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>{rupee(plan.price)}</div>
+								<div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 12 }}>{plan.duration_days} days</div>
+								<button className="btn primary block" onClick={() => setConfirmPlan(plan)} disabled={purchaseMutation.isPending}>
+									<Icon name="plus" size={13} /> Add storage
+								</button>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
 
 			<div className="card reveal" style={{ padding: 0, overflow: 'hidden' }}>
 				{folders.length === 0 ? (
@@ -171,6 +256,7 @@ export default function Mintbox() {
 					))
 				)}
 			</div>
+			{purchaseModal}
 		</div>
 	)
 
@@ -288,6 +374,8 @@ export default function Mintbox() {
 					))
 				)}
 			</div>
+
+			{purchaseModal}
 		</div>
 	)
 }

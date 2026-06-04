@@ -7,6 +7,7 @@ const logger = require('../../utils/logger');
 
 const BUCKET = 'job-attachments';
 const CLIENT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;
+const BYTES_PER_GB = 1024 * 1024 * 1024;
 
 const makeToken = () => crypto.randomBytes(24).toString('base64url');
 const safeName = (value) => String(value || 'file').replace(/[^\w.\- ]+/g, '').trim() || 'file';
@@ -20,6 +21,21 @@ const getClientUsage = async (clientId, dbClient = null) => {
     [clientId]
   );
   return Number(result.rows[0]?.used || 0);
+};
+
+const getClientStorageLimit = async (clientId, dbClient = null) => {
+  const executor = dbClient || { query: (sql, params) => query(sql, params) };
+  const result = await executor.query(
+    `SELECT COALESCE(SUM(ap.storage_gb), 0)::INTEGER AS extra_gb
+     FROM client_addons ca
+     JOIN addon_plans ap ON ap.id = ca.addon_plan_id
+     WHERE ca.user_id = $1
+       AND ca.is_active = true
+       AND ca.expires_at > NOW()
+       AND 'mintbox_storage' = ANY(ca.features)`,
+    [clientId]
+  );
+  return CLIENT_QUOTA_BYTES + (Number(result.rows[0]?.extra_gb || 0) * BYTES_PER_GB);
 };
 
 const getJobForAccess = async (jobId, requesterId, role, dbClient = null) => {
@@ -73,14 +89,15 @@ const getFolderByJob = async (jobId, requesterId, role) => {
   const folder = await ensureFolder(job);
   const files = await listFiles(folder.id);
   const used = await getClientUsage(folder.client_id);
+  const limit = await getClientStorageLimit(folder.client_id);
 
   return {
     folder,
     files,
     quota: {
       used,
-      limit: CLIENT_QUOTA_BYTES,
-      remaining: Math.max(0, CLIENT_QUOTA_BYTES - used),
+      limit,
+      remaining: Math.max(0, limit - used),
     },
   };
 };
@@ -117,13 +134,14 @@ const listClientFolders = async (clientId, role) => {
     [clientId]
   );
   const used = await getClientUsage(clientId);
+  const limit = await getClientStorageLimit(clientId);
 
   return {
     folders: folders.rows,
     quota: {
       used,
-      limit: CLIENT_QUOTA_BYTES,
-      remaining: Math.max(0, CLIENT_QUOTA_BYTES - used),
+      limit,
+      remaining: Math.max(0, limit - used),
     },
   };
 };
@@ -142,14 +160,15 @@ const getFolderByShareToken = async (token, requesterId, role) => {
   await getJobForAccess(folder.job_id, requesterId, role);
   const files = await listFiles(folder.id);
   const used = await getClientUsage(folder.client_id);
+  const limit = await getClientStorageLimit(folder.client_id);
 
   return {
     folder,
     files,
     quota: {
       used,
-      limit: CLIENT_QUOTA_BYTES,
-      remaining: Math.max(0, CLIENT_QUOTA_BYTES - used),
+      limit,
+      remaining: Math.max(0, limit - used),
     },
   };
 };
@@ -180,7 +199,8 @@ const uploadWork = async (jobId, freelancerId, role, file, { note } = {}) => {
 
     const folder = await ensureFolder(job, dbClient);
     const used = await getClientUsage(job.client_id, dbClient);
-    if (used + file.size > CLIENT_QUOTA_BYTES) {
+    const limit = await getClientStorageLimit(job.client_id, dbClient);
+    if (used + file.size > limit) {
       throw new AppError('Client Mintbox storage is full. Ask the client to free up space or upgrade storage.', 400);
     }
 

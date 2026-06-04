@@ -4,7 +4,7 @@ import Icon from '../ui/Icon'
 const CLIENT_ITEMS = [
   { route: '/dashboard', icon: 'home',      label: 'Home' },
   { route: '/jobs',      icon: 'briefcase', label: 'Jobs' },
-  { route: '/ai',        icon: 'sparkles',  label: 'AI' },
+  { route: '/mintbox',   icon: 'layers',    label: 'Box' },
   { route: '/chat',      icon: 'chat',      label: 'Chat' },
   { route: '/wallet',    icon: 'wallet',    label: 'Wallet' },
 ]
@@ -27,7 +27,7 @@ export default function MobileNav({ role }) {
       {items.map(item => (
         <button
           key={item.route}
-          className={`mobile-nav-item ${location.pathname === item.route ? 'active' : ''}`}
+          className={`mobile-nav-item ${location.pathname === item.route || location.pathname.startsWith(`${item.route}/`) ? 'active' : ''}`}
           onClick={() => navigate(item.route)}
         >
           <Icon name={item.icon} size={18} />

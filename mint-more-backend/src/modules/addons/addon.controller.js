@@ -24,9 +24,12 @@ const purchaseAddon = async (req, res, next) => {
 		if (!plan_id) throw new AppError('plan_id is required', 400);
 
 		const result = await addonService.purchaseAddon(req.user.sub, plan_id);
+		const isStorage = result.plan.features?.includes('mintbox_storage');
 		return sendSuccess(res, {
 			data:       result,
-			message:    `${result.plan.name} activated! You now have ${result.days_added} days of browse access.`,
+			message:    isStorage
+				? `${result.plan.name} activated! Your Mintbox storage has been upgraded.`
+				: `${result.plan.name} activated! You now have ${result.days_added} days of browse access.`,
 			statusCode: 201,
 		});
 	} catch (err) { next(err); }

@@ -353,7 +353,9 @@ export default function Addons() {
 				.then((r) => r.data.data),
 	})
 
-	const plans = plansData?.plans || []
+	const plans = (plansData?.plans || []).filter(plan =>
+		!plan.features?.includes('mintbox_storage') && !Number(plan.storage_gb || 0)
+	)
 	const myAddons = myAddonsData?.addons || []
 	const wallet = walletData?.wallet
 	const walletBal = wallet?.balance ?? null

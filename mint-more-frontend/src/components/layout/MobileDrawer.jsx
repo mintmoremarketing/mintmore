@@ -1,37 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../ui/Icon'
-
-const CLIENT_NAV = [
-  { route: '/dashboard',   icon: 'home',      label: 'Dashboard' },
-  { route: '/jobs',        icon: 'briefcase', label: 'Jobs' },
-  { route: '/wallet',      icon: 'wallet',    label: 'Wallet' },
-  { route: '/freelancers', icon: 'user',      label: 'Marketplace' },
-  { route: '/social',      icon: 'layers',    label: 'Social' },
-  { route: '/ai',          icon: 'sparkles',  label: 'Mint AI' },
-  { route: '/chat',        icon: 'chat',      label: 'Messages' },
-  { route: '/settings',    icon: 'settings',  label: 'Settings' },
-]
-
-const FREELANCER_NAV = [
-  { route: '/dashboard',   icon: 'home',      label: 'Workspace' },
-  { route: '/jobs',        icon: 'briefcase', label: 'Briefs' },
-  { route: '/wallet',      icon: 'wallet',    label: 'Earnings' },
-  { route: '/profile-edit',icon: 'user',      label: 'My Profile' },
-  { route: '/packages',    icon: 'layers',    label: 'Packages' },
-  { route: '/portfolio',   icon: 'image',     label: 'Portfolio' },
-  { route: '/inquiries',   icon: 'chat',      label: 'Inquiries' },
-  { route: '/settings',    icon: 'settings',  label: 'Settings' },
-]
-
-const ADMIN_NAV = [
-  { route: '/admin',            icon: 'home',     label: 'Overview' },
-  { route: '/admin/users',      icon: 'user',     label: 'Users' },
-  { route: '/admin/approvals',  icon: 'zap',      label: 'Approvals' },
-  { route: '/admin/wallet',     icon: 'wallet',   label: 'Platform wallet' },
-  { route: '/admin/ai',         icon: 'sparkles', label: 'Mint AI' },
-  { route: '/settings',         icon: 'settings', label: 'Settings' },
-]
+import { ADMIN_NAV, CLIENT_NAV, FREELANCER_NAV } from './Sidebar'
 
 export default function MobileDrawer({ role, onClose }) {
   const navigate  = useNavigate()
@@ -63,7 +33,7 @@ export default function MobileDrawer({ role, onClose }) {
             {items.map(item => (
               <button
                 key={item.route}
-                className={`nav-item ${location.pathname === item.route ? 'active' : ''}`}
+                className={`nav-item ${location.pathname === item.route || location.pathname.startsWith(`${item.route}/`) ? 'active' : ''}`}
                 onClick={() => go(item.route)}
               >
                 <Icon name={item.icon} size={15} />
@@ -71,6 +41,14 @@ export default function MobileDrawer({ role, onClose }) {
               </button>
             ))}
           </div>
+
+          <button
+            className={`nav-item ${location.pathname === '/settings' ? 'active' : ''}`}
+            onClick={() => go('/settings')}
+          >
+            <Icon name="settings" size={15} />
+            <span>Settings</span>
+          </button>
 
           {/* User footer */}
           <div className="sidebar-user">

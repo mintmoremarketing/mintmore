@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import Icon from '../ui/Icon'
 
-const CLIENT_NAV = [
+export const CLIENT_NAV = [
   { route: '/dashboard',   icon: 'home',      label: 'Dashboard' },
   { route: '/notifications', icon: 'bell',     label: 'Inbox', showCount: true },
   { route: '/jobs',        icon: 'briefcase', label: 'Jobs' },
@@ -15,7 +15,7 @@ const CLIENT_NAV = [
   { route: '/chat',        icon: 'chat',      label: 'Messages' },
 ]
 
-const FREELANCER_NAV = [
+export const FREELANCER_NAV = [
   { route: '/dashboard',    icon: 'home',      label: 'Workspace' },
   { route: '/notifications', icon: 'bell',      label: 'Inbox', showCount: true },
   { route: '/jobs',         icon: 'briefcase', label: 'Briefs' },
@@ -26,7 +26,7 @@ const FREELANCER_NAV = [
   { route: '/inquiries',    icon: 'chat',      label: 'Inquiries' },
 ]
 
-const ADMIN_NAV = [
+export const ADMIN_NAV = [
   { route: '/admin',           icon: 'home',     label: 'Overview' },
   { route: '/notifications',    icon: 'bell',     label: 'Inbox', showCount: true },
   { route: '/admin/users',     icon: 'user',     label: 'Users' },
