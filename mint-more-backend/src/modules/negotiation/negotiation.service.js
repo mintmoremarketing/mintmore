@@ -69,6 +69,64 @@ const isMatchedCandidate = async (jobId, freelancerId) => {
   return !!result.rows[0];
 };
 
+const normalizeFreelancerLevel = (level) => {
+  if (level === 'basic') return 'beginner';
+  if (level === 'expert') return 'experienced';
+  return level || 'beginner';
+};
+
+const formatAmount = (amount) => Number(amount).toLocaleString('en-IN');
+
+const validateFreelancerOfferPrice = async (client, freelancerId, job, proposedPrice) => {
+  const price = Number(proposedPrice);
+
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new AppError('proposed_price must be a valid positive amount', 400);
+  }
+
+  if (!job.category_id) return null;
+
+  const userResult = await client.query(
+    `SELECT freelancer_level
+     FROM   users
+     WHERE  id = $1`,
+    [freelancerId]
+  );
+  const freelancerLevel = normalizeFreelancerLevel(userResult.rows[0]?.freelancer_level);
+
+  const rangeResult = await client.query(
+    `SELECT beginner_min, beginner_max,
+            intermediate_min, intermediate_max,
+            experienced_min, experienced_max
+     FROM   category_price_ranges
+     WHERE  category_id = $1`,
+    [job.category_id]
+  );
+  const range = rangeResult.rows[0];
+  if (!range) return null;
+
+  const marketMin = Number(range[`${freelancerLevel}_min`]);
+  const marketMax = Number(range[`${freelancerLevel}_max`]);
+
+  if (!Number.isFinite(marketMin) || !Number.isFinite(marketMax)) return null;
+
+  const outsideMarket = price < marketMin || price > marketMax;
+
+  if (freelancerLevel !== 'experienced' && outsideMarket) {
+    throw new AppError(
+      `Your offer must be within the current ${freelancerLevel} market range: INR ${formatAmount(marketMin)} - INR ${formatAmount(marketMax)}`,
+      400
+    );
+  }
+
+  return {
+    freelancer_level: freelancerLevel,
+    market_min: marketMin,
+    market_max: marketMax,
+    outside_market: outsideMarket,
+  };
+};
+
 // ── Save matched candidates after matching engine runs ────────────────────────
 
 /**
@@ -203,6 +261,8 @@ const initiateNegotiation = async (freelancerId, jobId, {
       throw new AppError('This job is currently locked by another freelancer', 409);
     }
 
+    await validateFreelancerOfferPrice(dbClient, freelancerId, job, proposed_price);
+
     // Guard: duplicate negotiation
     const existing = await dbClient.query(
       `SELECT id, status FROM negotiations
@@ -262,7 +322,7 @@ const initiateNegotiation = async (freelancerId, jobId, {
         await triggers.notifyNegotiationInitiated({
           job: { ...job, client_id: job.client_id },
           freelancer: { id: freelancerId, full_name: freelancerName },
-          proposed_price: data.proposed_price,
+          proposed_price,
         });
       } catch (err) {
         logger.error('Notification trigger failed: initiateNegotiation', { error: err.message });
@@ -578,6 +638,8 @@ const freelancerRespond = async (freelancerId, jobId, {
       if (!proposed_price) {
         throw new AppError('proposed_price is required for counter action', 400);
       }
+
+      await validateFreelancerOfferPrice(dbClient, freelancerId, job, proposed_price);
 
       const nextRound = negotiation.current_round + 1;
 

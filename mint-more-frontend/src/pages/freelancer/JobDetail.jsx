@@ -10,12 +10,28 @@ import StatusChip from '../../components/ui/StatusChip'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 
+const normalizeLevel = (level) => {
+	if (level === 'basic') return 'beginner'
+	if (level === 'expert') return 'experienced'
+	return level || 'beginner'
+}
+
+const levelLabel = (level) => {
+	const normalized = normalizeLevel(level)
+	if (normalized === 'experienced') return 'Expert'
+	return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
+const getMarketRangeFromResponse = (res) =>
+	res.data?.data?.range ?? res.data?.data?.data?.range ?? res.data?.range ?? null
+
 export default function FreelancerJobDetail() {
 	const { id } = useParams()
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const pushToast = useUIStore((s) => s.pushToast)
-	const userId = useAuthStore((s) => s.user?.id)
+	const user = useAuthStore((s) => s.user)
+	const userId = user?.id
 
 	const { data: job, isLoading } = useQuery({
 		queryKey: ['job', id],
@@ -89,7 +105,7 @@ export default function FreelancerJobDetail() {
 			>
 				<div className="stack" style={{ gap: 14 }}>
 					{canInitiate && (
-						<InitiatePanel job={job} queryClient={queryClient} pushToast={pushToast} />
+						<InitiatePanel job={job} user={user} queryClient={queryClient} pushToast={pushToast} />
 					)}
 
 					{!canInitiate && ['open', 'matching'].includes(job.status) && !isPrimaryCandidate && (
@@ -211,11 +227,29 @@ export default function FreelancerJobDetail() {
 	)
 }
 
-function InitiatePanel({ job, queryClient, pushToast }) {
+function InitiatePanel({ job, user, queryClient, pushToast }) {
 	const [price, setPrice] = useState('')
 	const [days, setDays] = useState('')
 	const [message, setMessage] = useState('')
 	const [confirm, setConfirm] = useState(false)
+	const freelancerLevel = normalizeLevel(user?.freelancer_level)
+	const marketPricingMode = freelancerLevel === 'experienced' ? 'expert' : 'budget'
+	const priceValue = Number(price)
+	const hasPrice = Number.isFinite(priceValue) && priceValue > 0
+
+	const { data: marketRange } = useQuery({
+		queryKey: ['market-range', job.category_id, marketPricingMode],
+		queryFn: async () => getMarketRangeFromResponse(await jobsApi.marketRange(job.category_id, marketPricingMode)),
+		enabled: Boolean(job.category_id),
+	})
+
+	const levelRange = marketRange?.breakdown?.[freelancerLevel] || null
+	const marketMin = Number(levelRange?.min)
+	const marketMax = Number(levelRange?.max)
+	const hasMarketRange = Number.isFinite(marketMin) && Number.isFinite(marketMax)
+	const outsideMarketRange = hasPrice && hasMarketRange && (priceValue < marketMin || priceValue > marketMax)
+	const isExpert = freelancerLevel === 'experienced'
+	const isPriceBlocked = outsideMarketRange && !isExpert
 
 	const { mutate, isPending } = useMutation({
 		mutationFn: () =>
@@ -280,6 +314,61 @@ function InitiatePanel({ job, queryClient, pushToast }) {
 							onChange={(e) => setPrice(e.target.value)}
 							placeholder={job.budget_amount ? String(job.budget_amount) : 'e.g. 15000'}
 						/>
+						{hasMarketRange && (
+							<div
+								style={{
+									marginTop: 8,
+									padding: '9px 11px',
+									borderRadius: 'var(--radius-md)',
+									border: outsideMarketRange
+										? '1px solid rgba(245,158,11,0.35)'
+										: '1px solid var(--hairline)',
+									background: outsideMarketRange
+										? 'rgba(245,158,11,0.08)'
+										: 'var(--paper-tint)',
+									color: outsideMarketRange ? 'var(--ink-800)' : 'var(--ink-600)',
+									fontSize: 12,
+									lineHeight: 1.45,
+								}}
+							>
+								<div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+									{outsideMarketRange && (
+										<span
+											aria-hidden="true"
+											style={{
+												width: 18,
+												height: 18,
+												borderRadius: '50%',
+												background: 'var(--amber)',
+												color: 'white',
+												display: 'inline-flex',
+												alignItems: 'center',
+												justifyContent: 'center',
+												fontWeight: 700,
+												flexShrink: 0,
+											}}
+										>
+											!
+										</span>
+									)}
+									<span>
+										Market range for {levelLabel(freelancerLevel)}: {rupee(marketMin)} - {rupee(marketMax)}
+										{isPriceBlocked && (
+											<>
+												<br />
+												Your offer must stay within this range.
+											</>
+										)}
+										{outsideMarketRange && isExpert && (
+											<>
+												<br />
+												You can still quote this, but it may reduce your chances with the client.
+											</>
+										)}
+									</span>
+								</div>
+							</div>
+						)}
 					</div>
 					<div className="field">
 						<label className="field-label">Delivery (days)</label>
@@ -304,7 +393,7 @@ function InitiatePanel({ job, queryClient, pushToast }) {
 					/>
 				</div>
 
-				<button className="btn primary block" onClick={() => mutate()} disabled={isPending || !price || !days}>
+				<button className="btn primary block" onClick={() => mutate()} disabled={isPending || !price || !days || isPriceBlocked}>
 					{isPending ? 'Submitting...' : <>Submit offer - {price ? rupee(parseFloat(price)) : 'Rs -'} in {days || '-'} days</>}
 				</button>
 			</div>

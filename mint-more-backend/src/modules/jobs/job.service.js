@@ -383,12 +383,9 @@ const listJobs = async (requesterId, requesterRole, {
     values.push(requesterId);
     idx++;
   } else if (requesterRole === 'freelancer') {
-    // Subquery: only jobs this freelancer was matched to
-    conditions.push(`j.id IN (
-      SELECT jmc.job_id
-      FROM   job_matched_candidates jmc
-      WHERE  jmc.freelancer_id = $${idx}
-    )`);
+    // Only the current primary candidate can see/respond to a matched job.
+    // Backup/candidate rows stay hidden until fallback promotes them.
+    conditions.push(`j.active_freelancer_id = $${idx}`);
     values.push(requesterId);
     idx++;
   }
@@ -452,7 +449,7 @@ const listJobs = async (requesterId, requesterRole, {
  *
  * - admin:      always succeeds
  * - client:     only their own jobs
- * - freelancer: only if they are in job_matched_candidates for this job
+ * - freelancer: only if they are the current primary candidate for this job
  *               → returns 404 (not 403) to avoid leaking job existence
  */
 const getJobById = async (requesterId, requesterRole, jobId) => {
@@ -478,15 +475,8 @@ const getJobById = async (requesterId, requesterRole, jobId) => {
   }
 
   if (requesterRole === 'freelancer') {
-    const matchCheck = await query(
-      `SELECT id
-       FROM   job_matched_candidates
-       WHERE  job_id        = $1
-         AND  freelancer_id = $2`,
-      [jobId, requesterId]
-    );
-    // Intentional 404 — do not reveal job exists to unmatched freelancers
-    if (!matchCheck.rows[0]) {
+    // Intentional 404 — do not reveal job exists to backup/unmatched freelancers.
+    if (job.active_freelancer_id !== requesterId) {
       throw new AppError('Job not found', 404);
     }
   }

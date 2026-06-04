@@ -10,4 +10,6 @@ export const jobsApi = {
 	pauseMatching: (id) => api.patch(`/jobs/${id}/pause-matching`),
 	cancel: (id) => api.patch(`/jobs/${id}/cancel`),
 	categories: () => api.get('/categories'),
+	marketRange: (categoryId, pricingMode = 'budget') =>
+		api.get(`/categories/${categoryId}/market-range`, { params: { pricing_mode: pricingMode } }),
 }
