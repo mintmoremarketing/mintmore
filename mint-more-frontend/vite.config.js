@@ -1,7 +1,8 @@
+// vite.config.js — should look like this
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // no "base" property, or base: '/'
 })
