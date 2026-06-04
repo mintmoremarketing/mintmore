@@ -20,6 +20,7 @@ import FreelancerProfile from './pages/client/FreelancerProfile'
 import Social            from './pages/client/Social'
 import MintAI            from './pages/client/MintAI'
 import Settings          from './pages/Settings'
+import NotificationsInbox from './pages/notifications/Inbox'
 
 // Freelancer pages
 import FreelancerDashboard  from './pages/freelancer/Dashboard'
@@ -168,6 +169,7 @@ export default function App() {
 
           {/* Shared */}
           <Route path="/chat"     element={<ComingSoon label="Messages" />} />
+          <Route path="/notifications" element={<NotificationsInbox />} />
           <Route path="/settings" element={<Settings />} />
 
           {/* Admin routes */}

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useUIStore } from '../../store/ui'
 import { notificationsApi } from '../../api/notifications'
@@ -30,6 +31,7 @@ const NOTIF_COLORS = {
 }
 
 export default function NotifPanel({ onClose }) {
+	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const { setNotifs, setUnreadCount, markAllNotifsRead } = useUIStore()
 
@@ -66,7 +68,29 @@ export default function NotifPanel({ onClose }) {
 		},
 	})
 
+	const markReadMutation = useMutation({
+		mutationFn: (id) => notificationsApi.markRead(id),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['notifications'] })
+			queryClient.invalidateQueries({ queryKey: ['notif-count'] })
+		},
+	})
+
 	const notifs = data?.notifications || []
+	const unread = countData?.unread_count ?? notifs.filter((n) => !n.is_read).length
+	const getTarget = (n) => {
+		const meta = n.data || {}
+		const jobId = n.entity_type === 'job' ? n.entity_id : meta.job_id || meta.jobId || meta.job?.id
+		if (jobId) return `/jobs/${jobId}`
+		if (n.entity_type === 'wallet' || n.type === 'wallet') return '/wallet'
+		return null
+	}
+	const openNotification = (n) => {
+		if (!n.is_read) markReadMutation.mutate(n.id)
+		const target = getTarget(n)
+		onClose()
+		if (target) navigate(target)
+	}
 
 	return (
 		<>
@@ -101,7 +125,12 @@ export default function NotifPanel({ onClose }) {
 						justifyContent: 'space-between',
 					}}
 				>
-					<div style={{ fontWeight: 600, fontSize: 14 }}>Notifications</div>
+					<div>
+						<div style={{ fontWeight: 600, fontSize: 14 }}>Notifications</div>
+						<div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 2 }}>
+							Live · {unread} unread
+						</div>
+					</div>
 					<div style={{ display: 'flex', gap: 8 }}>
 						{notifs.some((n) => !n.is_read) && (
 							<button
@@ -138,19 +167,26 @@ export default function NotifPanel({ onClose }) {
 							</div>
 						</div>
 					) : (
-						notifs.map((n) => (
-							<div
+						notifs.slice(0, 5).map((n) => (
+							<button
 								key={n.id}
+								onClick={() => openNotification(n)}
 								style={{
 									display: 'flex',
 									gap: 12,
 									padding: '12px 16px',
+									width: '100%',
+									textAlign: 'left',
 									borderBottom: '1px solid var(--hairline)',
+									borderTop: 0,
+									borderLeft: 0,
+									borderRight: 0,
 									background: n.is_read
 										? 'transparent'
 										: 'rgba(16,185,129,0.04)',
-									cursor: 'default',
+									cursor: getTarget(n) ? 'pointer' : 'default',
 									transition: 'background 0.1s',
+									fontFamily: 'inherit',
 								}}
 							>
 								<div
@@ -217,10 +253,24 @@ export default function NotifPanel({ onClose }) {
 										}}
 									/>
 								)}
-							</div>
+							</button>
 						))
 					)}
 				</div>
+				{notifs.length > 0 && (
+					<div style={{ padding: '10px 16px', borderTop: '1px solid var(--hairline)' }}>
+						<button
+							className="btn link sm"
+							style={{ fontSize: 12, padding: 0 }}
+							onClick={() => {
+								onClose()
+								navigate('/notifications')
+							}}
+						>
+							See all notifications <Icon name="arrowRight" size={12} />
+						</button>
+					</div>
+				)}
 			</div>
 		</>
 	)

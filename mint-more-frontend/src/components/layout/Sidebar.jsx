@@ -1,9 +1,11 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
+import { useUIStore } from '../../store/ui'
 import Icon from '../ui/Icon'
 
 const CLIENT_NAV = [
   { route: '/dashboard',   icon: 'home',      label: 'Dashboard' },
+  { route: '/notifications', icon: 'bell',     label: 'Inbox', showCount: true },
   { route: '/jobs',        icon: 'briefcase', label: 'Jobs' },
   { route: '/wallet',      icon: 'wallet',    label: 'Wallet' },
   { route: '/freelancers', icon: 'user',      label: 'Marketplace' },
@@ -14,6 +16,7 @@ const CLIENT_NAV = [
 
 const FREELANCER_NAV = [
   { route: '/dashboard',    icon: 'home',      label: 'Workspace' },
+  { route: '/notifications', icon: 'bell',      label: 'Inbox', showCount: true },
   { route: '/jobs',         icon: 'briefcase', label: 'Briefs' },
   { route: '/wallet',       icon: 'wallet',    label: 'Earnings' },
   { route: '/profile-edit', icon: 'user',      label: 'My Profile' },
@@ -24,6 +27,7 @@ const FREELANCER_NAV = [
 
 const ADMIN_NAV = [
   { route: '/admin',           icon: 'home',     label: 'Overview' },
+  { route: '/notifications',    icon: 'bell',     label: 'Inbox', showCount: true },
   { route: '/admin/users',     icon: 'user',     label: 'Users' },
   { route: '/admin/approvals', icon: 'zap',      label: 'Approvals' },
   { route: '/admin/wallet',    icon: 'wallet',   label: 'Platform wallet' },
@@ -34,6 +38,7 @@ export default function Sidebar({ role }) {
   const navigate  = useNavigate()
   const location  = useLocation()
   const { user, logout } = useAuthStore()
+  const unreadCount = useUIStore((s) => s.unreadCount)
 
   const items = role === 'admin'
     ? ADMIN_NAV
@@ -58,6 +63,26 @@ export default function Sidebar({ role }) {
           >
             <Icon name={item.icon} size={15} />
             <span>{item.label}</span>
+            {item.showCount && unreadCount > 0 && (
+              <span
+                className="mono"
+                style={{
+                  marginLeft: 'auto',
+                  minWidth: 18,
+                  height: 18,
+                  borderRadius: 9,
+                  background: 'var(--mint-100)',
+                  color: 'var(--mint-700)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                }}
+              >
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
         ))}
       </div>

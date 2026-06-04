@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import StatusChip from '../../components/ui/StatusChip'
+import Avatar from '../../components/ui/Avatar'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 
@@ -24,6 +25,8 @@ const levelLabel = (level) => {
 
 const getMarketRangeFromResponse = (res) =>
 	res.data?.data?.range ?? res.data?.data?.data?.range ?? res.data?.range ?? null
+
+const NEGOTIATION_MAX_ROUNDS = 6
 
 export default function FreelancerJobDetail() {
 	const { id } = useParams()
@@ -402,15 +405,27 @@ function InitiatePanel({ job, user, queryClient, pushToast }) {
 }
 
 function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
-	const neg = job.negotiation
 	const [showCounter, setShowCounter] = useState(false)
 	const [price, setPrice] = useState('')
 	const [days, setDays] = useState('')
 	const [message, setMessage] = useState('')
 
+	const { data: negotiationData } = useQuery({
+		queryKey: ['negotiation-status', job.id],
+		queryFn: async () => {
+			const res = await negotiationsApi.getStatus(job.id)
+			return res.data?.data || null
+		},
+		enabled: Boolean(job.id) && ['locked', 'negotiating', 'pending_admin_approval'].includes(job.status),
+	})
+
+	const neg = job.negotiation || negotiationData?.negotiation
+	const getSender = (round) => round?.sender_role || round?.sender
 	const rounds = neg?.rounds || []
 	const lastRound = rounds[rounds.length - 1]
-	const isMyTurn = neg?.status === 'active' && lastRound?.sender_role === 'client'
+	const isMyTurn = neg?.status === 'active' && getSender(lastRound) === 'client'
+	const maxRounds = Math.max(Number(neg?.max_rounds) || 0, NEGOTIATION_MAX_ROUNDS)
+	const currentRound = neg?.current_round || Math.max(1, rounds.length)
 
 	const acceptMutation = useMutation({
 		mutationFn: () => negotiationsApi.freelancerRespond(job.id, { action: 'accept' }),
@@ -446,55 +461,61 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 		onError: (err) => pushToast({ title: 'Failed', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
 	})
 
-	if (!neg) return null
+	if (!neg) {
+		return (
+			<div className="card reveal" style={{ padding: 22 }}>
+				<div className="h-eyebrow" style={{ marginBottom: 10 }}>Negotiation</div>
+				<div style={{ padding: 14, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)', fontSize: 13, color: 'var(--ink-600)' }}>
+					Negotiation starting soon...
+				</div>
+			</div>
+		)
+	}
 
 	return (
-		<div className="card" style={{ padding: 22 }}>
-			<div className="row between" style={{ marginBottom: 16 }}>
-				<div className="h-eyebrow">Negotiation</div>
-				<span style={{ fontSize: 12, color: 'var(--ink-500)' }}>
-					Round {neg.current_round || 1} of {neg.max_rounds || 2}
-				</span>
+		<div className="card reveal" style={{ padding: 20 }}>
+			<div className="row between" style={{ marginBottom: 16, gap: 12, alignItems: 'flex-start' }}>
+				<div>
+					<span className="h-eyebrow">Negotiation</span>
+					<h3 className="h-display h-3" style={{ margin: '2px 0 0' }}>
+						{isMyTurn ? 'Client countered your offer' : 'Waiting for client response'}
+					</h3>
+				</div>
+				<div className="row" style={{ gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+					{Array.from({ length: maxRounds }).map((_, i) => {
+						const roundNumber = i + 1
+						const done = roundNumber < currentRound || rounds.length >= roundNumber
+						const active = roundNumber === currentRound
+						return (
+							<div key={roundNumber} className={`nego-round ${done ? 'done' : active ? 'current' : ''}`}>
+								{roundNumber}
+							</div>
+						)
+					})}
+				</div>
 			</div>
 
 			{rounds.length > 0 && (
-				<div className="stack" style={{ gap: 10, marginBottom: 16 }}>
+				<div className="nego-board">
 					{rounds.map((r, i) => {
-						const isMe = r.sender_role === 'freelancer'
+						const isMe = getSender(r) === 'freelancer'
 						return (
-							<div key={i} style={{ display: 'flex', gap: 10, flexDirection: isMe ? 'row-reverse' : 'row' }}>
-								<div
-									className="avatar sm"
-									style={{
-										background: isMe ? 'var(--ink-950)' : 'var(--mint-100)',
-										color: isMe ? 'white' : 'var(--mint-800)',
-										flexShrink: 0,
-									}}
-								>
-									{isMe ? 'Me' : 'C'}
+							<div key={r.id || i} className={`offer-card ${isMe ? 'me' : 'them'}`}>
+								<div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 11.5, color: 'var(--ink-500)' }}>
+									<Avatar name={isMe ? 'You' : 'Client'} size="sm" />
+									<span style={{ fontWeight: 500, color: 'var(--ink-700)' }}>
+										{isMe ? 'You' : 'Client'}
+									</span>
+									<span>{isMe ? 'proposed' : 'countered'}</span>
+									<span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-500)' }}>
+										Round {r.round_number || i + 1}
+									</span>
 								</div>
-								<div
-									style={{
-										maxWidth: '72%',
-										padding: '11px 14px',
-										background: isMe ? 'var(--ink-950)' : 'var(--paper-tint)',
-										color: isMe ? 'white' : 'var(--ink-900)',
-										borderRadius: isMe ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
-										border: isMe ? 'none' : '1px solid var(--hairline)',
-									}}
-								>
-									<div style={{ fontWeight: 600, fontSize: 15 }}>
-										{rupee(r.proposed_price)}
-										<span style={{ fontSize: 12, fontWeight: 400, opacity: 0.7, marginLeft: 8 }}>
-											- {r.proposed_days} days
-										</span>
-									</div>
-									{r.message && (
-										<div style={{ fontSize: 13, opacity: 0.9, marginTop: 4, lineHeight: 1.5 }}>
-											{r.message}
-										</div>
-									)}
+								<div className="offer-row">
+									<span className="big">{rupee(r.proposed_price || 0)}</span>
+									<span className="small">delivered in {r.proposed_days || '-'} days</span>
 								</div>
+								{r.message && <div className="msg">{r.message}</div>}
 							</div>
 						)
 					})}
@@ -511,7 +532,7 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 							<Icon name="check" size={13} />
 							{acceptMutation.isPending ? 'Accepting...' : 'Accept'}
 						</button>
-						{neg.current_round < (neg.max_rounds || 2) && (
+						{currentRound < maxRounds && (
 							<button className="btn ghost" onClick={() => setShowCounter(true)}>Counter</button>
 						)}
 						<button className="btn ghost" style={{ color: 'var(--rose)' }} onClick={() => rejectMutation.mutate()} disabled={rejectMutation.isPending}>
@@ -547,7 +568,7 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 				</div>
 			)}
 
-			{neg.status === 'active' && lastRound?.sender_role === 'freelancer' && (
+			{neg.status === 'active' && getSender(lastRound) === 'freelancer' && (
 				<div
 					style={{
 						padding: 12,

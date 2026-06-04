@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { jobsApi } from '../../api/jobs'
@@ -26,6 +26,8 @@ const STAGE_ORDER = {
   assigned: 3, in_progress: 3,
   completed: 4, cancelled: -1,
 }
+
+const NEGOTIATION_MAX_ROUNDS = 6
 
 function Timeline({ status }) {
   const current = STAGE_ORDER[status] ?? 0
@@ -254,6 +256,275 @@ function MatchingPanel({ job }) {
 }
 
 // ── Negotiation panel ─────────────────────────────────────────────────────────
+
+function ClientNegotiationPanel({ job }) {
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore((s) => s.pushToast)
+  const [showCounter, setShowCounter] = useState(false)
+  const [counterPrice, setCounterPrice] = useState('')
+  const [counterDays, setCounterDays] = useState('')
+  const [counterMsg, setCounterMsg] = useState('')
+  const [pendingCounter, setPendingCounter] = useState(null)
+
+  const { data: negotiationData } = useQuery({
+    queryKey: ['negotiation-status', job.id],
+    queryFn: async () => {
+      const res = await negotiationsApi.getStatus(job.id)
+      return res.data?.data || null
+    },
+    enabled: Boolean(job.id) && ['locked', 'negotiating', 'pending_admin_approval'].includes(job.status),
+  })
+
+  const neg = job.negotiation || negotiationData?.negotiation
+  const freelancer =
+    job.active_freelancer ||
+    job.matched_freelancer ||
+    job.primary_freelancer ||
+    job.primary_candidate ||
+    {}
+  const freelancerName = freelancer.full_name || freelancer.name || 'Creative'
+
+  const acceptMutation = useMutation({
+    mutationFn: () => negotiationsApi.clientRespond(job.id, { action: 'accept' }),
+    onSuccess: () => {
+      pushToast({ title: 'Deal sent for admin approval', body: 'Escrow will be held after approval.', icon: 'shield' })
+      queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+    onError: (err) => pushToast({ title: 'Failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+  })
+
+  const counterMutation = useMutation({
+    mutationFn: () =>
+      negotiationsApi.clientRespond(job.id, {
+        action: 'counter',
+        proposed_price: parseFloat(counterPrice),
+        proposed_days: parseInt(counterDays, 10),
+        message: counterMsg || undefined,
+      }),
+    onSuccess: () => {
+      pushToast({ title: 'Counter offer sent', body: `Waiting for ${freelancerName.split(' ')[0]} to respond.`, icon: 'refresh' })
+      queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+      queryClient.invalidateQueries({ queryKey: ['negotiation-status', job.id] })
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      setShowCounter(false)
+      setCounterPrice('')
+      setCounterDays('')
+      setCounterMsg('')
+    },
+    onError: (err) => pushToast({ title: 'Counter failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: () => negotiationsApi.clientRespond(job.id, { action: 'reject' }),
+    onSuccess: () => {
+      pushToast({ title: 'Offer declined', body: 'Job will be re-matched.', icon: 'refresh' })
+      queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+    onError: (err) => pushToast({ title: 'Failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+  })
+
+  const getSender = (round) => round?.sender_role || round?.sender
+  const rounds = neg?.rounds || []
+  const displayedRounds = pendingCounter ? [...rounds, pendingCounter] : rounds
+  const lastRound = rounds[rounds.length - 1]
+  const maxRounds = Math.max(Number(neg?.max_rounds) || 0, NEGOTIATION_MAX_ROUNDS)
+  const currentRound = neg?.current_round || Math.max(1, rounds.length)
+  const isMyTurn = neg?.status === 'active' && getSender(lastRound) === 'freelancer'
+  const isWaitingOnFreelancer = neg?.status === 'active' && getSender(lastRound) === 'client'
+  const isPendingAdmin = job.status === 'pending_admin_approval'
+  const isAgreed = neg?.status === 'agreed'
+  const isRejected = neg?.status === 'failed'
+  const canCounter = currentRound < maxRounds
+  const agreedPrice = neg?.agreed_price || lastRound?.proposed_price || 0
+  const agreedDays = neg?.agreed_days || lastRound?.proposed_days || 0
+
+  useEffect(() => {
+    if (!pendingCounter) return
+    const saved = rounds.some((round) =>
+      getSender(round) === 'client' &&
+      Number(round.proposed_price) === Number(pendingCounter.proposed_price) &&
+      Number(round.proposed_days) === Number(pendingCounter.proposed_days)
+    )
+    if (saved) setPendingCounter(null)
+  }, [pendingCounter, rounds])
+
+  if (!neg) {
+    return (
+      <div className="card reveal" style={{ padding: 22 }}>
+        <div className="h-eyebrow" style={{ marginBottom: 10 }}>Negotiation</div>
+        <div style={{ padding: 14, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)', fontSize: 13, color: 'var(--ink-600)' }}>
+          {job.status === 'locked'
+            ? 'A creative has been matched. Negotiation starting soon...'
+            : 'Negotiation details will appear here.'}
+        </div>
+      </div>
+    )
+  }
+
+  const sendCounter = () => {
+    const proposedPrice = parseFloat(counterPrice)
+    const proposedDays = parseInt(counterDays, 10)
+    setPendingCounter({
+      id: `pending-${Date.now()}`,
+      sender: 'client',
+      round_number: currentRound + 1,
+      proposed_price: proposedPrice,
+      proposed_days: proposedDays,
+      message: counterMsg || undefined,
+      pending: true,
+    })
+    counterMutation.mutate()
+  }
+
+  return (
+    <div className="card reveal" style={{ padding: 20 }}>
+      <div className="row between" style={{ marginBottom: 16, gap: 12, alignItems: 'flex-start' }}>
+        <div>
+          <span className="h-eyebrow">Negotiation</span>
+          <h3 className="h-display h-3" style={{ margin: '2px 0 0' }}>
+            {isPendingAdmin || isAgreed
+              ? 'Deal waiting for admin approval'
+              : isMyTurn
+                ? 'Counter offer is on the table'
+                : 'Waiting for creative response'}
+          </h3>
+        </div>
+        <div className="row" style={{ gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {Array.from({ length: maxRounds }).map((_, i) => {
+            const roundNumber = i + 1
+            const done = roundNumber < currentRound || displayedRounds.length >= roundNumber
+            const active = roundNumber === currentRound
+            return (
+              <div key={roundNumber} className={`nego-round ${done ? 'done' : active ? 'current' : ''}`}>
+                {roundNumber}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {(isPendingAdmin || isAgreed) && (
+        <div className="card-mint" style={{ marginBottom: 14, padding: 14, animation: 'slideIn 0.32s ease' }}>
+          <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
+            <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--mint-200)', color: 'var(--mint-800)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Icon name="shield" size={14} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 500, color: 'var(--ink-950)' }}>Awaiting admin approval</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-600)', marginTop: 2 }}>
+                Deal agreed at {rupee(agreedPrice)} in {agreedDays || '-'} days. Once approved, funds will be escrowed and {freelancerName.split(' ')[0]} can begin work.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {displayedRounds.length > 0 ? (
+        <div className="nego-board">
+          {displayedRounds.map((round, i) => {
+            const isClient = getSender(round) === 'client'
+            return (
+              <div key={round.id || i} className={`offer-card ${isClient ? 'me' : 'them'}`}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 11.5, color: 'var(--ink-500)' }}>
+                  <Avatar name={isClient ? 'You' : freelancerName} size="sm" />
+                  <span style={{ fontWeight: 500, color: 'var(--ink-700)' }}>
+                    {isClient ? 'You' : freelancerName}
+                  </span>
+                  <span>{round.pending ? 'sending' : isClient ? 'countered' : 'proposed'}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-500)' }}>
+                    Round {round.round_number || i + 1}
+                  </span>
+                </div>
+                <div className="offer-row">
+                  <span className="big">{rupee(round.proposed_price || 0)}</span>
+                  <span className="small">delivered in {round.proposed_days || '-'} days</span>
+                </div>
+                {round.message && <div className="msg">{round.message}</div>}
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div style={{ padding: 14, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)', fontSize: 13, color: 'var(--ink-600)' }}>
+          A creative has been matched. Negotiation starting soon...
+        </div>
+      )}
+
+      {isMyTurn && !showCounter && (
+        <div className="row" style={{ marginTop: 16, gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          {canCounter && (
+            <button className="btn ghost" onClick={() => {
+              setCounterPrice(String(lastRound?.proposed_price || ''))
+              setCounterDays(String(lastRound?.proposed_days || ''))
+              setShowCounter(true)
+            }}>
+              <Icon name="refresh" size={13} /> Counter offer
+            </button>
+          )}
+          <button className="btn mint" onClick={() => acceptMutation.mutate()} disabled={acceptMutation.isPending}>
+            <Icon name="check" size={13} />
+            {acceptMutation.isPending ? 'Accepting...' : `Accept ${rupee(lastRound?.proposed_price || 0)}`}
+          </button>
+          <button className="btn ghost" style={{ color: 'var(--rose)', borderColor: 'rgba(225,29,72,0.2)' }} onClick={() => rejectMutation.mutate()} disabled={rejectMutation.isPending}>
+            {rejectMutation.isPending ? 'Declining...' : 'Decline'}
+          </button>
+        </div>
+      )}
+
+      {showCounter && (
+        <div style={{ marginTop: 16, padding: 14, background: 'white', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}>
+          <div className="h-eyebrow" style={{ marginBottom: 10 }}>Your counter · Round {Math.min(maxRounds, currentRound + 1)}</div>
+          <div className="grid-2" style={{ gap: 10, marginBottom: 10 }}>
+            <div className="field">
+              <label className="field-label">Your price</label>
+              <div className="input-with-prefix">
+                <span className="prefix">₹</span>
+                <input className="input input-mono" type="number" value={counterPrice} onChange={(e) => setCounterPrice(e.target.value)} placeholder={String(lastRound?.proposed_price || '')} />
+              </div>
+            </div>
+            <div className="field">
+              <label className="field-label">Delivery (days)</label>
+              <input className="input input-mono" type="number" value={counterDays} onChange={(e) => setCounterDays(e.target.value)} placeholder={String(lastRound?.proposed_days || '')} />
+            </div>
+          </div>
+          <div className="field">
+            <label className="field-label">Message (optional)</label>
+            <textarea className="textarea" rows={2} value={counterMsg} onChange={(e) => setCounterMsg(e.target.value)} placeholder={`Add a note for ${freelancerName.split(' ')[0]}...`} />
+          </div>
+          <div className="row" style={{ marginTop: 10, gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn ghost" onClick={() => setShowCounter(false)}>Cancel</button>
+            <button className="btn primary" onClick={sendCounter} disabled={counterMutation.isPending || !counterPrice || !counterDays}>
+              <Icon name="send" size={13} />
+              {counterMutation.isPending ? 'Sending...' : 'Send counter'}
+            </button>
+          </div>
+          <div className="muted" style={{ fontSize: 11, marginTop: 8, textAlign: 'right' }}>
+            <Icon name="shield" size={10} /> Client gets 3 proposal turns. Creative gets 2 re-proposals.
+          </div>
+        </div>
+      )}
+
+      {isWaitingOnFreelancer && (
+        <div style={{ marginTop: 14, padding: 14, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
+          <div style={{ fontSize: 13, color: 'var(--ink-600)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="typing-dots"><span /><span /><span /></span>
+            Waiting for creative's response...
+          </div>
+        </div>
+      )}
+
+      {isRejected && (
+        <div style={{ marginTop: 14, padding: 14, background: 'rgba(225,29,72,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(225,29,72,0.2)' }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--rose)' }}>
+            Negotiation ended · Re-matching in progress
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function NegotiationPanel({ job }) {
   const queryClient = useQueryClient()
@@ -794,7 +1065,7 @@ export default function JobDetail() {
 
           {/* Status-specific main panel */}
           {isMatching    && <MatchingPanel job={job} />}
-          {isNegotiating && <NegotiationPanel job={job} />}
+          {isNegotiating && <ClientNegotiationPanel job={job} />}
           {isInProgress  && <InProgressPanel job={job} navigate={navigate} />}
           {isCompleted   && <CompletedPanel job={job} />}
 

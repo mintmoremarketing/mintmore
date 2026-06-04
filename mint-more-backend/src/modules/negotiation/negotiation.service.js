@@ -5,7 +5,7 @@ const triggers = require('../notifications/notification.triggers');
 const { holdEscrow } = require('../wallet/wallet.service');
 const { createChatRoom } = require('../chat/chat.service');
 
-const MAX_ROUNDS = 2;
+const MAX_ROUNDS = 6;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ const getActiveNegotiation = async (jobId) => {
      FROM   negotiations n
      LEFT JOIN negotiation_rounds nr ON nr.negotiation_id = n.id
      WHERE  n.job_id = $1
-       AND  n.status IN ('active', 'pending')
+       AND  n.status IN ('active', 'pending', 'agreed')
      GROUP BY n.id`,
     [jobId]
   );

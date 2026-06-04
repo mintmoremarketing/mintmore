@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import { walletApi } from '../../api/wallet'
+import { notificationsApi } from '../../api/notifications'
 import { useSSE } from '../../hooks/useSSE'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
@@ -30,7 +31,7 @@ export default function AppShell() {
   const {
     toasts, showTopUp, showNotif,
     setShowTopUp, setShowNotif,
-    unreadCount,
+    unreadCount, setUnreadCount,
   } = useUIStore()
 
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -50,6 +51,18 @@ export default function AppShell() {
     refetchInterval: 60_000,
   })
   const walletBalance = walletData?.wallet?.balance ?? null
+
+  useQuery({
+    queryKey: ['notif-count'],
+    queryFn: async () => {
+      const res = await notificationsApi.unreadCount()
+      const count = res.data?.data?.unread_count ?? 0
+      setUnreadCount(count)
+      return res.data?.data
+    },
+    enabled: isAuthed && !isGuest,
+    refetchInterval: 30_000,
+  })
 
   if (!isAuthed && !isGuest) return <Navigate to="/login" replace />
 
