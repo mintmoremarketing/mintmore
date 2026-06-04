@@ -109,13 +109,29 @@ function UserDetailModal({ userId, onClose }) {
   const wallet = data?.wallet
 
   const approveMutation = useMutation({
-    mutationFn: (action) => api.patch(`/admin/users/${userId}/approval`, { action }),
-    onSuccess: (_, action) => {
-      pushToast({ title: action === 'approve' ? 'User approved!' : 'User suspended', icon: 'check' })
-      queryClient.invalidateQueries({ queryKey: ['admin-user', userId] })
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
-    },
-  })
+  mutationFn: (action) => api.patch(`/admin/users/${userId}/approval`, {
+    // Changed 'status' to 'is_approved' and evaluated action to a boolean
+    is_approved: action === 'approve', 
+  }),
+  onSuccess: (_, action) => {
+    pushToast({
+      title: action === 'approve' ? 'User approved!' : 'User suspended',
+      icon: 'check',
+    })
+    queryClient.invalidateQueries({ queryKey: ['admin-user', userId] })
+    queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+  },
+  onError: (err) => {
+    // Log the exact validation error to see what field the backend wants
+    console.error('Approval error:', err.response?.data)
+    pushToast({
+      title: 'Failed',
+      body: err.response?.data?.message || err.response?.data?.errors?.join(', ') || 'Try again',
+      tone: 'amber',
+      icon: 'x',
+    })
+  },
+})
 
   const kycMutation = useMutation({
     mutationFn: ({ submissionId, action }) =>

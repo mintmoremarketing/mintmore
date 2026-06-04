@@ -15,6 +15,7 @@ export default function PostJob() {
 		category_id: '',
 		description: '',
 		pricing_mode: 'budget',
+		budget_type: 'fixed',
 		budget_amount: 15000,
 		deadline: '',
 		required_skills: [],
@@ -88,46 +89,72 @@ export default function PostJob() {
 				)}
 
 				{step === 2 && (
-					<div className="stack" style={{ gap: 22 }}>
-						<div>
-							<label className="field-label" style={{ marginBottom: 8, display: 'block' }}>Pricing</label>
-							<div className="grid-2" style={{ gap: 10 }}>
-								{[
-									{ v: 'budget', icon: 'rupee', title: 'I have a budget', sub: 'Set a price; creatives can accept or counter.' },
-									{ v: 'expert', icon: 'sparkles', title: 'Let them quote', sub: 'Expert pricing - best for complex briefs.' },
-								].map((p) => (
-									<button key={p.v} className={`role-card ${data.pricing_mode === p.v ? 'on' : ''}`} onClick={() => update('pricing_mode', p.v)}>
-										<Icon name={p.icon} />
-										<span className="role-title">{p.title}</span>
-										<span className="role-sub">{p.sub}</span>
-									</button>
-								))}
-							</div>
-						</div>
-						<div className="field">
-							<div className="row between">
-								<label className="field-label">Budget</label>
-								<span className="mono" style={{ fontSize: 14, fontWeight: 500 }}>{rupee(data.budget_amount)}</span>
-							</div>
-							<input className="slider" type="range" min="5000" max="200000" step="500"
-								value={data.budget_amount} onChange={(e) => update('budget_amount', parseInt(e.target.value))} />
-						</div>
-						<div className="grid-2">
-							<div className="field">
-								<label className="field-label">Deadline</label>
-								<input className="input" type="date" value={data.deadline} onChange={(e) => update('deadline', e.target.value)} />
-							</div>
-							<div className="field">
-								<label className="field-label">Experience level</label>
-								<select className="select" value={data.required_level} onChange={(e) => update('required_level', e.target.value)}>
-									<option value="beginner">Beginner</option>
-									<option value="intermediate">Intermediate</option>
-									<option value="experienced">Experienced</option>
-								</select>
-							</div>
-						</div>
-					</div>
-				)}
+  <div className="stack" style={{ gap: 22 }}>
+    <div>
+      <label className="field-label" style={{ marginBottom: 8, display: 'block' }}>Pricing</label>
+      <div className="grid-2" style={{ gap: 10 }}>
+        {[
+          { v: 'budget', icon: 'rupee',    title: 'I have a budget',  sub: 'Set a price; creatives can accept or counter.' },
+          { v: 'expert', icon: 'sparkles', title: 'Let them quote',   sub: 'Expert pricing — best for complex briefs.' },
+        ].map(p => (
+          <button
+            key={p.v}
+            className={`role-card ${data.pricing_mode === p.v ? 'on' : ''}`}
+            onClick={() => {
+              update('pricing_mode', p.v)
+              // budget_type is always 'fixed' for now — extend later for hourly
+              update('budget_type', 'fixed')
+            }}
+          >
+            <Icon name={p.icon} />
+            <span className="role-title">{p.title}</span>
+            <span className="role-sub">{p.sub}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+
+    <div className="field">
+      <div className="row between">
+        <label className="field-label">Budget</label>
+        <span className="mono" style={{ fontSize: 14, fontWeight: 500 }}>{rupee(data.budget_amount)}</span>
+      </div>
+      <input
+        className="slider"
+        type="range"
+        min="5000"
+        max="200000"
+        step="500"
+        value={data.budget_amount}
+        onChange={e => update('budget_amount', parseInt(e.target.value))}
+      />
+    </div>
+
+    <div className="grid-2">
+      <div className="field">
+        <label className="field-label">Deadline</label>
+        <input
+          className="input"
+          type="date"
+          value={data.deadline}
+          onChange={e => update('deadline', e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label className="field-label">Experience level</label>
+        <select
+          className="select"
+          value={data.required_level}
+          onChange={e => update('required_level', e.target.value)}
+        >
+          <option value="beginner">Beginner</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="experienced">Experienced</option>
+        </select>
+      </div>
+    </div>
+  </div>
+)}
 
 				{step === 3 && (
 					<div className="stack" style={{ gap: 18 }}>
