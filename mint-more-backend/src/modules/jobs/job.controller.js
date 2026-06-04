@@ -47,6 +47,16 @@ const updateJob = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const pauseMatching = async (req, res, next) => {
+  try {
+    const job = await jobService.pauseMatching(req.user.sub, req.params.id);
+    return sendSuccess(res, {
+      data: job,
+      message: 'Matching paused. You can edit the brief now.',
+    });
+  } catch (err) { next(err); }
+};
+
 const cancelJob = async (req, res, next) => {
   try {
     const job = await jobService.cancelJob(
@@ -129,6 +139,7 @@ module.exports = {
   createJobAsDraft,
   publishJob,
   updateJob,
+  pauseMatching,
   cancelJob,
   getClientJobSummary,
   listJobs,

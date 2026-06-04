@@ -7,6 +7,7 @@ export const jobsApi = {
 	draft: (data) => api.post('/jobs/draft', data),
 	publish: (id) => api.patch(`/jobs/${id}/publish`),
 	update: (id, d) => api.patch(`/jobs/${id}`, d),
+	pauseMatching: (id) => api.patch(`/jobs/${id}/pause-matching`),
 	cancel: (id) => api.patch(`/jobs/${id}/cancel`),
 	categories: () => api.get('/categories'),
 }

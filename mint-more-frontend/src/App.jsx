@@ -149,6 +149,7 @@ export default function App() {
           <Route path="/dashboard" element={<RoleDashboard />} />
           <Route path="/jobs"      element={<RoleJobs />} />
           <Route path="/jobs/new"  element={<ClientOnly><PostJob /></ClientOnly>} />
+          <Route path="/jobs/:id/edit" element={<ClientOnly><PostJob /></ClientOnly>} />
           <Route path="/jobs/:id"  element={<RoleJobDetail />} />
           <Route path="/wallet"    element={<RoleWallet />} />
 

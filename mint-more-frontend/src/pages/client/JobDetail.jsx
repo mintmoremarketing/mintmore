@@ -86,7 +86,70 @@ function Timeline({ status }) {
 // ── Matching animation panel ──────────────────────────────────────────────────
 
 function MatchingPanel({ job }) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore((s) => s.pushToast)
   const candidates = job.matched_candidates || []
+
+  const pauseMutation = useMutation({
+    mutationFn: () => jobsApi.pauseMatching(job.id),
+    onSuccess: () => {
+      pushToast({
+        title: 'Matching paused',
+        body: 'You can edit the brief now.',
+        icon: 'check',
+      })
+      queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+    onError: (err) => {
+      pushToast({
+        title: 'Could not pause matching',
+        body: err.response?.data?.message || 'Try again',
+        tone: 'amber',
+        icon: 'x',
+      })
+    },
+  })
+
+  const editMutation = useMutation({
+    mutationFn: () => jobsApi.pauseMatching(job.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      navigate(`/jobs/${job.id}/edit`)
+    },
+    onError: (err) => {
+      pushToast({
+        title: 'Could not open editor',
+        body: err.response?.data?.message || 'Try again',
+        tone: 'amber',
+        icon: 'x',
+      })
+    },
+  })
+
+  const isActionPending = pauseMutation.isPending || editMutation.isPending
+
+  const actionButtons = (style = {}) => (
+    <div className="row" style={{ gap: 10, justifyContent: 'center', ...style }}>
+      <button
+        className="btn ghost"
+        onClick={() => pauseMutation.mutate()}
+        disabled={isActionPending}
+      >
+        {pauseMutation.isPending ? 'Pausing...' : 'Pause matching'}
+      </button>
+      <button
+        className="btn ghost"
+        onClick={() => editMutation.mutate()}
+        disabled={isActionPending}
+      >
+        <Icon name="edit" size={13} />
+        {editMutation.isPending ? 'Opening...' : 'Edit brief'}
+      </button>
+    </div>
+  )
 
   return (
     <div className="card" style={{ padding: 32, textAlign: 'center' }}>
@@ -145,10 +208,7 @@ function MatchingPanel({ job }) {
             </span>
             <span className="muted" style={{ fontSize: 12 }}>~ 3 min remaining</span>
           </div>
-          <div className="row" style={{ gap: 10, justifyContent: 'center', marginBottom: 24 }}>
-            <button className="btn ghost">Pause matching</button>
-            <button className="btn ghost"><Icon name="edit" size={13} /> Edit brief</button>
-          </div>
+          {actionButtons({ marginBottom: 24 })}
           <div style={{ textAlign: 'left', marginTop: 4 }}>
             <div className="h-eyebrow" style={{ marginBottom: 10 }}>SHORT-LIST ({candidates.length})</div>
             <div className="stack" style={{ gap: 8 }}>
@@ -187,10 +247,7 @@ function MatchingPanel({ job }) {
       )}
 
       {candidates.length === 0 && (
-        <div className="row" style={{ gap: 10, justifyContent: 'center', marginTop: 4 }}>
-          <button className="btn ghost">Pause matching</button>
-          <button className="btn ghost"><Icon name="edit" size={13} /> Edit brief</button>
-        </div>
+        actionButtons({ marginTop: 4 })
       )}
     </div>
   )
@@ -640,6 +697,8 @@ function CompletedPanel({ job }) {
 export default function JobDetail() {
   const { id }   = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore((s) => s.pushToast)
 
   const { data: job, isLoading } = useQuery({
     queryKey: ['job', id],
@@ -649,6 +708,27 @@ export default function JobDetail() {
       const job = d?.data?.job ?? d?.data ?? null
       if (!job || !job.id) throw new Error('Job not found')
       return job
+    },
+  })
+
+  const publishMutation = useMutation({
+    mutationFn: () => jobsApi.publish(id),
+    onSuccess: () => {
+      pushToast({
+        title: 'Brief published',
+        body: 'Matching creatives now - ~6 min',
+        icon: 'radar',
+      })
+      queryClient.invalidateQueries({ queryKey: ['job', id] })
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+    onError: (err) => {
+      pushToast({
+        title: 'Could not publish',
+        body: err.response?.data?.message || 'Try again',
+        tone: 'amber',
+        icon: 'x',
+      })
     },
   })
 
@@ -848,10 +928,18 @@ export default function JobDetail() {
             <div className="card reveal" data-d="5" style={{ padding: 18 }}>
               <div className="h-eyebrow" style={{ marginBottom: 12 }}>Actions</div>
               <div className="stack" style={{ gap: 8 }}>
-                <button className="btn primary block">
-                  <Icon name="radar" /> Publish brief
+                <button
+                  className="btn primary block"
+                  onClick={() => publishMutation.mutate()}
+                  disabled={publishMutation.isPending}
+                >
+                  <Icon name="radar" /> {publishMutation.isPending ? 'Publishing...' : 'Publish brief'}
                 </button>
-                <button className="btn ghost block">
+                <button
+                  className="btn ghost block"
+                  onClick={() => navigate(`/jobs/${job.id}/edit`)}
+                  disabled={publishMutation.isPending}
+                >
                   <Icon name="edit" /> Edit brief
                 </button>
               </div>

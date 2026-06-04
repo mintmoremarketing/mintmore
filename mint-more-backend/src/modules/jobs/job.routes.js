@@ -36,6 +36,14 @@ router.patch(
   controller.publishJob
 );
 
+// PATCH /jobs/:id/pause-matching
+router.patch(
+  '/:id/pause-matching',
+  authorize('client'),
+  requireApproved,
+  controller.pauseMatching
+);
+
 // PATCH /jobs/:id
 // Update draft fields
 router.patch(

@@ -225,6 +225,56 @@ const updateJob = async (clientId, jobId, updates) => {
   return result.rows[0];
 };
 
+const pauseMatching = async (clientId, jobId) => {
+  const client = await getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    const jobResult = await client.query(
+      `SELECT *
+       FROM jobs
+       WHERE id = $1
+         AND client_id = $2
+         AND status IN ('open', 'matching')
+       FOR UPDATE`,
+      [jobId, clientId]
+    );
+
+    const job = jobResult.rows[0];
+    if (!job) {
+      throw new AppError(
+        'Job not found, not owned by you, or matching cannot be paused now',
+        404
+      );
+    }
+
+    await client.query(
+      `DELETE FROM job_matched_candidates
+       WHERE job_id = $1`,
+      [jobId]
+    );
+
+    const updated = await client.query(
+      `UPDATE jobs
+       SET status = 'draft'
+       WHERE id = $1
+       RETURNING *`,
+      [jobId]
+    );
+
+    await client.query('COMMIT');
+
+    logger.info('[Jobs] Matching paused', { jobId, clientId });
+    return updated.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 // ── Cancel Job ────────────────────────────────────────────────────────────────
 
 const cancelJob = async (requesterId, requesterRole, jobId) => {
@@ -529,6 +579,7 @@ module.exports = {
   createJobAsDraft,
   publishJob,
   updateJob,
+  pauseMatching,
   cancelJob,
   listJobs,
   getJobById,

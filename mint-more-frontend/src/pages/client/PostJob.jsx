@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { jobsApi } from '../../api/jobs'
 import { useUIStore } from '../../store/ui'
@@ -8,6 +8,8 @@ import { rupee } from '../../utils/format'
 
 export default function PostJob() {
 	const navigate = useNavigate()
+	const { id } = useParams()
+	const isEditMode = Boolean(id)
 	const pushToast = useUIStore((s) => s.pushToast)
 	const [step, setStep] = useState(1)
 	const [data, setData] = useState({
@@ -28,19 +30,69 @@ export default function PostJob() {
 	})
 	const categories = catData?.categories || []
 
+	const { data: existingJob, isLoading: isJobLoading } = useQuery({
+		queryKey: ['job', id],
+		queryFn: async () => {
+			const res = await jobsApi.get(id)
+			return res.data?.data?.job ?? res.data?.data ?? null
+		},
+		enabled: isEditMode,
+	})
+
+	useEffect(() => {
+		if (!existingJob) return
+
+		setData({
+			title: existingJob.title || '',
+			category_id: existingJob.category_id || '',
+			description: existingJob.description || '',
+			pricing_mode: existingJob.pricing_mode || 'budget',
+			budget_type: existingJob.budget_type || 'fixed',
+			budget_amount: existingJob.budget_amount || 15000,
+			deadline: existingJob.deadline ? existingJob.deadline.slice(0, 10) : '',
+			required_skills: existingJob.required_skills || [],
+			required_level: existingJob.required_level || 'intermediate',
+		})
+	}, [existingJob])
+
 	const { mutate, isPending } = useMutation({
-		mutationFn: () => jobsApi.create({ ...data, status: 'open' }),
+		mutationFn: async () => {
+			if (!isEditMode) {
+				return jobsApi.create({ ...data, status: 'open' })
+			}
+
+			await jobsApi.update(id, data)
+			return jobsApi.publish(id)
+		},
 		onSuccess: () => {
-			pushToast({ title: 'Brief posted!', body: 'Matching creatives now - ~6 min' })
-			navigate('/jobs')
+			pushToast({
+				title: isEditMode ? 'Brief updated!' : 'Brief posted!',
+				body: 'Matching creatives now - ~6 min',
+			})
+			navigate(isEditMode ? `/jobs/${id}` : '/jobs')
 		},
 		onError: (err) => {
-			pushToast({ title: 'Failed to post', body: err.response?.data?.message || 'Try again', tone: 'amber' })
+			pushToast({
+				title: isEditMode ? 'Failed to update' : 'Failed to post',
+				body: err.response?.data?.message || 'Try again',
+				tone: 'amber',
+			})
 		},
 	})
 
 	function update(k, v) {
 		setData((d) => ({ ...d, [k]: v }))
+	}
+
+	if (isEditMode && isJobLoading) {
+		return (
+			<div className="stack-6">
+				<div className="card" style={{ padding: 28 }}>
+					<div className="skeleton" style={{ width: '45%', height: 18, borderRadius: 6, marginBottom: 18 }} />
+					<div className="skeleton" style={{ width: '100%', height: 120, borderRadius: 12 }} />
+				</div>
+			</div>
+		)
 	}
 
 	return (
@@ -49,8 +101,12 @@ export default function PostJob() {
 				<button className="btn link sm" onClick={() => navigate('/jobs')} style={{ padding: 0, color: 'var(--ink-500)', fontSize: 12 }}>
 					<Icon name="arrowLeft" size={12} /> All jobs
 				</button>
-				<h1 className="h-display h-1" style={{ margin: '6px 0 0' }}>Post a brief</h1>
-				<p className="muted" style={{ marginTop: 6 }}>We'll match you with 2-4 creatives in around 6 minutes.</p>
+				<h1 className="h-display h-1" style={{ margin: '6px 0 0' }}>{isEditMode ? 'Edit brief' : 'Post a brief'}</h1>
+				<p className="muted" style={{ marginTop: 6 }}>
+					{isEditMode
+						? 'Update the brief and restart matching when it looks right.'
+						: "We'll match you with 2-4 creatives in around 6 minutes."}
+				</p>
 			</div>
 
 			<div className="stepper">
@@ -186,8 +242,12 @@ export default function PostJob() {
 					<Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}
 				</button>
 				<button className="btn primary" onClick={() => step < 3 ? setStep(step + 1) : mutate()} disabled={isPending}>
-					{isPending ? 'Posting...' : step < 3 ? <>Continue <Icon name="arrowRight" /></> : <>Post brief <Icon name="arrowRight" /></>}
-				</button>
+					{isPending
+						? (isEditMode ? 'Saving...' : 'Posting...')
+						: step < 3
+						? <>Continue <Icon name="arrowRight" /></>
+						: <>{isEditMode ? 'Save & restart matching' : 'Post brief'} <Icon name="arrowRight" /></>}
+C:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\mint-more-frontend\src\pages\client\JobDetail.jsx				</button>
 			</div>
 		</div>
 	)
