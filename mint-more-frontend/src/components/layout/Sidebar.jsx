@@ -7,6 +7,7 @@ const CLIENT_NAV = [
   { route: '/dashboard',   icon: 'home',      label: 'Dashboard' },
   { route: '/notifications', icon: 'bell',     label: 'Inbox', showCount: true },
   { route: '/jobs',        icon: 'briefcase', label: 'Jobs' },
+  { route: '/mintbox',     icon: 'layers',    label: 'Mintbox' },
   { route: '/wallet',      icon: 'wallet',    label: 'Wallet' },
   { route: '/freelancers', icon: 'user',      label: 'Marketplace' },
   { route: '/social',      icon: 'layers',    label: 'Social' },
@@ -59,7 +60,7 @@ export default function Sidebar({ role }) {
         {items.map(item => (
           <button
             key={item.route}
-            className={`nav-item ${location.pathname === item.route ? 'active' : ''}`}
+            className={`nav-item ${location.pathname === item.route || location.pathname.startsWith(`${item.route}/`) ? 'active' : ''}`}
             onClick={() => navigate(item.route)}
           >
             <Icon name={item.icon} size={15} />

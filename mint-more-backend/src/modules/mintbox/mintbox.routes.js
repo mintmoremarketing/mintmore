@@ -8,6 +8,7 @@ const router = Router();
 
 router.use(authenticate, requireApproved);
 
+router.get('/', controller.listFolders);
 router.get('/jobs/:jobId', controller.getProjectFolder);
 router.post(
   '/jobs/:jobId/files',

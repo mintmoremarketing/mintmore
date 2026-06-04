@@ -276,6 +276,7 @@ function ClientNegotiationPanel({ job }) {
       return res.data?.data || null
     },
     enabled: Boolean(job.id) && ['locked', 'negotiating', 'pending_admin_approval'].includes(job.status),
+    refetchInterval: 2500,
   })
 
   const { data: walletData } = useQuery({
@@ -283,7 +284,7 @@ function ClientNegotiationPanel({ job }) {
     queryFn: async () => walletApi.get().then(r => r.data?.data),
   })
 
-  const neg = job.negotiation || negotiationData?.negotiation
+  const neg = negotiationData?.negotiation || job.negotiation
   const freelancer =
     job.active_freelancer ||
     job.matched_freelancer ||
@@ -297,6 +298,7 @@ function ClientNegotiationPanel({ job }) {
     onSuccess: () => {
       pushToast({ title: 'Deal sent for admin approval', body: 'Escrow will be held after approval.', icon: 'shield' })
       queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+      queryClient.invalidateQueries({ queryKey: ['negotiation-status', job.id] })
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
     },
     onError: (err) => pushToast({ title: 'Failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
@@ -328,6 +330,7 @@ function ClientNegotiationPanel({ job }) {
     onSuccess: () => {
       pushToast({ title: 'Offer declined', body: 'Job will be re-matched.', icon: 'refresh' })
       queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+      queryClient.invalidateQueries({ queryKey: ['negotiation-status', job.id] })
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
     },
     onError: (err) => pushToast({ title: 'Failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
@@ -339,7 +342,7 @@ function ClientNegotiationPanel({ job }) {
   const lastRound = rounds[rounds.length - 1]
   const maxRounds = Math.max(Number(neg?.max_rounds) || 0, NEGOTIATION_MAX_ROUNDS)
   const currentRound = neg?.current_round || Math.max(1, rounds.length)
-  const isMyTurn = neg?.status === 'active' && getSender(lastRound) === 'freelancer'
+  const isMyTurn = !pendingCounter && neg?.status === 'active' && getSender(lastRound) === 'freelancer'
   const isWaitingOnFreelancer = neg?.status === 'active' && getSender(lastRound) === 'client'
   const isPendingAdmin = job.status === 'pending_admin_approval'
   const isAgreed = neg?.status === 'agreed'

@@ -13,6 +13,13 @@ const getProjectFolder = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const listFolders = async (req, res, next) => {
+  try {
+    const result = await mintboxService.listClientFolders(req.user.sub, req.user.role);
+    return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
 const getSharedFolder = async (req, res, next) => {
   try {
     const result = await mintboxService.getFolderByShareToken(
@@ -55,6 +62,7 @@ const reviewFile = async (req, res, next) => {
 };
 
 module.exports = {
+  listFolders,
   getProjectFolder,
   getSharedFolder,
   uploadWork,

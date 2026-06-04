@@ -171,6 +171,7 @@ export default function App() {
 
           {/* Shared */}
           <Route path="/chat"     element={<ComingSoon label="Messages" />} />
+          <Route path="/mintbox" element={<ClientOnly><Mintbox /></ClientOnly>} />
           <Route path="/mintbox/jobs/:jobId" element={<Mintbox />} />
           <Route path="/mintbox/share/:token" element={<Mintbox />} />
           <Route path="/notifications" element={<NotificationsInbox />} />

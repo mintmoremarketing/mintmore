@@ -27,7 +27,7 @@ const getJobForAccess = async (jobId, requesterId, role, dbClient = null) => {
   const result = await executor.query(
     `SELECT j.*, ja.freelancer_id AS assignment_freelancer_id
      FROM jobs j
-     LEFT JOIN job_assignments ja ON ja.job_id = j.id AND ja.status IN ('accepted', 'in_progress', 'pending_acceptance')
+     LEFT JOIN job_assignments ja ON ja.job_id = j.id AND ja.status IN ('accepted', 'pending_acceptance')
      WHERE j.id = $1`,
     [jobId]
   );
@@ -77,6 +77,49 @@ const getFolderByJob = async (jobId, requesterId, role) => {
   return {
     folder,
     files,
+    quota: {
+      used,
+      limit: CLIENT_QUOTA_BYTES,
+      remaining: Math.max(0, CLIENT_QUOTA_BYTES - used),
+    },
+  };
+};
+
+const listClientFolders = async (clientId, role) => {
+  if (role !== 'client' && role !== 'admin') {
+    throw new AppError('Only clients can view Mintbox storage overview', 403);
+  }
+
+  const jobs = await query(
+    `SELECT id, client_id, title, status, created_at
+     FROM jobs
+     WHERE client_id = $1
+     ORDER BY created_at DESC`,
+    [clientId]
+  );
+
+  for (const job of jobs.rows) {
+    await ensureFolder(job);
+  }
+
+  const folders = await query(
+    `SELECT
+       mf.*,
+       j.status AS job_status,
+       COUNT(files.id)::INT AS file_count,
+       MAX(files.created_at) AS last_file_at
+     FROM mintbox_folders mf
+     JOIN jobs j ON j.id = mf.job_id
+     LEFT JOIN mintbox_files files ON files.folder_id = mf.id
+     WHERE mf.client_id = $1
+     GROUP BY mf.id, j.status
+     ORDER BY mf.created_at DESC`,
+    [clientId]
+  );
+  const used = await getClientUsage(clientId);
+
+  return {
+    folders: folders.rows,
     quota: {
       used,
       limit: CLIENT_QUOTA_BYTES,
@@ -210,6 +253,7 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
 
 module.exports = {
   CLIENT_QUOTA_BYTES,
+  listClientFolders,
   getFolderByJob,
   getFolderByShareToken,
   uploadWork,

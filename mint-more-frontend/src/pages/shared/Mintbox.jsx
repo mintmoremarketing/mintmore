@@ -23,6 +23,21 @@ const statusLabel = {
 	approved: 'Approved',
 }
 
+function StorageBar({ quota }) {
+	const usedPct = quota?.limit ? Math.min(100, (quota.used / quota.limit) * 100) : 0
+	return (
+		<div className="card reveal" style={{ padding: 18 }}>
+			<div className="row between" style={{ marginBottom: 10 }}>
+				<div className="h-eyebrow">Storage</div>
+				<span className="mono" style={{ fontSize: 12 }}>{formatBytes(quota?.used)} / {formatBytes(quota?.limit)}</span>
+			</div>
+			<div style={{ height: 7, background: 'var(--hairline)', borderRadius: 4, overflow: 'hidden' }}>
+				<div style={{ height: '100%', width: `${usedPct}%`, background: usedPct > 90 ? 'var(--rose)' : 'var(--mint-500)' }} />
+			</div>
+		</div>
+	)
+}
+
 export default function Mintbox() {
 	const { jobId, token } = useParams()
 	const navigate = useNavigate()
@@ -33,20 +48,25 @@ export default function Mintbox() {
 	const [note, setNote] = useState('')
 	const [reviewNotes, setReviewNotes] = useState({})
 
-	const queryKey = token ? ['mintbox-share', token] : ['mintbox-job', jobId]
+	const isOverview = !jobId && !token
+	const queryKey = token ? ['mintbox-share', token] : jobId ? ['mintbox-job', jobId] : ['mintbox']
 	const { data, isLoading } = useQuery({
 		queryKey,
 		queryFn: async () => {
-			const res = token ? await mintboxApi.getSharedFolder(token) : await mintboxApi.getJobFolder(jobId)
+			const res = token
+				? await mintboxApi.getSharedFolder(token)
+				: jobId
+				? await mintboxApi.getJobFolder(jobId)
+				: await mintboxApi.getFolders()
 			return res.data?.data
 		},
 	})
 
 	const folder = data?.folder
+	const folders = data?.folders || []
 	const files = data?.files || []
 	const quota = data?.quota
 	const shareUrl = folder?.share_token ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
-	const usedPct = quota?.limit ? Math.min(100, (quota.used / quota.limit) * 100) : 0
 
 	const uploadMutation = useMutation({
 		mutationFn: (file) => {
@@ -89,6 +109,71 @@ export default function Mintbox() {
 		</div>
 	)
 
+	if (isOverview) return (
+		<div className="stack-6">
+			<div className="row between reveal" style={{ alignItems: 'flex-start', gap: 16 }}>
+				<div>
+					<div className="h-eyebrow" style={{ marginBottom: 4 }}>Mintbox</div>
+					<h1 className="h-display h-1" style={{ margin: 0 }}>Project storage</h1>
+					<p className="muted" style={{ marginTop: 6 }}>
+						Every project gets its own folder for submissions, revisions, and final files.
+					</p>
+				</div>
+				<button className="btn primary" onClick={() => navigate('/jobs')}>
+					<Icon name="briefcase" size={13} /> View jobs
+				</button>
+			</div>
+
+			<StorageBar quota={quota} />
+
+			<div className="card reveal" style={{ padding: 0, overflow: 'hidden' }}>
+				{folders.length === 0 ? (
+					<div className="empty" style={{ border: 0, padding: 48 }}>
+						<div className="empty-glyph"><Icon name="layers" /></div>
+						<h3>No project folders yet</h3>
+						<p>Post a brief and its Mintbox folder will appear here.</p>
+						<button className="btn primary" onClick={() => navigate('/jobs/new')}>
+							<Icon name="plus" /> Post a brief
+						</button>
+					</div>
+				) : (
+					folders.map((item, index) => (
+						<button
+							key={item.id}
+							onClick={() => navigate(`/mintbox/jobs/${item.job_id}`)}
+							style={{
+								width: '100%',
+								border: 0,
+								borderTop: index === 0 ? 0 : '1px solid var(--hairline)',
+								background: 'transparent',
+								padding: 16,
+								textAlign: 'left',
+								cursor: 'pointer',
+							}}
+						>
+							<div className="row between" style={{ gap: 14 }}>
+								<div style={{ display: 'flex', gap: 12, minWidth: 0, alignItems: 'center' }}>
+									<div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--paper-tint)', border: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+										<Icon name="layers" size={15} />
+									</div>
+									<div style={{ minWidth: 0 }}>
+										<div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-950)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+											{item.name}
+										</div>
+										<div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 3 }}>
+											{item.file_count || 0} files - {formatBytes(Number(item.storage_used || 0))}
+										</div>
+									</div>
+								</div>
+								<Icon name="arrowRight" size={13} />
+							</div>
+						</button>
+					))
+				)}
+			</div>
+		</div>
+	)
+
 	if (!folder) return (
 		<div className="empty">
 			<h3>Mintbox not found</h3>
@@ -115,15 +200,7 @@ export default function Mintbox() {
 				</button>
 			</div>
 
-			<div className="card reveal" style={{ padding: 18 }}>
-				<div className="row between" style={{ marginBottom: 10 }}>
-					<div className="h-eyebrow">Storage</div>
-					<span className="mono" style={{ fontSize: 12 }}>{formatBytes(quota?.used)} / {formatBytes(quota?.limit)}</span>
-				</div>
-				<div style={{ height: 7, background: 'var(--hairline)', borderRadius: 4, overflow: 'hidden' }}>
-					<div style={{ height: '100%', width: `${usedPct}%`, background: usedPct > 90 ? 'var(--rose)' : 'var(--mint-500)' }} />
-				</div>
-			</div>
+			<StorageBar quota={quota} />
 
 			{role === 'freelancer' && (
 				<div className="card reveal" style={{ padding: 18 }}>

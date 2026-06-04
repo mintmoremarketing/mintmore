@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { jobsApi } from '../../api/jobs'
@@ -407,6 +407,7 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 	const [price, setPrice] = useState('')
 	const [days, setDays] = useState('')
 	const [message, setMessage] = useState('')
+	const [pendingCounter, setPendingCounter] = useState(false)
 
 	const { data: negotiationData } = useQuery({
 		queryKey: ['negotiation-status', job.id],
@@ -415,21 +416,30 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 			return res.data?.data || null
 		},
 		enabled: Boolean(job.id) && ['locked', 'negotiating', 'pending_admin_approval'].includes(job.status),
+		refetchInterval: 2500,
 	})
 
-	const neg = job.negotiation || negotiationData?.negotiation
+	const neg = negotiationData?.negotiation || job.negotiation
 	const getSender = (round) => round?.sender_role || round?.sender
 	const rounds = neg?.rounds || []
 	const lastRound = rounds[rounds.length - 1]
-	const isMyTurn = neg?.status === 'active' && getSender(lastRound) === 'client'
+	const lastSender = getSender(lastRound)
+	const isMyTurn = !pendingCounter && neg?.status === 'active' && lastSender === 'client'
 	const maxRounds = Math.max(Number(neg?.max_rounds) || 0, NEGOTIATION_MAX_ROUNDS)
 	const currentRound = neg?.current_round || Math.max(1, rounds.length)
+
+	useEffect(() => {
+		if (pendingCounter && lastSender === 'freelancer') {
+			setPendingCounter(false)
+		}
+	}, [pendingCounter, lastSender])
 
 	const acceptMutation = useMutation({
 		mutationFn: () => negotiationsApi.freelancerRespond(job.id, { action: 'accept' }),
 		onSuccess: () => {
 			pushToast({ title: 'Offer accepted!', body: 'Waiting for admin approval', icon: 'check' })
 			queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+			queryClient.invalidateQueries({ queryKey: ['negotiation-status', job.id] })
 		},
 		onError: (err) => pushToast({ title: 'Failed', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
 	})
@@ -444,8 +454,13 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 			}),
 		onSuccess: () => {
 			pushToast({ title: 'Counter sent', body: 'Waiting for client response', icon: 'refresh' })
+			setPendingCounter(true)
 			queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+			queryClient.invalidateQueries({ queryKey: ['negotiation-status', job.id] })
 			setShowCounter(false)
+			setPrice('')
+			setDays('')
+			setMessage('')
 		},
 		onError: (err) => pushToast({ title: 'Failed', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
 	})
@@ -455,6 +470,7 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 		onSuccess: () => {
 			pushToast({ title: 'Offer declined', icon: 'x' })
 			queryClient.invalidateQueries({ queryKey: ['job', job.id] })
+			queryClient.invalidateQueries({ queryKey: ['negotiation-status', job.id] })
 		},
 		onError: (err) => pushToast({ title: 'Failed', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
 	})

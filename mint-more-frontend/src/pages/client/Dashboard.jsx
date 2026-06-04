@@ -3,10 +3,20 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import { api } from '../../api/client'
+import { mintboxApi } from '../../api/mintbox'
 import Icon from '../../components/ui/Icon'
 import StatusChip from '../../components/ui/StatusChip'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
+
+const GB = 1024 * 1024 * 1024
+
+const formatBytes = (bytes = 0) => {
+	if (bytes >= GB) return `${(bytes / GB).toFixed(1)} GB`
+	if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+	if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
+	return `${bytes} B`
+}
 
 export default function ClientDashboard() {
 	const navigate = useNavigate()
@@ -27,11 +37,18 @@ export default function ClientDashboard() {
 		queryFn: () => api.get('/jobs').then((r) => r.data.data),
 	})
 
+	const { data: mintboxData } = useQuery({
+		queryKey: ['mintbox'],
+		queryFn: () => mintboxApi.getFolders().then((r) => r.data.data),
+	})
+
 	const activeJobs = jobsData?.jobs?.filter((j) =>
 		['matching', 'locked', 'negotiating', 'in_progress', 'assigned'].includes(j.status)
 	) || []
 
 	const wallet = walletData?.wallet
+	const quota = mintboxData?.quota
+	const usedPct = quota?.limit ? Math.min(100, (quota.used / quota.limit) * 100) : 0
 
 	return (
 		<div className="stack-6">
@@ -118,6 +135,27 @@ export default function ClientDashboard() {
 							</div>
 						</button>
 					))}
+				</div>
+			</div>
+
+			<div className="card reveal" data-d="2" style={{ padding: 18 }}>
+				<div className="row between" style={{ gap: 14, marginBottom: 14 }}>
+					<div>
+						<div className="h-eyebrow" style={{ marginBottom: 5 }}>Mintbox storage</div>
+						<div style={{ fontSize: 20, fontWeight: 600, color: 'var(--ink-950)' }}>
+							{formatBytes(quota?.used || 0)} used
+						</div>
+					</div>
+					<button className="btn ghost sm" onClick={() => navigate('/mintbox')}>
+						Open Mintbox <Icon name="arrowRight" size={12} />
+					</button>
+				</div>
+				<div className="row between" style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 8 }}>
+					<span>Total space</span>
+					<span className="mono">{formatBytes(quota?.limit || 10 * GB)}</span>
+				</div>
+				<div style={{ height: 7, background: 'var(--hairline)', borderRadius: 4, overflow: 'hidden' }}>
+					<div style={{ height: '100%', width: `${usedPct}%`, background: usedPct > 90 ? 'var(--rose)' : 'var(--mint-500)' }} />
 				</div>
 			</div>
 

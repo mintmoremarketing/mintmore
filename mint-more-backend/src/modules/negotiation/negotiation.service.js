@@ -401,16 +401,22 @@ const clientRespond = async (clientId, jobId, {
     // ── ACCEPT ─────────────────────────────────────────────────────────────
     if (action === 'accept') {
       const lastRound = await dbClient.query(
-        `SELECT proposed_price, proposed_days
+        `SELECT sender, proposed_price, proposed_days
          FROM   negotiation_rounds
          WHERE  negotiation_id = $1
          ORDER  BY round_number DESC
          LIMIT  1`,
         [negotiation.id]
       );
+      if (!lastRound.rows[0]) {
+        throw new AppError('No offer is available to accept', 400);
+      }
+      if (lastRound.rows[0].sender !== 'freelancer') {
+        throw new AppError('You can only accept the latest creative offer', 409);
+      }
 
-      const agreedPrice = proposed_price || lastRound.rows[0]?.proposed_price;
-      const agreedDays  = proposed_days  || lastRound.rows[0]?.proposed_days;
+      const agreedPrice = lastRound.rows[0].proposed_price;
+      const agreedDays  = lastRound.rows[0].proposed_days;
 
       await ensureClientCanFundOffer(dbClient, clientId, agreedPrice);
 
@@ -476,6 +482,18 @@ const clientRespond = async (clientId, jobId, {
     if (action === 'counter') {
       if (!proposed_price) {
         throw new AppError('proposed_price is required for counter action', 400);
+      }
+
+      const lastRound = await dbClient.query(
+        `SELECT sender
+         FROM   negotiation_rounds
+         WHERE  negotiation_id = $1
+         ORDER  BY round_number DESC
+         LIMIT  1`,
+        [negotiation.id]
+      );
+      if (!lastRound.rows[0] || lastRound.rows[0].sender !== 'freelancer') {
+        throw new AppError('Wait for the creative to respond before sending another counter', 409);
       }
 
       await ensureClientCanFundOffer(dbClient, clientId, proposed_price);
@@ -581,16 +599,22 @@ const freelancerRespond = async (freelancerId, jobId, {
     // ── ACCEPT ─────────────────────────────────────────────────────────────
     if (action === 'accept') {
       const lastRound = await dbClient.query(
-        `SELECT proposed_price, proposed_days
+        `SELECT sender, proposed_price, proposed_days
          FROM   negotiation_rounds
          WHERE  negotiation_id = $1
          ORDER  BY round_number DESC
          LIMIT  1`,
         [negotiation.id]
       );
+      if (!lastRound.rows[0]) {
+        throw new AppError('No offer is available to accept', 400);
+      }
+      if (lastRound.rows[0].sender !== 'client') {
+        throw new AppError('You can only accept the latest client offer', 409);
+      }
 
-      const agreedPrice = proposed_price || lastRound.rows[0]?.proposed_price;
-      const agreedDays  = proposed_days  || lastRound.rows[0]?.proposed_days;
+      const agreedPrice = lastRound.rows[0].proposed_price;
+      const agreedDays  = lastRound.rows[0].proposed_days;
 
       await ensureClientCanFundOffer(dbClient, job.client_id, agreedPrice);
 
@@ -658,6 +682,18 @@ const freelancerRespond = async (freelancerId, jobId, {
     if (action === 'counter') {
       if (!proposed_price) {
         throw new AppError('proposed_price is required for counter action', 400);
+      }
+
+      const lastRound = await dbClient.query(
+        `SELECT sender
+         FROM   negotiation_rounds
+         WHERE  negotiation_id = $1
+         ORDER  BY round_number DESC
+         LIMIT  1`,
+        [negotiation.id]
+      );
+      if (!lastRound.rows[0] || lastRound.rows[0].sender !== 'client') {
+        throw new AppError('Wait for the client to respond before sending another counter', 409);
       }
 
       await validateFreelancerOfferPrice(dbClient, freelancerId, job, proposed_price);
