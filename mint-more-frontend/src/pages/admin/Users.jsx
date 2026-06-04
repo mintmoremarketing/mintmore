@@ -94,6 +94,84 @@ function WalletAdjustModal({ user, onClose }) {
   )
 }
 
+function CreateAdminModal({ onClose }) {
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore(s => s.pushToast)
+  const [form, setForm] = useState({ full_name: '', email: '', password: '' })
+
+  const createAdmin = useMutation({
+    mutationFn: () => api.post('/admin/users/admin', form),
+    onSuccess: () => {
+      pushToast({ title: 'Admin created', body: `${form.full_name} can now sign in`, icon: 'check' })
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      onClose()
+    },
+    onError: err => pushToast({
+      title: 'Failed',
+      body: err.response?.data?.message || 'Could not create admin',
+      tone: 'amber',
+      icon: 'x',
+    }),
+  })
+
+  const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }))
+  const canSubmit = form.full_name.trim() && form.email.trim() && form.password.length >= 8
+
+  return (
+    <Modal
+      title="Create admin"
+      subtitle="Add a new platform admin account"
+      onClose={onClose}
+      maxWidth={420}
+      footer={
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="btn ghost" onClick={onClose} disabled={createAdmin.isPending}>Cancel</button>
+          <button
+            className="btn primary"
+            onClick={() => createAdmin.mutate()}
+            disabled={!canSubmit || createAdmin.isPending}
+          >
+            <Icon name="plus" size={13} />
+            {createAdmin.isPending ? 'Creating...' : 'Create admin'}
+          </button>
+        </div>
+      }
+    >
+      <div className="stack" style={{ gap: 14 }}>
+        <div className="field">
+          <label className="field-label">Full name</label>
+          <input
+            className="input"
+            value={form.full_name}
+            onChange={e => updateField('full_name', e.target.value)}
+            placeholder="e.g. Priya Admin"
+          />
+        </div>
+        <div className="field">
+          <label className="field-label">Email</label>
+          <input
+            className="input"
+            type="email"
+            value={form.email}
+            onChange={e => updateField('email', e.target.value)}
+            placeholder="admin@mintmore.in"
+          />
+        </div>
+        <div className="field">
+          <label className="field-label">Temporary password</label>
+          <input
+            className="input"
+            type="password"
+            value={form.password}
+            onChange={e => updateField('password', e.target.value)}
+            placeholder="Minimum 8 characters"
+          />
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 function UserDetailModal({ userId, onClose }) {
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
@@ -304,6 +382,7 @@ export default function AdminUsers() {
   const [search,      setSearch]      = useState('')
   const [roleFilter,  setRoleFilter]  = useState('all')
   const [selectedUser,setSelectedUser]= useState(null)
+  const [showCreateAdmin, setShowCreateAdmin] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users', search, roleFilter],
@@ -322,7 +401,13 @@ export default function AdminUsers() {
     <div className="stack-6">
       <div className="reveal">
         <div className="h-eyebrow" style={{ marginBottom: 4 }}>Admin</div>
-        <h1 className="h-display h-1" style={{ margin: 0 }}>Users</h1>
+        <div className="row between" style={{ gap: 12 }}>
+          <h1 className="h-display h-1" style={{ margin: 0 }}>Users</h1>
+          <button className="btn primary" onClick={() => setShowCreateAdmin(true)}>
+            <Icon name="plus" size={13} />
+            Create admin
+          </button>
+        </div>
       </div>
 
       {/* Search + filter */}
@@ -344,6 +429,7 @@ export default function AdminUsers() {
             { value: 'all',        label: 'All' },
             { value: 'client',     label: 'Clients' },
             { value: 'freelancer', label: 'Freelancers' },
+            { value: 'admin',      label: 'Admins' },
           ]}
         />
       </div>
@@ -412,6 +498,10 @@ export default function AdminUsers() {
 
       {selectedUser && (
         <UserDetailModal userId={selectedUser} onClose={() => setSelectedUser(null)} />
+      )}
+
+      {showCreateAdmin && (
+        <CreateAdminModal onClose={() => setShowCreateAdmin(false)} />
       )}
     </div>
   )

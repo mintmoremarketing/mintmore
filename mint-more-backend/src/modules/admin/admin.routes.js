@@ -12,6 +12,7 @@ router.get('/dashboard', controller.getDashboardStats);
 
 // ── User Management ───────────────────────────────────────────────────────────
 router.get('/users',                    controller.getUsers);
+router.post('/users/admin',             controller.createAdminUser);
 router.get('/users/:userId',            controller.getUserById);
 router.patch('/users/:userId/approval', controller.setUserApproval);
 router.patch('/users/:userId/level',    controller.setFreelancerLevel);

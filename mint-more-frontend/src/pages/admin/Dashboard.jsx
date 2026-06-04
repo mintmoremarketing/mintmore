@@ -253,16 +253,21 @@ export default function AdminDashboard() {
   })
 
   const stats = dashData || {}
-  const deals = dealsData?.negotiations || []
+  const deals = dealsData?.negotiations || dealsData?.pending || []
   const kycs  = kycData?.submissions    || kycData?.kyc_submissions || []
   const wds   = wdData?.withdrawals     || []
 
-  const usersObj = stats.total_users && typeof stats.total_users === 'object' ? stats.total_users : null
-  const totalUsers = usersObj
-    ? (usersObj.total_clients || 0) + (usersObj.total_freelancers || 0)
-    : (stats.total_users ?? stats.users ?? 0)
-  const totalFreelancers = usersObj?.total_freelancers ?? stats.freelancers ?? stats.total_freelancers ?? 0
-  const totalClients = usersObj?.total_clients ?? stats.clients ?? stats.total_clients ?? 0
+  const userStats = stats.users || {}
+  const jobStats = stats.jobs || {}
+  const totalClients = Number(userStats.total_clients ?? stats.total_clients ?? 0)
+  const totalFreelancers = Number(userStats.total_freelancers ?? stats.total_freelancers ?? 0)
+  const totalAdmins = Number(userStats.total_admins ?? stats.total_admins ?? 0)
+  const totalUsers = totalClients + totalFreelancers + totalAdmins
+  const activeJobs =
+    Number(jobStats.open_jobs ?? 0) +
+    Number(jobStats.matching_jobs ?? 0) +
+    Number(jobStats.assigned_jobs ?? 0) +
+    Number(jobStats.active_jobs ?? stats.active_jobs ?? 0)
 
   // Pending count
   const pendingCount = deals.length + kycs.length + wds.length
@@ -284,7 +289,7 @@ export default function AdminDashboard() {
         />
         <StatCard
           icon="briefcase" label="Active jobs"
-          value={stats.active_jobs ?? stats.jobs_active ?? 0}
+          value={activeJobs}
           sub="matching / in progress"
         />
         <StatCard
@@ -302,8 +307,6 @@ export default function AdminDashboard() {
           onClick={() => navigate('/admin/wallet')}
         />
       </div>
-
-      <MarketPriceRangesPanel pushToast={pushToast} queryClient={queryClient} />
 
       {/* Two column */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
@@ -325,15 +328,15 @@ export default function AdminDashboard() {
             </div>
           ) : (
             deals.map(deal => (
-              <div key={deal.id} style={{
+              <div key={deal.negotiation_id || deal.id || deal.job_id} style={{
                 background: 'var(--paper)', border: '1.5px solid rgba(217,119,6,0.3)',
                 borderRadius: 'var(--radius-lg)', padding: 20,
               }}>
                 <div className="row between" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 15 }}>{deal.job?.title || 'Job'}</div>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>{deal.job?.title || deal.title || 'Job'}</div>
                     <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 2 }}>
-                      {deal.client?.full_name} → {deal.freelancer?.full_name}
+                      {deal.client?.full_name || deal.client_name || 'Client'} → {deal.freelancer?.full_name || deal.freelancer_name || 'Freelancer'}
                     </div>
                   </div>
                   <span className="badge amber"><span className="bdot" /> Pending</span>
@@ -354,7 +357,7 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <div style={{ color: 'var(--ink-500)', marginBottom: 2 }}>Rounds</div>
-                    <div style={{ fontWeight: 500 }}>{deal.current_round} of {deal.max_rounds}</div>
+                    <div style={{ fontWeight: 500 }}>{deal.current_round || 0} of {deal.max_rounds || 6}</div>
                   </div>
                 </div>
 

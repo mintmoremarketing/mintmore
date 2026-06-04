@@ -2,7 +2,7 @@ const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
 const triggers = require('../notifications/notification.triggers');
-const { holdEscrow } = require('../wallet/wallet.service');
+const { holdEscrow, getWalletByUserId } = require('../wallet/wallet.service');
 const { createChatRoom } = require('../chat/chat.service');
 
 const MAX_ROUNDS = 6;
@@ -76,6 +76,22 @@ const normalizeFreelancerLevel = (level) => {
 };
 
 const formatAmount = (amount) => Number(amount).toLocaleString('en-IN');
+
+const ensureClientCanFundOffer = async (dbClient, clientId, amount) => {
+  const price = Number(amount);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new AppError('proposed_price must be a valid positive amount', 400);
+  }
+
+  const wallet = await getWalletByUserId(clientId, dbClient, true);
+  const balance = Number(wallet.balance);
+  if (balance < price) {
+    throw new AppError(
+      `Add funds to your wallet before making this offer. Required: INR ${formatAmount(price)}, Available: INR ${formatAmount(balance)}`,
+      400
+    );
+  }
+};
 
 const validateFreelancerOfferPrice = async (client, freelancerId, job, proposedPrice) => {
   const price = Number(proposedPrice);
@@ -197,7 +213,6 @@ const saveMatchedCandidates = async (jobId, rankedCandidates) => {
     );
 
     await dbClient.query('COMMIT');
-
     logger.info('[Negotiation] Matched candidates saved', {
       jobId,
       count:   rankedCandidates.length,
@@ -397,6 +412,8 @@ const clientRespond = async (clientId, jobId, {
       const agreedPrice = proposed_price || lastRound.rows[0]?.proposed_price;
       const agreedDays  = proposed_days  || lastRound.rows[0]?.proposed_days;
 
+      await ensureClientCanFundOffer(dbClient, clientId, agreedPrice);
+
       await dbClient.query(
         `UPDATE negotiations
          SET status       = 'agreed',
@@ -460,6 +477,8 @@ const clientRespond = async (clientId, jobId, {
       if (!proposed_price) {
         throw new AppError('proposed_price is required for counter action', 400);
       }
+
+      await ensureClientCanFundOffer(dbClient, clientId, proposed_price);
 
       const nextRound = negotiation.current_round + 1;
 
@@ -572,6 +591,8 @@ const freelancerRespond = async (freelancerId, jobId, {
 
       const agreedPrice = proposed_price || lastRound.rows[0]?.proposed_price;
       const agreedDays  = proposed_days  || lastRound.rows[0]?.proposed_days;
+
+      await ensureClientCanFundOffer(dbClient, job.client_id, agreedPrice);
 
       await dbClient.query(
         `UPDATE negotiations
@@ -816,6 +837,14 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
       throw new AppError('No agreed negotiation found for this job', 404);
     }
 
+    await holdEscrow({
+      jobId,
+      clientId:     negotiation.client_id,
+      freelancerId: negotiation.freelancer_id,
+      amount:       parseFloat(negotiation.agreed_price),
+      dbClient,
+    });
+
     // Mark negotiation admin_approved
     await dbClient.query(
       `UPDATE negotiations
@@ -861,6 +890,7 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
     // Hold escrow from client wallet — non-blocking, post-commit
     setImmediate(async () => {
       try {
+        return;
         await holdEscrow({
           jobId:        jobId,
           clientId:     negotiation.client_id,
@@ -1174,13 +1204,16 @@ const getAdminPendingApprovals = async ({ page = 1, limit = 20 } = {}) => {
        j.id              AS job_id,
        j.title,
        j.status,
+       j.budget_amount,
        j.active_freelancer_id,
        j.locked_at,
        n.id              AS negotiation_id,
        n.agreed_price,
        n.agreed_days,
        n.current_round,
+       n.max_rounds,
        n.created_at      AS negotiation_started,
+       n.updated_at      AS negotiation_updated_at,
        u_f.full_name     AS freelancer_name,
        u_f.email         AS freelancer_email,
        u_f.freelancer_level,
@@ -1200,11 +1233,54 @@ const getAdminPendingApprovals = async ({ page = 1, limit = 20 } = {}) => {
   );
 
   const countResult = await query(
-    `SELECT COUNT(*) FROM jobs WHERE status = 'pending_admin_approval'`
+    `SELECT COUNT(*)
+     FROM jobs j
+     JOIN negotiations n ON n.job_id = j.id AND n.status = 'agreed'
+     WHERE j.status = 'pending_admin_approval'`
   );
 
+  const negotiations = result.rows.map(row => ({
+    id: row.negotiation_id,
+    negotiation_id: row.negotiation_id,
+    job_id: row.job_id,
+    agreed_price: row.agreed_price,
+    agreed_days: row.agreed_days,
+    current_round: row.current_round,
+    max_rounds: row.max_rounds,
+    created_at: row.negotiation_started,
+    updated_at: row.negotiation_updated_at,
+    negotiation_started: row.negotiation_started,
+    job: {
+      id: row.job_id,
+      title: row.title,
+      status: row.status,
+      budget_amount: row.budget_amount,
+      locked_at: row.locked_at,
+      active_freelancer_id: row.active_freelancer_id,
+      category: row.category_name ? { name: row.category_name } : null,
+    },
+    client: {
+      full_name: row.client_name,
+      email: row.client_email,
+    },
+    freelancer: {
+      full_name: row.freelancer_name,
+      email: row.freelancer_email,
+      freelancer_level: row.freelancer_level,
+    },
+    title: row.title,
+    category_name: row.category_name,
+    client_name: row.client_name,
+    client_email: row.client_email,
+    freelancer_name: row.freelancer_name,
+    freelancer_email: row.freelancer_email,
+    freelancer_level: row.freelancer_level,
+    budget_amount: row.budget_amount,
+  }));
+
   return {
-    pending: result.rows,
+    pending: negotiations,
+    negotiations,
     pagination: {
       page,
       limit,

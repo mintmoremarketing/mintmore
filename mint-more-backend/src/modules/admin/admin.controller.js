@@ -48,6 +48,17 @@ const setUserApproval = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const createAdminUser = async (req, res, next) => {
+  try {
+    const user = await adminService.createAdminUser(req.user.sub, req.body);
+    return sendSuccess(res, {
+      data: { user },
+      message: 'Admin created successfully',
+      statusCode: 201,
+    });
+  } catch (err) { next(err); }
+};
+
 const setFreelancerLevel = async (req, res, next) => {
   try {
     validateSetFreelancerLevel(req.body);
@@ -129,6 +140,7 @@ module.exports = {
   getUsers,
   getUserById,
   setUserApproval,
+  createAdminUser,
   setFreelancerLevel,
   getCategories,
   createCategory,

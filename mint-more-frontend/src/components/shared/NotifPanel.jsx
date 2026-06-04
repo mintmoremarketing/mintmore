@@ -12,6 +12,11 @@ const NOTIF_ICONS = {
 	assignment_created: 'zap',
 	negotiation_accepted: 'check',
 	negotiation_countered: 'refresh',
+	negotiation_rejected: 'x',
+	deal_rejected_by_admin: 'x',
+	deal_pending_admin: 'shield',
+	assignment_accepted: 'check',
+	assignment_declined: 'x',
 	kyc_approved: 'shield',
 	kyc_rejected: 'shield',
 	admin_broadcast: 'bell',
@@ -24,10 +29,35 @@ const NOTIF_COLORS = {
 	assignment_created: 'var(--violet)',
 	negotiation_accepted: 'var(--mint-500)',
 	negotiation_countered: 'var(--amber)',
+	negotiation_rejected: 'var(--rose)',
+	deal_rejected_by_admin: 'var(--rose)',
+	deal_pending_admin: 'var(--amber)',
+	assignment_accepted: 'var(--mint-500)',
+	assignment_declined: 'var(--rose)',
 	kyc_approved: 'var(--mint-600)',
 	kyc_rejected: 'var(--rose)',
 	admin_broadcast: 'var(--ink-600)',
 	system: 'var(--ink-500)',
+}
+
+function cleanNotifTitle(title = '') {
+	return title
+		.replace(/^[^\w"']+\s*/u, '')
+		.replace('New Job Match', 'New brief matched')
+		.replace('Deal Rejected by Admin', 'Deal not approved')
+		.replace('Negotiation Ended', 'Negotiation ended')
+		.replace('Deal Agreed — Awaiting Admin Approval', 'Deal awaiting review')
+		.replace('Deal Agreed - Awaiting Admin Approval', 'Deal awaiting review')
+		.trim()
+}
+
+function cleanNotifBody(body = '') {
+	return body
+		.replace(/\s*You are ranked #\d+\./gi, '')
+		.replace(/\s*The next candidate has been notified\./gi, '')
+		.replace(/\s*Check your dashboard to respond\./gi, ' Open your dashboard to respond.')
+		.replace(/\s+/g, ' ')
+		.trim()
 }
 
 export default function NotifPanel({ onClose }) {
@@ -216,7 +246,7 @@ export default function NotifPanel({ onClose }) {
 											lineHeight: 1.4,
 										}}
 									>
-										{n.title}
+										{cleanNotifTitle(n.title)}
 									</div>
 									{n.body && (
 										<div
@@ -227,7 +257,7 @@ export default function NotifPanel({ onClose }) {
 												lineHeight: 1.45,
 											}}
 										>
-											{n.body}
+											{cleanNotifBody(n.body)}
 										</div>
 									)}
 									<div

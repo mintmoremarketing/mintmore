@@ -13,6 +13,11 @@ const NOTIF_ICONS = {
 	assignment_created: 'zap',
 	negotiation_accepted: 'check',
 	negotiation_countered: 'refresh',
+	negotiation_rejected: 'x',
+	deal_rejected_by_admin: 'x',
+	deal_pending_admin: 'shield',
+	assignment_accepted: 'check',
+	assignment_declined: 'x',
 	kyc_approved: 'shield',
 	kyc_rejected: 'shield',
 	wallet: 'wallet',
@@ -26,6 +31,11 @@ const NOTIF_COLORS = {
 	assignment_created: 'var(--violet)',
 	negotiation_accepted: 'var(--mint-500)',
 	negotiation_countered: 'var(--amber)',
+	negotiation_rejected: 'var(--rose)',
+	deal_rejected_by_admin: 'var(--rose)',
+	deal_pending_admin: 'var(--amber)',
+	assignment_accepted: 'var(--mint-500)',
+	assignment_declined: 'var(--rose)',
 	kyc_approved: 'var(--mint-600)',
 	kyc_rejected: 'var(--rose)',
 	wallet: 'var(--amber)',
@@ -49,6 +59,26 @@ function notifTone(type) {
 
 function notifIcon(type) {
 	return NOTIF_ICONS[type] || 'bell'
+}
+
+function cleanNotifTitle(title = '') {
+	return title
+		.replace(/^[^\w"']+\s*/u, '')
+		.replace('New Job Match', 'New brief matched')
+		.replace('Deal Rejected by Admin', 'Deal not approved')
+		.replace('Negotiation Ended', 'Negotiation ended')
+		.replace('Deal Agreed — Awaiting Admin Approval', 'Deal awaiting review')
+		.replace('Deal Agreed - Awaiting Admin Approval', 'Deal awaiting review')
+		.trim()
+}
+
+function cleanNotifBody(body = '') {
+	return body
+		.replace(/\s*You are ranked #\d+\./gi, '')
+		.replace(/\s*The next candidate has been notified\./gi, '')
+		.replace(/\s*Check your dashboard to respond\./gi, ' Open your dashboard to respond.')
+		.replace(/\s+/g, ' ')
+		.trim()
 }
 
 function getTarget(notification) {
@@ -226,8 +256,8 @@ export default function NotificationsInbox() {
 									<Icon name={notifIcon(n.type)} size={14} />
 								</div>
 								<div style={{ flex: 1, minWidth: 0 }}>
-									<div style={{ fontSize: 13.5, fontWeight: n.is_read ? 500 : 600, color: 'var(--ink-950)' }}>{n.title}</div>
-									{n.body && <div style={{ fontSize: 12.5, color: 'var(--ink-600)', marginTop: 2, lineHeight: 1.45 }}>{n.body}</div>}
+									<div style={{ fontSize: 13.5, fontWeight: n.is_read ? 500 : 600, color: 'var(--ink-950)' }}>{cleanNotifTitle(n.title)}</div>
+									{n.body && <div style={{ fontSize: 12.5, color: 'var(--ink-600)', marginTop: 2, lineHeight: 1.45 }}>{cleanNotifBody(n.body)}</div>}
 									<div style={{ fontSize: 11, color: 'var(--ink-400)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>{timeAgo(n.created_at)}</div>
 								</div>
 								{target && (

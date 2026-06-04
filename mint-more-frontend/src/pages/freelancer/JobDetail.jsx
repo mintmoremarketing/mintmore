@@ -28,6 +28,8 @@ const getMarketRangeFromResponse = (res) =>
 
 const NEGOTIATION_MAX_ROUNDS = 6
 
+const talentPoolLabel = (mode) => mode === 'expert' ? 'Pro creatives' : 'Budget creatives'
+
 export default function FreelancerJobDetail() {
 	const { id } = useParams()
 	const navigate = useNavigate()
@@ -144,6 +146,9 @@ export default function FreelancerJobDetail() {
 							<button className="btn primary" onClick={() => navigate('/chat')}>
 								<Icon name="chat" /> Open messages
 							</button>
+							<button className="btn ghost" style={{ marginLeft: 10 }} onClick={() => navigate(`/mintbox/jobs/${job.id}`)}>
+								<Icon name="upload" /> Submit work
+							</button>
 						</div>
 					)}
 
@@ -171,11 +176,8 @@ export default function FreelancerJobDetail() {
 						<div className="h-eyebrow" style={{ marginBottom: 12 }}>Brief details</div>
 						<div className="stack" style={{ gap: 10, fontSize: 13 }}>
 							<div className="row between">
-								<span style={{ color: 'var(--ink-500)' }}>Budget</span>
-								<span className="mono" style={{ fontWeight: 500 }}>
-									{job.pricing_mode === 'expert' ? '~' : ''}
-									{rupee(job.budget_amount || 0)}
-								</span>
+								<span style={{ color: 'var(--ink-500)' }}>Creative pool</span>
+								<span>{talentPoolLabel(job.pricing_mode)}</span>
 							</div>
 							<div style={{ height: 1, background: 'var(--hairline)' }} />
 							{job.deadline && (
@@ -191,12 +193,8 @@ export default function FreelancerJobDetail() {
 								</div>
 							)}
 							<div className="row between">
-								<span style={{ color: 'var(--ink-500)' }}>Level wanted</span>
-								<span style={{ textTransform: 'capitalize' }}>{job.required_level || 'Any'}</span>
-							</div>
-							<div className="row between">
 								<span style={{ color: 'var(--ink-500)' }}>Pricing mode</span>
-								<span style={{ textTransform: 'capitalize' }}>{job.pricing_mode}</span>
+								<span>Quote first</span>
 							</div>
 						</div>
 					</div>

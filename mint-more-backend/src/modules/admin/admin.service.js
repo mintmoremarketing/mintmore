@@ -1,6 +1,7 @@
 const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
+const { hashPassword } = require('../../utils/hash');
 
 // ── User Management ───────────────────────────────────────────────────────────
 
@@ -121,6 +122,38 @@ const setUserApproval = async (targetUserId, adminId, { is_approved }) => {
   return result.rows[0];
 };
 
+const createAdminUser = async (adminId, { email, password, full_name }) => {
+  if (!email || !password || !full_name) {
+    throw new AppError('email, password, and full_name are required', 400);
+  }
+
+  if (password.length < 8) {
+    throw new AppError('Password must be at least 8 characters', 400);
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const existing = await query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
+  if (existing.rows[0]) {
+    throw new AppError('An account with this email already exists', 409);
+  }
+
+  const passwordHash = await hashPassword(password);
+  const result = await query(
+    `INSERT INTO users
+       (email, password_hash, full_name, role, is_approved, approved_by, approved_at)
+     VALUES ($1, $2, $3, 'admin', true, $4, NOW())
+     RETURNING id, email, full_name, role, is_approved, created_at`,
+    [normalizedEmail, passwordHash, full_name.trim(), adminId]
+  );
+
+  logger.info('Admin user created', {
+    createdBy: adminId,
+    adminUserId: result.rows[0].id,
+  });
+
+  return result.rows[0];
+};
+
 /**
  * Set freelancer level — admin controlled.
  *
@@ -202,6 +235,7 @@ const getDashboardStats = async () => {
       SELECT
         COUNT(*) FILTER (WHERE role = 'client')     AS total_clients,
         COUNT(*) FILTER (WHERE role = 'freelancer') AS total_freelancers,
+        COUNT(*) FILTER (WHERE role = 'admin')      AS total_admins,
         COUNT(*) FILTER (WHERE is_approved = false AND role != 'admin') AS pending_approval,
         COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') AS new_this_week
       FROM users
@@ -297,6 +331,7 @@ module.exports = {
   getUsers,
   getUserById,
   setUserApproval,
+  createAdminUser,
   setFreelancerLevel,
   getCategories,
   createCategory,

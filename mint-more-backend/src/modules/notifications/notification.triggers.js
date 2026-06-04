@@ -1,73 +1,55 @@
 const notificationService = require('./notification.service');
+const { query } = require('../../config/database');
 
-/**
- * All notification trigger functions.
- *
- * Rules:
- * - Every function is fire-and-forget (async, errors logged not thrown)
- * - Called from other service files AFTER their DB transaction commits
- * - Never imported inside a transaction — always post-commit
- */
+const money = (amount) => `INR ${Number(amount || 0).toLocaleString('en-IN')}`;
 
-// ── Matching ──────────────────────────────────────────────────────────────────
+const getActiveAdminIds = async () => {
+  const admins = await query(`SELECT id FROM users WHERE role = 'admin' AND is_active = true`);
+  return admins.rows.map((admin) => admin.id);
+};
 
-/**
- * Notify matched freelancers after matching engine runs.
- * Each freelancer gets their own notification with their rank and notify_at.
- *
- * @param {object}   job       - job row
- * @param {object[]} candidates - ranked candidates array from matching engine
- */
 const notifyMatchedCandidates = async (job, candidates) => {
   if (!candidates || candidates.length === 0) return;
 
   const notifications = candidates.map((candidate) => ({
     userId:     candidate.freelancer_id,
     type:       'job_matched',
-    title:      '🎯 New Job Match',
-    body:       `You have been matched to "${job.title}". You are ranked #${candidate.rank}. Check your dashboard to respond.`,
+    title:      'New brief matched',
+    body:       `You have been matched to "${job.title}". Open your dashboard to respond.`,
     entityType: 'job',
     entityId:   job.id,
     data: {
-      job_id:          job.id,
-      job_title:       job.title,
-      rank:            candidate.rank,
-      tier:            candidate.tier,
-      notify_at:       candidate.notify_at,
-      score:           candidate.score,
-      pricing_mode:    job.pricing_mode,
+      job_id:       job.id,
+      job_title:    job.title,
+      rank:         candidate.rank,
+      tier:         candidate.tier,
+      notify_at:    candidate.notify_at,
+      score:        candidate.score,
+      pricing_mode: job.pricing_mode,
     },
   }));
 
   await notificationService.createBulkNotifications(notifications);
 };
 
-// ── Negotiation ───────────────────────────────────────────────────────────────
-
-/**
- * Freelancer initiated negotiation → notify client.
- */
 const notifyNegotiationInitiated = async ({ job, freelancer, proposed_price }) => {
   await notificationService.createNotification({
     userId:     job.client_id,
     type:       'negotiation_initiated',
-    title:      '💬 Freelancer Started Negotiation',
-    body:       `${freelancer.full_name} has initiated a negotiation on "${job.title}" with a proposed price of ₹${Number(proposed_price).toLocaleString('en-IN')}.`,
+    title:      'New offer received',
+    body:       `${freelancer.full_name} sent an offer for "${job.title}" at ${money(proposed_price)}.`,
     entityType: 'job',
     entityId:   job.id,
     data: {
-      job_id:         job.id,
-      job_title:      job.title,
-      freelancer_id:  freelancer.id,
+      job_id:          job.id,
+      job_title:       job.title,
+      freelancer_id:   freelancer.id,
       freelancer_name: freelancer.full_name,
       proposed_price,
     },
   });
 };
 
-/**
- * Either party countered → notify the other party.
- */
 const notifyNegotiationCountered = async ({
   job,
   senderName,
@@ -78,8 +60,8 @@ const notifyNegotiationCountered = async ({
   await notificationService.createNotification({
     userId:     recipientUserId,
     type:       'negotiation_countered',
-    title:      '🔄 Counter Offer Received',
-    body:       `${senderName} has countered with ₹${Number(proposed_price).toLocaleString('en-IN')} (Round ${round_number} of 2) on "${job.title}".`,
+    title:      'Counter offer received',
+    body:       `${senderName} sent a counter offer of ${money(proposed_price)} for "${job.title}".`,
     entityType: 'job',
     entityId:   job.id,
     data: {
@@ -92,24 +74,19 @@ const notifyNegotiationCountered = async ({
   });
 };
 
-/**
- * Either party accepted → notify both.
- */
 const notifyNegotiationAccepted = async ({
   job,
   freelancerUserId,
   clientUserId,
   agreed_price,
-  accepted_by,   // 'freelancer' | 'client'
+  accepted_by,
 }) => {
-  const accepterLabel = accepted_by === 'freelancer' ? 'Freelancer' : 'Client';
-
   await notificationService.createBulkNotifications([
     {
       userId:     freelancerUserId,
       type:       'negotiation_accepted',
-      title:      '✅ Deal Agreed — Awaiting Admin Approval',
-      body:       `Your negotiation on "${job.title}" has been agreed at ₹${Number(agreed_price).toLocaleString('en-IN')}. An admin will review shortly.`,
+      title:      'Deal awaiting review',
+      body:       `The deal for "${job.title}" was agreed at ${money(agreed_price)}. Mintmore will review it shortly.`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, agreed_price, accepted_by },
@@ -117,8 +94,8 @@ const notifyNegotiationAccepted = async ({
     {
       userId:     clientUserId,
       type:       'negotiation_accepted',
-      title:      '✅ Deal Agreed — Awaiting Admin Approval',
-      body:       `${accepterLabel} has accepted the deal on "${job.title}" at ₹${Number(agreed_price).toLocaleString('en-IN')}. An admin will review shortly.`,
+      title:      'Deal awaiting review',
+      body:       `The deal for "${job.title}" was agreed at ${money(agreed_price)}. Mintmore will review it shortly.`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, agreed_price, accepted_by },
@@ -126,27 +103,21 @@ const notifyNegotiationAccepted = async ({
   ]);
 };
 
-/**
- * Either party rejected → notify both.
- */
 const notifyNegotiationRejected = async ({
   job,
   freelancerUserId,
   clientUserId,
-  rejected_by,   // 'freelancer' | 'client'
+  rejected_by,
   fallback,
 }) => {
-  const rejecterLabel = rejected_by === 'freelancer' ? 'Freelancer' : 'Client';
-  const fallbackMsg   = fallback?.action === 're_matching'
-    ? 'The job has been sent back for re-matching.'
-    : 'The next candidate has been notified.';
+  const body = `The negotiation for "${job.title}" has ended.`;
 
   await notificationService.createBulkNotifications([
     {
       userId:     freelancerUserId,
       type:       'negotiation_rejected',
-      title:      '❌ Negotiation Ended',
-      body:       `The negotiation on "${job.title}" was rejected by the ${rejecterLabel}. ${fallbackMsg}`,
+      title:      'Negotiation ended',
+      body,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, rejected_by, fallback },
@@ -154,8 +125,8 @@ const notifyNegotiationRejected = async ({
     {
       userId:     clientUserId,
       type:       'negotiation_rejected',
-      title:      '❌ Negotiation Ended',
-      body:       `The negotiation on "${job.title}" was rejected by the ${rejecterLabel}. ${fallbackMsg}`,
+      title:      'Negotiation ended',
+      body,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, rejected_by, fallback },
@@ -163,21 +134,15 @@ const notifyNegotiationRejected = async ({
   ]);
 };
 
-/**
- * Deal agreed → notify admin(s) for approval.
- */
 const notifyAdminDealPending = async ({ job, agreedPrice, agreedDays }) => {
-  const admins = await require('../../config/database').query(
-    `SELECT id FROM users WHERE role = 'admin' AND is_active = true`
-  );
+  const adminIds = await getActiveAdminIds();
+  if (!adminIds.length) return;
 
-  if (!admins.rows.length) return;
-
-  const notifications = admins.rows.map((admin) => ({
-    userId:     admin.id,
+  const notifications = adminIds.map((userId) => ({
+    userId,
     type:       'deal_pending_admin',
-    title:      '⏳ Deal Awaiting Your Approval',
-    body:       `A deal has been agreed on "${job.title}" for ₹${Number(agreedPrice).toLocaleString('en-IN')}${agreedDays ? ` in ${agreedDays} days` : ''}. Please review and approve.`,
+    title:      'Deal awaiting approval',
+    body:       `A deal for "${job.title}" was agreed at ${money(agreedPrice)}${agreedDays ? ` in ${agreedDays} days` : ''}.`,
     entityType: 'job',
     entityId:   job.id,
     data:       { job_id: job.id, job_title: job.title, agreed_price: agreedPrice, agreed_days: agreedDays },
@@ -186,16 +151,13 @@ const notifyAdminDealPending = async ({ job, agreedPrice, agreedDays }) => {
   await notificationService.createBulkNotifications(notifications);
 };
 
-/**
- * Admin approved deal → notify freelancer + client.
- */
 const notifyDealApproved = async ({ job, freelancerUserId, clientUserId, agreedPrice }) => {
   await notificationService.createBulkNotifications([
     {
       userId:     freelancerUserId,
       type:       'deal_approved',
-      title:      '🎉 Deal Approved — Accept Your Assignment',
-      body:       `An admin has approved your deal on "${job.title}" for ₹${Number(agreedPrice).toLocaleString('en-IN')}. Please accept your assignment to get started.`,
+      title:      'Deal approved',
+      body:       `Your deal for "${job.title}" has been approved at ${money(agreedPrice)}. Accept the assignment to get started.`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, agreed_price: agreedPrice },
@@ -203,8 +165,8 @@ const notifyDealApproved = async ({ job, freelancerUserId, clientUserId, agreedP
     {
       userId:     clientUserId,
       type:       'deal_approved',
-      title:      '🎉 Deal Approved',
-      body:       `An admin has approved the deal on "${job.title}" for ₹${Number(agreedPrice).toLocaleString('en-IN')}. The freelancer has been notified to accept.`,
+      title:      'Deal approved',
+      body:       `The deal for "${job.title}" has been approved at ${money(agreedPrice)}.`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, agreed_price: agreedPrice },
@@ -212,9 +174,6 @@ const notifyDealApproved = async ({ job, freelancerUserId, clientUserId, agreedP
   ]);
 };
 
-/**
- * Admin rejected deal → notify freelancer + client.
- */
 const notifyDealRejectedByAdmin = async ({
   job,
   freelancerUserId,
@@ -222,16 +181,14 @@ const notifyDealRejectedByAdmin = async ({
   adminNote,
   fallback,
 }) => {
-  const fallbackMsg = fallback?.action === 're_matching'
-    ? 'The job has been sent back for re-matching.'
-    : 'The next candidate has been notified.';
+  const body = `The deal for "${job.title}" was not approved.${adminNote ? ` Note: ${adminNote}` : ''}`;
 
   await notificationService.createBulkNotifications([
     {
       userId:     freelancerUserId,
       type:       'deal_rejected_by_admin',
-      title:      '❌ Deal Rejected by Admin',
-      body:       `The admin has rejected the deal on "${job.title}". ${adminNote ? `Reason: ${adminNote}` : ''} ${fallbackMsg}`,
+      title:      'Deal not approved',
+      body,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, admin_note: adminNote, fallback },
@@ -239,8 +196,8 @@ const notifyDealRejectedByAdmin = async ({
     {
       userId:     clientUserId,
       type:       'deal_rejected_by_admin',
-      title:      '❌ Deal Rejected by Admin',
-      body:       `The admin has rejected the deal on "${job.title}". ${adminNote ? `Reason: ${adminNote}` : ''} ${fallbackMsg}`,
+      title:      'Deal not approved',
+      body,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, admin_note: adminNote, fallback },
@@ -248,45 +205,35 @@ const notifyDealRejectedByAdmin = async ({
   ]);
 };
 
-// ── Assignment ────────────────────────────────────────────────────────────────
-
-/**
- * Assignment created → notify freelancer.
- */
 const notifyAssignmentCreated = async ({ job, freelancerUserId, agreedPrice }) => {
   await notificationService.createNotification({
     userId:     freelancerUserId,
     type:       'assignment_created',
-    title:      '📋 Assignment Pending Your Acceptance',
-    body:       `You have been assigned to "${job.title}" for ₹${Number(agreedPrice).toLocaleString('en-IN')}. Please accept or decline from your dashboard.`,
+    title:      'Assignment ready',
+    body:       `Your assignment for "${job.title}" is ready at ${money(agreedPrice)}. Accept or decline from your dashboard.`,
     entityType: 'job',
     entityId:   job.id,
     data:       { job_id: job.id, job_title: job.title, agreed_price: agreedPrice },
   });
 };
 
-/**
- * Assignment accepted → notify client + admin.
- */
 const notifyAssignmentAccepted = async ({ job, freelancerName, clientUserId }) => {
-  const admins = await require('../../config/database').query(
-    `SELECT id FROM users WHERE role = 'admin' AND is_active = true`
-  );
+  const adminIds = await getActiveAdminIds();
 
   const recipientNotifications = [
     {
       userId:     clientUserId,
       type:       'assignment_accepted',
-      title:      '🚀 Freelancer Accepted — Work Has Started',
-      body:       `${freelancerName} has accepted the assignment for "${job.title}". Your job is now in progress.`,
+      title:      'Work has started',
+      body:       `${freelancerName} accepted the assignment for "${job.title}".`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, freelancer_name: freelancerName },
     },
-    ...admins.rows.map((admin) => ({
-      userId:     admin.id,
+    ...adminIds.map((userId) => ({
+      userId,
       type:       'assignment_accepted',
-      title:      `✅ ${freelancerName} Accepted Assignment`,
+      title:      'Assignment accepted',
       body:       `"${job.title}" is now in progress.`,
       entityType: 'job',
       entityId:   job.id,
@@ -297,38 +244,29 @@ const notifyAssignmentAccepted = async ({ job, freelancerName, clientUserId }) =
   await notificationService.createBulkNotifications(recipientNotifications);
 };
 
-/**
- * Assignment declined → notify client + admin.
- */
 const notifyAssignmentDeclined = async ({
   job,
   freelancerName,
   clientUserId,
   fallback,
 }) => {
-  const admins = await require('../../config/database').query(
-    `SELECT id FROM users WHERE role = 'admin' AND is_active = true`
-  );
-
-  const fallbackMsg = fallback?.action === 're_matching'
-    ? 'The job has been sent back for re-matching.'
-    : 'The next candidate has been notified.';
+  const adminIds = await getActiveAdminIds();
 
   const recipientNotifications = [
     {
       userId:     clientUserId,
       type:       'assignment_declined',
-      title:      '⚠️ Freelancer Declined',
-      body:       `${freelancerName} has declined the assignment for "${job.title}". ${fallbackMsg}`,
+      title:      'Assignment declined',
+      body:       `${freelancerName} declined the assignment for "${job.title}".`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, fallback },
     },
-    ...admins.rows.map((admin) => ({
-      userId:     admin.id,
+    ...adminIds.map((userId) => ({
+      userId,
       type:       'assignment_declined',
-      title:      `❌ ${freelancerName} Declined Assignment`,
-      body:       `"${job.title}" needs attention. ${fallbackMsg}`,
+      title:      'Assignment declined',
+      body:       `"${job.title}" needs review.`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, fallback },
@@ -338,22 +276,17 @@ const notifyAssignmentDeclined = async ({
   await notificationService.createBulkNotifications(recipientNotifications);
 };
 
-// ── KYC ───────────────────────────────────────────────────────────────────────
-
-/**
- * KYC submission reviewed → notify the user.
- */
 const notifyKycReviewed = async ({ userId, level, status, adminNote }) => {
   const approved = status === 'approved';
+  const label = level.charAt(0).toUpperCase() + level.slice(1);
+
   await notificationService.createNotification({
     userId,
     type:       approved ? 'kyc_approved' : 'kyc_rejected',
-    title:      approved
-      ? `✅ KYC ${level.charAt(0).toUpperCase() + level.slice(1)} Approved`
-      : `❌ KYC ${level.charAt(0).toUpperCase() + level.slice(1)} Rejected`,
+    title:      approved ? `KYC ${label} approved` : `KYC ${label} rejected`,
     body:       approved
-      ? `Your ${level} KYC has been approved. You now have access to more platform features.`
-      : `Your ${level} KYC was rejected.${adminNote ? ` Reason: ${adminNote}` : ' Please resubmit with correct documents.'}`,
+      ? `Your ${level} KYC has been approved.`
+      : `Your ${level} KYC was rejected.${adminNote ? ` Note: ${adminNote}` : ' Please resubmit with the correct documents.'}`,
     entityType: 'kyc',
     entityId:   null,
     data:       { level, status, admin_note: adminNote },

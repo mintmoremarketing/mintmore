@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { Fragment } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { jobsApi } from '../../api/jobs'
@@ -7,258 +6,293 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import { rupee } from '../../utils/format'
 
+const getMarketRangeFromResponse = (res) =>
+  res.data?.data?.range ?? res.data?.data?.data?.range ?? res.data?.range ?? null
+
+const formatRange = (range) => {
+  if (!range?.min || !range?.max) return 'Market range pending'
+  return `${rupee(range.min)} - ${rupee(range.max)}`
+}
+
+const poolOptions = [
+  {
+    value: 'budget',
+    icon: 'rupee',
+    title: 'Budget creatives',
+    subtitle: 'Beginner and intermediate freelancers quote first.',
+    note: 'Good for clear, lighter briefs where speed and value matter.',
+  },
+  {
+    value: 'expert',
+    icon: 'sparkles',
+    title: 'Pro creatives',
+    subtitle: 'Experienced freelancers quote first.',
+    note: 'Good for premium work, complex campaigns, and higher quality expectations.',
+  },
+]
+
 export default function PostJob() {
-	const navigate = useNavigate()
-	const { id } = useParams()
-	const isEditMode = Boolean(id)
-	const pushToast = useUIStore((s) => s.pushToast)
-	const [step, setStep] = useState(1)
-	const [data, setData] = useState({
-		title: '',
-		category_id: '',
-		description: '',
-		pricing_mode: 'budget',
-		budget_type: 'fixed',
-		budget_amount: 15000,
-		deadline: '',
-		required_skills: [],
-		required_level: 'intermediate',
-	})
+  const navigate = useNavigate()
+  const { id } = useParams()
+  const isEditMode = Boolean(id)
+  const pushToast = useUIStore((s) => s.pushToast)
+  const [step, setStep] = useState(1)
+  const [data, setData] = useState({
+    title: '',
+    category_id: '',
+    description: '',
+    pricing_mode: 'budget',
+    budget_type: 'quote',
+    budget_amount: null,
+    deadline: '',
+    required_skills: [],
+    required_level: null,
+  })
 
-	const { data: catData } = useQuery({
-		queryKey: ['categories'],
-		queryFn: () => jobsApi.categories().then((r) => r.data.data),
-	})
-	const categories = catData?.categories || []
+  const { data: catData } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => jobsApi.categories().then((r) => r.data.data),
+  })
+  const categories = catData?.categories || []
 
-	const { data: existingJob, isLoading: isJobLoading } = useQuery({
-		queryKey: ['job', id],
-		queryFn: async () => {
-			const res = await jobsApi.get(id)
-			return res.data?.data?.job ?? res.data?.data ?? null
-		},
-		enabled: isEditMode,
-	})
+  const { data: budgetRange } = useQuery({
+    queryKey: ['market-range', data.category_id, 'budget'],
+    queryFn: async () => getMarketRangeFromResponse(await jobsApi.marketRange(data.category_id, 'budget')),
+    enabled: Boolean(data.category_id),
+  })
 
-	useEffect(() => {
-		if (!existingJob) return
+  const { data: expertRange } = useQuery({
+    queryKey: ['market-range', data.category_id, 'expert'],
+    queryFn: async () => getMarketRangeFromResponse(await jobsApi.marketRange(data.category_id, 'expert')),
+    enabled: Boolean(data.category_id),
+  })
 
-		setData({
-			title: existingJob.title || '',
-			category_id: existingJob.category_id || '',
-			description: existingJob.description || '',
-			pricing_mode: existingJob.pricing_mode || 'budget',
-			budget_type: existingJob.budget_type || 'fixed',
-			budget_amount: existingJob.budget_amount || 15000,
-			deadline: existingJob.deadline ? existingJob.deadline.slice(0, 10) : '',
-			required_skills: existingJob.required_skills || [],
-			required_level: existingJob.required_level || 'intermediate',
-		})
-	}, [existingJob])
+  const { data: existingJob, isLoading: isJobLoading } = useQuery({
+    queryKey: ['job', id],
+    queryFn: async () => {
+      const res = await jobsApi.get(id)
+      return res.data?.data?.job ?? res.data?.data ?? null
+    },
+    enabled: isEditMode,
+  })
 
-	const { mutate, isPending } = useMutation({
-		mutationFn: async () => {
-			if (!isEditMode) {
-				return jobsApi.create({ ...data, status: 'open' })
-			}
+  useEffect(() => {
+    if (!existingJob) return
 
-			await jobsApi.update(id, data)
-			return jobsApi.publish(id)
-		},
-		onSuccess: () => {
-			pushToast({
-				title: isEditMode ? 'Brief updated!' : 'Brief posted!',
-				body: 'Matching creatives now - ~6 min',
-			})
-			navigate(isEditMode ? `/jobs/${id}` : '/jobs')
-		},
-		onError: (err) => {
-			pushToast({
-				title: isEditMode ? 'Failed to update' : 'Failed to post',
-				body: err.response?.data?.message || 'Try again',
-				tone: 'amber',
-			})
-		},
-	})
+    setData({
+      title: existingJob.title || '',
+      category_id: existingJob.category_id || '',
+      description: existingJob.description || '',
+      pricing_mode: existingJob.pricing_mode === 'expert' ? 'expert' : 'budget',
+      budget_type: 'quote',
+      budget_amount: null,
+      deadline: existingJob.deadline ? existingJob.deadline.slice(0, 10) : '',
+      required_skills: existingJob.required_skills || [],
+      required_level: existingJob.pricing_mode === 'expert' ? 'experienced' : null,
+    })
+  }, [existingJob])
 
-	function update(k, v) {
-		setData((d) => ({ ...d, [k]: v }))
-	}
+  const selectedRange = data.pricing_mode === 'expert' ? expertRange : budgetRange
+  const selectedPool = poolOptions.find((p) => p.value === data.pricing_mode)
 
-	function handlePrimaryAction() {
-		if (isPending) return
-		if (step < 3) {
-			setStep(step + 1)
-			return
-		}
-		mutate()
-	}
+  const payload = {
+    ...data,
+    budget_type: 'quote',
+    budget_amount: null,
+    required_level: data.pricing_mode === 'expert' ? 'experienced' : null,
+    metadata: {
+      talent_pool: data.pricing_mode === 'expert' ? 'pro' : 'budget',
+      market_average: selectedRange
+        ? { min: selectedRange.min, max: selectedRange.max, label: selectedRange.label }
+        : null,
+    },
+  }
 
-	if (isEditMode && isJobLoading) {
-		return (
-			<div className="stack-6">
-				<div className="card" style={{ padding: 28 }}>
-					<div className="skeleton" style={{ width: '45%', height: 18, borderRadius: 6, marginBottom: 18 }} />
-					<div className="skeleton" style={{ width: '100%', height: 120, borderRadius: 12 }} />
-				</div>
-			</div>
-		)
-	}
+  const { mutate, isPending } = useMutation({
+    mutationFn: async () => {
+      if (!isEditMode) {
+        return jobsApi.create({ ...payload, status: 'open' })
+      }
 
-	return (
-		<div className="stack-6">
-			<div className="reveal">
-				<button className="btn link sm" onClick={() => navigate('/jobs')} style={{ padding: 0, color: 'var(--ink-500)', fontSize: 12 }}>
-					<Icon name="arrowLeft" size={12} /> All jobs
-				</button>
-				<h1 className="h-display h-1" style={{ margin: '6px 0 0' }}>{isEditMode ? 'Edit brief' : 'Post a brief'}</h1>
-				<p className="muted" style={{ marginTop: 6 }}>
-					{isEditMode
-						? 'Update the brief and restart matching when it looks right.'
-						: "We'll match you with 2-4 creatives in around 6 minutes."}
-				</p>
-			</div>
+      await jobsApi.update(id, payload)
+      return jobsApi.publish(id)
+    },
+    onSuccess: () => {
+      pushToast({
+        title: isEditMode ? 'Brief updated!' : 'Brief posted!',
+        body: 'Matching creatives now - ~6 min',
+      })
+      navigate(isEditMode ? `/jobs/${id}` : '/jobs')
+    },
+    onError: (err) => {
+      pushToast({
+        title: isEditMode ? 'Failed to update' : 'Failed to post',
+        body: err.response?.data?.message || 'Try again',
+        tone: 'amber',
+      })
+    },
+  })
 
-			<div className="stepper">
-				{['Basics', 'Requirements', 'Review'].map((s, i) => (
-					<Fragment key={s}>
-						<div key={s} className={`step ${step >= i + 1 ? 'active' : ''} ${step > i + 1 ? 'done' : ''}`}>
-							<span className="step-num">
-								{step > i + 1 ? <Icon name="check" size={11} strokeWidth={3} /> : i + 1}
-							</span>
-							<span>{s}</span>
-						</div>
-						{i < 2 && <div className={`step-line ${step > i + 1 ? 'done' : ''}`} style={{ background: step > i + 1 ? 'var(--ink-950)' : 'var(--hairline)' }} />}
-					</Fragment>
-				))}
-			</div>
+  function update(k, v) {
+    setData((d) => ({ ...d, [k]: v }))
+  }
 
-			<div className="card" style={{ padding: 28 }}>
-				{step === 1 && (
-					<div className="stack" style={{ gap: 18 }}>
-						<div className="field">
-							<label className="field-label">Brief title</label>
-							<input className="input" value={data.title} onChange={(e) => update('title', e.target.value)} placeholder="e.g. Diwali campaign hero video" />
-						</div>
-						<div className="field">
-							<label className="field-label">Category</label>
-							<select className="select" value={data.category_id} onChange={(e) => update('category_id', e.target.value)}>
-								<option value="">Select a category</option>
-								{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-							</select>
-						</div>
-						<div className="field">
-							<label className="field-label">Brief description</label>
-							<textarea className="textarea" value={data.description} onChange={(e) => update('description', e.target.value)} rows={6} placeholder="Describe what you need, tone, references, audience..." />
-						</div>
-					</div>
-				)}
+  function canContinue() {
+    if (step === 1) return data.title.trim().length >= 5 && data.category_id && data.description.trim().length >= 20
+    if (step === 2) return data.pricing_mode && data.deadline
+    return true
+  }
 
-				{step === 2 && (
-  <div className="stack" style={{ gap: 22 }}>
-    <div>
-      <label className="field-label" style={{ marginBottom: 8, display: 'block' }}>Pricing</label>
-      <div className="grid-2" style={{ gap: 10 }}>
-        {[
-          { v: 'budget', icon: 'rupee',    title: 'I have a budget',  sub: 'Set a price; creatives can accept or counter.' },
-          { v: 'expert', icon: 'sparkles', title: 'Let them quote',   sub: 'Expert pricing — best for complex briefs.' },
-        ].map(p => (
-          <button
-            key={p.v}
-            className={`role-card ${data.pricing_mode === p.v ? 'on' : ''}`}
-            onClick={() => {
-              update('pricing_mode', p.v)
-              // budget_type is always 'fixed' for now — extend later for hourly
-              update('budget_type', 'fixed')
-            }}
-          >
-            <Icon name={p.icon} />
-            <span className="role-title">{p.title}</span>
-            <span className="role-sub">{p.sub}</span>
-          </button>
+  function handlePrimaryAction() {
+    if (isPending || !canContinue()) return
+    if (step < 3) {
+      setStep(step + 1)
+      return
+    }
+    mutate()
+  }
+
+  if (isEditMode && isJobLoading) {
+    return (
+      <div className="stack-6">
+        <div className="card" style={{ padding: 28 }}>
+          <div className="skeleton" style={{ width: '45%', height: 18, borderRadius: 6, marginBottom: 18 }} />
+          <div className="skeleton" style={{ width: '100%', height: 120, borderRadius: 12 }} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="stack-6">
+      <div className="reveal">
+        <button className="btn link sm" onClick={() => navigate('/jobs')} style={{ padding: 0, color: 'var(--ink-500)', fontSize: 12 }}>
+          <Icon name="arrowLeft" size={12} /> All jobs
+        </button>
+        <h1 className="h-display h-1" style={{ margin: '6px 0 0' }}>{isEditMode ? 'Edit brief' : 'Post a brief'}</h1>
+        <p className="muted" style={{ marginTop: 6 }}>
+          Pick the creative pool and deadline. Freelancers quote first, then you can negotiate.
+        </p>
+      </div>
+
+      <div className="stepper">
+        {['Basics', 'Creative pool', 'Review'].map((s, i) => (
+          <Fragment key={s}>
+            <div className={`step ${step >= i + 1 ? 'active' : ''} ${step > i + 1 ? 'done' : ''}`}>
+              <span className="step-num">
+                {step > i + 1 ? <Icon name="check" size={11} strokeWidth={3} /> : i + 1}
+              </span>
+              <span>{s}</span>
+            </div>
+            {i < 2 && <div className={`step-line ${step > i + 1 ? 'done' : ''}`} style={{ background: step > i + 1 ? 'var(--ink-950)' : 'var(--hairline)' }} />}
+          </Fragment>
         ))}
       </div>
-    </div>
 
-    <div className="field">
+      <div className="card" style={{ padding: 28 }}>
+        {step === 1 && (
+          <div className="stack" style={{ gap: 18 }}>
+            <div className="field">
+              <label className="field-label">Brief title</label>
+              <input className="input" value={data.title} onChange={(e) => update('title', e.target.value)} placeholder="e.g. Diwali campaign hero video" />
+            </div>
+            <div className="field">
+              <label className="field-label">Category</label>
+              <select className="select" value={data.category_id} onChange={(e) => update('category_id', e.target.value)}>
+                <option value="">Select a category</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label className="field-label">Brief description</label>
+              <textarea className="textarea" value={data.description} onChange={(e) => update('description', e.target.value)} rows={6} placeholder="Describe what you need, tone, references, audience..." />
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="stack" style={{ gap: 22 }}>
+            <div>
+              <label className="field-label" style={{ marginBottom: 8, display: 'block' }}>Choose creative pool</label>
+              <div className="grid-2" style={{ gap: 12 }}>
+                {poolOptions.map((option) => {
+                  const range = option.value === 'expert' ? expertRange : budgetRange
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`role-card ${data.pricing_mode === option.value ? 'on' : ''}`}
+                      onClick={() => update('pricing_mode', option.value)}
+                      style={{ alignItems: 'flex-start', textAlign: 'left' }}
+                    >
+                      <Icon name={option.icon} />
+                      <span className="role-title">{option.title}</span>
+                      <span className="role-sub">{option.subtitle}</span>
+                      <span style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-700)', fontWeight: 500 }}>
+                        Market average: {formatRange(range)}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--ink-500)', lineHeight: 1.45 }}>{option.note}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="field" style={{ maxWidth: 360 }}>
+              <label className="field-label">Deadline</label>
+              <input
+                className="input"
+                type="date"
+                value={data.deadline}
+                onChange={e => update('deadline', e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="stack" style={{ gap: 18 }}>
+            <div>
+              <span className="h-eyebrow" style={{ color: 'var(--mint-700)' }}>Ready to post</span>
+              <h2 className="h-display h-2" style={{ margin: '6px 0 8px' }}>{data.title}</h2>
+            </div>
+            <div className="divider" />
+            <div className="grid-2" style={{ gap: 18 }}>
+              <div>
+                <div className="h-eyebrow" style={{ marginBottom: 6 }}>Brief</div>
+                <p style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink-700)', margin: 0 }}>{data.description}</p>
+              </div>
+              <div>
+                <div className="h-eyebrow" style={{ marginBottom: 6 }}>At a glance</div>
+                <div className="stack" style={{ gap: 8, fontSize: 13 }}>
+                  <div className="row between"><span className="muted">Pool</span><span>{selectedPool?.title}</span></div>
+                  <div className="row between"><span className="muted">Market average</span><span className="mono">{formatRange(selectedRange)}</span></div>
+                  {data.deadline && (
+                    <div className="row between">
+                      <span className="muted">Deadline</span>
+                      <span>{new Date(data.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                  )}
+                  <div className="row between"><span className="muted">Client budget</span><span>Freelancers quote first</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="row between">
-        <label className="field-label">Budget</label>
-        <span className="mono" style={{ fontSize: 14, fontWeight: 500 }}>{rupee(data.budget_amount)}</span>
-      </div>
-      <input
-        className="slider"
-        type="range"
-        min="5000"
-        max="200000"
-        step="500"
-        value={data.budget_amount}
-        onChange={e => update('budget_amount', parseInt(e.target.value))}
-      />
-    </div>
-
-    <div className="grid-2">
-      <div className="field">
-        <label className="field-label">Deadline</label>
-        <input
-          className="input"
-          type="date"
-          value={data.deadline}
-          onChange={e => update('deadline', e.target.value)}
-        />
-      </div>
-      <div className="field">
-        <label className="field-label">Experience level</label>
-        <select
-          className="select"
-          value={data.required_level}
-          onChange={e => update('required_level', e.target.value)}
-        >
-          <option value="beginner">Beginner</option>
-          <option value="intermediate">Intermediate</option>
-          <option value="experienced">Experienced</option>
-        </select>
+        <button className="btn ghost" onClick={() => step > 1 ? setStep(step - 1) : navigate('/jobs')}>
+          <Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}
+        </button>
+        <button className="btn primary" onClick={handlePrimaryAction} disabled={isPending || !canContinue()}>
+          {isPending
+            ? (isEditMode ? 'Saving...' : 'Posting...')
+            : step < 3
+            ? <>Continue <Icon name="arrowRight" /></>
+            : <>{isEditMode ? 'Save & restart matching' : 'Post brief'} <Icon name="arrowRight" /></>}
+        </button>
       </div>
     </div>
-  </div>
-)}
-
-				{step === 3 && (
-					<div className="stack" style={{ gap: 18 }}>
-						<div>
-							<span className="h-eyebrow" style={{ color: 'var(--mint-700)' }}>Ready to post</span>
-							<h2 className="h-display h-2" style={{ margin: '6px 0 8px' }}>{data.title}</h2>
-						</div>
-						<div className="divider" />
-						<div className="grid-2" style={{ gap: 18 }}>
-							<div>
-								<div className="h-eyebrow" style={{ marginBottom: 6 }}>Brief</div>
-								<p style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink-700)', margin: 0 }}>{data.description}</p>
-							</div>
-							<div>
-								<div className="h-eyebrow" style={{ marginBottom: 6 }}>At a glance</div>
-								<div className="stack" style={{ gap: 8, fontSize: 13 }}>
-									<div className="row between"><span className="muted">Budget</span><span className="mono">{rupee(data.budget_amount)}</span></div>
-									<div className="row between"><span className="muted">Level</span><span style={{ textTransform: 'capitalize' }}>{data.required_level}</span></div>
-									<div className="row between"><span className="muted">Pricing mode</span><span style={{ textTransform: 'capitalize' }}>{data.pricing_mode}</span></div>
-								</div>
-							</div>
-						</div>
-					</div>
-				)}
-			</div>
-
-			<div className="row between">
-				<button className="btn ghost" onClick={() => step > 1 ? setStep(step - 1) : navigate('/jobs')}>
-					<Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}
-				</button>
-				<button className="btn primary" onClick={handlePrimaryAction} disabled={isPending}>
-					{isPending
-						? (isEditMode ? 'Saving...' : 'Posting...')
-						: step < 3
-						? <>Continue <Icon name="arrowRight" /></>
-						: <>{isEditMode ? 'Save & restart matching' : 'Post brief'} <Icon name="arrowRight" /></>}
-				</button>
-			</div>
-		</div>
-	)
+  )
 }

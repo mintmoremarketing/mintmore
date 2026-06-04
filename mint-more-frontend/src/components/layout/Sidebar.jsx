@@ -30,6 +30,7 @@ const ADMIN_NAV = [
   { route: '/notifications',    icon: 'bell',     label: 'Inbox', showCount: true },
   { route: '/admin/users',     icon: 'user',     label: 'Users' },
   { route: '/admin/approvals', icon: 'zap',      label: 'Approvals' },
+  { route: '/admin/pricing',   icon: 'rupee',    label: 'Pricing' },
   { route: '/admin/wallet',    icon: 'wallet',   label: 'Platform wallet' },
   { route: '/admin/ai',        icon: 'sparkles', label: 'Mint AI' },
 ]

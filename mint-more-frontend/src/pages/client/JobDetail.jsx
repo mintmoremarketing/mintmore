@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { jobsApi } from '../../api/jobs'
 import { negotiationsApi } from '../../api/negotiations'
+import { walletApi } from '../../api/wallet'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import StatusChip from '../../components/ui/StatusChip'
@@ -28,6 +29,8 @@ const STAGE_ORDER = {
 }
 
 const NEGOTIATION_MAX_ROUNDS = 6
+
+const talentPoolLabel = (mode) => mode === 'expert' ? 'Pro creatives' : 'Budget creatives'
 
 function Timeline({ status }) {
   const current = STAGE_ORDER[status] ?? 0
@@ -275,6 +278,11 @@ function ClientNegotiationPanel({ job }) {
     enabled: Boolean(job.id) && ['locked', 'negotiating', 'pending_admin_approval'].includes(job.status),
   })
 
+  const { data: walletData } = useQuery({
+    queryKey: ['wallet'],
+    queryFn: async () => walletApi.get().then(r => r.data?.data),
+  })
+
   const neg = job.negotiation || negotiationData?.negotiation
   const freelancer =
     job.active_freelancer ||
@@ -339,6 +347,11 @@ function ClientNegotiationPanel({ job }) {
   const canCounter = currentRound < maxRounds
   const agreedPrice = neg?.agreed_price || lastRound?.proposed_price || 0
   const agreedDays = neg?.agreed_days || lastRound?.proposed_days || 0
+  const walletBalance = Number(walletData?.wallet?.balance ?? 0)
+  const lastOfferPrice = Number(lastRound?.proposed_price || 0)
+  const counterOfferPrice = Number(counterPrice || 0)
+  const canFundLastOffer = walletBalance >= lastOfferPrice
+  const canFundCounter = counterOfferPrice > 0 && walletBalance >= counterOfferPrice
 
   useEffect(() => {
     if (!pendingCounter) return
@@ -453,24 +466,31 @@ function ClientNegotiationPanel({ job }) {
       )}
 
       {isMyTurn && !showCounter && (
-        <div className="row" style={{ marginTop: 16, gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          {canCounter && (
-            <button className="btn ghost" onClick={() => {
-              setCounterPrice(String(lastRound?.proposed_price || ''))
-              setCounterDays(String(lastRound?.proposed_days || ''))
-              setShowCounter(true)
-            }}>
-              <Icon name="refresh" size={13} /> Counter offer
+        <>
+          <div className="row" style={{ marginTop: 16, gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            {canCounter && (
+              <button className="btn ghost" onClick={() => {
+                setCounterPrice(String(lastRound?.proposed_price || ''))
+                setCounterDays(String(lastRound?.proposed_days || ''))
+                setShowCounter(true)
+              }}>
+                <Icon name="refresh" size={13} /> Counter offer
+              </button>
+            )}
+            <button className="btn mint" onClick={() => acceptMutation.mutate()} disabled={acceptMutation.isPending || !canFundLastOffer}>
+              <Icon name="check" size={13} />
+              {acceptMutation.isPending ? 'Accepting...' : `Accept ${rupee(lastRound?.proposed_price || 0)}`}
             </button>
+            <button className="btn ghost" style={{ color: 'var(--rose)', borderColor: 'rgba(225,29,72,0.2)' }} onClick={() => rejectMutation.mutate()} disabled={rejectMutation.isPending}>
+              {rejectMutation.isPending ? 'Declining...' : 'Decline'}
+            </button>
+          </div>
+          {!canFundLastOffer && (
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--amber)', textAlign: 'right' }}>
+              Add {rupee(Math.max(0, lastOfferPrice - walletBalance))} to your wallet to accept this offer.
+            </div>
           )}
-          <button className="btn mint" onClick={() => acceptMutation.mutate()} disabled={acceptMutation.isPending}>
-            <Icon name="check" size={13} />
-            {acceptMutation.isPending ? 'Accepting...' : `Accept ${rupee(lastRound?.proposed_price || 0)}`}
-          </button>
-          <button className="btn ghost" style={{ color: 'var(--rose)', borderColor: 'rgba(225,29,72,0.2)' }} onClick={() => rejectMutation.mutate()} disabled={rejectMutation.isPending}>
-            {rejectMutation.isPending ? 'Declining...' : 'Decline'}
-          </button>
-        </div>
+        </>
       )}
 
       {showCounter && (
@@ -495,7 +515,7 @@ function ClientNegotiationPanel({ job }) {
           </div>
           <div className="row" style={{ marginTop: 10, gap: 8, justifyContent: 'flex-end' }}>
             <button className="btn ghost" onClick={() => setShowCounter(false)}>Cancel</button>
-            <button className="btn primary" onClick={sendCounter} disabled={counterMutation.isPending || !counterPrice || !counterDays}>
+            <button className="btn primary" onClick={sendCounter} disabled={counterMutation.isPending || !counterPrice || !counterDays || !canFundCounter}>
               <Icon name="send" size={13} />
               {counterMutation.isPending ? 'Sending...' : 'Send counter'}
             </button>
@@ -503,6 +523,11 @@ function ClientNegotiationPanel({ job }) {
           <div className="muted" style={{ fontSize: 11, marginTop: 8, textAlign: 'right' }}>
             <Icon name="shield" size={10} /> Client gets 3 proposal turns. Creative gets 2 re-proposals.
           </div>
+          {counterPrice && !canFundCounter && (
+            <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 8, textAlign: 'right' }}>
+              Add {rupee(Math.max(0, counterOfferPrice - walletBalance))} to your wallet to send this counter.
+            </div>
+          )}
         </div>
       )}
 
@@ -936,6 +961,9 @@ function InProgressPanel({ job, navigate }) {
       <button className="btn primary block" onClick={() => navigate('/chat')}>
         <Icon name="chat" /> Open messages
       </button>
+      <button className="btn ghost block" style={{ marginTop: 10 }} onClick={() => navigate(`/mintbox/jobs/${job.id}`)}>
+        <Icon name="layers" /> Open Mintbox
+      </button>
     </div>
   )
 }
@@ -1128,10 +1156,8 @@ export default function JobDetail() {
               <div style={{ height: 1, background: 'var(--hairline)' }} />
 
               <div className="row between" style={{ fontSize: 13 }}>
-                <span style={{ color: 'var(--ink-500)' }}>Budget</span>
-                <span className="mono" style={{ fontWeight: 500, color: 'var(--ink-950)' }}>
-                  {job.pricing_mode === 'expert' ? '~' : ''}{rupee(job.budget_amount || 0)}
-                </span>
+                <span style={{ color: 'var(--ink-500)' }}>Creative pool</span>
+                <span>{talentPoolLabel(job.pricing_mode)}</span>
               </div>
 
               {job.deadline && (
@@ -1142,13 +1168,8 @@ export default function JobDetail() {
               )}
 
               <div className="row between" style={{ fontSize: 13 }}>
-                <span style={{ color: 'var(--ink-500)' }}>Level</span>
-                <span style={{ textTransform: 'capitalize' }}>{job.required_level || 'Any'}</span>
-              </div>
-
-              <div className="row between" style={{ fontSize: 13 }}>
                 <span style={{ color: 'var(--ink-500)' }}>Pricing</span>
-                <span style={{ textTransform: 'capitalize' }}>{job.pricing_mode || 'Budget'}</span>
+                <span>Freelancers quote first</span>
               </div>
 
             </div>
@@ -1188,7 +1209,7 @@ export default function JobDetail() {
               <div style={{ fontSize: 13, color: 'var(--ink-700)', lineHeight: 1.55 }}>
                 {isCompleted
                   ? 'Funds have been released to the creative.'
-                  : `${rupee(job.budget_amount || 0)} is securely held. Released only on your approval.`
+                  : `${rupee(job.negotiation?.agreed_price || job.agreed_price || 0)} is securely held. Released only on your approval.`
                 }
               </div>
             </div>

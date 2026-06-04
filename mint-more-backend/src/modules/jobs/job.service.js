@@ -27,6 +27,29 @@ const triggerMatchingAsync = (jobId, reason) => {
   });
 };
 
+const normalizeBriefPricing = ({
+  pricing_mode,
+  budget_type,
+  budget_amount,
+  required_level,
+  metadata,
+}) => {
+  const mode = pricing_mode === 'expert' ? 'expert' : 'budget';
+
+  return {
+    pricing_mode: mode,
+    budget_type: budget_type || 'quote',
+    budget_amount: budget_amount === '' || budget_amount === undefined ? null : budget_amount,
+    required_level: mode === 'expert' ? 'experienced' : null,
+    metadata: {
+      ...(metadata || {}),
+      talent_pool: mode === 'expert' ? 'pro' : 'budget',
+      client_budget_hidden: true,
+      original_required_level: required_level || null,
+    },
+  };
+};
+
 // ── Create Job ────────────────────────────────────────────────────────────────
 
 /**
@@ -51,6 +74,14 @@ const createJob = async (clientId, {
   deadline,
   metadata,
 }) => {
+  const pricing = normalizeBriefPricing({
+    pricing_mode,
+    budget_type,
+    budget_amount,
+    required_level,
+    metadata,
+  });
+
   const result = await query(
     `INSERT INTO jobs
        (client_id, category_id, title, description, requirements,
@@ -66,14 +97,14 @@ const createJob = async (clientId, {
       description,
       requirements    || null,
       attachments     || [],
-      budget_type     || null,
-      budget_amount   || null,
+      pricing.budget_type,
+      pricing.budget_amount,
       currency        || 'INR',
-      pricing_mode    || 'budget',
-      required_level  || null,
+      pricing.pricing_mode,
+      pricing.required_level,
       required_skills || [],
       deadline        || null,
-      metadata ? JSON.stringify(metadata) : '{}',
+      JSON.stringify(pricing.metadata),
     ]
   );
 
@@ -107,6 +138,14 @@ const createJobAsDraft = async (clientId, {
   deadline,
   metadata,
 }) => {
+  const pricing = normalizeBriefPricing({
+    pricing_mode,
+    budget_type,
+    budget_amount,
+    required_level,
+    metadata,
+  });
+
   const result = await query(
     `INSERT INTO jobs
        (client_id, category_id, title, description, requirements,
@@ -122,14 +161,14 @@ const createJobAsDraft = async (clientId, {
       description,
       requirements    || null,
       attachments     || [],
-      budget_type     || null,
-      budget_amount   || null,
+      pricing.budget_type,
+      pricing.budget_amount,
       currency        || 'INR',
-      pricing_mode    || 'budget',
-      required_level  || null,
+      pricing.pricing_mode,
+      pricing.required_level,
       required_skills || [],
       deadline        || null,
-      metadata ? JSON.stringify(metadata) : '{}',
+      JSON.stringify(pricing.metadata),
     ]
   );
 
@@ -199,6 +238,17 @@ const publishJob = async (clientId, jobId) => {
  * Only 'draft' jobs may be edited.
  */
 const updateJob = async (clientId, jobId, updates) => {
+  const normalizedUpdates = { ...updates };
+  if (
+    updates.pricing_mode !== undefined ||
+    updates.budget_type !== undefined ||
+    updates.budget_amount !== undefined ||
+    updates.required_level !== undefined ||
+    updates.metadata !== undefined
+  ) {
+    Object.assign(normalizedUpdates, normalizeBriefPricing(updates));
+  }
+
   const allowed = [
     'category_id', 'title', 'description', 'requirements',
     'attachments', 'budget_type', 'budget_amount', 'currency',
@@ -211,10 +261,10 @@ const updateJob = async (clientId, jobId, updates) => {
   let   idx    = 1;
 
   for (const key of allowed) {
-    if (updates[key] !== undefined) {
+    if (normalizedUpdates[key] !== undefined) {
       fields.push(`${key} = $${idx}`);
       values.push(
-        key === 'metadata' ? JSON.stringify(updates[key]) : updates[key]
+        key === 'metadata' ? JSON.stringify(normalizedUpdates[key]) : normalizedUpdates[key]
       );
       idx++;
     }

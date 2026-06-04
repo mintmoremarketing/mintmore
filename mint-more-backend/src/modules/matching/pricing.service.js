@@ -198,6 +198,14 @@ const evaluatePricingAlignment = (freelancer, job, priceRange) => {
     }
 
     if (freelancer_level === 'experienced') {
+      return {
+        include:         false,
+        pricing_score:   0,
+        market_position: 'expert_only',
+        within_range:    false,
+        reason:          'Budget briefs are reserved for beginner and intermediate freelancers',
+      };
+
       const competitiveThreshold = intermediateMax * (1 + COMPETITIVE_TOLERANCE);
 
       if (pMin <= competitiveThreshold) {

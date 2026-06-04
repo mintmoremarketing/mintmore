@@ -31,6 +31,7 @@ const I = {
 	edit: 'M2 14h12M12 2.5l1.5 1.5L6 11.5l-2 .5.5-2z',
 	rupee: 'M5 3h6M5 6h6c0 1.5-1 2.5-3 2.5H5l4 4.5M5 6h2',
 	copy: 'M5 5V3a1 1 0 011-1h7a1 1 0 011 1v7a1 1 0 01-1 1h-2M2 6a1 1 0 011-1h7a1 1 0 011 1v7a1 1 0 01-1 1H3a1 1 0 01-1-1z',
+	file: 'M4 2h5l3 3v9H4zM9 2v3h3M6 8h4M6 11h4',
 	refresh: 'M2 8a6 6 0 0110-4.5L13 5M14 8a6 6 0 01-10 4.5L3 11M13 2v3h-3M3 14v-3h3',
 	filter: 'M2 3h12L9 9v5l-2-1V9z',
 	calendar: 'M3 4h10v9H3zM3 7h10M6 2v3M10 2v3',

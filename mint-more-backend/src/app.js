@@ -34,6 +34,7 @@ const packageRouter      = require('./modules/packages/package.routes');
 const portfolioRouter    = require('./modules/portfolio/portfolio.routes');
 const reviewRouter       = require('./modules/reviews/review.routes');
 const inquiryRouter      = require('./modules/inquiries/inquiry.routes');
+const mintboxRouter      = require('./modules/mintbox/mintbox.routes');
 
 // Initialise SSE subscriber (does not require main Redis client)
 initSSESubscriber();
@@ -95,6 +96,7 @@ app.use(`/api/${env.apiVersion}/packages`,      packageRouter);
 app.use(`/api/${env.apiVersion}/portfolio`,     portfolioRouter);
 app.use(`/api/${env.apiVersion}/reviews`,       reviewRouter);
 app.use(`/api/${env.apiVersion}/inquiries`,     inquiryRouter);
+app.use(`/api/${env.apiVersion}/mintbox`,       mintboxRouter);
 
 app.use(notFound);
 app.use(errorHandler);

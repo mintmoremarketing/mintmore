@@ -21,6 +21,7 @@ import Social            from './pages/client/Social'
 import MintAI            from './pages/client/MintAI'
 import Settings          from './pages/Settings'
 import NotificationsInbox from './pages/notifications/Inbox'
+import Mintbox           from './pages/shared/Mintbox'
 
 // Freelancer pages
 import FreelancerDashboard  from './pages/freelancer/Dashboard'
@@ -38,6 +39,7 @@ import AdminUsers        from './pages/admin/Users'
 import AdminNegotiations from './pages/admin/Negotiations'
 import AdminWallet       from './pages/admin/Wallet'
 import AdminAIPanel      from './pages/admin/AIPanel'
+import AdminPricing      from './pages/admin/Pricing'
 
 // ── Role-aware route wrappers ─────────────────────────────────────────────────
 
@@ -169,6 +171,8 @@ export default function App() {
 
           {/* Shared */}
           <Route path="/chat"     element={<ComingSoon label="Messages" />} />
+          <Route path="/mintbox/jobs/:jobId" element={<Mintbox />} />
+          <Route path="/mintbox/share/:token" element={<Mintbox />} />
           <Route path="/notifications" element={<NotificationsInbox />} />
           <Route path="/settings" element={<Settings />} />
 
@@ -176,6 +180,7 @@ export default function App() {
           <Route path="/admin"            element={<AdminOnly><AdminDashboard /></AdminOnly>} />
           <Route path="/admin/users"      element={<AdminOnly><AdminUsers /></AdminOnly>} />
           <Route path="/admin/approvals"  element={<AdminOnly><AdminNegotiations /></AdminOnly>} />
+          <Route path="/admin/pricing"    element={<AdminOnly><AdminPricing /></AdminOnly>} />
           <Route path="/admin/wallet"     element={<AdminOnly><AdminWallet /></AdminOnly>} />
           <Route path="/admin/ai"         element={<AdminOnly><AdminAIPanel /></AdminOnly>} />
         </Route>
