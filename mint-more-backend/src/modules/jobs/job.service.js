@@ -155,9 +155,31 @@ const publishJob = async (clientId, jobId) => {
   );
 
   if (!result.rows[0]) {
+    const existing = await query(
+      `SELECT *
+       FROM jobs
+       WHERE id = $1
+         AND client_id = $2`,
+      [jobId, clientId]
+    );
+
+    const job = existing.rows[0];
+    if (!job) {
+      throw new AppError('Job not found or not owned by you', 404);
+    }
+
+    if (['open', 'matching'].includes(job.status)) {
+      logger.info('[Jobs] Publish skipped; job already published', {
+        jobId,
+        clientId,
+        status: job.status,
+      });
+      return job;
+    }
+
     throw new AppError(
-      'Job not found, not owned by you, or not in draft status',
-      404
+      `Job cannot be published in its current status: ${job.status}`,
+      400
     );
   }
 
@@ -236,16 +258,28 @@ const pauseMatching = async (clientId, jobId) => {
        FROM jobs
        WHERE id = $1
          AND client_id = $2
-         AND status IN ('open', 'matching')
        FOR UPDATE`,
       [jobId, clientId]
     );
 
     const job = jobResult.rows[0];
     if (!job) {
+      throw new AppError('Job not found or not owned by you', 404);
+    }
+
+    if (job.status === 'draft') {
+      await client.query('COMMIT');
+      logger.info('[Jobs] Pause matching skipped; job already draft', {
+        jobId,
+        clientId,
+      });
+      return job;
+    }
+
+    if (!['open', 'matching'].includes(job.status)) {
       throw new AppError(
-        'Job not found, not owned by you, or matching cannot be paused now',
-        404
+        `Matching cannot be paused in its current status: ${job.status}`,
+        400
       );
     }
 

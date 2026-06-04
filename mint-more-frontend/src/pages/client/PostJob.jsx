@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Fragment } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { jobsApi } from '../../api/jobs'
@@ -84,6 +85,15 @@ export default function PostJob() {
 		setData((d) => ({ ...d, [k]: v }))
 	}
 
+	function handlePrimaryAction() {
+		if (isPending) return
+		if (step < 3) {
+			setStep(step + 1)
+			return
+		}
+		mutate()
+	}
+
 	if (isEditMode && isJobLoading) {
 		return (
 			<div className="stack-6">
@@ -111,7 +121,7 @@ export default function PostJob() {
 
 			<div className="stepper">
 				{['Basics', 'Requirements', 'Review'].map((s, i) => (
-					<>
+					<Fragment key={s}>
 						<div key={s} className={`step ${step >= i + 1 ? 'active' : ''} ${step > i + 1 ? 'done' : ''}`}>
 							<span className="step-num">
 								{step > i + 1 ? <Icon name="check" size={11} strokeWidth={3} /> : i + 1}
@@ -119,7 +129,7 @@ export default function PostJob() {
 							<span>{s}</span>
 						</div>
 						{i < 2 && <div className={`step-line ${step > i + 1 ? 'done' : ''}`} style={{ background: step > i + 1 ? 'var(--ink-950)' : 'var(--hairline)' }} />}
-					</>
+					</Fragment>
 				))}
 			</div>
 
@@ -241,13 +251,13 @@ export default function PostJob() {
 				<button className="btn ghost" onClick={() => step > 1 ? setStep(step - 1) : navigate('/jobs')}>
 					<Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}
 				</button>
-				<button className="btn primary" onClick={() => step < 3 ? setStep(step + 1) : mutate()} disabled={isPending}>
+				<button className="btn primary" onClick={handlePrimaryAction} disabled={isPending}>
 					{isPending
 						? (isEditMode ? 'Saving...' : 'Posting...')
 						: step < 3
 						? <>Continue <Icon name="arrowRight" /></>
 						: <>{isEditMode ? 'Save & restart matching' : 'Post brief'} <Icon name="arrowRight" /></>}
-C:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\mint-more-frontend\src\pages\client\JobDetail.jsx				</button>
+				</button>
 			</div>
 		</div>
 	)
