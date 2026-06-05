@@ -5,7 +5,7 @@ const env = require('../../config/env');
 const {
   supabase,
   createSignedResumableUpload,
-  createSignedDownloadUrls,
+  createSignedDownloadUrl,
   storageObjectExists,
 } = require('../../config/supabase');
 const AppError = require('../../utils/AppError');
@@ -21,6 +21,13 @@ const FREE_REVISION_ROUNDS = 3;
 const PAID_REVISION_PRICE = 20;
 
 const makeToken = () => crypto.randomBytes(24).toString('base64url');
+const toSharedFile = (file) => ({
+  ...file,
+  public_url: `/mintbox/file/${file.share_token}`,
+  share_url: `/mintbox/file/${file.share_token}`,
+  storage_bucket: undefined,
+  storage_path: undefined,
+});
 const safeName = (value) => String(value || 'file').replace(/[^\w.\- ]+/g, '').trim() || 'file';
 const MINTBOX_MAX_FILE_BYTES = env.upload.mintboxMaxFileSizeMb * 1024 * 1024;
 
@@ -177,6 +184,7 @@ const getFolderByJob = async (jobId, requesterId, role) => {
   return {
     folder,
     files,
+    category_shares: await listCategoryShares(folder.id),
     revisions: await getRevisionSummary(job.id),
     upload_policy: getUploadPolicy(),
     quota: {
@@ -251,6 +259,7 @@ const getFolderByShareToken = async (token, requesterId, role) => {
   return {
     folder,
     files,
+    category_shares: await listCategoryShares(folder.id),
     revisions: await getRevisionSummary(folder.job_id),
     upload_policy: getUploadPolicy(),
     quota: {
@@ -258,6 +267,37 @@ const getFolderByShareToken = async (token, requesterId, role) => {
       limit,
       remaining: Math.max(0, limit - used),
     },
+  };
+};
+
+const getPublicFolderByShareToken = async (token) => {
+  const folderResult = await query(
+    `SELECT mf.*, j.title AS job_title
+     FROM mintbox_folders mf
+     JOIN jobs j ON j.id = mf.job_id
+     WHERE mf.share_token = $1`,
+    [token]
+  );
+  const folder = folderResult.rows[0];
+  if (!folder) throw new AppError('Mintbox folder not found', 404);
+  const files = await listFiles(folder.id);
+  return { folder, files, category_shares: await listCategoryShares(folder.id) };
+};
+
+const getPublicCategoryByShareToken = async (token) => {
+  const result = await query(
+    `SELECT share.*, folder.name, folder.job_id
+     FROM mintbox_category_shares share
+     JOIN mintbox_folders folder ON folder.id = share.folder_id
+     WHERE share.share_token = $1`,
+    [token]
+  );
+  const share = result.rows[0];
+  if (!share) throw new AppError('Shared folder not found', 404);
+  return {
+    folder: { id: share.folder_id, job_id: share.job_id, name: `${share.name} / ${share.category}`, shared_category: share.category },
+    files: await listFiles(share.folder_id, share.category),
+    category_shares: [],
   };
 };
 
@@ -374,7 +414,7 @@ const completeUpload = async (uploadId, uploaderId, role) => {
         [session.storage_path]
       );
       await dbClient.query('COMMIT');
-      return existing.rows[0];
+      return toSharedFile(existing.rows[0]);
     }
     if (session.status !== 'pending' || new Date(session.expires_at) <= new Date()) {
       throw new AppError('Upload session has expired', 410);
@@ -422,6 +462,12 @@ const completeUpload = async (uploadId, uploaderId, role) => {
        WHERE id = $1`,
       [session.id]
     );
+    await dbClient.query(
+      `INSERT INTO mintbox_category_shares (folder_id, category)
+       VALUES ($1, $2)
+       ON CONFLICT (folder_id, category) DO NOTHING`,
+      [session.folder_id, session.purpose === 'brief' ? 'brief' : session.file_category]
+    );
     let deliveredRevision = null;
     if (session.revision_round) {
       const delivered = await dbClient.query(
@@ -451,7 +497,7 @@ const completeUpload = async (uploadId, uploaderId, role) => {
         data: { job_id: session.job_id, revision_round: deliveredRevision?.round_number || null },
       });
     }
-    return inserted.rows[0];
+    return toSharedFile(inserted.rows[0]);
   } catch (err) {
     await dbClient.query('ROLLBACK');
     throw err;
@@ -475,28 +521,66 @@ const cancelUpload = async (uploadId, uploaderId, role) => {
   return { upload_id: result.rows[0].id, status: 'cancelled' };
 };
 
-const listFiles = async (folderId) => {
+const listFiles = async (folderId, category = null) => {
   const result = await query(
     `SELECT mf.*, u.full_name AS uploaded_by_name, u.role AS uploaded_by_role
      FROM mintbox_files mf
      JOIN users u ON u.id = mf.uploaded_by
-     WHERE mf.folder_id = $1 AND mf.deleted_by_client_at IS NULL
+     WHERE mf.folder_id = $1
+       AND mf.deleted_by_client_at IS NULL
+       AND ($2::VARCHAR IS NULL OR CASE WHEN mf.purpose = 'brief' THEN 'brief' ELSE mf.file_category END = $2)
      ORDER BY mf.created_at DESC`,
+    [folderId, category]
+  );
+  return result.rows.map(toSharedFile);
+};
+
+const listCategoryShares = async (folderId) => {
+  const categories = await query(
+    `SELECT DISTINCT CASE WHEN purpose = 'brief' THEN 'brief' ELSE file_category END AS category
+     FROM mintbox_files
+     WHERE folder_id = $1 AND deleted_by_client_at IS NULL`,
     [folderId]
   );
-  const filesByBucket = result.rows.reduce((groups, file) => {
-    if (!groups[file.storage_bucket]) groups[file.storage_bucket] = [];
-    groups[file.storage_bucket].push(file.storage_path);
-    return groups;
-  }, {});
-  const signedByBucket = {};
-  await Promise.all(Object.entries(filesByBucket).map(async ([bucket, paths]) => {
-    signedByBucket[bucket] = await createSignedDownloadUrls(bucket, paths);
+  for (const row of categories.rows) {
+    await query(
+      `INSERT INTO mintbox_category_shares (folder_id, category)
+       VALUES ($1, $2)
+       ON CONFLICT (folder_id, category) DO NOTHING`,
+      [folderId, row.category]
+    );
+  }
+  const result = await query(
+    `SELECT category, share_token
+     FROM mintbox_category_shares
+     WHERE folder_id = $1
+     ORDER BY category`,
+    [folderId]
+  );
+  return result.rows.map((share) => ({
+    ...share,
+    share_url: `/mintbox/share-category/${share.share_token}`,
   }));
-  return result.rows.map((file) => ({
-    ...file,
-    public_url: signedByBucket[file.storage_bucket]?.get(file.storage_path) || file.public_url,
-  }));
+};
+
+const getPublicFile = async (token) => {
+  const result = await query(
+    `SELECT id, original_name, storage_bucket, storage_path, mime_type, size_bytes,
+            file_category, created_at
+     FROM mintbox_files
+     WHERE share_token = $1 AND deleted_by_client_at IS NULL`,
+    [token]
+  );
+  const file = result.rows[0];
+  if (!file) throw new AppError('Shared file not found', 404);
+  return file;
+};
+
+const getPublicFileStream = async (token) => {
+  const file = await getPublicFile(token);
+  const signedUrl = await createSignedDownloadUrl(file.storage_bucket, file.storage_path, 60);
+  if (!signedUrl) throw new AppError('File is temporarily unavailable', 503);
+  return { file, signedUrl };
 };
 
 const markSeen = async (jobId, requesterId, role) => {
@@ -727,6 +811,10 @@ module.exports = {
   listClientFolders,
   getFolderByJob,
   getFolderByShareToken,
+  getPublicFolderByShareToken,
+  getPublicCategoryByShareToken,
+  getPublicFile,
+  getPublicFileStream,
   prepareUpload,
   completeUpload,
   cancelUpload,

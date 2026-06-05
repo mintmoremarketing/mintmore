@@ -63,7 +63,7 @@ function StorageBar({ quota }) {
 }
 
 export default function Mintbox() {
-	const { jobId, token } = useParams()
+	const { jobId, token, categoryToken } = useParams()
 	const navigate = useNavigate()
 	const fileRef = useRef(null)
 	const queryClient = useQueryClient()
@@ -84,12 +84,14 @@ export default function Mintbox() {
 	const [uploadState, setUploadState] = useState({ status: 'idle', progress: 0, file: null, error: '', uploadId: null })
 	const uploadRef = useRef(null)
 
-	const isOverview = !jobId && !token
-	const queryKey = token ? ['mintbox-share', token] : jobId ? ['mintbox-job', jobId] : ['mintbox']
+	const isOverview = !jobId && !token && !categoryToken
+	const queryKey = categoryToken ? ['mintbox-category-share', categoryToken] : token ? ['mintbox-share', token] : jobId ? ['mintbox-job', jobId] : ['mintbox']
 	const { data, isLoading } = useQuery({
 		queryKey,
 		queryFn: async () => {
-			const res = token
+			const res = categoryToken
+				? await mintboxApi.getSharedCategory(categoryToken)
+				: token
 				? await mintboxApi.getSharedFolder(token)
 				: jobId
 				? await mintboxApi.getJobFolder(jobId)
@@ -104,10 +106,11 @@ export default function Mintbox() {
 	const quota = data?.quota
 	const uploadPolicy = data?.upload_policy
 	const revisions = data?.revisions
+	const categoryShares = data?.category_shares || []
 	const shareUrl = folder?.share_token ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
 
 	useEffect(() => {
-		if (!folder?.job_id) return
+		if (!folder?.job_id || !['client', 'freelancer', 'admin'].includes(role)) return
 		mintboxApi.markSeen(folder.job_id)
 			.then(() => queryClient.invalidateQueries({ queryKey }))
 			.catch(() => {})
@@ -291,8 +294,24 @@ export default function Mintbox() {
 		await navigator.clipboard.writeText(shareUrl)
 		pushToast({ title: 'Folder link copied', icon: 'copy' })
 	}
+	const copyFileShare = async (file) => {
+		await navigator.clipboard.writeText(`${window.location.origin}${file.share_url}`)
+		pushToast({ title: 'File link copied', icon: 'copy' })
+	}
+	const copyCategoryShare = async (category) => {
+		const share = categoryShares.find(item => item.category === category)
+		if (!share) return
+		await navigator.clipboard.writeText(`${window.location.origin}${share.share_url}`)
+		pushToast({ title: 'Folder link copied', icon: 'copy' })
+	}
 
 	const sortedFiles = useMemo(() => files, [files])
+	const sharedFolders = useMemo(() => sortedFiles.reduce((groups, file) => {
+		const category = file.purpose === 'brief' ? 'brief' : (file.file_category || 'other')
+		if (!groups[category]) groups[category] = []
+		groups[category].push(file)
+		return groups
+	}, {}), [sortedFiles])
 	const groupedFiles = useMemo(() => sortedFiles.reduce((groups, file) => {
 		const category = file.purpose === 'brief' ? 'brief' : (file.file_category || 'other')
 		if (!groups[category]) groups[category] = []
@@ -560,13 +579,48 @@ export default function Mintbox() {
 						Project files, submissions, and revisions in one folder.
 					</p>
 				</div>
-				<button className="btn ghost" onClick={copyShare}>
+				{shareUrl && <button className="btn ghost" onClick={copyShare}>
 					<Icon name="copy" size={13} />
 					Copy folder link
-				</button>
+				</button>}
 			</div>
 
-			<StorageBar quota={quota} />
+			{quota && <StorageBar quota={quota} />}
+
+			{revisions && <div className="card reveal" style={{ padding: 18 }}>
+				<div className="row between" style={{ gap: 14, marginBottom: 14 }}>
+					<div>
+						<div className="h-eyebrow">Project folders</div>
+						<div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>Files are automatically organized by type. Every file has its own share link.</div>
+					</div>
+					<span className="badge neutral">{Object.keys(sharedFolders).length} folders</span>
+				</div>
+				<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
+					{Object.entries(sharedFolders).map(([category, categoryFiles]) => (
+						<div key={category} style={{ border: '1px solid var(--hairline)', padding: 12, background: 'var(--paper-tint)' }}>
+							<div className="row between" style={{ gap: 8, marginBottom: 9 }}>
+								<div className="row" style={{ gap: 7 }}>
+									<Icon name={categoryMeta[category]?.icon || 'file'} size={13} />
+									<strong style={{ fontSize: 12.5 }}>{categoryMeta[category]?.label || category}</strong>
+								</div>
+								<div className="row" style={{ gap: 5 }}>
+									<span className="badge neutral">{categoryFiles.length}</span>
+									{categoryShares.some(item => item.category === category) && <button className="icon-btn" onClick={() => copyCategoryShare(category)} title="Copy folder share link"><Icon name="copy" size={11} /></button>}
+								</div>
+							</div>
+							<div className="stack" style={{ gap: 5 }}>
+								{categoryFiles.map(file => (
+									<div key={file.id} className="row between" style={{ gap: 8, fontSize: 11.5 }}>
+										<a href={file.share_url} target="_blank" rel="noreferrer" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--ink-700)' }}>{file.original_name}</a>
+										<button className="icon-btn" onClick={() => copyFileShare(file)} title="Copy file share link"><Icon name="copy" size={11} /></button>
+									</div>
+								))}
+							</div>
+						</div>
+					))}
+					{Object.keys(sharedFolders).length === 0 && <div className="muted" style={{ fontSize: 12.5 }}>Folders appear automatically when files are added.</div>}
+				</div>
+			</div>}
 
 			<div className="card reveal" style={{ padding: 18 }}>
 				<div className="row between" style={{ gap: 14, alignItems: 'flex-start' }}>

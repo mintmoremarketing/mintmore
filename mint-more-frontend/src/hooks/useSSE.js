@@ -78,6 +78,7 @@ export function useSSE() {
 					queryClient.invalidateQueries({
 						queryKey: ['chat', payload.roomId],
 					})
+					queryClient.invalidateQueries({ queryKey: ['chat-rooms'] })
 				}
 
 				if (payload.type === 'ai_progress') {

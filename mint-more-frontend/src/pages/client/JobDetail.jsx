@@ -967,7 +967,7 @@ function InProgressPanel({ job, navigate }) {
         </div>
       )}
 
-      <button className="btn primary block" onClick={() => navigate('/chat')}>
+      <button className="btn primary block" onClick={() => navigate(`/chat?job=${job.id}`)}>
         <Icon name="chat" /> Open messages
       </button>
       <button className="btn ghost block" style={{ marginTop: 10 }} onClick={() => navigate(`/mintbox/jobs/${job.id}`)}>

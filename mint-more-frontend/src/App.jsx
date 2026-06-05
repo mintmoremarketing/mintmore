@@ -22,6 +22,8 @@ import MintAI            from './pages/client/MintAI'
 import Settings          from './pages/Settings'
 import NotificationsInbox from './pages/notifications/Inbox'
 import Mintbox           from './pages/shared/Mintbox'
+import Chat              from './pages/shared/Chat'
+import SharedFile        from './pages/public/SharedFile'
 
 // Freelancer pages
 import FreelancerDashboard  from './pages/freelancer/Dashboard'
@@ -143,6 +145,9 @@ export default function App() {
         <Route path="/login"            element={<Login />} />
         <Route path="/register"         element={<Register />} />
         <Route path="/pending-approval" element={<PendingApproval />} />
+        <Route path="/mintbox/share/:token" element={<Mintbox />} />
+        <Route path="/mintbox/share-category/:categoryToken" element={<Mintbox />} />
+        <Route path="/mintbox/file/:token" element={<SharedFile />} />
         <Route path="/"                 element={<RootRedirect />} />
 
         {/* Authenticated shell */}
@@ -170,10 +175,9 @@ export default function App() {
           <Route path="/inquiries"    element={<Inquiries />} />
 
           {/* Shared */}
-          <Route path="/chat"     element={<ComingSoon label="Messages" />} />
+          <Route path="/chat"     element={<Chat />} />
           <Route path="/mintbox" element={<ClientOnly><Mintbox /></ClientOnly>} />
           <Route path="/mintbox/jobs/:jobId" element={<Mintbox />} />
-          <Route path="/mintbox/share/:token" element={<Mintbox />} />
           <Route path="/notifications" element={<NotificationsInbox />} />
           <Route path="/settings" element={<Settings />} />
 

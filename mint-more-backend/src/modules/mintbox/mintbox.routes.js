@@ -5,6 +5,11 @@ const { requireApproved } = require('../../middleware/requireApproved');
 
 const router = Router();
 
+router.get('/public/share/:token', controller.getPublicSharedFolder);
+router.get('/public/share-category/:token', controller.getPublicSharedCategory);
+router.get('/public/files/:token', controller.getPublicFile);
+router.get('/public/files/:token/content', controller.streamPublicFile);
+
 router.use(authenticate, requireApproved);
 
 router.get('/', controller.listFolders);

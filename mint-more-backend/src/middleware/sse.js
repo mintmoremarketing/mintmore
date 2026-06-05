@@ -112,12 +112,14 @@ const initSSESubscriber = () => {
 
       if (channel === CHAT_REDIS_CHANNEL) {
         // Chat message — push to both client and freelancer in the room
-        const { roomId, message, senderRole } = payload;
+        const { roomId, message, senderRole, recipientIds = [] } = payload;
 
         // We need room participants — fetch from a local in-memory cache or
         // push to ALL connected users and let the client filter by roomId
         // Simple approach: broadcast with roomId, client filters
-        activeConnections.forEach((connections, userId) => {
+        recipientIds.forEach((userId) => {
+          const connections = activeConnections.get(userId);
+          if (!connections) return;
           const data = `data: ${JSON.stringify({ type: 'chat_message', roomId, message, senderRole })}\n\n`;
           connections.forEach((res) => { try { res.write(data); } catch {} });
         });

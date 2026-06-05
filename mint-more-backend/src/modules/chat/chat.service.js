@@ -77,27 +77,36 @@ const getRoomById = async (roomId, requesterId, requesterRole) => {
  * Get all chat rooms for the current user.
  */
 const getMyRooms = async (userId, role) => {
-  const field  = role === 'client' ? 'cr.client_id' : 'cr.freelancer_id';
+  const accessClause = role === 'admin'
+    ? '($1::uuid IS NOT NULL)'
+    : role === 'client'
+      ? 'cr.client_id = $1'
+      : 'cr.freelancer_id = $1';
 
   const result = await query(
     `SELECT
        cr.id, cr.job_id, cr.is_active,
        cr.last_message_at, cr.last_message_preview,
        j.title AS job_title, j.status AS job_status,
+       u_c.full_name AS client_name,
+       CASE WHEN $2 = 'client' THEN NULL ELSE u_f.full_name END AS freelancer_name,
        wn.display_name AS mm_channel_name,
        -- Unread count for this user
        (SELECT COUNT(*) FROM messages m
         WHERE m.room_id = cr.id
           AND m.is_deleted = false
-          AND CASE WHEN $2 = 'client'
+          AND CASE WHEN $2 = 'admin' THEN false
+                   WHEN $2 = 'client'
                    THEN m.read_by_client = false AND m.sender_role != 'client'
                    ELSE m.read_by_freelancer = false AND m.sender_role != 'freelancer'
               END
        ) AS unread_count
      FROM chat_rooms cr
      JOIN jobs j ON j.id = cr.job_id
+     JOIN users u_c ON u_c.id = cr.client_id
+     JOIN users u_f ON u_f.id = cr.freelancer_id
      LEFT JOIN whatsapp_numbers wn ON wn.waba_phone_id = cr.mm_wa_number_id
-     WHERE ${field} = $1
+     WHERE ${accessClause}
      ORDER BY cr.last_message_at DESC NULLS LAST`,
     [userId, role]
   );
@@ -181,8 +190,12 @@ const getMessages = async (roomId, requesterId, requesterRole, { page = 1, limit
  * the message is also bridged to WhatsApp (anonymously as "Mint More").
  */
 const sendMessage = async (roomId, senderId, senderRole, { content, attachment_url, attachment_type }) => {
+  if (senderRole === 'admin') throw new AppError('Admins can view chats but cannot send participant messages', 403);
   if (!content && !attachment_url) {
     throw new AppError('content or attachment is required', 400);
+  }
+  if (attachment_url && !String(attachment_url).includes('/mintbox/file/')) {
+    throw new AppError('Chat attachments must use a Mintbox file share link', 400);
   }
 
   // Fetch room
@@ -445,10 +458,18 @@ const CHAT_REDIS_CHANNEL = 'mint_more:chat';
 
 const publishMessageToRoom = async (roomId, message, senderRole) => {
   try {
+    const recipients = await query(
+      `SELECT client_id AS user_id FROM chat_rooms WHERE id = $1
+       UNION
+       SELECT freelancer_id AS user_id FROM chat_rooms WHERE id = $1
+       UNION
+       SELECT id AS user_id FROM users WHERE role = 'admin' AND is_active = true`,
+      [roomId]
+    );
     const redis = getRedis();
     await redis.publish(
       CHAT_REDIS_CHANNEL,
-      JSON.stringify({ roomId, message, senderRole })
+      JSON.stringify({ roomId, message, senderRole, recipientIds: recipients.rows.map((row) => row.user_id) })
     );
   } catch (err) {
     logger.warn('Chat Redis publish failed', { roomId, error: err.message });

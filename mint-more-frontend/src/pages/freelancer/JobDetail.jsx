@@ -144,7 +144,7 @@ export default function FreelancerJobDetail() {
 							<p style={{ fontSize: 13.5, color: 'var(--ink-700)', marginBottom: 14 }}>
 								Work is in progress. Chat with the client and deliver your work.
 							</p>
-							<button className="btn primary" onClick={() => navigate('/chat')}>
+							<button className="btn primary" onClick={() => navigate(`/chat?job=${job.id}`)}>
 								<Icon name="chat" /> Open messages
 							</button>
 							<button className="btn ghost" style={{ marginLeft: 10 }} onClick={() => navigate(`/mintbox/jobs/${job.id}`)}>

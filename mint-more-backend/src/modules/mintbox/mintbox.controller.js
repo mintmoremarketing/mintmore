@@ -30,6 +30,51 @@ const getSharedFolder = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const getPublicSharedFolder = async (req, res, next) => {
+  try {
+    const result = await mintboxService.getPublicFolderByShareToken(req.params.token);
+    return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
+const getPublicSharedCategory = async (req, res, next) => {
+  try {
+    const result = await mintboxService.getPublicCategoryByShareToken(req.params.token);
+    return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
+const getPublicFile = async (req, res, next) => {
+  try {
+    const file = await mintboxService.getPublicFile(req.params.token);
+    return sendSuccess(res, {
+      data: {
+        file: {
+          id: file.id,
+          original_name: file.original_name,
+          mime_type: file.mime_type,
+          size_bytes: file.size_bytes,
+          file_category: file.file_category,
+          created_at: file.created_at,
+        },
+      },
+    });
+  } catch (err) { next(err); }
+};
+
+const streamPublicFile = async (req, res, next) => {
+  try {
+    const { file, signedUrl } = await mintboxService.getPublicFileStream(req.params.token);
+    const upstream = await fetch(signedUrl);
+    if (!upstream.ok || !upstream.body) throw new Error('Storage download failed');
+    res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Length', String(file.size_bytes));
+    res.setHeader('Content-Disposition', `${req.query.download === '1' ? 'attachment' : 'inline'}; filename="${encodeURIComponent(file.original_name)}"`);
+    const { Readable } = require('stream');
+    Readable.fromWeb(upstream.body).pipe(res);
+  } catch (err) { next(err); }
+};
+
 const prepareUpload = async (req, res, next) => {
   try {
     const upload = await mintboxService.prepareUpload(
@@ -106,6 +151,10 @@ module.exports = {
   listFolders,
   getProjectFolder,
   getSharedFolder,
+  getPublicSharedFolder,
+  getPublicSharedCategory,
+  getPublicFile,
+  streamPublicFile,
   prepareUpload,
   markSeen,
   completeUpload,

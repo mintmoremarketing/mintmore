@@ -1659,6 +1659,24 @@ button:focus {
   padding: 18px;
   position: relative;
 }
+
+@media (max-width: 767px) {
+  .chat-workspace {
+    grid-template-columns: 1fr !important;
+    min-height: calc(100vh - 155px) !important;
+  }
+  .chat-room-list {
+    max-height: 230px;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .chat-stream {
+    min-height: 330px;
+  }
+  .bubble {
+    max-width: 88%;
+  }
+}
 .nego-round {
   width: 24px;
   height: 24px;
