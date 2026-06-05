@@ -673,6 +673,9 @@ function AssignmentPanel({ job, queryClient, pushToast, navigate }) {
 					{declineMutation.isPending ? '...' : 'Decline'}
 				</button>
 			</div>
+			<div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 12 }}>
+				By accepting, you acknowledge that one revision is all feedback submitted in one 24-hour window. The first 3 rounds are included; later rounds pay ₹20 directly to your wallet.
+			</div>
 		</div>
 	)
 }

@@ -93,6 +93,7 @@ export default function Mintbox() {
 	const files = data?.files || []
 	const quota = data?.quota
 	const uploadPolicy = data?.upload_policy
+	const revisions = data?.revisions
 	const shareUrl = folder?.share_token ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
 
 	const { data: plansData } = useQuery({
@@ -137,6 +138,7 @@ export default function Mintbox() {
 			})
 			const config = prepared.data?.data?.upload
 			setUploadState(prev => ({ ...prev, uploadId: config.upload_id }))
+			await new Promise((resolve, reject) => {
 			const upload = new tus.Upload(file, {
 				endpoint: config.endpoint,
 				// Version the fingerprint so tus-js-client never resumes uploads
@@ -160,6 +162,7 @@ export default function Mintbox() {
 				},
 				onError: (error) => {
 					setUploadState(prev => ({ ...prev, status: 'failed', error: error.message || 'Upload failed' }))
+					reject(error)
 				},
 				onSuccess: async () => {
 					try {
@@ -169,17 +172,30 @@ export default function Mintbox() {
 						queryClient.invalidateQueries({ queryKey })
 						queryClient.invalidateQueries({ queryKey: ['mintbox'] })
 						pushToast({ title: 'Uploaded to Mintbox', icon: 'check' })
+						resolve()
 					} catch (error) {
 						setUploadState(prev => ({ ...prev, status: 'failed', error: error.response?.data?.message || 'Upload finished but could not be finalized' }))
+						reject(error)
 					}
 				},
 			})
 			uploadRef.current = upload
-			const previous = await upload.findPreviousUploads()
-			if (previous.length) upload.resumeFromPreviousUpload(previous[0])
 			upload.start()
+			})
 		} catch (error) {
 			setUploadState({ status: 'failed', progress: 0, file, error: error.response?.data?.message || error.message || 'Could not prepare upload', uploadId: null })
+			throw error
+		}
+	}
+
+	const startUploads = async (fileList) => {
+		const selected = Array.from(fileList || [])
+		for (const file of selected) {
+			try {
+				await startUpload(file)
+			} catch {
+				break
+			}
 		}
 	}
 
@@ -222,6 +238,8 @@ export default function Mintbox() {
 		onSuccess: () => {
 			pushToast({ title: 'Review saved', icon: 'check' })
 			queryClient.invalidateQueries({ queryKey })
+			queryClient.invalidateQueries({ queryKey: ['wallet'] })
+			queryClient.invalidateQueries({ queryKey: ['notifications'] })
 		},
 		onError: err => pushToast({ title: 'Review failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
 	})
@@ -245,6 +263,20 @@ export default function Mintbox() {
 	}
 
 	const sortedFiles = useMemo(() => files, [files])
+	const groupedFiles = useMemo(() => sortedFiles.reduce((groups, file) => {
+		const category = file.file_category || 'other'
+		if (!groups[category]) groups[category] = []
+		groups[category].push(file)
+		return groups
+	}, {}), [sortedFiles])
+	const categoryMeta = {
+		photos: { label: 'Photos & design', icon: 'image', hint: 'Drop JPG, PNG, PSD, AI or EPS files' },
+		audio: { label: 'Music & sounds', icon: 'microphone', hint: 'Drop MP3 or WAV files' },
+		video: { label: 'Video', icon: 'video', hint: 'Drop MP4, MOV or WebM files' },
+		documents: { label: 'Documents', icon: 'file', hint: 'Drop PDF, Office, TXT or CSV files' },
+		archives: { label: 'Archives', icon: 'layers', hint: 'ZIP, RAR and 7Z packages' },
+		other: { label: 'Other files', icon: 'paperclip', hint: 'Other supported project files' },
+	}
 	const purchaseModal = confirmPlan && (
 		<Modal
 			title="Confirm storage add-on"
@@ -398,6 +430,49 @@ export default function Mintbox() {
 
 			<StorageBar quota={quota} />
 
+			<div className="card reveal" style={{ padding: 18 }}>
+				<div className="row between" style={{ gap: 14, alignItems: 'flex-start' }}>
+					<div>
+						<div className="h-eyebrow" style={{ marginBottom: 6 }}>Revision terms</div>
+						<div style={{ fontSize: 13, color: 'var(--ink-700)', lineHeight: 1.6 }}>
+							{revisions?.definition || 'One revision includes all feedback sent within 24 hours after delivery.'}
+						</div>
+						<div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 5 }}>
+							The first {revisions?.free_rounds || 3} rounds are included. Further rounds cost {rupee(revisions?.paid_revision_price || 20)} each and are paid directly to the creative.
+						</div>
+					</div>
+					<span className="badge neutral">{revisions?.completed_rounds || 0} completed</span>
+				</div>
+				{revisions?.active_round && (
+					<div style={{ marginTop: 12, padding: 10, border: '1px solid var(--hairline)', background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', fontSize: 12.5 }}>
+						<strong>Revision {revisions.active_round.round_number}</strong> is open
+						{Number(revisions.active_round.charge_amount) > 0 ? ` - ${rupee(revisions.active_round.charge_amount)} paid` : ' - included'}
+					</div>
+				)}
+				{revisions?.rounds?.length > 0 && (
+					<div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+						{revisions.rounds.map(round => (
+							<div key={round.id} style={{ borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
+								<div className="row between" style={{ gap: 10 }}>
+									<strong style={{ fontSize: 12.5 }}>Revision {round.round_number}</strong>
+									<span style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>
+										{round.status === 'delivered' ? 'Delivered' : 'Awaiting revised delivery'}
+									</span>
+								</div>
+								{round.feedback?.map(item => (
+									<div key={item.id} style={{ fontSize: 12, color: 'var(--ink-600)', marginTop: 6 }}>
+										{item.file_name}: {item.note}
+									</div>
+								))}
+							</div>
+						))}
+					</div>
+				)}
+				<div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 10 }}>
+					Both parties acknowledge these terms by accepting the order.
+				</div>
+			</div>
+
 			{role === 'freelancer' && (
 				<div className="card reveal" style={{ padding: 18 }}>
 					<div className="row between" style={{ gap: 14, alignItems: 'flex-start', marginBottom: 14 }}>
@@ -407,19 +482,40 @@ export default function Mintbox() {
 						</div>
 						<button className="btn primary" onClick={() => fileRef.current?.click()} disabled={['preparing', 'uploading', 'paused'].includes(uploadState.status)}>
 							<Icon name="upload" size={13} />
-							{['preparing', 'uploading'].includes(uploadState.status) ? 'Uploading...' : 'Choose file'}
+							{['preparing', 'uploading'].includes(uploadState.status) ? 'Uploading...' : 'Choose files'}
 						</button>
 						<input
 							ref={fileRef}
 							type="file"
+							multiple
 							accept={uploadPolicy?.allowed_file_types?.join(',')}
 							style={{ display: 'none' }}
 							onChange={(e) => {
-								const file = e.target.files?.[0]
-								if (file) startUpload(file)
+								if (e.target.files?.length) startUploads(e.target.files)
 								e.target.value = ''
 							}}
 						/>
+					</div>
+					<div
+						onDragOver={e => e.preventDefault()}
+						onDrop={e => {
+							e.preventDefault()
+							if (e.dataTransfer.files?.length) startUploads(e.dataTransfer.files)
+						}}
+						onClick={() => fileRef.current?.click()}
+						style={{ border: '1px dashed var(--ink-300)', padding: 18, cursor: 'pointer', marginBottom: 12, background: 'var(--paper-tint)' }}
+					>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+							{Object.entries(categoryMeta).slice(0, 4).map(([key, meta]) => (
+								<div key={key} style={{ minHeight: 78, border: '1px solid var(--hairline)', background: 'var(--paper)', padding: 12, display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+									<Icon name={meta.icon} size={15} />
+									<div>
+										<div style={{ fontSize: 12.5, fontWeight: 600 }}>{meta.label}</div>
+										<div style={{ fontSize: 10.5, color: 'var(--ink-500)', marginTop: 4, lineHeight: 1.4 }}>{meta.hint}</div>
+									</div>
+								</div>
+							))}
+						</div>
 					</div>
 					<textarea
 						className="textarea"
@@ -476,7 +572,16 @@ export default function Mintbox() {
 						<p>Submitted work will appear here.</p>
 					</div>
 				) : (
-					sortedFiles.map((file, index) => (
+					Object.entries(groupedFiles).map(([category, categoryFiles]) => (
+						<div key={category}>
+							<div style={{ padding: '12px 16px', background: 'var(--paper-tint)', borderTop: '1px solid var(--hairline)' }}>
+								<div className="row" style={{ gap: 8 }}>
+									<Icon name={categoryMeta[category]?.icon || 'file'} size={13} />
+									<strong style={{ fontSize: 12.5 }}>{categoryMeta[category]?.label || category}</strong>
+									<span className="muted" style={{ fontSize: 11.5 }}>{categoryFiles.length}</span>
+								</div>
+							</div>
+							{categoryFiles.map((file, index) => (
 						<div key={file.id} style={{ padding: 16, borderTop: index === 0 ? 0 : '1px solid var(--hairline)' }}>
 							<div className="row between" style={{ gap: 14, alignItems: 'flex-start' }}>
 								<div style={{ display: 'flex', gap: 12, minWidth: 0 }}>
@@ -518,6 +623,8 @@ export default function Mintbox() {
 									</div>
 								</div>
 							)}
+						</div>
+							))}
 						</div>
 					))
 				)}

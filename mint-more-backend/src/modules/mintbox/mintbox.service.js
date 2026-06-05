@@ -10,10 +10,14 @@ const {
 } = require('../../config/supabase');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
+const notificationService = require('../notifications/notification.service');
+const { getWalletByUserId, recordTransaction } = require('../wallet/wallet.service');
 
 const BUCKET = env.supabase.mintboxBucket;
 const CLIENT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;
 const BYTES_PER_GB = 1024 * 1024 * 1024;
+const FREE_REVISION_ROUNDS = 3;
+const PAID_REVISION_PRICE = 20;
 
 const makeToken = () => crypto.randomBytes(24).toString('base64url');
 const safeName = (value) => String(value || 'file').replace(/[^\w.\- ]+/g, '').trim() || 'file';
@@ -27,6 +31,51 @@ const getUploadPolicy = () => ({
   resumable: true,
   chunk_size_bytes: 6 * 1024 * 1024,
 });
+
+const getFileCategory = ({ name, type }) => {
+  const extension = path.extname(name || '').toLowerCase();
+  if (String(type || '').startsWith('image/') || ['.psd', '.ai', '.eps'].includes(extension)) return 'photos';
+  if (String(type || '').startsWith('audio/')) return 'audio';
+  if (String(type || '').startsWith('video/')) return 'video';
+  if (['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt', '.csv'].includes(extension)) return 'documents';
+  if (['.zip', '.rar', '.7z'].includes(extension)) return 'archives';
+  return 'other';
+};
+
+const getRevisionSummary = async (jobId) => {
+  const result = await query(
+    `SELECT revision.*,
+            COALESCE(
+              jsonb_agg(
+                jsonb_build_object(
+                  'id', feedback.id,
+                  'file_id', feedback.file_id,
+                  'file_name', file.original_name,
+                  'note', feedback.note,
+                  'created_at', feedback.created_at
+                )
+                ORDER BY feedback.created_at
+              ) FILTER (WHERE feedback.id IS NOT NULL),
+              '[]'::jsonb
+            ) AS feedback
+     FROM mintbox_revision_rounds revision
+     LEFT JOIN mintbox_revision_feedback feedback ON feedback.revision_id = revision.id
+     LEFT JOIN mintbox_files file ON file.id = feedback.file_id
+     WHERE revision.job_id = $1
+     GROUP BY revision.id
+     ORDER BY revision.round_number DESC`,
+    [jobId]
+  );
+  const rounds = result.rows;
+  return {
+    definition: 'One revision includes all client feedback submitted within a single 24-hour window after delivery.',
+    free_rounds: FREE_REVISION_ROUNDS,
+    paid_revision_price: PAID_REVISION_PRICE,
+    completed_rounds: rounds.filter((round) => round.status === 'delivered').length,
+    active_round: rounds.find((round) => round.status !== 'delivered') || null,
+    rounds,
+  };
+};
 
 const validateMintboxFile = ({ name, size, type }) => {
   const fileSize = Number(size);
@@ -126,6 +175,7 @@ const getFolderByJob = async (jobId, requesterId, role) => {
   return {
     folder,
     files,
+    revisions: await getRevisionSummary(job.id),
     upload_policy: getUploadPolicy(),
     quota: {
       used,
@@ -199,6 +249,7 @@ const getFolderByShareToken = async (token, requesterId, role) => {
   return {
     folder,
     files,
+    revisions: await getRevisionSummary(folder.job_id),
     upload_policy: getUploadPolicy(),
     quota: {
       used,
@@ -246,13 +297,22 @@ const prepareUpload = async (jobId, freelancerId, role, { name, size, type, note
     }
 
     const ext = path.extname(safeName(name)).toLowerCase();
-    const storagePath = `${folder.storage_prefix}/${Date.now()}-${crypto.randomUUID()}${ext}`;
+    const fileCategory = getFileCategory({ name, type });
+    const activeRevision = await dbClient.query(
+      `SELECT round_number
+       FROM mintbox_revision_rounds
+       WHERE job_id = $1 AND status IN ('feedback_open', 'awaiting_delivery')
+       ORDER BY round_number DESC LIMIT 1`,
+      [job.id]
+    );
+    const revisionRound = activeRevision.rows[0]?.round_number || null;
+    const storagePath = `${folder.storage_prefix}/${fileCategory}/${Date.now()}-${crypto.randomUUID()}${ext}`;
     const signedUpload = await createSignedResumableUpload(BUCKET, storagePath);
     const session = await dbClient.query(
       `INSERT INTO mintbox_upload_sessions
          (folder_id, job_id, client_id, uploaded_by, original_name, storage_bucket,
-          storage_path, mime_type, size_bytes, freelancer_note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          storage_path, mime_type, size_bytes, freelancer_note, file_category, revision_round)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING id, expires_at`,
       [
         folder.id,
@@ -265,6 +325,8 @@ const prepareUpload = async (jobId, freelancerId, role, { name, size, type, note
         type,
         Number(size),
         note || null,
+        fileCategory,
+        revisionRound,
       ]
     );
 
@@ -320,8 +382,8 @@ const completeUpload = async (uploadId, freelancerId, role) => {
     const inserted = await dbClient.query(
       `INSERT INTO mintbox_files
          (folder_id, job_id, uploaded_by, original_name, storage_bucket, storage_path,
-          public_url, mime_type, size_bytes, freelancer_note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          public_url, mime_type, size_bytes, freelancer_note, file_category, revision_round)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        ON CONFLICT (storage_path) DO UPDATE SET storage_path = EXCLUDED.storage_path
        RETURNING *`,
       [
@@ -335,6 +397,8 @@ const completeUpload = async (uploadId, freelancerId, role) => {
         session.mime_type,
         session.size_bytes,
         session.freelancer_note,
+        session.file_category,
+        session.revision_round,
       ]
     );
 
@@ -350,12 +414,35 @@ const completeUpload = async (uploadId, freelancerId, role) => {
        WHERE id = $1`,
       [session.id]
     );
+    let deliveredRevision = null;
+    if (session.revision_round) {
+      const delivered = await dbClient.query(
+        `UPDATE mintbox_revision_rounds
+         SET status = 'delivered', delivered_at = NOW()
+         WHERE job_id = $1 AND round_number = $2 AND status <> 'delivered'
+         RETURNING *`,
+        [session.job_id, session.revision_round]
+      );
+      deliveredRevision = delivered.rows[0] || null;
+    }
     await dbClient.query('COMMIT');
     logger.info('[Mintbox] Resumable upload completed', {
       jobId: session.job_id,
       freelancerId,
       fileId: inserted.rows[0].id,
     });
+    if (deliveredRevision) {
+      const job = await query('SELECT title, client_id FROM jobs WHERE id = $1', [session.job_id]);
+      notificationService.createNotification({
+        userId: job.rows[0].client_id,
+        type: 'revision_delivered',
+        title: `Revision ${deliveredRevision.round_number} delivered`,
+        body: `New revised work for "${job.rows[0].title}" is ready in Mintbox.`,
+        entityType: 'job',
+        entityId: session.job_id,
+        data: { job_id: session.job_id, revision_round: deliveredRevision.round_number },
+      });
+    }
     return inserted.rows[0];
   } catch (err) {
     await dbClient.query('ROLLBACK');
@@ -410,23 +497,119 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
     throw new AppError('action must be one of: approve, revision', 400);
   }
 
-  const status = action === 'approve' ? 'approved' : 'revision_requested';
-  const result = await query(
-    `UPDATE mintbox_files mf
-     SET status = $1,
-         client_note = $2,
-         reviewed_by = $3,
-         reviewed_at = NOW()
-     FROM mintbox_folders folder
-     WHERE mf.folder_id = folder.id
-       AND folder.client_id = $3
-       AND mf.id = $4
-     RETURNING mf.*`,
-    [status, note || null, clientId, fileId]
-  );
+  if (action === 'revision' && !String(note || '').trim()) {
+    throw new AppError('Tell the creative what needs to change', 400);
+  }
 
-  if (!result.rows[0]) throw new AppError('File not found', 404);
-  return result.rows[0];
+  const dbClient = await getClient();
+  let result;
+  let revision = null;
+  try {
+    await dbClient.query('BEGIN');
+    const fileResult = await dbClient.query(
+      `SELECT mf.*, folder.client_id, j.title, j.active_freelancer_id
+       FROM mintbox_files mf
+       JOIN mintbox_folders folder ON folder.id = mf.folder_id
+       JOIN jobs j ON j.id = mf.job_id
+       WHERE mf.id = $1 AND folder.client_id = $2
+       FOR UPDATE`,
+      [fileId, clientId]
+    );
+    const file = fileResult.rows[0];
+    if (!file) throw new AppError('File not found', 404);
+
+    if (action === 'revision') {
+      const openResult = await dbClient.query(
+        `SELECT * FROM mintbox_revision_rounds
+         WHERE job_id = $1
+           AND status IN ('feedback_open', 'awaiting_delivery')
+         ORDER BY round_number DESC LIMIT 1
+         FOR UPDATE`,
+        [file.job_id]
+      );
+      revision = openResult.rows[0];
+      if (revision && new Date(revision.feedback_window_ends_at) <= new Date()) {
+        await dbClient.query(
+          `UPDATE mintbox_revision_rounds SET status = 'awaiting_delivery' WHERE id = $1`,
+          [revision.id]
+        );
+        throw new AppError('The 24-hour feedback window has closed. Wait for the revised delivery before starting another revision.', 409);
+      }
+
+      if (!revision) {
+        const countResult = await dbClient.query(
+          'SELECT COALESCE(MAX(round_number), 0)::INTEGER AS count FROM mintbox_revision_rounds WHERE job_id = $1',
+          [file.job_id]
+        );
+        const roundNumber = Number(countResult.rows[0].count) + 1;
+        const charge = roundNumber > FREE_REVISION_ROUNDS ? PAID_REVISION_PRICE : 0;
+
+        if (charge > 0) {
+          const clientWallet = await getWalletByUserId(clientId, dbClient, true);
+          const freelancerWallet = await getWalletByUserId(file.active_freelancer_id, dbClient, true);
+          await recordTransaction(dbClient, {
+            walletId: clientWallet.id, userId: clientId, type: 'adjustment', amount: -charge,
+            referenceId: file.job_id, referenceType: 'revision',
+            description: `Paid revision ${roundNumber}`, metadata: { revision_round: roundNumber },
+          });
+          await recordTransaction(dbClient, {
+            walletId: freelancerWallet.id, userId: file.active_freelancer_id, type: 'adjustment', amount: charge,
+            referenceId: file.job_id, referenceType: 'revision',
+            description: `Paid revision ${roundNumber}`, metadata: { revision_round: roundNumber },
+          });
+        }
+
+        const created = await dbClient.query(
+          `INSERT INTO mintbox_revision_rounds
+             (job_id, folder_id, client_id, freelancer_id, round_number,
+              feedback_window_ends_at, charge_amount, charged_at)
+           VALUES ($1,$2,$3,$4,$5,NOW() + INTERVAL '24 hours',$6,
+                   CASE WHEN $6 > 0 THEN NOW() ELSE NULL END)
+           RETURNING *`,
+          [file.job_id, file.folder_id, clientId, file.active_freelancer_id, roundNumber, charge]
+        );
+        revision = created.rows[0];
+      }
+
+      await dbClient.query(
+        `INSERT INTO mintbox_revision_feedback (revision_id, file_id, client_id, note)
+         VALUES ($1,$2,$3,$4)`,
+        [revision.id, file.id, clientId, String(note).trim()]
+      );
+    }
+
+    const status = action === 'approve' ? 'approved' : 'revision_requested';
+    result = await dbClient.query(
+      `UPDATE mintbox_files
+       SET status = $1, client_note = $2, reviewed_by = $3, reviewed_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [status, note || null, clientId, fileId]
+    );
+    await dbClient.query('COMMIT');
+
+    if (action === 'revision') {
+      notificationService.createNotification({
+        userId: file.active_freelancer_id,
+        type: 'revision_requested',
+        title: `Revision ${revision.round_number} requested`,
+        body: `The client added feedback for "${file.title}". Open Mintbox to review it.`,
+        entityType: 'job',
+        entityId: file.job_id,
+        data: { job_id: file.job_id, revision_round: revision.round_number, charge_amount: revision.charge_amount },
+      });
+      logger.info('[Mintbox] Revision requested', {
+        jobId: file.job_id, fileId, revisionRound: revision.round_number, chargeAmount: revision.charge_amount,
+      });
+    }
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    dbClient.release();
+  }
+
+  return { ...result.rows[0], revision };
 };
 
 module.exports = {

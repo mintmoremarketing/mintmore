@@ -493,6 +493,9 @@ function ClientNegotiationPanel({ job }) {
               Add {rupee(Math.max(0, lastOfferPrice - walletBalance))} to your wallet to accept this offer.
             </div>
           )}
+          <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--ink-500)', textAlign: 'right' }}>
+            By accepting, you acknowledge the revision policy: 3 included rounds, then ₹20 per additional round.
+          </div>
         </>
       )}
 
@@ -800,6 +803,9 @@ function NegotiationPanel({ job }) {
             >
               {rejectMutation.isPending ? 'Declining...' : 'Decline'}
             </button>
+          </div>
+          <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--ink-500)' }}>
+            By accepting, you acknowledge the revision policy: 3 included rounds, then ₹20 per additional round.
           </div>
         </div>
       )}

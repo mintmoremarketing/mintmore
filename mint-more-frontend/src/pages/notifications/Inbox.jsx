@@ -17,6 +17,8 @@ const NOTIF_ICONS = {
 	deal_rejected_by_admin: 'x',
 	deal_pending_admin: 'shield',
 	assignment_accepted: 'check',
+	revision_requested: 'refresh',
+	revision_delivered: 'upload',
 	assignment_declined: 'x',
 	kyc_approved: 'shield',
 	kyc_rejected: 'shield',
@@ -35,6 +37,8 @@ const NOTIF_COLORS = {
 	deal_rejected_by_admin: 'var(--rose)',
 	deal_pending_admin: 'var(--amber)',
 	assignment_accepted: 'var(--mint-500)',
+	revision_requested: 'var(--amber)',
+	revision_delivered: 'var(--mint-600)',
 	assignment_declined: 'var(--rose)',
 	kyc_approved: 'var(--mint-600)',
 	kyc_rejected: 'var(--rose)',
@@ -49,6 +53,8 @@ const JOB_TYPES = new Set([
 	'assignment_created',
 	'negotiation_accepted',
 	'negotiation_countered',
+	'revision_requested',
+	'revision_delivered',
 ])
 
 const SYSTEM_TYPES = new Set(['system', 'admin_broadcast', 'kyc_approved', 'kyc_rejected'])
