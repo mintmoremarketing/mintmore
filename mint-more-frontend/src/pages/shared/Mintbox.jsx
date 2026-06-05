@@ -144,7 +144,7 @@ export default function Mintbox() {
 				uploadDataDuringCreation: true,
 				removeFingerprintOnSuccess: true,
 				headers: {
-					'x-signature': config.token,
+					'x-signature': String(config.token || '').trim(),
 				},
 				metadata: {
 					bucketName: config.bucket,

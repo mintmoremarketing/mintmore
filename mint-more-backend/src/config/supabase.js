@@ -110,15 +110,25 @@ const createSignedResumableUpload = async (bucket, filePath) => {
     throw new Error(`Could not prepare file upload: ${error.message}`);
   }
 
+  const token = String(data.token || '').trim();
+  if (token.split('.').length !== 3) {
+    logger.error('Supabase returned an invalid signed upload token', {
+      bucket,
+      filePath,
+      tokenParts: token.split('.').length,
+    });
+    throw new Error(
+      'Supabase returned an invalid signed upload token. Check that SUPABASE_SERVICE_KEY is the legacy service_role JWT from the same project.'
+    );
+  }
+
   const baseUrl = env.supabase.url.replace(/\/+$/, '');
-  const directStorageUrl = baseUrl.includes('.supabase.co')
-    ? baseUrl.replace('.supabase.co', '.storage.supabase.co')
-    : baseUrl;
 
   return {
-    token: data.token,
-    signedUrl: data.signedUrl,
-    endpoint: `${directStorageUrl}/storage/v1/upload/resumable`,
+    token,
+    // Signed TUS tokens are created through the project API gateway. Keeping
+    // upload creation on that host avoids direct-host signature mismatches.
+    endpoint: `${baseUrl}/storage/v1/upload/resumable`,
   };
 };
 
