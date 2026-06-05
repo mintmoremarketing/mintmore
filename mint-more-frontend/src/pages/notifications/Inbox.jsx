@@ -19,6 +19,8 @@ const NOTIF_ICONS = {
 	assignment_accepted: 'check',
 	revision_requested: 'refresh',
 	revision_delivered: 'upload',
+	work_delivered: 'upload',
+	mintbox_seen: 'eye',
 	assignment_declined: 'x',
 	kyc_approved: 'shield',
 	kyc_rejected: 'shield',
@@ -39,6 +41,8 @@ const NOTIF_COLORS = {
 	assignment_accepted: 'var(--mint-500)',
 	revision_requested: 'var(--amber)',
 	revision_delivered: 'var(--mint-600)',
+	work_delivered: 'var(--mint-600)',
+	mintbox_seen: 'var(--ink-500)',
 	assignment_declined: 'var(--rose)',
 	kyc_approved: 'var(--mint-600)',
 	kyc_rejected: 'var(--rose)',
@@ -55,6 +59,8 @@ const JOB_TYPES = new Set([
 	'negotiation_countered',
 	'revision_requested',
 	'revision_delivered',
+	'work_delivered',
+	'mintbox_seen',
 ])
 
 const SYSTEM_TYPES = new Set(['system', 'admin_broadcast', 'kyc_approved', 'kyc_rejected'])

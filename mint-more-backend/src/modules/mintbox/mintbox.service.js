@@ -52,6 +52,7 @@ const getRevisionSummary = async (jobId) => {
                   'file_id', feedback.file_id,
                   'file_name', file.original_name,
                   'note', feedback.note,
+                  'seen_by_freelancer_at', feedback.seen_by_freelancer_at,
                   'created_at', feedback.created_at
                 )
                 ORDER BY feedback.created_at
@@ -259,16 +260,20 @@ const getFolderByShareToken = async (token, requesterId, role) => {
   };
 };
 
-const prepareUpload = async (jobId, freelancerId, role, { name, size, type, note } = {}) => {
-  if (role !== 'freelancer') throw new AppError('Only freelancers can submit work files', 403);
+const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, purpose = 'delivery' } = {}) => {
+  if (!['client', 'freelancer'].includes(role)) throw new AppError('Only project participants can upload files', 403);
+  const uploadPurpose = role === 'client' ? 'brief' : 'delivery';
   validateMintboxFile({ name, size, type });
 
   const dbClient = await getClient();
   try {
     await dbClient.query('BEGIN');
-    const job = await getJobForAccess(jobId, freelancerId, role, dbClient);
-    if (!['assigned', 'in_progress'].includes(job.status)) {
+    const job = await getJobForAccess(jobId, uploaderId, role, dbClient);
+    if (role === 'freelancer' && !['assigned', 'in_progress'].includes(job.status)) {
       throw new AppError('Work can only be submitted after the assignment starts', 400);
+    }
+    if (role === 'client' && !['draft', 'open', 'matching'].includes(job.status)) {
+      throw new AppError('Brief references can only be added before negotiation starts', 400);
     }
 
     await dbClient.query('SELECT pg_advisory_xact_lock(hashtext($1))', [job.client_id]);
@@ -298,27 +303,27 @@ const prepareUpload = async (jobId, freelancerId, role, { name, size, type, note
 
     const ext = path.extname(safeName(name)).toLowerCase();
     const fileCategory = getFileCategory({ name, type });
-    const activeRevision = await dbClient.query(
+    const activeRevision = role === 'freelancer' ? await dbClient.query(
       `SELECT round_number
        FROM mintbox_revision_rounds
        WHERE job_id = $1 AND status IN ('feedback_open', 'awaiting_delivery')
        ORDER BY round_number DESC LIMIT 1`,
       [job.id]
-    );
+    ) : { rows: [] };
     const revisionRound = activeRevision.rows[0]?.round_number || null;
-    const storagePath = `${folder.storage_prefix}/${fileCategory}/${Date.now()}-${crypto.randomUUID()}${ext}`;
+    const storagePath = `${folder.storage_prefix}/${uploadPurpose}/${fileCategory}/${Date.now()}-${crypto.randomUUID()}${ext}`;
     const signedUpload = await createSignedResumableUpload(BUCKET, storagePath);
     const session = await dbClient.query(
       `INSERT INTO mintbox_upload_sessions
          (folder_id, job_id, client_id, uploaded_by, original_name, storage_bucket,
-          storage_path, mime_type, size_bytes, freelancer_note, file_category, revision_round)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          storage_path, mime_type, size_bytes, freelancer_note, file_category, revision_round, purpose)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING id, expires_at`,
       [
         folder.id,
         job.id,
         job.client_id,
-        freelancerId,
+        uploaderId,
         safeName(name),
         BUCKET,
         storagePath,
@@ -327,6 +332,7 @@ const prepareUpload = async (jobId, freelancerId, role, { name, size, type, note
         note || null,
         fileCategory,
         revisionRound,
+        uploadPurpose,
       ]
     );
 
@@ -347,8 +353,8 @@ const prepareUpload = async (jobId, freelancerId, role, { name, size, type, note
   }
 };
 
-const completeUpload = async (uploadId, freelancerId, role) => {
-  if (role !== 'freelancer') throw new AppError('Only freelancers can complete work uploads', 403);
+const completeUpload = async (uploadId, uploaderId, role) => {
+  if (!['client', 'freelancer'].includes(role)) throw new AppError('Only project participants can complete uploads', 403);
 
   const dbClient = await getClient();
   try {
@@ -357,7 +363,7 @@ const completeUpload = async (uploadId, freelancerId, role) => {
       `SELECT * FROM mintbox_upload_sessions
        WHERE id = $1 AND uploaded_by = $2
        FOR UPDATE`,
-      [uploadId, freelancerId]
+      [uploadId, uploaderId]
     );
     const session = sessionResult.rows[0];
     if (!session) throw new AppError('Upload session not found', 404);
@@ -382,8 +388,8 @@ const completeUpload = async (uploadId, freelancerId, role) => {
     const inserted = await dbClient.query(
       `INSERT INTO mintbox_files
          (folder_id, job_id, uploaded_by, original_name, storage_bucket, storage_path,
-          public_url, mime_type, size_bytes, freelancer_note, file_category, revision_round)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          public_url, mime_type, size_bytes, freelancer_note, file_category, revision_round, purpose)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        ON CONFLICT (storage_path) DO UPDATE SET storage_path = EXCLUDED.storage_path
        RETURNING *`,
       [
@@ -399,6 +405,7 @@ const completeUpload = async (uploadId, freelancerId, role) => {
         session.freelancer_note,
         session.file_category,
         session.revision_round,
+        session.purpose,
       ]
     );
 
@@ -428,19 +435,19 @@ const completeUpload = async (uploadId, freelancerId, role) => {
     await dbClient.query('COMMIT');
     logger.info('[Mintbox] Resumable upload completed', {
       jobId: session.job_id,
-      freelancerId,
+      uploaderId,
       fileId: inserted.rows[0].id,
     });
-    if (deliveredRevision) {
+    if (role === 'freelancer') {
       const job = await query('SELECT title, client_id FROM jobs WHERE id = $1', [session.job_id]);
       notificationService.createNotification({
         userId: job.rows[0].client_id,
-        type: 'revision_delivered',
-        title: `Revision ${deliveredRevision.round_number} delivered`,
-        body: `New revised work for "${job.rows[0].title}" is ready in Mintbox.`,
+        type: deliveredRevision ? 'revision_delivered' : 'work_delivered',
+        title: deliveredRevision ? `Revision ${deliveredRevision.round_number} delivered` : 'New work delivered',
+        body: `New work for "${job.rows[0].title}" is ready in Mintbox.`,
         entityType: 'job',
         entityId: session.job_id,
-        data: { job_id: session.job_id, revision_round: deliveredRevision.round_number },
+        data: { job_id: session.job_id, revision_round: deliveredRevision?.round_number || null },
       });
     }
     return inserted.rows[0];
@@ -452,8 +459,8 @@ const completeUpload = async (uploadId, freelancerId, role) => {
   }
 };
 
-const cancelUpload = async (uploadId, freelancerId, role) => {
-  if (role !== 'freelancer') throw new AppError('Only freelancers can cancel work uploads', 403);
+const cancelUpload = async (uploadId, uploaderId, role) => {
+  if (!['client', 'freelancer'].includes(role)) throw new AppError('Only project participants can cancel uploads', 403);
   const result = await query(
     `UPDATE mintbox_upload_sessions
      SET status = 'cancelled'
@@ -461,7 +468,7 @@ const cancelUpload = async (uploadId, freelancerId, role) => {
        AND uploaded_by = $2
        AND status = 'pending'
      RETURNING id`,
-    [uploadId, freelancerId]
+    [uploadId, uploaderId]
   );
   if (!result.rows[0]) throw new AppError('Active upload session not found', 404);
   return { upload_id: result.rows[0].id, status: 'cancelled' };
@@ -472,7 +479,7 @@ const listFiles = async (folderId) => {
     `SELECT mf.*, u.full_name AS uploaded_by_name, u.role AS uploaded_by_role
      FROM mintbox_files mf
      JOIN users u ON u.id = mf.uploaded_by
-     WHERE mf.folder_id = $1
+     WHERE mf.folder_id = $1 AND mf.deleted_by_client_at IS NULL
      ORDER BY mf.created_at DESC`,
     [folderId]
   );
@@ -489,6 +496,49 @@ const listFiles = async (folderId) => {
     ...file,
     public_url: signedByBucket[file.storage_bucket]?.get(file.storage_path) || file.public_url,
   }));
+};
+
+const markSeen = async (jobId, requesterId, role) => {
+  const job = await getJobForAccess(jobId, requesterId, role);
+  if (!['client', 'freelancer'].includes(role)) return { updated: 0 };
+
+  const field = role === 'client' ? 'seen_by_client_at' : 'seen_by_freelancer_at';
+  const result = await query(
+    `UPDATE mintbox_files
+     SET ${field} = COALESCE(${field}, NOW())
+     WHERE job_id = $1 AND uploaded_by <> $2 AND ${field} IS NULL
+     RETURNING uploaded_by`,
+    [jobId, requesterId]
+  );
+
+  let feedbackResult = { rows: [] };
+  if (role === 'freelancer') {
+    feedbackResult = await query(
+      `UPDATE mintbox_revision_feedback feedback
+       SET seen_by_freelancer_at = COALESCE(seen_by_freelancer_at, NOW())
+       FROM mintbox_revision_rounds revision
+       WHERE feedback.revision_id = revision.id
+         AND revision.job_id = $1
+         AND feedback.seen_by_freelancer_at IS NULL
+       RETURNING feedback.client_id`,
+      [jobId]
+    );
+  }
+
+  const recipients = [...new Set([
+    ...result.rows.map((row) => row.uploaded_by),
+    ...feedbackResult.rows.map((row) => row.client_id),
+  ])];
+  recipients.forEach((userId) => notificationService.createNotification({
+    userId,
+    type: 'mintbox_seen',
+    title: role === 'client' ? 'Client viewed your delivery' : 'Creative viewed your feedback',
+    body: `"${job.title}" was viewed in Mintbox.`,
+    entityType: 'job',
+    entityId: jobId,
+    data: { job_id: jobId, seen_by_role: role },
+  }));
+  return { updated: result.rowCount };
 };
 
 const reviewFile = async (fileId, clientId, role, { action, note }) => {
@@ -622,4 +672,5 @@ module.exports = {
   completeUpload,
   cancelUpload,
   reviewFile,
+  markSeen,
 };

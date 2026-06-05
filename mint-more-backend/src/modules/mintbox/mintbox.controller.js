@@ -46,6 +46,13 @@ const prepareUpload = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const markSeen = async (req, res, next) => {
+  try {
+    const result = await mintboxService.markSeen(req.params.jobId, req.user.sub, req.user.role);
+    return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
 const completeUpload = async (req, res, next) => {
   try {
     const file = await mintboxService.completeUpload(
@@ -85,6 +92,7 @@ module.exports = {
   getProjectFolder,
   getSharedFolder,
   prepareUpload,
+  markSeen,
   completeUpload,
   cancelUpload,
   reviewFile,

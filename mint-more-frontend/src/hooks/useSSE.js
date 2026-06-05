@@ -39,6 +39,10 @@ export function useSSE() {
 						'assignment_created',
 						'negotiation_accepted',
 						'kyc_approved',
+						'revision_requested',
+						'revision_delivered',
+						'work_delivered',
+						'mintbox_seen',
 					]
 					if (toastTypes.includes(notif.type)) {
 						pushToast({
@@ -58,6 +62,10 @@ export function useSSE() {
 					}
 					if (notif.type === 'deal_approved') {
 						queryClient.invalidateQueries({ queryKey: ['wallet'] })
+					}
+					if (['revision_requested', 'revision_delivered', 'work_delivered', 'mintbox_seen'].includes(notif.type)) {
+						queryClient.invalidateQueries({ queryKey: ['mintbox-job', notif.entity_id] })
+						queryClient.invalidateQueries({ queryKey: ['notifications'] })
 					}
 				}
 

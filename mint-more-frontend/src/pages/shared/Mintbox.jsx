@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as tus from 'tus-js-client'
@@ -95,6 +95,13 @@ export default function Mintbox() {
 	const uploadPolicy = data?.upload_policy
 	const revisions = data?.revisions
 	const shareUrl = folder?.share_token ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
+
+	useEffect(() => {
+		if (!folder?.job_id) return
+		mintboxApi.markSeen(folder.job_id)
+			.then(() => queryClient.invalidateQueries({ queryKey }))
+			.catch(() => {})
+	}, [folder?.job_id, role])
 
 	const { data: plansData } = useQuery({
 		queryKey: ['addon-plans'],
@@ -264,12 +271,13 @@ export default function Mintbox() {
 
 	const sortedFiles = useMemo(() => files, [files])
 	const groupedFiles = useMemo(() => sortedFiles.reduce((groups, file) => {
-		const category = file.file_category || 'other'
+		const category = file.purpose === 'brief' ? 'brief' : (file.file_category || 'other')
 		if (!groups[category]) groups[category] = []
 		groups[category].push(file)
 		return groups
 	}, {}), [sortedFiles])
 	const categoryMeta = {
+		brief: { label: 'Brief references', icon: 'paperclip', hint: 'Source material from the client' },
 		photos: { label: 'Photos & design', icon: 'image', hint: 'Drop JPG, PNG, PSD, AI or EPS files' },
 		audio: { label: 'Music & sounds', icon: 'microphone', hint: 'Drop MP3 or WAV files' },
 		video: { label: 'Video', icon: 'video', hint: 'Drop MP4, MOV or WebM files' },
@@ -353,7 +361,8 @@ export default function Mintbox() {
 				</div>
 			)}
 
-			<div className="card reveal" style={{ padding: 0, overflow: 'hidden' }}>
+			<div className="card reveal" style={{ padding: 18, overflow: 'hidden' }}>
+				<div className="h-eyebrow" style={{ marginBottom: 12 }}>Delivery conversation</div>
 				{folders.length === 0 ? (
 					<div className="empty" style={{ border: 0, padding: 48 }}>
 						<div className="empty-glyph"><Icon name="layers" /></div>
@@ -473,12 +482,12 @@ export default function Mintbox() {
 				</div>
 			</div>
 
-			{role === 'freelancer' && (
+			{['client', 'freelancer'].includes(role) && (
 				<div className="card reveal" style={{ padding: 18 }}>
 					<div className="row between" style={{ gap: 14, alignItems: 'flex-start', marginBottom: 14 }}>
 						<div>
-							<div className="h-eyebrow" style={{ marginBottom: 6 }}>Submit work</div>
-							<div style={{ fontSize: 13, color: 'var(--ink-600)' }}>Upload finished work, drafts, or revised files for the client to review.</div>
+							<div className="h-eyebrow" style={{ marginBottom: 6 }}>{role === 'client' ? 'Brief references' : 'Submit work'}</div>
+							<div style={{ fontSize: 13, color: 'var(--ink-600)' }}>{role === 'client' ? 'Add private reference files for the matched creative.' : 'Upload finished work, drafts, or revised files for the client to review.'}</div>
 						</div>
 						<button className="btn primary" onClick={() => fileRef.current?.click()} disabled={['preparing', 'uploading', 'paused'].includes(uploadState.status)}>
 							<Icon name="upload" size={13} />
@@ -573,16 +582,16 @@ export default function Mintbox() {
 					</div>
 				) : (
 					Object.entries(groupedFiles).map(([category, categoryFiles]) => (
-						<div key={category}>
-							<div style={{ padding: '12px 16px', background: 'var(--paper-tint)', borderTop: '1px solid var(--hairline)' }}>
+						<div key={category} style={{ marginTop: 12 }}>
+							<div style={{ padding: '10px 0', borderBottom: '1px solid var(--hairline)' }}>
 								<div className="row" style={{ gap: 8 }}>
 									<Icon name={categoryMeta[category]?.icon || 'file'} size={13} />
 									<strong style={{ fontSize: 12.5 }}>{categoryMeta[category]?.label || category}</strong>
 									<span className="muted" style={{ fontSize: 11.5 }}>{categoryFiles.length}</span>
 								</div>
 							</div>
-							{categoryFiles.map((file, index) => (
-						<div key={file.id} style={{ padding: 16, borderTop: index === 0 ? 0 : '1px solid var(--hairline)' }}>
+							{categoryFiles.map((file) => (
+						<div key={file.id} style={{ width: 'min(720px, 90%)', marginTop: 12, marginLeft: file.uploaded_by_role === role ? 'auto' : 0, padding: 16, border: `1px solid ${file.uploaded_by_role === role ? 'var(--mint-300)' : 'var(--hairline)'}`, background: file.uploaded_by_role === role ? 'var(--mint-50)' : 'var(--paper)', borderRadius: 'var(--radius-md)' }}>
 							<div className="row between" style={{ gap: 14, alignItems: 'flex-start' }}>
 								<div style={{ display: 'flex', gap: 12, minWidth: 0 }}>
 									<div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--paper-tint)', border: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -592,6 +601,12 @@ export default function Mintbox() {
 										<a href={file.public_url} target="_blank" rel="noreferrer" style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-950)', textDecoration: 'none' }}>
 											{file.original_name}
 										</a>
+										{file.uploaded_by_role === role && (
+											<div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 4 }}>
+												{(role === 'freelancer' ? file.seen_by_client_at : file.seen_by_freelancer_at) ? 'Seen' : 'Delivered'}
+											</div>
+										)}
+										{file.revision_round && <div style={{ fontSize: 11.5, color: 'var(--mint-700)', marginTop: 4 }}>Revised delivery · Round {file.revision_round}</div>}
 										<div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 3 }}>
 											{formatBytes(Number(file.size_bytes))} · {file.uploaded_by_name} · {timeAgo(file.created_at)}
 										</div>

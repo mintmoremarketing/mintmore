@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { jobsApi } from '../../api/jobs'
 import { negotiationsApi } from '../../api/negotiations'
+import { mintboxApi } from '../../api/mintbox'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
@@ -243,6 +244,12 @@ function InitiatePanel({ job, user, queryClient, pushToast }) {
 		queryFn: async () => getMarketRangeFromResponse(await jobsApi.marketRange(job.category_id, marketPricingMode)),
 		enabled: Boolean(job.category_id),
 	})
+	const { data: mintboxData } = useQuery({
+		queryKey: ['mintbox-job', id],
+		queryFn: () => mintboxApi.getJobFolder(id).then(res => res.data?.data),
+		enabled: Boolean(id),
+	})
+	const briefFiles = (mintboxData?.files || []).filter(file => file.purpose === 'brief')
 
 	const levelRange = marketRange?.breakdown?.[freelancerLevel] || null
 	const marketMin = Number(levelRange?.min)
@@ -369,6 +376,20 @@ function InitiatePanel({ job, user, queryClient, pushToast }) {
 									</span>
 								</div>
 							</div>
+						)}
+						{briefFiles.length > 0 && (
+							<>
+								<div style={{ height: 1, background: 'var(--hairline)', margin: '16px 0' }} />
+								<div className="h-eyebrow" style={{ marginBottom: 8 }}>Reference attachments</div>
+								<div className="row wrap" style={{ gap: 8 }}>
+									{briefFiles.map(file => (
+										<a key={file.id} href={file.public_url} target="_blank" rel="noreferrer" className="btn ghost sm">
+											<Icon name={file.mime_type?.startsWith('image/') ? 'image' : file.mime_type?.startsWith('video/') ? 'video' : 'paperclip'} size={12} />
+											{file.original_name}
+										</a>
+									))}
+								</div>
+							</>
 						)}
 					</div>
 					<div className="field">

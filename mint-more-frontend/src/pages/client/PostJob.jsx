@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import * as tus from 'tus-js-client'
 import { jobsApi } from '../../api/jobs'
+import { mintboxApi } from '../../api/mintbox'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import { rupee } from '../../utils/format'
@@ -37,6 +39,8 @@ export default function PostJob() {
   const isEditMode = Boolean(id)
   const pushToast = useUIStore((s) => s.pushToast)
   const [step, setStep] = useState(1)
+  const [tagInput, setTagInput] = useState('')
+  const [briefFiles, setBriefFiles] = useState([])
   const [data, setData] = useState({
     title: '',
     category_id: '',
@@ -111,7 +115,30 @@ export default function PostJob() {
   const { mutate, isPending } = useMutation({
     mutationFn: async () => {
       if (!isEditMode) {
-        return jobsApi.create({ ...payload, status: 'open' })
+        const draft = await jobsApi.draft(payload)
+        const job = draft.data?.data
+        for (const file of briefFiles) {
+          const prepared = await mintboxApi.prepareUpload(job.id, {
+            name: file.name, size: file.size, type: file.type || 'application/octet-stream', purpose: 'brief',
+          })
+          const config = prepared.data?.data?.upload
+          await new Promise((resolve, reject) => {
+            const upload = new tus.Upload(file, {
+              endpoint: config.endpoint,
+              chunkSize: config.policy?.chunk_size_bytes || 6 * 1024 * 1024,
+              retryDelays: [0, 1000, 3000, 5000, 10000],
+              uploadDataDuringCreation: true,
+              headers: { 'x-signature': String(config.token || '').trim() },
+              metadata: { bucketName: config.bucket, objectName: config.storage_path, contentType: file.type || 'application/octet-stream', cacheControl: '3600' },
+              onError: reject,
+              onSuccess: async () => {
+                try { await mintboxApi.completeUpload(config.upload_id); resolve() } catch (error) { reject(error) }
+              },
+            })
+            upload.start()
+          })
+        }
+        return jobsApi.publish(job.id)
       }
 
       await jobsApi.update(id, payload)
@@ -207,6 +234,28 @@ export default function PostJob() {
               <label className="field-label">Brief description</label>
               <textarea className="textarea" value={data.description} onChange={(e) => update('description', e.target.value)} rows={6} placeholder="Describe what you need, tone, references, audience..." />
             </div>
+            <div className="field">
+              <label className="field-label">Brief tags</label>
+              <div className="row" style={{ gap: 8 }}>
+                <input className="input" value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="e.g. Cinematic video" />
+                <button type="button" className="btn ghost" onClick={() => {
+                  const tag = tagInput.trim()
+                  if (tag && !data.required_skills.includes(tag)) update('required_skills', [...data.required_skills, tag])
+                  setTagInput('')
+                }}><Icon name="plus" /> Add</button>
+              </div>
+              <div className="row wrap" style={{ gap: 6, marginTop: 8 }}>
+                {data.required_skills.map(tag => <button type="button" key={tag} className="badge neutral" onClick={() => update('required_skills', data.required_skills.filter(item => item !== tag))}>{tag} ×</button>)}
+              </div>
+            </div>
+            {!isEditMode && (
+              <div className="field">
+                <label className="field-label">Reference attachments</label>
+                <input className="input" type="file" multiple onChange={e => setBriefFiles(Array.from(e.target.files || []))} />
+                <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 6 }}>Stored privately in the project Mintbox. Only the matched creative can view them.</div>
+                {briefFiles.map(file => <div key={`${file.name}-${file.size}`} style={{ fontSize: 12, marginTop: 5 }}><Icon name="paperclip" size={11} /> {file.name}</div>)}
+              </div>
+            )}
           </div>
         )}
 
@@ -257,6 +306,13 @@ export default function PostJob() {
               <h2 className="h-display h-2" style={{ margin: '6px 0 8px' }}>{data.title}</h2>
             </div>
             <div className="divider" />
+            {(data.required_skills.length > 0 || briefFiles.length > 0) && (
+              <div>
+                <div className="h-eyebrow" style={{ marginBottom: 8 }}>References</div>
+                <div className="row wrap" style={{ gap: 6 }}>{data.required_skills.map(tag => <span key={tag} className="badge neutral">{tag}</span>)}</div>
+                {briefFiles.map(file => <div key={`${file.name}-${file.size}`} style={{ fontSize: 12.5, marginTop: 8 }}><Icon name="paperclip" size={12} /> {file.name}</div>)}
+              </div>
+            )}
             <div className="grid-2" style={{ gap: 18 }}>
               <div>
                 <div className="h-eyebrow" style={{ marginBottom: 6 }}>Brief</div>

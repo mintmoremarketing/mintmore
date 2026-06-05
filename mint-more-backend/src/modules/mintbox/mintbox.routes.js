@@ -9,6 +9,7 @@ router.use(authenticate, requireApproved);
 
 router.get('/', controller.listFolders);
 router.get('/jobs/:jobId', controller.getProjectFolder);
+router.patch('/jobs/:jobId/seen', controller.markSeen);
 router.post('/jobs/:jobId/uploads/prepare', controller.prepareUpload);
 router.post('/uploads/:uploadId/complete', controller.completeUpload);
 router.delete('/uploads/:uploadId', controller.cancelUpload);
