@@ -139,6 +139,9 @@ export default function Mintbox() {
 			setUploadState(prev => ({ ...prev, uploadId: config.upload_id }))
 			const upload = new tus.Upload(file, {
 				endpoint: config.endpoint,
+				// Version the fingerprint so tus-js-client never resumes uploads
+				// created against the old unsigned endpoint.
+				fingerprint: () => Promise.resolve(`mintbox-signed-v1-${config.upload_id}`),
 				retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
 				chunkSize: config.policy?.chunk_size_bytes || 6 * 1024 * 1024,
 				uploadDataDuringCreation: true,

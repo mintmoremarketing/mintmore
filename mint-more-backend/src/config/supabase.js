@@ -126,9 +126,7 @@ const createSignedResumableUpload = async (bucket, filePath) => {
 
   return {
     token,
-    // Signed TUS tokens are created through the project API gateway. Keeping
-    // upload creation on that host avoids direct-host signature mismatches.
-    endpoint: `${baseUrl}/storage/v1/upload/resumable`,
+    endpoint: `${baseUrl}/storage/v1/upload/resumable/sign`,
   };
 };
 
