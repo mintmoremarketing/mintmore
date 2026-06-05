@@ -8,6 +8,22 @@ const logger   = require('../../utils/logger');
 // We use a function-level require so Node resolves it after all modules load.
 const getMatchingService = () => require('../matching/matching.service');
 
+const redactManagedJobForClient = (job) => {
+  if (!job) return job;
+  const {
+    active_freelancer_id,
+    backup_freelancer_id,
+    assigned_by,
+    deal_approved_by,
+    ...safeJob
+  } = job;
+
+  return {
+    ...safeJob,
+    has_active_creative: Boolean(active_freelancer_id),
+  };
+};
+
 // ── Internal helper ───────────────────────────────────────────────────────────
 
 const triggerMatchingAsync = (jobId, reason) => {
@@ -112,7 +128,11 @@ const createJob = async (clientId, {
   logger.info('[Jobs] Job created', { jobId: job.id, clientId });
 
   // ── Auto-trigger matching ─────────────────────────────────────────────────
-  triggerMatchingAsync(job.id, 'job_created');
+  if (job.pricing_mode === 'budget') {
+    triggerMatchingAsync(job.id, 'job_created');
+  } else {
+    logger.info('[Jobs] Pro brief awaiting admin matching review', { jobId: job.id, clientId });
+  }
 
   return job;
 };
@@ -226,7 +246,11 @@ const publishJob = async (clientId, jobId) => {
   logger.info('[Jobs] Job published', { jobId: job.id, clientId });
 
   // ── Auto-trigger matching ─────────────────────────────────────────────────
-  triggerMatchingAsync(job.id, 'job_published');
+  if (job.pricing_mode === 'budget') {
+    triggerMatchingAsync(job.id, 'job_published');
+  } else {
+    logger.info('[Jobs] Pro brief awaiting admin matching review', { jobId: job.id, clientId });
+  }
 
   return job;
 };
@@ -482,7 +506,9 @@ const listJobs = async (requesterId, requesterRole, {
   );
 
   return {
-    jobs: dataResult.rows,
+    jobs: requesterRole === 'client'
+      ? dataResult.rows.map(redactManagedJobForClient)
+      : dataResult.rows,
     pagination: {
       page,
       limit,
@@ -531,7 +557,7 @@ const getJobById = async (requesterId, requesterRole, jobId) => {
     }
   }
 
-  return job;
+  return requesterRole === 'client' ? redactManagedJobForClient(job) : job;
 };
 
 // ── Client Job Summary ────────────────────────────────────────────────────────
@@ -648,6 +674,19 @@ const adminUpdateJobStatus = async (adminId, jobId, { status, admin_note }) => {
   return result.rows[0];
 };
 
+const approveProMatching = async (jobId, adminId) => {
+  const result = await query(
+    `UPDATE jobs
+     SET pro_reviewed_by = $1, pro_reviewed_at = NOW()
+     WHERE id = $2 AND pricing_mode = 'expert' AND status IN ('open','matching')
+     RETURNING *`,
+    [adminId, jobId]
+  );
+  if (!result.rows[0]) throw new AppError('Pro brief not found or cannot be reviewed', 404);
+  triggerMatchingAsync(jobId, 'pro_admin_approved');
+  return result.rows[0];
+};
+
 module.exports = {
   createJob,
   createJobAsDraft,
@@ -660,4 +699,5 @@ module.exports = {
   getClientJobSummary,
   adminListAllJobs,
   adminUpdateJobStatus,
+  approveProMatching,
 };

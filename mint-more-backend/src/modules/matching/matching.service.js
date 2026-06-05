@@ -4,6 +4,7 @@ const logger = require('../../utils/logger');
 const { getCategoryPriceRange, evaluatePricingAlignment } = require('./pricing.service');
 const { saveMatchedCandidates } = require('../negotiation/negotiation.service');
 const { notifyMatchedCandidates } = require('../notifications/notification.triggers');
+const { getSetting } = require('../commerce/settings.service');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -11,6 +12,11 @@ const MAX_ACTIVE_JOBS      = 5;
 const MAX_JOBS_REFERENCE   = 10;
 const NEW_FREELANCER_BOOST = 0.10;
 const TOP_N_CANDIDATES     = 10;
+const DEFAULT_MATCHING_SETTINGS = {
+  max_active_jobs: MAX_ACTIVE_JOBS,
+  new_freelancer_boost: NEW_FREELANCER_BOOST,
+  top_candidates: TOP_N_CANDIDATES,
+};
 
 const WEIGHTS = {
   skill:    0.40,
@@ -87,7 +93,7 @@ const computeProfileBonus = (freelancer) => {
   return bonus;
 };
 
-const computeScore = (freelancer, job, priceRange, pricingAlignment) => {
+const computeScore = (freelancer, job, priceRange, pricingAlignment, matchingSettings = DEFAULT_MATCHING_SETTINGS) => {
   const skill    = computeSkillScore(job.required_skills, freelancer.skills);
   const level    = computeLevelScore(freelancer.freelancer_level);
   const rating   = computeRatingScore(freelancer.average_rating, freelancer.jobs_completed_count);
@@ -101,10 +107,15 @@ const computeScore = (freelancer, job, priceRange, pricingAlignment) => {
 
   const workloadMultiplier      = computeWorkloadMultiplier(freelancer.active_jobs_count || 0);
   const adjusted                = base * workloadMultiplier;
-  const newFreelancerBoost      = freelancer.jobs_completed_count === 0 ? NEW_FREELANCER_BOOST : 0;
+  const newFreelancerBoost      = freelancer.jobs_completed_count === 0
+    ? Number(matchingSettings.new_freelancer_boost ?? NEW_FREELANCER_BOOST)
+    : 0;
   const idleBonus               = computeIdleBonus(freelancer.days_since_last_assignment);
   const kycBonus                = computeKycBonus(freelancer.kyc_status);
   const profileBonus            = computeProfileBonus(freelancer);
+  const preferredCreatorBoost   = freelancer.is_preferred_creator
+    ? Number(matchingSettings.preferred_creator_boost ?? 0.15)
+    : 0;
   const rawPricingScore         = pricingAlignment?.pricing_score ?? 0.5;
   const pricingContribution     = parseFloat((rawPricingScore * PRICING_SCORE_MAX_CONTRIBUTION).toFixed(4));
   const competitivePricingBoost = pricingAlignment?.competitive_boost ? 0.05 : 0;
@@ -116,6 +127,7 @@ const computeScore = (freelancer, job, priceRange, pricingAlignment) => {
       + idleBonus
       + kycBonus
       + profileBonus
+      + preferredCreatorBoost
       + pricingContribution
       + competitivePricingBoost
   );
@@ -134,6 +146,7 @@ const computeScore = (freelancer, job, priceRange, pricingAlignment) => {
       idle_bonus:                parseFloat(idleBonus.toFixed(4)),
       kyc_bonus:                 parseFloat(kycBonus.toFixed(4)),
       profile_bonus:             parseFloat(profileBonus.toFixed(4)),
+      preferred_creator_boost:   parseFloat(preferredCreatorBoost.toFixed(4)),
       pricing_score:             parseFloat(rawPricingScore.toFixed(4)),
       pricing_contribution:      pricingContribution,
       competitive_pricing_boost: competitivePricingBoost,
@@ -158,15 +171,16 @@ const computeScore = (freelancer, job, priceRange, pricingAlignment) => {
 const assignTier = (freelancer) =>
   TIERS.find((t) => t.condition(freelancer)) || TIERS[2];
 
-const checkEligibility = (freelancer, job) => {
+const checkEligibility = (freelancer, job, matchingSettings = DEFAULT_MATCHING_SETTINGS) => {
   const reasons = [];
   if (!freelancer.is_available) reasons.push('freelancer is marked unavailable');
   if (!freelancer.is_approved)  reasons.push('freelancer account is not approved');
   if (!freelancer.is_active)    reasons.push('freelancer account is deactivated');
 
   const activeJobs = freelancer.active_jobs_count || 0;
-  if (activeJobs >= MAX_ACTIVE_JOBS) {
-    reasons.push(`max active jobs reached (${activeJobs}/${MAX_ACTIVE_JOBS})`);
+  const maxActiveJobs = Number(matchingSettings.max_active_jobs ?? MAX_ACTIVE_JOBS);
+  if (activeJobs >= maxActiveJobs) {
+    reasons.push(`max active jobs reached (${activeJobs}/${maxActiveJobs})`);
   }
 
   if (job.pricing_mode === 'expert' && freelancer.freelancer_level !== 'experienced') {
@@ -178,14 +192,14 @@ const checkEligibility = (freelancer, job) => {
   return { eligible: reasons.length === 0, reasons };
 };
 
-const rankCandidates = (candidates, job, priceRange) => {
+const rankCandidates = (candidates, job, priceRange, matchingSettings = DEFAULT_MATCHING_SETTINGS) => {
   console.log(`[Matching] rankCandidates — input: ${candidates.length}`);
 
   const eligible   = [];
   const ineligible = [];
 
   candidates.forEach((freelancer) => {
-    const { eligible: isEligible, reasons } = checkEligibility(freelancer, job);
+    const { eligible: isEligible, reasons } = checkEligibility(freelancer, job, matchingSettings);
     const pricingAlignment = evaluatePricingAlignment(freelancer, job, priceRange);
 
     const allReasons = [...reasons];
@@ -210,7 +224,7 @@ const rankCandidates = (candidates, job, priceRange) => {
       return;
     }
 
-    const score = computeScore(freelancer, job, priceRange, pricingAlignment);
+    const score = computeScore(freelancer, job, priceRange, pricingAlignment, matchingSettings);
     const tier  = assignTier(freelancer);
 
     eligible.push({
@@ -257,7 +271,10 @@ const rankCandidates = (candidates, job, priceRange) => {
 
   console.log(`[Matching] eligible: ${eligible.length}, ineligible: ${ineligible.length}`);
 
-  return { ranked: eligible.slice(0, TOP_N_CANDIDATES), ineligible };
+  return {
+    ranked: eligible.slice(0, Number(matchingSettings.top_candidates ?? TOP_N_CANDIDATES)),
+    ineligible,
+  };
 };
 
 // ── DB Fetch — role = freelancer only ─────────────────────────────────────────
@@ -270,6 +287,12 @@ const fetchFreelancerPool = async (jobId, { limit, offset }) => {
        u.average_rating, u.jobs_completed_count, u.active_jobs_count,
        u.is_available, u.is_approved, u.is_active,
        u.kyc_status, u.price_min, u.price_max,
+       EXISTS(
+         SELECT 1
+         FROM preferred_creators pc
+         JOIN jobs preferred_job ON preferred_job.client_id = pc.client_id
+         WHERE preferred_job.id = $1 AND pc.freelancer_id = u.id
+       ) AS is_preferred_creator,
        EXTRACT(DAY FROM NOW() - (
          SELECT MAX(ja.created_at)
          FROM job_assignments ja
@@ -315,7 +338,7 @@ const fetchFreelancerPool = async (jobId, { limit, offset }) => {
 const runMatchingForJob = async (jobId) => {
   const jobResult = await query(
     `SELECT id, title, status, required_level, required_skills,
-            budget_type, budget_amount, category_id, pricing_mode
+            budget_type, budget_amount, category_id, pricing_mode, pro_reviewed_at
      FROM jobs WHERE id = $1`,
     [jobId]
   );
@@ -330,11 +353,18 @@ const runMatchingForJob = async (jobId) => {
     );
   }
 
+  if (job.pricing_mode === 'expert' && !job.pro_reviewed_at) {
+    throw new AppError('Pro matching requires admin approval before it can run', 409);
+  }
+
   console.log(`[Matching] runMatchingForJob — jobId: ${jobId}, mode: ${job.pricing_mode}`);
 
-  const priceRange = await getCategoryPriceRange(job.category_id);
+  const [priceRange, matchingSettings] = await Promise.all([
+    getCategoryPriceRange(job.category_id),
+    getSetting('matching', DEFAULT_MATCHING_SETTINGS),
+  ]);
   const candidates = await fetchFreelancerPool(jobId, { limit: 100, offset: 0 });
-  const { ranked, ineligible } = rankCandidates(candidates, job, priceRange);
+  const { ranked, ineligible } = rankCandidates(candidates, job, priceRange, matchingSettings);
 
   // ── Persist candidates + set primary / backup on job ─────────────────────
   // saveMatchedCandidates handles:
@@ -403,7 +433,7 @@ const runMatchingForJob = async (jobId) => {
       total_fetched:    candidates.length,
       eligible_count:   ranked.length,
       ineligible_count: ineligible.length,
-      top_n_limit:      TOP_N_CANDIDATES,
+      top_n_limit:      Number(matchingSettings.top_candidates ?? TOP_N_CANDIDATES),
       tiers:            tierSummary,
     },
     matches:    ranked,

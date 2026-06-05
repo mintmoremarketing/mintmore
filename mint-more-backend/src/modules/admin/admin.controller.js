@@ -59,6 +59,18 @@ const createAdminUser = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const setAdminPermissions = async (req, res, next) => {
+  try {
+    const user = await adminService.setAdminPermissions(
+      req.params.userId,
+      req.user.sub,
+      req.body.permissions || [],
+      Boolean(req.body.is_super_admin)
+    );
+    return sendSuccess(res, { data: { user }, message: 'Admin permissions updated' });
+  } catch (err) { next(err); }
+};
+
 const setFreelancerLevel = async (req, res, next) => {
   try {
     validateSetFreelancerLevel(req.body);
@@ -141,6 +153,7 @@ module.exports = {
   getUserById,
   setUserApproval,
   createAdminUser,
+  setAdminPermissions,
   setFreelancerLevel,
   getCategories,
   createCategory,

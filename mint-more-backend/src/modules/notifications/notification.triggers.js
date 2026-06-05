@@ -11,8 +11,10 @@ const getActiveAdminIds = async () => {
 const notifyMatchedCandidates = async (job, candidates) => {
   if (!candidates || candidates.length === 0) return;
 
-  const notifications = candidates.map((candidate) => ({
-    userId:     candidate.freelancer_id,
+  const primary = candidates.find((candidate) => candidate.rank === 1);
+  if (!primary) return;
+  const notifications = [{
+    userId:     primary.freelancer_id,
     type:       'job_matched',
     title:      'New brief matched',
     body:       `You have been matched to "${job.title}". Open your dashboard to respond.`,
@@ -21,15 +23,29 @@ const notifyMatchedCandidates = async (job, candidates) => {
     data: {
       job_id:       job.id,
       job_title:    job.title,
-      rank:         candidate.rank,
-      tier:         candidate.tier,
-      notify_at:    candidate.notify_at,
-      score:        candidate.score,
       pricing_mode: job.pricing_mode,
     },
-  }));
+  }];
 
   await notificationService.createBulkNotifications(notifications);
+};
+
+const notifyPromotedPrimary = async (job, fallback) => {
+  if (fallback?.action !== 'promoted_backup' || !fallback.next_freelancer_id) return;
+
+  await notificationService.createNotification({
+    userId:     fallback.next_freelancer_id,
+    type:       'job_matched',
+    title:      'New brief matched',
+    body:       `You have been matched to "${job.title}". Open your dashboard to respond.`,
+    entityType: 'job',
+    entityId:   job.id,
+    data: {
+      job_id:       job.id,
+      job_title:    job.title,
+      pricing_mode: job.pricing_mode,
+    },
+  });
 };
 
 const notifyNegotiationInitiated = async ({ job, freelancer, proposed_price }) => {
@@ -37,14 +53,12 @@ const notifyNegotiationInitiated = async ({ job, freelancer, proposed_price }) =
     userId:     job.client_id,
     type:       'negotiation_initiated',
     title:      'New offer received',
-    body:       `${freelancer.full_name} sent an offer for "${job.title}" at ${money(proposed_price)}.`,
+    body:       `A Mint More creative sent an offer for "${job.title}" at ${money(proposed_price)}.`,
     entityType: 'job',
     entityId:   job.id,
     data: {
       job_id:          job.id,
       job_title:       job.title,
-      freelancer_id:   freelancer.id,
-      freelancer_name: freelancer.full_name,
       proposed_price,
     },
   });
@@ -56,18 +70,20 @@ const notifyNegotiationCountered = async ({
   recipientUserId,
   round_number,
   proposed_price,
+  maskSender = false,
 }) => {
+  const visibleSenderName = maskSender ? 'A Mint More creative' : senderName;
   await notificationService.createNotification({
     userId:     recipientUserId,
     type:       'negotiation_countered',
     title:      'Counter offer received',
-    body:       `${senderName} sent a counter offer of ${money(proposed_price)} for "${job.title}".`,
+    body:       `${visibleSenderName} sent a counter offer of ${money(proposed_price)} for "${job.title}".`,
     entityType: 'job',
     entityId:   job.id,
     data: {
       job_id:         job.id,
       job_title:      job.title,
-      sender_name:    senderName,
+      sender_name:    visibleSenderName,
       round_number,
       proposed_price,
     },
@@ -120,7 +136,7 @@ const notifyNegotiationRejected = async ({
       body,
       entityType: 'job',
       entityId:   job.id,
-      data:       { job_id: job.id, job_title: job.title, rejected_by, fallback },
+      data:       { job_id: job.id, job_title: job.title, rejected_by },
     },
     {
       userId:     clientUserId,
@@ -129,7 +145,7 @@ const notifyNegotiationRejected = async ({
       body,
       entityType: 'job',
       entityId:   job.id,
-      data:       { job_id: job.id, job_title: job.title, rejected_by, fallback },
+      data:       { job_id: job.id, job_title: job.title, rejected_by },
     },
   ]);
 };
@@ -191,7 +207,7 @@ const notifyDealRejectedByAdmin = async ({
       body,
       entityType: 'job',
       entityId:   job.id,
-      data:       { job_id: job.id, job_title: job.title, admin_note: adminNote, fallback },
+      data:       { job_id: job.id, job_title: job.title, admin_note: adminNote },
     },
     {
       userId:     clientUserId,
@@ -200,7 +216,7 @@ const notifyDealRejectedByAdmin = async ({
       body,
       entityType: 'job',
       entityId:   job.id,
-      data:       { job_id: job.id, job_title: job.title, admin_note: adminNote, fallback },
+      data:       { job_id: job.id, job_title: job.title, admin_note: adminNote },
     },
   ]);
 };
@@ -225,10 +241,10 @@ const notifyAssignmentAccepted = async ({ job, freelancerName, clientUserId }) =
       userId:     clientUserId,
       type:       'assignment_accepted',
       title:      'Work has started',
-      body:       `${freelancerName} accepted the assignment for "${job.title}".`,
+      body:       `Your Mint More creative accepted the assignment for "${job.title}".`,
       entityType: 'job',
       entityId:   job.id,
-      data:       { job_id: job.id, job_title: job.title, freelancer_name: freelancerName },
+      data:       { job_id: job.id, job_title: job.title },
     },
     ...adminIds.map((userId) => ({
       userId,
@@ -257,10 +273,10 @@ const notifyAssignmentDeclined = async ({
       userId:     clientUserId,
       type:       'assignment_declined',
       title:      'Assignment declined',
-      body:       `${freelancerName} declined the assignment for "${job.title}".`,
+      body:       `The creative assigned to "${job.title}" is no longer available. Mint More is reviewing the project.`,
       entityType: 'job',
       entityId:   job.id,
-      data:       { job_id: job.id, job_title: job.title, fallback },
+      data:       { job_id: job.id, job_title: job.title },
     },
     ...adminIds.map((userId) => ({
       userId,
@@ -295,6 +311,7 @@ const notifyKycReviewed = async ({ userId, level, status, adminNote }) => {
 
 module.exports = {
   notifyMatchedCandidates,
+  notifyPromotedPrimary,
   notifyNegotiationInitiated,
   notifyNegotiationCountered,
   notifyNegotiationAccepted,

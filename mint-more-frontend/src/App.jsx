@@ -24,6 +24,8 @@ import NotificationsInbox from './pages/notifications/Inbox'
 import Mintbox           from './pages/shared/Mintbox'
 import Chat              from './pages/shared/Chat'
 import SharedFile        from './pages/public/SharedFile'
+import Membership        from './pages/client/Membership'
+import Onboarding        from './pages/client/Onboarding'
 
 // Freelancer pages
 import FreelancerDashboard  from './pages/freelancer/Dashboard'
@@ -42,6 +44,8 @@ import AdminNegotiations from './pages/admin/Negotiations'
 import AdminWallet       from './pages/admin/Wallet'
 import AdminAIPanel      from './pages/admin/AIPanel'
 import AdminPricing      from './pages/admin/Pricing'
+import AdminCommerce     from './pages/admin/Commerce'
+import AdminAudit        from './pages/admin/Audit'
 
 // ── Role-aware route wrappers ─────────────────────────────────────────────────
 
@@ -80,7 +84,13 @@ function AdminOnly({ children }) {
 
 function ClientOnly({ children }) {
   const role = useAuthStore(s => s.user?.role)
-  if (role === 'admin') return <Navigate to="/admin" replace />
+  if (role !== 'client') return <Navigate to={role === 'admin' ? '/admin' : '/dashboard'} replace />
+  return children
+}
+
+function FreelancerOnly({ children }) {
+  const role = useAuthStore(s => s.user?.role)
+  if (role !== 'freelancer') return <Navigate to={role === 'admin' ? '/admin' : '/dashboard'} replace />
   return children
 }
 
@@ -163,16 +173,18 @@ export default function App() {
 
           {/* Client-only routes */}
           <Route path="/addons"            element={<ClientOnly><Addons /></ClientOnly>} />
+          <Route path="/membership"        element={<ClientOnly><Membership /></ClientOnly>} />
+          <Route path="/onboarding"        element={<ClientOnly><Onboarding /></ClientOnly>} />
           <Route path="/freelancers"       element={<ClientOnly><Freelancers /></ClientOnly>} />
           <Route path="/freelancers/:freelancerId" element={<ClientOnly><FreelancerProfile /></ClientOnly>} />
           <Route path="/social"            element={<ClientOnly><Social /></ClientOnly>} />
           <Route path="/ai"                element={<ClientOnly><MintAI /></ClientOnly>} />
 
           {/* Freelancer-only routes */}
-          <Route path="/profile-edit" element={<MarketplaceProfile />} />
-          <Route path="/packages"     element={<Packages />} />
-          <Route path="/portfolio"    element={<Portfolio />} />
-          <Route path="/inquiries"    element={<Inquiries />} />
+          <Route path="/profile-edit" element={<FreelancerOnly><MarketplaceProfile /></FreelancerOnly>} />
+          <Route path="/packages"     element={<FreelancerOnly><Packages /></FreelancerOnly>} />
+          <Route path="/portfolio"    element={<FreelancerOnly><Portfolio /></FreelancerOnly>} />
+          <Route path="/inquiries"    element={<FreelancerOnly><Inquiries /></FreelancerOnly>} />
 
           {/* Shared */}
           <Route path="/chat"     element={<Chat />} />
@@ -186,6 +198,8 @@ export default function App() {
           <Route path="/admin/users"      element={<AdminOnly><AdminUsers /></AdminOnly>} />
           <Route path="/admin/approvals"  element={<AdminOnly><AdminNegotiations /></AdminOnly>} />
           <Route path="/admin/pricing"    element={<AdminOnly><AdminPricing /></AdminOnly>} />
+          <Route path="/admin/commerce"   element={<AdminOnly><AdminCommerce /></AdminOnly>} />
+          <Route path="/admin/audit"      element={<AdminOnly><AdminAudit /></AdminOnly>} />
           <Route path="/admin/wallet"     element={<AdminOnly><AdminWallet /></AdminOnly>} />
           <Route path="/admin/ai"         element={<AdminOnly><AdminAIPanel /></AdminOnly>} />
         </Route>

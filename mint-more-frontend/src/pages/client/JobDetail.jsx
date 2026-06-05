@@ -225,24 +225,19 @@ function MatchingPanel({ job }) {
                   border: '1px solid var(--hairline)',
                   borderRadius: 'var(--radius-md)',
                 }}>
-                  <Avatar name={c.freelancer?.full_name || 'F'} />
+                  <Avatar name="Mint More" />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-950)' }}>
-                      {c.freelancer?.full_name || 'Matched creative'}
+                      Mint More creative
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>
-                      {c.freelancer?.tagline || c.freelancer?.bio?.slice(0, 60) || 'Creative professional'}
+                      Verified for this brief
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--mint-700)' }}>
                       {Math.round((c.score || 0.88) * 100)}% fit
                     </div>
-                    {c.freelancer?.average_rating && (
-                      <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 2 }}>
-                        {c.freelancer.average_rating} ★ ({c.freelancer.review_count || 0})
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
@@ -285,24 +280,8 @@ function ClientNegotiationPanel({ job }) {
   })
 
   const neg = negotiationData?.negotiation || job.negotiation
-  const freelancer =
-    job.active_freelancer ||
-    job.matched_freelancer ||
-    job.primary_freelancer ||
-    job.primary_candidate ||
-    {}
-  const freelancerName = freelancer.full_name || freelancer.name || 'Creative'
-
-  const acceptMutation = useMutation({
-    mutationFn: () => negotiationsApi.clientRespond(job.id, { action: 'accept' }),
-    onSuccess: () => {
-      pushToast({ title: 'Deal sent for admin approval', body: 'Escrow will be held after approval.', icon: 'shield' })
-      queryClient.invalidateQueries({ queryKey: ['job', job.id] })
-      queryClient.invalidateQueries({ queryKey: ['negotiation-status', job.id] })
-      queryClient.invalidateQueries({ queryKey: ['jobs'] })
-    },
-    onError: (err) => pushToast({ title: 'Failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
-  })
+  const economics = negotiationData?.economics
+  const freelancerName = 'Mint More creative'
 
   const counterMutation = useMutation({
     mutationFn: () =>
@@ -313,7 +292,7 @@ function ClientNegotiationPanel({ job }) {
         message: counterMsg || undefined,
       }),
     onSuccess: () => {
-      pushToast({ title: 'Counter offer sent', body: `Waiting for ${freelancerName.split(' ')[0]} to respond.`, icon: 'refresh' })
+      pushToast({ title: 'Counter offer sent', body: 'Waiting for the creative to respond.', icon: 'refresh' })
       queryClient.invalidateQueries({ queryKey: ['job', job.id] })
       queryClient.invalidateQueries({ queryKey: ['negotiation-status', job.id] })
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
@@ -351,9 +330,7 @@ function ClientNegotiationPanel({ job }) {
   const agreedPrice = neg?.agreed_price || lastRound?.proposed_price || 0
   const agreedDays = neg?.agreed_days || lastRound?.proposed_days || 0
   const walletBalance = Number(walletData?.wallet?.balance ?? 0)
-  const lastOfferPrice = Number(lastRound?.proposed_price || 0)
   const counterOfferPrice = Number(counterPrice || 0)
-  const canFundLastOffer = walletBalance >= lastOfferPrice
   const canFundCounter = counterOfferPrice > 0 && walletBalance >= counterOfferPrice
 
   useEffect(() => {
@@ -430,7 +407,7 @@ function ClientNegotiationPanel({ job }) {
             <div>
               <div style={{ fontWeight: 500, color: 'var(--ink-950)' }}>Awaiting admin approval</div>
               <div style={{ fontSize: 12, color: 'var(--ink-600)', marginTop: 2 }}>
-                Deal agreed at {rupee(agreedPrice)} in {agreedDays || '-'} days. Once approved, funds will be escrowed and {freelancerName.split(' ')[0]} can begin work.
+                Deal agreed at {rupee(agreedPrice)} in {agreedDays || '-'} days. Once approved, funds will be escrowed and the creative can begin work.
               </div>
             </div>
           </div>
@@ -468,6 +445,13 @@ function ClientNegotiationPanel({ job }) {
         </div>
       )}
 
+      {economics && (
+        <div className="row between" style={{ marginTop: 12, padding: '11px 13px', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)', fontSize: 12.5 }}>
+          <span className="muted">Current all-inclusive client total</span>
+          <strong className="mono">{rupee(economics.client_total)}</strong>
+        </div>
+      )}
+
       {isMyTurn && !showCounter && (
         <>
           <div className="row" style={{ marginTop: 16, gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -480,21 +464,12 @@ function ClientNegotiationPanel({ job }) {
                 <Icon name="refresh" size={13} /> Counter offer
               </button>
             )}
-            <button className="btn mint" onClick={() => acceptMutation.mutate()} disabled={acceptMutation.isPending || !canFundLastOffer}>
-              <Icon name="check" size={13} />
-              {acceptMutation.isPending ? 'Accepting...' : `Accept ${rupee(lastRound?.proposed_price || 0)}`}
-            </button>
             <button className="btn ghost" style={{ color: 'var(--rose)', borderColor: 'rgba(225,29,72,0.2)' }} onClick={() => rejectMutation.mutate()} disabled={rejectMutation.isPending}>
               {rejectMutation.isPending ? 'Declining...' : 'Decline'}
             </button>
           </div>
-          {!canFundLastOffer && (
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--amber)', textAlign: 'right' }}>
-              Add {rupee(Math.max(0, lastOfferPrice - walletBalance))} to your wallet to accept this offer.
-            </div>
-          )}
           <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--ink-500)', textAlign: 'right' }}>
-            By accepting, you acknowledge the revision policy: 3 included rounds, then ₹20 per additional round.
+            Your second response is the final offer. The creative can accept or decline it.
           </div>
         </>
       )}
@@ -517,17 +492,17 @@ function ClientNegotiationPanel({ job }) {
           </div>
           <div className="field">
             <label className="field-label">Message (optional)</label>
-            <textarea className="textarea" rows={2} value={counterMsg} onChange={(e) => setCounterMsg(e.target.value)} placeholder={`Add a note for ${freelancerName.split(' ')[0]}...`} />
+            <textarea className="textarea" rows={2} value={counterMsg} onChange={(e) => setCounterMsg(e.target.value)} placeholder="Add a note for the creative..." />
           </div>
           <div className="row" style={{ marginTop: 10, gap: 8, justifyContent: 'flex-end' }}>
             <button className="btn ghost" onClick={() => setShowCounter(false)}>Cancel</button>
             <button className="btn primary" onClick={sendCounter} disabled={counterMutation.isPending || !counterPrice || !counterDays || !canFundCounter}>
               <Icon name="send" size={13} />
-              {counterMutation.isPending ? 'Sending...' : 'Send counter'}
+              {counterMutation.isPending ? 'Sending...' : currentRound >= maxRounds - 1 ? 'Send final offer' : 'Send counter'}
             </button>
           </div>
           <div className="muted" style={{ fontSize: 11, marginTop: 8, textAlign: 'right' }}>
-            <Icon name="shield" size={10} /> Client gets 3 proposal turns. Creative gets 2 re-proposals.
+            <Icon name="shield" size={10} /> The creative quotes first. Your second response is the final offer.
           </div>
           {counterPrice && !canFundCounter && (
             <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 8, textAlign: 'right' }}>
@@ -947,8 +922,6 @@ function NegotiationPanel({ job }) {
 // ── In-progress panel ─────────────────────────────────────────────────────────
 
 function InProgressPanel({ job, navigate }) {
-  const freelancer = job.active_freelancer
-
   return (
     <div className="card" style={{ padding: 22 }}>
       <div className="row between" style={{ marginBottom: 16 }}>
@@ -956,12 +929,12 @@ function InProgressPanel({ job, navigate }) {
         <StatusChip status="in_progress" />
       </div>
 
-      {freelancer && (
+      {job.has_active_creative && (
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, padding: '12px 14px', background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
-          <Avatar name={freelancer.full_name} />
+          <Avatar name="Mint More" />
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-950)' }}>{freelancer.full_name}</div>
-            <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>{freelancer.tagline || 'Your assigned creative'}</div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-950)' }}>Mint More creative</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>Your assigned creative</div>
           </div>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--mint-500)' }} />
         </div>
@@ -1185,26 +1158,21 @@ export default function JobDetail() {
           </div>
 
           {/* Assigned freelancer (if any) */}
-          {job.active_freelancer && (
+          {job.has_active_creative && (
             <div className="card reveal" data-d="4" style={{ padding: 18 }}>
               <div className="h-eyebrow" style={{ marginBottom: 12 }}>Assigned creative</div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <Avatar name={job.active_freelancer.full_name} />
+                <Avatar name="Mint More" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--ink-950)' }}>
-                    {job.active_freelancer.full_name}
+                    Mint More creative
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>
-                    {job.active_freelancer.tagline || 'Creative professional'}
+                    Verified for this project
                   </div>
                 </div>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--mint-500)', flexShrink: 0 }} />
               </div>
-              {job.active_freelancer.average_rating > 0 && (
-                <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-600)' }}>
-                  ★ {job.active_freelancer.average_rating} · {job.active_freelancer.review_count} reviews
-                </div>
-              )}
             </div>
           )}
 

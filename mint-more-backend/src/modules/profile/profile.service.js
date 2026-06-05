@@ -13,6 +13,7 @@ const PROFILE_FIELDS = `
   id, email, phone, full_name, role, avatar_url,
   bio, skills, gender, date_of_birth,
   address_city, address_state, country,
+  preferred_language, business_name, business_type, customer_profile, onboarding_checklist,
   is_active, is_email_verified,
   kyc_status, kyc_level,
   last_login_at, created_at, updated_at
@@ -40,6 +41,7 @@ const updateProfile = async (userId, updates) => {
     'full_name', 'phone', 'bio', 'gender',
     'date_of_birth', 'skills',
     'address_city', 'address_state', 'country',
+    'preferred_language', 'business_name', 'business_type', 'customer_profile', 'onboarding_checklist',
     'price_min', 'price_max', 'pricing_visibility',
   ];
 

@@ -2,6 +2,7 @@ const { Router } = require('express');
 const controller  = require('./job.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
 const { requireApproved }         = require('../../middleware/requireApproved');
+const { requireEntitlement, requirePermission } = require('../../middleware/permissions');
 
 const router = Router();
 
@@ -15,6 +16,7 @@ router.post(
   '/',
   authorize('client'),
   requireApproved,
+  requireEntitlement('can_create_job'),
   controller.createJob
 );
 
@@ -24,6 +26,7 @@ router.post(
   '/draft',
   authorize('client'),
   requireApproved,
+  requireEntitlement('can_draft_job'),
   controller.createJobAsDraft
 );
 
@@ -33,6 +36,7 @@ router.patch(
   '/:id/publish',
   authorize('client'),
   requireApproved,
+  requireEntitlement('can_create_job'),
   controller.publishJob
 );
 
@@ -95,13 +99,22 @@ router.get(
 router.get(
   '/admin/all',
   authorize('admin'),
+  requirePermission('matching.manage'),
   controller.adminListAllJobs
 );
 
 router.patch(
   '/admin/:id/status',
   authorize('admin'),
+  requirePermission('matching.manage'),
   controller.adminUpdateJobStatus
+);
+
+router.post(
+  '/admin/:id/approve-pro-matching',
+  authorize('admin'),
+  requirePermission('matching.manage'),
+  controller.approveProMatching
 );
 
 module.exports = router;

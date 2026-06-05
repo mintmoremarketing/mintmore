@@ -7,6 +7,7 @@ import { mintboxApi } from '../../api/mintbox'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import { rupee } from '../../utils/format'
+import { useEntitlements } from '../../hooks/useEntitlements'
 
 const getMarketRangeFromResponse = (res) =>
   res.data?.data?.range ?? res.data?.data?.data?.range ?? res.data?.range ?? null
@@ -48,6 +49,12 @@ export default function PostJob() {
   const [step, setStep] = useState(1)
   const [tagInput, setTagInput] = useState('')
   const [briefFiles, setBriefFiles] = useState([])
+  const [briefContext, setBriefContext] = useState({
+    promotion_or_goal: '',
+    customer_profile: '',
+    style_references: '',
+    avoid: '',
+  })
   const briefFileRef = useRef(null)
   const [data, setData] = useState({
     title: '',
@@ -60,6 +67,7 @@ export default function PostJob() {
     required_skills: [],
     required_level: null,
   })
+  const { data: access } = useEntitlements()
 
   const { data: catData } = useQuery({
     queryKey: ['categories'],
@@ -102,6 +110,12 @@ export default function PostJob() {
       required_skills: existingJob.required_skills || [],
       required_level: existingJob.pricing_mode === 'expert' ? 'experienced' : null,
     })
+    setBriefContext({
+      promotion_or_goal: existingJob.metadata?.brief_context?.promotion_or_goal || '',
+      customer_profile: existingJob.metadata?.brief_context?.customer_profile || '',
+      style_references: existingJob.metadata?.brief_context?.style_references || '',
+      avoid: existingJob.metadata?.brief_context?.avoid || '',
+    })
   }, [existingJob])
 
   const selectedRange = data.pricing_mode === 'expert' ? expertRange : budgetRange
@@ -113,7 +127,9 @@ export default function PostJob() {
     budget_amount: null,
     required_level: data.pricing_mode === 'expert' ? 'experienced' : null,
     metadata: {
+      ...(existingJob?.metadata || {}),
       talent_pool: data.pricing_mode === 'expert' ? 'pro' : 'budget',
+      brief_context: briefContext,
       market_average: selectedRange
         ? { min: selectedRange.min, max: selectedRange.max, label: selectedRange.label }
         : null,
@@ -172,6 +188,10 @@ export default function PostJob() {
     setData((d) => ({ ...d, [k]: v }))
   }
 
+  function updateContext(k, v) {
+    setBriefContext((current) => ({ ...current, [k]: v }))
+  }
+
   function addBriefFiles(fileList) {
     const incoming = Array.from(fileList || [])
     setBriefFiles(current => {
@@ -225,6 +245,15 @@ export default function PostJob() {
 
   return (
     <div className="stack-6">
+      {access && !access.can_draft_job && (
+        <div className="card-mint row between" style={{ gap: 14 }}>
+          <div>
+            <strong>Membership access is required to create a new brief.</strong>
+            <div className="muted" style={{ fontSize: 12, marginTop: 3 }}>Your files, wallet, and active projects remain available.</div>
+          </div>
+          <button className="btn primary" onClick={() => navigate('/membership')}>View membership</button>
+        </div>
+      )}
       <div className="reveal">
         <button className="btn link sm" onClick={() => navigate('/jobs')} style={{ padding: 0, color: 'var(--ink-500)', fontSize: 12 }}>
           <Icon name="arrowLeft" size={12} /> All jobs
@@ -253,7 +282,7 @@ export default function PostJob() {
         {step === 1 && (
           <div className="stack" style={{ gap: 18 }}>
             <div className="field">
-              <label className="field-label">Brief title</label>
+              <label className="field-label">What do you want to create?</label>
               <input className="input" value={data.title} onChange={(e) => update('title', e.target.value)} placeholder="e.g. Diwali campaign hero video" />
               <span className={data.title.length > 0 && data.title.trim().length < 5 ? 'field-error' : 'field-hint'}>Minimum 5 characters</span>
             </div>
@@ -265,9 +294,27 @@ export default function PostJob() {
               </select>
             </div>
             <div className="field">
-              <label className="field-label">Brief description</label>
-              <textarea className="textarea" value={data.description} onChange={(e) => update('description', e.target.value)} rows={6} placeholder="Describe what you need, tone, references, audience..." />
+              <label className="field-label">Tell the creative what you need</label>
+              <textarea className="textarea" value={data.description} onChange={(e) => update('description', e.target.value)} rows={5} placeholder="Describe the work, important details, and what a good result looks like." />
               <span className={data.description.length > 0 && data.description.trim().length < 5 ? 'field-error' : 'field-hint'}>{data.description.trim().length}/5 minimum characters</span>
+            </div>
+            <div className="grid-2" style={{ gap: 14 }}>
+              <div className="field">
+                <label className="field-label">What are you promoting?</label>
+                <textarea className="textarea" rows={3} value={briefContext.promotion_or_goal} onChange={e => updateContext('promotion_or_goal', e.target.value)} placeholder="Product, service, event, launch, or offer" />
+              </div>
+              <div className="field">
+                <label className="field-label">Who are your customers?</label>
+                <textarea className="textarea" rows={3} value={briefContext.customer_profile} onChange={e => updateContext('customer_profile', e.target.value)} placeholder="Audience, location, interests, and buying context" />
+              </div>
+              <div className="field">
+                <label className="field-label">Styles or references you like</label>
+                <textarea className="textarea" rows={3} value={briefContext.style_references} onChange={e => updateContext('style_references', e.target.value)} placeholder="Links, creators, visual styles, or examples" />
+              </div>
+              <div className="field">
+                <label className="field-label">What should the creative avoid?</label>
+                <textarea className="textarea" rows={3} value={briefContext.avoid} onChange={e => updateContext('avoid', e.target.value)} placeholder="Words, visual choices, claims, or approaches to avoid" />
+              </div>
             </div>
             <div className="field">
               <label className="field-label">Brief tags</label>
@@ -416,6 +463,24 @@ export default function PostJob() {
                 </div>
               </div>
             </div>
+            {Object.values(briefContext).some(Boolean) && (
+              <div>
+                <div className="h-eyebrow" style={{ marginBottom: 8 }}>Brief context</div>
+                <div className="grid-2" style={{ gap: 10 }}>
+                  {[
+                    ['Goal', briefContext.promotion_or_goal],
+                    ['Customers', briefContext.customer_profile],
+                    ['Style references', briefContext.style_references],
+                    ['Avoid', briefContext.avoid],
+                  ].filter(([, value]) => value).map(([label, value]) => (
+                    <div key={label} style={{ padding: 12, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}>
+                      <div className="h-eyebrow" style={{ marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -424,7 +489,7 @@ export default function PostJob() {
         <button className="btn ghost" onClick={() => step > 1 ? setStep(step - 1) : navigate('/jobs')}>
           <Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}
         </button>
-        <button className="btn primary" onClick={handlePrimaryAction} disabled={isPending}>
+        <button className="btn primary" onClick={handlePrimaryAction} disabled={isPending || (access && !access.can_draft_job)}>
           {isPending
             ? (isEditMode ? 'Saving...' : 'Posting...')
             : step < 3

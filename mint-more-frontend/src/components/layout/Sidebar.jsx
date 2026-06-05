@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import Icon from '../ui/Icon'
+import { useEntitlements } from '../../hooks/useEntitlements'
 
 export const CLIENT_NAV = [
   { route: '/dashboard',   icon: 'home',      label: 'Dashboard' },
@@ -9,6 +10,8 @@ export const CLIENT_NAV = [
   { route: '/jobs',        icon: 'briefcase', label: 'Jobs' },
   { route: '/mintbox',     icon: 'layers',    label: 'Mintbox' },
   { route: '/wallet',      icon: 'wallet',    label: 'Wallet' },
+  { route: '/membership',  icon: 'shield',    label: 'Membership' },
+  { route: '/onboarding',  icon: 'check',     label: 'Setup' },
   { route: '/freelancers', icon: 'user',      label: 'Marketplace' },
   { route: '/social',      icon: 'layers',    label: 'Social' },
   { route: '/ai',          icon: 'sparkles',  label: 'Mint AI' },
@@ -30,12 +33,14 @@ export const FREELANCER_NAV = [
 export const ADMIN_NAV = [
   { route: '/admin',           icon: 'home',     label: 'Overview' },
   { route: '/notifications',    icon: 'bell',     label: 'Inbox', showCount: true },
-  { route: '/admin/users',     icon: 'user',     label: 'Users' },
-  { route: '/admin/approvals', icon: 'zap',      label: 'Approvals' },
-  { route: '/chat',             icon: 'chat',     label: 'Chats' },
-  { route: '/admin/pricing',   icon: 'rupee',    label: 'Pricing' },
-  { route: '/admin/wallet',    icon: 'wallet',   label: 'Platform wallet' },
-  { route: '/admin/ai',        icon: 'sparkles', label: 'Mint AI' },
+  { route: '/admin/users',     icon: 'user',     label: 'Users', permission: 'users.manage' },
+  { route: '/admin/approvals', icon: 'zap',      label: 'Approvals', permission: 'deals.approve' },
+  { route: '/chat',             icon: 'chat',     label: 'Chats', permission: 'support.manage' },
+  { route: '/admin/pricing',   icon: 'rupee',    label: 'Pricing', permission: 'pricing.manage' },
+  { route: '/admin/commerce',  icon: 'settings', label: 'Commercial rules', permission: 'pricing.manage' },
+  { route: '/admin/wallet',    icon: 'wallet',   label: 'Platform wallet', permission: 'payments.manage' },
+  { route: '/admin/ai',        icon: 'sparkles', label: 'Mint AI', permission: 'pricing.manage' },
+  { route: '/admin/audit',     icon: 'shield',   label: 'Audit records', permission: 'audit.read' },
 ]
 
 export default function Sidebar({ role }) {
@@ -43,12 +48,17 @@ export default function Sidebar({ role }) {
   const location  = useLocation()
   const { user, logout } = useAuthStore()
   const unreadCount = useUIStore((s) => s.unreadCount)
+  const { data: access } = useEntitlements()
 
-  const items = role === 'admin'
+  const allItems = role === 'admin'
     ? ADMIN_NAV
     : role === 'freelancer'
     ? FREELANCER_NAV
     : CLIENT_NAV
+  const permissions = access?.admin_permissions || []
+  const items = role === 'admin'
+    ? allItems.filter(item => !item.permission || access?.is_super_admin || permissions.includes('*') || permissions.includes(item.permission))
+    : allItems
 
   return (
     <nav className="sidebar">

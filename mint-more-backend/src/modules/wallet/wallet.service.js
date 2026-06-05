@@ -2,6 +2,7 @@ const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { markSessionCompleted } = require('../whatsapp/conversation.service');
+const { writeAudit } = require('../audit/audit.service');
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -188,7 +189,17 @@ const getTransactions = async (userId, { page = 1, limit = 20, type } = {}) => {
  * @param {number} opts.amount
  * @param {object} [opts.dbClient]  - optional external tx client (if called inside one)
  */
-const holdEscrow = async ({ jobId, clientId, freelancerId, amount, dbClient: externalClient }) => {
+const holdEscrow = async ({
+  jobId,
+  clientId,
+  freelancerId,
+  amount,
+  freelancerPayout = amount,
+  platformRevenue = 0,
+  marginPercent = 0,
+  commissionPercent = 0,
+  dbClient: externalClient,
+}) => {
   const useExternal = !!externalClient;
   const dbClient    = externalClient || await getClient();
 
@@ -220,9 +231,13 @@ const holdEscrow = async ({ jobId, clientId, freelancerId, amount, dbClient: ext
     // Create escrow record
     await dbClient.query(
       `INSERT INTO escrow_records
-         (job_id, client_id, freelancer_id, amount, status, hold_tx_id)
-       VALUES ($1, $2, $3, $4, 'held', $5)`,
-      [jobId, clientId, freelancerId, amount, holdTx.id]
+         (job_id, client_id, freelancer_id, amount, freelancer_payout,
+          platform_revenue, margin_percent, commission_percent, status, hold_tx_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'held', $9)`,
+      [
+        jobId, clientId, freelancerId, amount, freelancerPayout,
+        platformRevenue, marginPercent, commissionPercent, holdTx.id,
+      ]
     );
 
     if (!useExternal) await dbClient.query('COMMIT');
@@ -277,7 +292,7 @@ const releaseEscrow = async (jobId, adminId, externalClient = null) => {
       walletId:      freelancerWallet.id,
       userId:        escrow.freelancer_id,
       type:          'escrow_release',
-      amount:        +escrow.amount,  // balance goes up
+      amount:        +escrow.freelancer_payout,  // balance goes up
       escrowDelta:   0,
       referenceId:   jobId,
       referenceType: 'job',
@@ -294,6 +309,27 @@ const releaseEscrow = async (jobId, adminId, externalClient = null) => {
        WHERE id = $2`,
       [freelancerCreditTx.id, escrow.id]
     );
+
+    if (Number(escrow.platform_revenue) > 0) {
+      await dbClient.query(
+        `INSERT INTO platform_financial_ledger
+           (type,amount,reference_id,reference_type,idempotency_key,description,metadata)
+         VALUES ('managed_job_revenue',$1,$2,'job',$3,$4,$5)
+         ON CONFLICT (idempotency_key) DO NOTHING`,
+        [
+          escrow.platform_revenue,
+          jobId,
+          `managed-job-revenue:${jobId}`,
+          'Managed job margin and freelancer commission',
+          JSON.stringify({
+            client_total: escrow.amount,
+            freelancer_payout: escrow.freelancer_payout,
+            margin_percent: escrow.margin_percent,
+            commission_percent: escrow.commission_percent,
+          }),
+        ]
+      );
+    }
 
     if (!useExternal) await dbClient.query('COMMIT');
 
@@ -754,6 +790,14 @@ const adminAdjustWallet = async (targetUserId, adminId, { amount, note }) => {
       adminId,
       amount,
       note,
+    });
+    await writeAudit({
+      actorId: adminId,
+      actorRole: 'admin',
+      action: 'wallet.adjusted',
+      entityType: 'wallet',
+      entityId: wallet.id,
+      afterState: { amount, new_balance: Number(updated.rows[0].balance), note },
     });
 
     return {

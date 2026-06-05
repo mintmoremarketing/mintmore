@@ -42,6 +42,20 @@ export default function ClientDashboard() {
 		queryFn: () => mintboxApi.getFolders().then((r) => r.data.data),
 	})
 
+	const { data: profileData } = useQuery({
+		queryKey: ['my-profile'],
+		queryFn: () => api.get('/profile/me').then((r) => r.data.data),
+	})
+	const profile = profileData?.profile || profileData || {}
+	const onboarding = profile.onboarding_checklist || {}
+	const onboardingItems = [
+		Boolean(onboarding.profile),
+		Boolean(onboarding.language),
+		Boolean(onboarding.social),
+		profile.kyc_status === 'verified',
+	]
+	const onboardingDone = onboardingItems.filter(Boolean).length
+
 	const activeJobs = jobsData?.jobs?.filter((j) =>
 		['matching', 'locked', 'negotiating', 'in_progress', 'assigned'].includes(j.status)
 	) || []
@@ -137,6 +151,24 @@ export default function ClientDashboard() {
 					))}
 				</div>
 			</div>
+
+			{onboardingDone < onboardingItems.length && (
+				<div className="card reveal" style={{ padding: 18 }}>
+					<div className="row between" style={{ gap: 16 }}>
+						<div style={{ flex: 1 }}>
+							<div className="h-eyebrow" style={{ marginBottom: 5 }}>Account setup</div>
+							<div style={{ fontSize: 16, fontWeight: 600 }}>Make Mint More work around your business</div>
+							<div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{onboardingDone} of {onboardingItems.length} setup steps complete</div>
+							<div style={{ height: 6, background: 'var(--hairline)', borderRadius: 3, overflow: 'hidden', marginTop: 10 }}>
+								<div style={{ width: `${(onboardingDone / onboardingItems.length) * 100}%`, height: '100%', background: 'var(--mint-500)' }} />
+							</div>
+						</div>
+						<button className="btn primary" onClick={() => navigate('/onboarding')}>
+							Continue setup <Icon name="arrowRight" size={12} />
+						</button>
+					</div>
+				</div>
+			)}
 
 			<div className="card reveal" data-d="2" style={{ padding: 18 }}>
 				<div className="row between" style={{ gap: 14, marginBottom: 14 }}>

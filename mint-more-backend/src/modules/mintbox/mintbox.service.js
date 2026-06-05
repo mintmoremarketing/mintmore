@@ -13,12 +13,28 @@ const logger = require('../../utils/logger');
 const notificationService = require('../notifications/notification.service');
 const { getWalletByUserId, recordTransaction, completeJob } = require('../wallet/wallet.service');
 const reviewService = require('../reviews/review.service');
+const { getSetting } = require('../commerce/settings.service');
+const { appendSystemMessageByJob } = require('../chat/chat.service');
 
 const BUCKET = env.supabase.mintboxBucket;
 const CLIENT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;
 const BYTES_PER_GB = 1024 * 1024 * 1024;
-const FREE_REVISION_ROUNDS = 3;
-const PAID_REVISION_PRICE = 20;
+const DEFAULT_REVISION_POLICY = { included_rounds: 3, paid_revision_price: 20, feedback_window_hours: 24 };
+
+const getRevisionPolicy = async (dbClient = null) => {
+  const configured = await getSetting('revisions', DEFAULT_REVISION_POLICY, dbClient);
+  return { ...DEFAULT_REVISION_POLICY, ...(configured || {}) };
+};
+
+const publishProjectActivity = (jobId, content) => {
+  setImmediate(async () => {
+    try {
+      await appendSystemMessageByJob(jobId, content);
+    } catch (err) {
+      logger.warn('[Mintbox] Project activity message failed', { jobId, error: err.message });
+    }
+  });
+};
 
 const makeToken = () => crypto.randomBytes(24).toString('base64url');
 const toSharedFile = (file) => ({
@@ -76,10 +92,11 @@ const getRevisionSummary = async (jobId) => {
     [jobId]
   );
   const rounds = result.rows;
+  const policy = await getRevisionPolicy();
   return {
     definition: 'One revision includes all client feedback submitted within a single 24-hour window after delivery.',
-    free_rounds: FREE_REVISION_ROUNDS,
-    paid_revision_price: PAID_REVISION_PRICE,
+    free_rounds: Number(policy.included_rounds),
+    paid_revision_price: Number(policy.paid_revision_price),
     completed_rounds: rounds.filter((round) => round.status === 'delivered').length,
     active_round: rounds.find((round) => round.status !== 'delivered') || null,
     rounds,
@@ -496,6 +513,12 @@ const completeUpload = async (uploadId, uploaderId, role) => {
         entityId: session.job_id,
         data: { job_id: session.job_id, revision_round: deliveredRevision?.round_number || null },
       });
+      publishProjectActivity(
+        session.job_id,
+        deliveredRevision
+          ? `Creative delivered revision ${deliveredRevision.round_number}: ${session.original_name}`
+          : `Creative delivered new work: ${session.original_name}`
+      );
     }
     return toSharedFile(inserted.rows[0]);
   } catch (err) {
@@ -623,6 +646,12 @@ const markSeen = async (jobId, requesterId, role) => {
     entityId: jobId,
     data: { job_id: jobId, seen_by_role: role },
   }));
+  if (result.rowCount > 0 || feedbackResult.rowCount > 0) {
+    publishProjectActivity(
+      jobId,
+      role === 'client' ? 'Client viewed the latest delivery.' : 'Creative viewed the latest feedback.'
+    );
+  }
   return { updated: result.rowCount };
 };
 
@@ -677,7 +706,10 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
           [file.job_id]
         );
         const roundNumber = Number(countResult.rows[0].count) + 1;
-        const charge = roundNumber > FREE_REVISION_ROUNDS ? PAID_REVISION_PRICE : 0;
+        const policy = await getRevisionPolicy(dbClient);
+        const charge = roundNumber > Number(policy.included_rounds)
+          ? Number(policy.paid_revision_price)
+          : 0;
 
         if (charge > 0) {
           const clientWallet = await getWalletByUserId(clientId, dbClient, true);
@@ -698,10 +730,13 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
           `INSERT INTO mintbox_revision_rounds
              (job_id, folder_id, client_id, freelancer_id, round_number,
               feedback_window_ends_at, charge_amount, charged_at)
-           VALUES ($1,$2,$3,$4,$5,NOW() + INTERVAL '24 hours',$6::NUMERIC,
+           VALUES ($1,$2,$3,$4,$5,NOW() + ($7 || ' hours')::interval,$6::NUMERIC,
                    CASE WHEN $6::NUMERIC > 0 THEN NOW() ELSE NULL END)
            RETURNING *`,
-          [file.job_id, file.folder_id, clientId, file.active_freelancer_id, roundNumber, charge]
+          [
+            file.job_id, file.folder_id, clientId, file.active_freelancer_id,
+            roundNumber, charge, Number(policy.feedback_window_hours),
+          ]
         );
         revision = created.rows[0];
       }
@@ -736,6 +771,12 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
       logger.info('[Mintbox] Revision requested', {
         jobId: file.job_id, fileId, revisionRound: revision.round_number, chargeAmount: revision.charge_amount,
       });
+      publishProjectActivity(
+        file.job_id,
+        `Client requested revision ${revision.round_number}${Number(revision.charge_amount) > 0 ? ` (paid revision: INR ${Number(revision.charge_amount).toLocaleString('en-IN')})` : ''}: ${String(note).trim()}`
+      );
+    } else {
+      publishProjectActivity(file.job_id, `Client approved delivery: ${file.original_name}`);
     }
   } catch (err) {
     await dbClient.query('ROLLBACK');
@@ -751,10 +792,10 @@ const completeProject = async (jobId, clientId, role, review = {}) => {
   if (role !== 'client') throw new AppError('Only the client can complete this project', 403);
 
   const ratings = [
-    review.rating_overall,
-    review.rating_communication,
     review.rating_quality,
-    review.rating_value,
+    review.brief_adherence_rating,
+    review.timeliness_rating,
+    review.rating_communication,
   ].map(Number);
   if (ratings.some((rating) => !Number.isInteger(rating) || rating < 1 || rating > 5)) {
     throw new AppError('Rate every category from 1 to 5 before completing the project', 400);
@@ -786,10 +827,12 @@ const completeProject = async (jobId, clientId, role, review = {}) => {
   const submittedReview = await reviewService.submitReview(clientId, {
     freelancer_id: job.active_freelancer_id,
     job_id: jobId,
-    rating_overall: ratings[0],
-    rating_communication: ratings[1],
-    rating_quality: ratings[2],
-    rating_value: ratings[3],
+    rating_overall: Math.round(ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length),
+    rating_quality: ratings[0],
+    brief_adherence_rating: ratings[1],
+    timeliness_rating: ratings[2],
+    rating_communication: ratings[3],
+    rating_value: ratings[1],
     review_text: String(review.review_text || '').trim() || null,
   });
   notificationService.createNotification({
@@ -801,6 +844,7 @@ const completeProject = async (jobId, clientId, role, review = {}) => {
     entityId: jobId,
     data: { job_id: jobId },
   });
+  publishProjectActivity(jobId, 'Client completed the project. Escrow was released and the review was submitted.');
 
   return { completion, review: submittedReview };
 };

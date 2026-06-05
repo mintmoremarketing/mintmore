@@ -22,7 +22,7 @@ export default function Chat() {
 	const { data: rooms = [], isLoading: roomsLoading } = useQuery({
 		queryKey: ['chat-rooms'],
 		queryFn: () => chatApi.rooms().then(res => res.data?.data?.rooms || []),
-		refetchInterval: 15_000,
+		refetchInterval: 60_000,
 	})
 	const selectedId = params.get('room') || rooms.find(room => room.job_id === params.get('job'))?.id || rooms[0]?.id || ''
 	const selectedRoom = rooms.find(room => room.id === selectedId)
@@ -50,7 +50,7 @@ export default function Chat() {
 		queryKey: ['chat', selectedId],
 		queryFn: () => chatApi.messages(selectedId, { limit: 100 }).then(res => res.data?.data),
 		enabled: Boolean(selectedId),
-		refetchInterval: 15_000,
+		refetchInterval: 60_000,
 	})
 	const messages = messageData?.messages || []
 

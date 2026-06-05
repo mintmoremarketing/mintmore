@@ -2,6 +2,7 @@ const { Router } = require('express');
 const controller = require('./mintbox.controller');
 const { authenticate } = require('../../middleware/authenticate');
 const { requireApproved } = require('../../middleware/requireApproved');
+const { requireEntitlement } = require('../../middleware/permissions');
 
 const router = Router();
 
@@ -12,7 +13,7 @@ router.get('/public/files/:token/content', controller.streamPublicFile);
 
 router.use(authenticate, requireApproved);
 
-router.get('/', controller.listFolders);
+router.get('/', requireEntitlement('can_access_mintbox'), controller.listFolders);
 router.get('/jobs/:jobId', controller.getProjectFolder);
 router.patch('/jobs/:jobId/seen', controller.markSeen);
 router.post('/jobs/:jobId/complete', controller.completeProject);

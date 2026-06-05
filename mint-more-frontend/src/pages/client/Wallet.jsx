@@ -6,6 +6,7 @@ import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
 import { rupee } from '../../utils/format'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { commerceApi } from '../../api/commerce'
 
 export default function Wallet() {
 	const setShowTopUp = useUIStore((s) => s.setShowTopUp)
@@ -19,6 +20,10 @@ export default function Wallet() {
 	const { data: txData } = useQuery({
 		queryKey: ['transactions', filter],
 		queryFn: () => walletApi.transactions(filter !== 'all' ? { type: filter } : {}).then((r) => r.data.data),
+	})
+	const { data: credits } = useQuery({
+		queryKey: ['mint-credits'],
+		queryFn: () => commerceApi.credits().then((r) => r.data.data),
 	})
 
 	const wallet = walletData?.wallet
@@ -47,12 +52,17 @@ export default function Wallet() {
 							{rupee((wallet?.balance || 0) + (wallet?.escrow_balance || 0))}
 						</div>
 					)}
-					<div className="row" style={{ gap: 20, marginTop: 22, fontSize: 12 }}>
+					<div className="row" style={{ gap: 20, marginTop: 22, fontSize: 12, flexWrap: 'wrap' }}>
 						<div>
 							<div style={{ color: 'rgba(255,255,255,0.5)' }}>Available</div>
 							<div className="mono" style={{ color: 'white', marginTop: 4, fontSize: 16, fontWeight: 500 }}>
 								{rupee(wallet?.balance || 0)}
 							</div>
+						</div>
+						<div style={{ width: 1, height: 26, background: 'rgba(255,255,255,0.1)' }} />
+						<div>
+							<div style={{ color: 'rgba(255,255,255,0.5)' }}>Mint Credits</div>
+							<div className="mono" style={{ color: 'white', marginTop: 4, fontSize: 16, fontWeight: 500 }}>{rupee(credits?.balance || 0)}</div>
 						</div>
 						<div style={{ width: 1, height: 26, background: 'rgba(255,255,255,0.1)' }} />
 						<div>

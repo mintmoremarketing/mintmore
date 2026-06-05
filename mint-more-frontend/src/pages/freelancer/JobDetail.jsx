@@ -441,6 +441,7 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 	})
 
 	const neg = negotiationData?.negotiation || job.negotiation
+	const economics = negotiationData?.economics
 	const getSender = (round) => round?.sender_role || round?.sender
 	const rounds = neg?.rounds || []
 	const lastRound = rounds[rounds.length - 1]
@@ -448,6 +449,8 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 	const isMyTurn = !pendingCounter && neg?.status === 'active' && lastSender === 'client'
 	const maxRounds = Math.max(Number(neg?.max_rounds) || 0, NEGOTIATION_MAX_ROUNDS)
 	const currentRound = neg?.current_round || Math.max(1, rounds.length)
+	const canAccept = currentRound >= maxRounds
+	const canCounter = currentRound < maxRounds
 
 	useEffect(() => {
 		if (pendingCounter && lastSender === 'freelancer') {
@@ -557,17 +560,26 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 				</div>
 			)}
 
+			{economics && (
+				<div className="row between" style={{ padding: '11px 13px', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)', fontSize: 12.5 }}>
+					<span className="muted">Your payout after commission ({economics.commission_percent || 0}%)</span>
+					<strong className="mono">{rupee(economics.freelancer_net_payout)}</strong>
+				</div>
+			)}
+
 			{isMyTurn && !showCounter && (
 				<div style={{ padding: 14, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
 					<div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 12 }}>
 						Client countered: {rupee(lastRound.proposed_price)} - {lastRound.proposed_days} days
 					</div>
 					<div className="row" style={{ gap: 8 }}>
-						<button className="btn primary" onClick={() => acceptMutation.mutate()} disabled={acceptMutation.isPending}>
-							<Icon name="check" size={13} />
-							{acceptMutation.isPending ? 'Accepting...' : 'Accept'}
-						</button>
-						{currentRound < maxRounds && (
+						{canAccept && (
+							<button className="btn primary" onClick={() => acceptMutation.mutate()} disabled={acceptMutation.isPending}>
+								<Icon name="check" size={13} />
+								{acceptMutation.isPending ? 'Accepting...' : 'Accept final offer'}
+							</button>
+						)}
+						{canCounter && (
 							<button className="btn ghost" onClick={() => setShowCounter(true)}>Counter</button>
 						)}
 						<button className="btn ghost" style={{ color: 'var(--rose)' }} onClick={() => rejectMutation.mutate()} disabled={rejectMutation.isPending}>

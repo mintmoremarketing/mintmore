@@ -2,6 +2,7 @@ const { Router } = require('express');
 const controller = require('./negotiation.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
 const { requireApproved } = require('../../middleware/requireApproved');
+const { requirePermission } = require('../../middleware/permissions');
 
 const router = Router();
 
@@ -62,6 +63,7 @@ router.get(
 router.get(
   '/admin/pending-approvals',
   authorize('admin'),
+  requirePermission('deals.approve'),
   controller.getAdminPendingApprovals
 );
 
@@ -69,6 +71,7 @@ router.get(
 router.post(
   '/admin/jobs/:jobId/approve-deal',
   authorize('admin'),
+  requirePermission('deals.approve'),
   controller.adminApproveDeal
 );
 
@@ -76,6 +79,7 @@ router.post(
 router.post(
   '/admin/jobs/:jobId/reject-deal',
   authorize('admin'),
+  requirePermission('deals.approve'),
   controller.adminRejectDeal
 );
 

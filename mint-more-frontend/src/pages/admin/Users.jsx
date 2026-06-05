@@ -97,7 +97,16 @@ function WalletAdjustModal({ user, onClose }) {
 function CreateAdminModal({ onClose }) {
   const queryClient = useQueryClient()
   const pushToast = useUIStore(s => s.pushToast)
-  const [form, setForm] = useState({ full_name: '', email: '', password: '' })
+  const [form, setForm] = useState({ full_name: '', email: '', password: '', permissions: [] })
+  const permissionOptions = [
+    ['users.manage', 'Users and KYC'],
+    ['matching.manage', 'Matching and creators'],
+    ['deals.approve', 'Deal approvals'],
+    ['payments.manage', 'Payments and payouts'],
+    ['support.manage', 'Support and disputes'],
+    ['pricing.manage', 'AI and pricing'],
+    ['audit.read', 'Audit records'],
+  ]
 
   const createAdmin = useMutation({
     mutationFn: () => api.post('/admin/users/admin', form),
@@ -146,6 +155,23 @@ function CreateAdminModal({ onClose }) {
             onChange={e => updateField('full_name', e.target.value)}
             placeholder="e.g. Priya Admin"
           />
+        </div>
+        <div className="field">
+          <label className="field-label">Permissions</label>
+          <div className="grid-2" style={{ gap: 8 }}>
+            {permissionOptions.map(([value, label]) => (
+              <label key={value} className="row" style={{ gap: 7, padding: 9, border: '1px solid var(--hairline)' }}>
+                <input
+                  type="checkbox"
+                  checked={form.permissions.includes(value)}
+                  onChange={e => updateField('permissions', e.target.checked
+                    ? [...form.permissions, value]
+                    : form.permissions.filter(permission => permission !== value))}
+                />
+                <span style={{ fontSize: 12 }}>{label}</span>
+              </label>
+            ))}
+          </div>
         </div>
         <div className="field">
           <label className="field-label">Email</label>

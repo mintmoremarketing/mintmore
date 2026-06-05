@@ -134,6 +134,13 @@ const adminUpdateJobStatus = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const approveProMatching = async (req, res, next) => {
+  try {
+    const job = await jobService.approveProMatching(req.params.id, req.user.sub);
+    return sendSuccess(res, { data: { job }, message: 'Pro matching approved' });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   createJob,
   createJobAsDraft,
@@ -146,4 +153,5 @@ module.exports = {
   getJobById,
   adminListAllJobs,
   adminUpdateJobStatus,
+  approveProMatching,
 };

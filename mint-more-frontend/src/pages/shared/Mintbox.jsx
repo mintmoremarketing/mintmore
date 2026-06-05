@@ -75,10 +75,10 @@ export default function Mintbox() {
 	const [approvedFileId, setApprovedFileId] = useState(null)
 	const [showRating, setShowRating] = useState(false)
 	const [completionReview, setCompletionReview] = useState({
-		rating_overall: 0,
-		rating_communication: 0,
 		rating_quality: 0,
-		rating_value: 0,
+		brief_adherence_rating: 0,
+		timeliness_rating: 0,
+		rating_communication: 0,
 		review_text: '',
 	})
 	const [uploadState, setUploadState] = useState({ status: 'idle', progress: 0, file: null, error: '', uploadId: null })
@@ -416,7 +416,7 @@ export default function Mintbox() {
 					<button
 						className="btn primary"
 						onClick={() => completeMutation.mutate()}
-						disabled={completeMutation.isPending || ['rating_overall', 'rating_communication', 'rating_quality', 'rating_value'].some(key => !completionReview[key])}
+						disabled={completeMutation.isPending || ['rating_quality', 'brief_adherence_rating', 'timeliness_rating', 'rating_communication'].some(key => !completionReview[key])}
 					>
 						<Icon name="check" size={13} /> {completeMutation.isPending ? 'Completing...' : 'Submit review & release escrow'}
 					</button>
@@ -425,10 +425,10 @@ export default function Mintbox() {
 		>
 			<div className="stack" style={{ gap: 14 }}>
 				{[
-					['rating_overall', 'Overall experience'],
-					['rating_communication', 'Communication'],
 					['rating_quality', 'Quality of work'],
-					['rating_value', 'Value'],
+					['brief_adherence_rating', 'Brief adherence'],
+					['timeliness_rating', 'Timeliness'],
+					['rating_communication', 'Communication'],
 				].map(([key, label]) => (
 					<div className="row between" key={key} style={{ gap: 16 }}>
 						<span style={{ fontSize: 13 }}>{label}</span>

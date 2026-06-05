@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const controller = require('./ai.controller');
 const { authenticate } = require('../../middleware/authenticate');
+const { requireEntitlement } = require('../../middleware/permissions');
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.get('/models/:modelId/traffic', controller.getSingleModelTraffic);
 // ── Generation ────────────────────────────────────────────────────────────────
 
 // POST /api/v1/ai/generate                       — create generation (all tools)
-router.post('/generate', controller.generate);
+router.post('/generate', requireEntitlement('can_use_ai'), controller.generate);
 
 // GET  /api/v1/ai/generations                    — history
 router.get('/generations', controller.getMyGenerations);

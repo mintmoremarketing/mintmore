@@ -2,6 +2,7 @@ const { Router } = require('express');
 const controller = require('./kyc.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
 const { upload, handleUploadError } = require('../../middleware/upload');
+const { requirePermission } = require('../../middleware/permissions');
 
 const router = Router();
 
@@ -40,6 +41,7 @@ router.post(
 router.get(
   '/admin/pending',
   authorize('admin'),
+  requirePermission('users.manage'),
   controller.getPendingSubmissions
 );
 
@@ -47,6 +49,7 @@ router.get(
 router.patch(
   '/admin/review/:submissionId',
   authorize('admin'),
+  requirePermission('users.manage'),
   controller.reviewSubmission
 );
 

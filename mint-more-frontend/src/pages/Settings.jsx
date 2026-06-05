@@ -33,7 +33,7 @@ export default function Settings() {
     queryFn: () => api.get('/profile/me').then(r => r.data.data),
   })
 
-  const profile = profileData?.user || profileData || {}
+  const profile = profileData?.profile || profileData?.user || profileData || {}
 
   useEffect(() => {
     if (profile.full_name)      setFullName(profile.full_name)
@@ -56,7 +56,7 @@ export default function Settings() {
       address_state:    state || undefined,
     }),
     onSuccess: (res) => {
-      const updatedUser = res.data.data?.user || res.data.data
+      const updatedUser = res.data.data?.profile || res.data.data?.user || res.data.data
       if (updatedUser) {
         setAuth({ ...user, ...updatedUser }, accessToken, refreshToken)
       }
@@ -76,7 +76,7 @@ export default function Settings() {
       })
     },
     onSuccess: (res) => {
-      const url = res.data.data?.avatar_url
+      const url = res.data.data?.profile?.avatar_url || res.data.data?.avatar_url
       if (url) setAvatarPreview(url)
       pushToast({ title: 'Avatar updated!', icon: 'check' })
       queryClient.invalidateQueries({ queryKey: ['my-profile'] })

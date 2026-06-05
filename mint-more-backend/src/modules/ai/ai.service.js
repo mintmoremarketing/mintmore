@@ -17,6 +17,12 @@ const { uploadFile }         = require('../../config/supabase');
 const AppError  = require('../../utils/AppError');
 const logger    = require('../../utils/logger');
 const env       = require('../../config/env');
+const {
+  recordCreditTransaction,
+  getCreditAccount,
+  expireCreditsForUser,
+} = require('../commerce/credits.service');
+const { getSetting } = require('../commerce/settings.service');
 
 const RATE_LIMIT_KEY      = (userId) => `ai:ratelimit:${userId}`;
 const AI_PROGRESS_CHANNEL = 'mint_more:ai_progress';
@@ -82,27 +88,76 @@ const checkRateLimit = async (userId) => {
   return { count, limit, remaining: limit - count };
 };
 
+const assertIncludedQuota = async (userId, toolType, model) => {
+  if (Number(model.cost_per_1k_tokens || 0) > 0) return;
+  const membershipResult = await query(
+    'SELECT status, current_period_start FROM memberships WHERE user_id = $1',
+    [userId]
+  );
+  const membership = membershipResult.rows[0];
+  if (!membership) throw new AppError('AI access requires a membership or trial', 403);
+
+  const isTrial = membership.status === 'trial';
+  const quota = await getSetting(isTrial ? 'membership.trial' : 'ai.quotas', {});
+  const group = toolType === 'image' ? 'image' : toolType === 'video' ? 'video' : 'text';
+  const limit = Number(quota[`${group}_generations`] || 0);
+  if (!limit) throw new AppError(`No included ${group} generations are configured`, 403);
+
+  const tools = group === 'text' ? ['text', 'caption', 'video_script', 'repurpose'] : [group];
+  const usage = await query(
+    `SELECT COUNT(*)::int AS count
+     FROM ai_generations
+     WHERE user_id = $1
+       AND tool_type = ANY($2::text[])
+       AND created_at >= COALESCE($3::timestamptz, date_trunc('month', NOW()))
+       AND status <> 'failed'`,
+    [userId, tools, isTrial ? membership.current_period_start : null]
+  );
+  if (usage.rows[0].count >= limit) {
+    throw new AppError(`Included ${group} generation quota reached. Choose a premium model or wait for renewal.`, 402);
+  }
+};
+
 // ── Credit Deduction ──────────────────────────────────────────────────────────
 
 const deductCredits = async (userId, generationId, creditCost) => {
   if (creditCost <= 0) return;
 
+  await expireCreditsForUser(userId);
   const dbClient = await getClient();
   try {
     await dbClient.query('BEGIN');
+
+    const creditAccount = await getCreditAccount(userId, dbClient, true);
+    const creditSpend = Math.min(Number(creditAccount.balance), Number(creditCost));
+    if (creditSpend > 0) {
+      await recordCreditTransaction(dbClient, {
+        userId,
+        type: 'platform_spend',
+        amount: -creditSpend,
+        referenceId: generationId,
+        referenceType: 'ai_generation',
+        idempotencyKey: `ai-credit:${generationId}`,
+        description: 'Mint AI generation',
+      });
+    }
+    const cashSpend = Number(creditCost) - creditSpend;
+    if (cashSpend <= 0) {
+      await dbClient.query('COMMIT');
+      return;
+    }
 
     const walletResult = await dbClient.query(
       'SELECT * FROM wallets WHERE user_id = $1 FOR UPDATE',
       [userId]
     );
     const wallet = walletResult.rows[0];
-    if (!wallet || parseFloat(wallet.balance) < creditCost) {
-      await dbClient.query('ROLLBACK');
+    if (!wallet || parseFloat(wallet.balance) < cashSpend) {
+      throw new AppError('Insufficient balance for this AI generation', 402);
       logger.warn('Credit deduction skipped — insufficient balance', { userId, creditCost });
-      return;
     }
 
-    const newBalance = parseFloat(wallet.balance) - creditCost;
+    const newBalance = parseFloat(wallet.balance) - cashSpend;
     await dbClient.query('UPDATE wallets SET balance = $1 WHERE id = $2', [newBalance, wallet.id]);
 
     await dbClient.query(
@@ -112,7 +167,7 @@ const deductCredits = async (userId, generationId, creditCost) => {
           reference_id, reference_type, description)
        VALUES ($1,$2,'adjustment',$3,'INR',$4,$5,$6,'ai_generation','AI credit deduction')`,
       [
-        wallet.id, userId, -creditCost,
+        wallet.id, userId, -cashSpend,
         newBalance, parseFloat(wallet.escrow_balance),
         generationId,
       ]
@@ -122,6 +177,7 @@ const deductCredits = async (userId, generationId, creditCost) => {
   } catch (err) {
     await dbClient.query('ROLLBACK');
     logger.error('Credit deduction failed', { error: err.message });
+    throw err;
   } finally {
     dbClient.release();
   }
@@ -159,16 +215,22 @@ const createGeneration = async (userId, {
     throw new AppError(`Model "${model.name}" does not support ${tool_type}`, 400);
   }
 
+  await assertIncludedQuota(userId, tool_type, model);
   await checkRateLimit(userId);
 
   // Credit preflight check
   if (parseFloat(model.cost_per_1k_tokens) > 0) {
+    await expireCreditsForUser(userId);
     const walletResult = await query(
-      'SELECT balance FROM wallets WHERE user_id = $1',
+      `SELECT w.balance AS cash_balance, COALESCE(c.balance, 0) AS credit_balance
+       FROM wallets w
+       LEFT JOIN mint_credit_accounts c ON c.user_id = w.user_id
+       WHERE w.user_id = $1`,
       [userId]
     );
     const minRequired = parseFloat(model.cost_per_1k_tokens);
-    if (!walletResult.rows[0] || parseFloat(walletResult.rows[0].balance) < minRequired) {
+    const available = Number(walletResult.rows[0]?.cash_balance || 0) + Number(walletResult.rows[0]?.credit_balance || 0);
+    if (available < minRequired) {
       throw new AppError(
         `Insufficient wallet balance. This model costs ₹${(minRequired / 100).toFixed(2)} per 1K tokens. Add credits to continue.`,
         402

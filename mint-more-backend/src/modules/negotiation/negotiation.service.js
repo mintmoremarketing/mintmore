@@ -1,11 +1,13 @@
 const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
+const { calculateManagedDeal } = require('../commerce/economics.service');
 const logger   = require('../../utils/logger');
 const triggers = require('../notifications/notification.triggers');
 const { holdEscrow, getWalletByUserId } = require('../wallet/wallet.service');
 const { createChatRoom } = require('../chat/chat.service');
+const { writeAudit } = require('../audit/audit.service');
 
-const MAX_ROUNDS = 6;
+const MAX_ROUNDS = 4;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -58,6 +60,17 @@ const getActiveNegotiation = async (jobId) => {
   return result.rows[0] || null;
 };
 
+const redactNegotiationForClient = (negotiation) => {
+  if (!negotiation) return negotiation;
+  const {
+    freelancer_id,
+    client_id,
+    approved_by,
+    ...safeNegotiation
+  } = negotiation;
+  return safeNegotiation;
+};
+
 const isMatchedCandidate = async (jobId, freelancerId) => {
   const result = await query(
     `SELECT id
@@ -77,20 +90,27 @@ const normalizeFreelancerLevel = (level) => {
 
 const formatAmount = (amount) => Number(amount).toLocaleString('en-IN');
 
-const ensureClientCanFundOffer = async (dbClient, clientId, amount) => {
+const ensureClientCanFundOffer = async (dbClient, clientId, amount, job) => {
   const price = Number(amount);
   if (!Number.isFinite(price) || price <= 0) {
     throw new AppError('proposed_price must be a valid positive amount', 400);
   }
 
+  const economics = await calculateManagedDeal({
+    freelancerId: job.active_freelancer_id,
+    freelancerPayout: price,
+    pricingMode: job.pricing_mode,
+  }, dbClient);
+  const required = economics.client_total;
   const wallet = await getWalletByUserId(clientId, dbClient, true);
   const balance = Number(wallet.balance);
-  if (balance < price) {
+  if (balance < required) {
     throw new AppError(
-      `Add funds to your wallet before making this offer. Required: INR ${formatAmount(price)}, Available: INR ${formatAmount(balance)}`,
+      `Add funds to your wallet before making this offer. Required including Mint More service: INR ${formatAmount(required)}, Available: INR ${formatAmount(balance)}`,
       400
     );
   }
+  return economics;
 };
 
 const validateFreelancerOfferPrice = async (client, freelancerId, job, proposedPrice) => {
@@ -398,6 +418,10 @@ const clientRespond = async (clientId, jobId, {
     const negotiation = negResult.rows[0];
     if (!negotiation) throw new AppError('No active negotiation found', 404);
 
+    if (action === 'accept') {
+      throw new AppError('The client sends the final offer; the creative accepts or rejects it', 409);
+    }
+
     // ── ACCEPT ─────────────────────────────────────────────────────────────
     if (action === 'accept') {
       const lastRound = await dbClient.query(
@@ -418,7 +442,7 @@ const clientRespond = async (clientId, jobId, {
       const agreedPrice = lastRound.rows[0].proposed_price;
       const agreedDays  = lastRound.rows[0].proposed_days;
 
-      await ensureClientCanFundOffer(dbClient, clientId, agreedPrice);
+      await ensureClientCanFundOffer(dbClient, clientId, agreedPrice, job);
 
       await dbClient.query(
         `UPDATE negotiations
@@ -471,6 +495,7 @@ const clientRespond = async (clientId, jobId, {
           rejected_by:      'client',
           fallback:         fallbackResult,
         });
+        await triggers.notifyPromotedPrimary(job, fallbackResult);
       } catch (err) { logger.error('Notification trigger failed: clientRespond reject', { error: err.message }); }
     });
 
@@ -496,7 +521,11 @@ const clientRespond = async (clientId, jobId, {
         throw new AppError('Wait for the creative to respond before sending another counter', 409);
       }
 
-      await ensureClientCanFundOffer(dbClient, clientId, proposed_price);
+      if (![1, 3].includes(Number(negotiation.current_round))) {
+        throw new AppError('This counter is stale or it is not the client turn', 409);
+      }
+
+      await ensureClientCanFundOffer(dbClient, clientId, proposed_price, job);
 
       const nextRound = negotiation.current_round + 1;
 
@@ -596,6 +625,13 @@ const freelancerRespond = async (freelancerId, jobId, {
     const negotiation = negResult.rows[0];
     if (!negotiation) throw new AppError('No active negotiation found', 404);
 
+    if (Number(negotiation.current_round) < MAX_ROUNDS && action === 'accept') {
+      throw new AppError('The creative can accept only the client final offer', 409);
+    }
+    if (Number(negotiation.current_round) >= MAX_ROUNDS && action === 'counter') {
+      throw new AppError('The final client offer can only be accepted or rejected', 409);
+    }
+
     // ── ACCEPT ─────────────────────────────────────────────────────────────
     if (action === 'accept') {
       const lastRound = await dbClient.query(
@@ -616,7 +652,7 @@ const freelancerRespond = async (freelancerId, jobId, {
       const agreedPrice = lastRound.rows[0].proposed_price;
       const agreedDays  = lastRound.rows[0].proposed_days;
 
-      await ensureClientCanFundOffer(dbClient, job.client_id, agreedPrice);
+      await ensureClientCanFundOffer(dbClient, job.client_id, agreedPrice, job);
 
       await dbClient.query(
         `UPDATE negotiations
@@ -669,6 +705,7 @@ const freelancerRespond = async (freelancerId, jobId, {
           rejected_by:      'freelancer',
           fallback:         fallbackResult,
         });
+        await triggers.notifyPromotedPrimary(job, fallbackResult);
       } catch (err) { logger.error('Notification trigger failed: freelancerRespond reject', { error: err.message }); }
     });
 
@@ -699,6 +736,10 @@ const freelancerRespond = async (freelancerId, jobId, {
       await validateFreelancerOfferPrice(dbClient, freelancerId, job, proposed_price);
 
       const nextRound = negotiation.current_round + 1;
+
+      if (Number(negotiation.current_round) !== 2) {
+        throw new AppError('This counter is stale or it is not the creative turn', 409);
+      }
 
       if (nextRound > MAX_ROUNDS) {
         throw new AppError(
@@ -738,6 +779,7 @@ const freelancerRespond = async (freelancerId, jobId, {
           recipientUserId: job.client_id,
           round_number:    nextRound,
           proposed_price,
+          maskSender:       true,
         });
       } catch (err) { logger.error('Notification trigger failed: freelancerRespond counter', { error: err.message }); }
     });
@@ -873,11 +915,21 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
       throw new AppError('No agreed negotiation found for this job', 404);
     }
 
+    const economics = await calculateManagedDeal({
+      freelancerId: negotiation.freelancer_id,
+      freelancerPayout: negotiation.agreed_price,
+      pricingMode: job.pricing_mode,
+    }, dbClient);
+
     await holdEscrow({
       jobId,
       clientId:     negotiation.client_id,
       freelancerId: negotiation.freelancer_id,
-      amount:       parseFloat(negotiation.agreed_price),
+      amount:       economics.client_total,
+      freelancerPayout: economics.freelancer_net_payout,
+      platformRevenue: economics.platform_revenue,
+      marginPercent: economics.margin_percent,
+      commissionPercent: economics.commission_percent,
       dbClient,
     });
 
@@ -909,9 +961,16 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
            assigned_at      = NOW(),
            deal_approved_by = $1,
            deal_approved_at = NOW(),
-           admin_note       = $2
+           admin_note       = $2,
+           platform_margin_percent = $4,
+           freelancer_payout = $5,
+           client_total = $6,
+           brief_locked_at = COALESCE(brief_locked_at, NOW())
        WHERE id = $3`,
-      [adminId, admin_note || null, jobId]
+      [
+        adminId, admin_note || null, jobId, economics.margin_percent,
+        economics.freelancer_net_payout, economics.client_total,
+      ]
     );
 
     // Increment freelancer workload counter
@@ -921,6 +980,23 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
        WHERE id = $1`,
       [negotiation.freelancer_id]
     );
+
+    await writeAudit({
+      actorId: adminId,
+      actorRole: 'admin',
+      action: 'deal.approved',
+      entityType: 'job',
+      entityId: jobId,
+      beforeState: { status: job.status },
+      afterState: {
+        status: 'assigned',
+        freelancer_id: negotiation.freelancer_id,
+        agreed_price: negotiation.agreed_price,
+        client_total: economics.client_total,
+        freelancer_payout: economics.freelancer_net_payout,
+        platform_revenue: economics.platform_revenue,
+      },
+    }, dbClient);
 
     await dbClient.query('COMMIT');
     // Hold escrow from client wallet — non-blocking, post-commit
@@ -1000,6 +1076,7 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
       assignment:   assignResult.rows[0],
       agreed_price: negotiation.agreed_price,
       agreed_days:  negotiation.agreed_days,
+      economics,
     };
   } catch (err) {
     await dbClient.query('ROLLBACK');
@@ -1038,6 +1115,17 @@ const adminRejectDeal = async (jobId, adminId, { admin_note }) => {
 
     const fallbackResult = await triggerFallback(dbClient, job);
 
+    await writeAudit({
+      actorId: adminId,
+      actorRole: 'admin',
+      action: 'deal.rejected',
+      entityType: 'job',
+      entityId: jobId,
+      beforeState: { status: job.status },
+      afterState: { fallback: fallbackResult },
+      metadata: { admin_note: admin_note || null },
+    }, dbClient);
+
     await dbClient.query('COMMIT');
     setImmediate(async () => {
       try {
@@ -1054,6 +1142,7 @@ const adminRejectDeal = async (jobId, adminId, { admin_note }) => {
             fallback:         fallbackResult,
           });
         }
+        await triggers.notifyPromotedPrimary(job, fallbackResult);
       } catch (err) { logger.error('Notification trigger failed: adminRejectDeal', { error: err.message }); }
     });
 
@@ -1167,6 +1256,7 @@ const respondToAssignment = async (freelancerId, jobId, { action, note }) => {
           clientUserId:    jobRow.rows[0].client_id,
           fallback:        fallbackResult,
         });
+        await triggers.notifyPromotedPrimary(jobRow.rows[0], fallbackResult);
       } catch (err) { logger.error('Notification trigger failed: respondToAssignment decline', { error: err.message }); }
     });
 
@@ -1191,7 +1281,7 @@ const getNegotiationStatus = async (jobId, requesterId, requesterRole) => {
        j.id, j.title, j.status,
        j.active_freelancer_id, j.backup_freelancer_id,
        j.locked_at, j.negotiation_rounds,
-       j.client_id
+       j.client_id, j.pricing_mode
      FROM   jobs j
      WHERE  j.id = $1`,
     [jobId]
@@ -1212,6 +1302,13 @@ const getNegotiationStatus = async (jobId, requesterId, requesterRole) => {
   }
 
   const negotiation = await getActiveNegotiation(jobId);
+  const economics = negotiation?.freelancer_id && negotiation?.rounds?.length
+    ? await calculateManagedDeal({
+      freelancerId: negotiation.freelancer_id,
+      freelancerPayout: negotiation.agreed_price || negotiation.rounds[negotiation.rounds.length - 1]?.proposed_price,
+      pricingMode: jobRow.pricing_mode,
+    })
+    : null;
 
   const candidates = await query(
     `SELECT
@@ -1224,9 +1321,24 @@ const getNegotiationStatus = async (jobId, requesterId, requesterRole) => {
     [jobId]
   );
 
+  const visibleJob = requesterRole === 'client'
+    ? {
+      id: jobRow.id,
+      title: jobRow.title,
+      status: jobRow.status,
+      locked_at: jobRow.locked_at,
+      negotiation_rounds: jobRow.negotiation_rounds,
+      pricing_mode: jobRow.pricing_mode,
+      has_active_creative: Boolean(jobRow.active_freelancer_id),
+    }
+    : jobRow;
+
   return {
-    job:         jobRow,
-    negotiation: negotiation || null,
+    job:         visibleJob,
+    negotiation: requesterRole === 'client'
+      ? redactNegotiationForClient(negotiation)
+      : negotiation || null,
+    economics,
     // Candidates list only exposed to admin
     candidates:  requesterRole === 'admin' ? candidates.rows : undefined,
   };
@@ -1241,6 +1353,7 @@ const getAdminPendingApprovals = async ({ page = 1, limit = 20 } = {}) => {
        j.title,
        j.status,
        j.budget_amount,
+       j.pricing_mode,
        j.active_freelancer_id,
        j.locked_at,
        n.id              AS negotiation_id,
@@ -1275,7 +1388,7 @@ const getAdminPendingApprovals = async ({ page = 1, limit = 20 } = {}) => {
      WHERE j.status = 'pending_admin_approval'`
   );
 
-  const negotiations = result.rows.map(row => ({
+  const negotiations = await Promise.all(result.rows.map(async row => ({
     id: row.negotiation_id,
     negotiation_id: row.negotiation_id,
     job_id: row.job_id,
@@ -1312,7 +1425,12 @@ const getAdminPendingApprovals = async ({ page = 1, limit = 20 } = {}) => {
     freelancer_email: row.freelancer_email,
     freelancer_level: row.freelancer_level,
     budget_amount: row.budget_amount,
-  }));
+    economics: await calculateManagedDeal({
+      freelancerId: row.active_freelancer_id,
+      freelancerPayout: row.agreed_price,
+      pricingMode: row.pricing_mode,
+    }),
+  })));
 
   return {
     pending: negotiations,

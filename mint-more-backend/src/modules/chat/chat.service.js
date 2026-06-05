@@ -152,24 +152,33 @@ const getMessages = async (roomId, requesterId, requesterRole, { page = 1, limit
   // Mark messages as read
   setImmediate(async () => {
     try {
+      let readResult = { rows: [] };
       if (requesterRole === 'client') {
-        await query(
+        readResult = await query(
           `UPDATE messages
            SET read_by_client = true, read_at_client = NOW()
            WHERE room_id = $1
              AND sender_role != 'client'
-             AND read_by_client = false`,
+             AND read_by_client = false
+           RETURNING id`,
           [roomId]
         );
       } else if (requesterRole === 'freelancer') {
-        await query(
+        readResult = await query(
           `UPDATE messages
            SET read_by_freelancer = true, read_at_freelancer = NOW()
            WHERE room_id = $1
              AND sender_role != 'freelancer'
-             AND read_by_freelancer = false`,
+             AND read_by_freelancer = false
+           RETURNING id`,
           [roomId]
         );
+      }
+      if (readResult.rows.length) {
+        await publishRoomEvent(roomId, 'chat_read', {
+          readerRole: requesterRole,
+          messageIds: readResult.rows.map((row) => row.id),
+        });
       }
     } catch (err) {
       logger.warn('Failed to mark messages as read', { roomId, error: err.message });
@@ -283,6 +292,30 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
   }
 
   return message;
+};
+
+const appendSystemMessageByJob = async (jobId, content) => {
+  const roomResult = await query(
+    'SELECT id FROM chat_rooms WHERE job_id = $1 AND is_active = true',
+    [jobId]
+  );
+  const room = roomResult.rows[0];
+  if (!room) return null;
+  const result = await query(
+    `INSERT INTO messages
+       (room_id, sender_id, sender_role, content, channel, read_by_client, read_by_freelancer)
+     VALUES ($1, NULL, 'system', $2, 'web', false, false)
+     RETURNING *`,
+    [room.id, content]
+  );
+  await query(
+    `UPDATE chat_rooms
+     SET last_message_at = NOW(), last_message_preview = $1
+     WHERE id = $2`,
+    [content.slice(0, 100), room.id]
+  );
+  await publishMessageToRoom(room.id, result.rows[0], 'system');
+  return result.rows[0];
 };
 
 /**
@@ -456,7 +489,7 @@ const getPresence = async (userId) => {
 
 const CHAT_REDIS_CHANNEL = 'mint_more:chat';
 
-const publishMessageToRoom = async (roomId, message, senderRole) => {
+const publishRoomEvent = async (roomId, eventType, payload = {}) => {
   try {
     const recipients = await query(
       `SELECT client_id AS user_id FROM chat_rooms WHERE id = $1
@@ -469,12 +502,15 @@ const publishMessageToRoom = async (roomId, message, senderRole) => {
     const redis = getRedis();
     await redis.publish(
       CHAT_REDIS_CHANNEL,
-      JSON.stringify({ roomId, message, senderRole, recipientIds: recipients.rows.map((row) => row.user_id) })
+      JSON.stringify({ eventType, roomId, ...payload, recipientIds: recipients.rows.map((row) => row.user_id) })
     );
   } catch (err) {
     logger.warn('Chat Redis publish failed', { roomId, error: err.message });
   }
 };
+
+const publishMessageToRoom = (roomId, message, senderRole) =>
+  publishRoomEvent(roomId, 'chat_message', { message, senderRole });
 
 // ── Admin: seed WhatsApp numbers ──────────────────────────────────────────────
 
@@ -510,6 +546,7 @@ module.exports = {
   getMyRooms,
   getMessages,
   sendMessage,
+  appendSystemMessageByJob,
   receiveWhatsAppMessage,
   setOnline,
   setOffline,

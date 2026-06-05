@@ -2,6 +2,7 @@ const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { hashPassword } = require('../../utils/hash');
+const { writeAudit } = require('../audit/audit.service');
 
 // ── User Management ───────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ const getUsers = async ({ page = 1, limit = 20, role, is_approved, search } = {}
     `SELECT
        id, email, phone, full_name, role, avatar_url,
        is_active, is_approved, approved_at,
+       admin_permissions, is_super_admin,
        kyc_status, kyc_level,
        freelancer_level, is_available,
        jobs_completed_count, average_rating,
@@ -77,6 +79,7 @@ const getUserById = async (userId) => {
        bio, skills, gender, date_of_birth,
        address_city, address_state, country,
        is_active, is_approved, approved_at, approved_by,
+       admin_permissions, is_super_admin,
        kyc_status, kyc_level,
        freelancer_level, level_set_by_admin,
        is_available, jobs_completed_count, average_rating,
@@ -118,11 +121,19 @@ const setUserApproval = async (targetUserId, adminId, { is_approved }) => {
     adminId,
     is_approved,
   });
+  await writeAudit({
+    actorId: adminId,
+    actorRole: 'admin',
+    action: is_approved ? 'user.approved' : 'user.suspended',
+    entityType: 'user',
+    entityId: targetUserId,
+    afterState: result.rows[0],
+  });
 
   return result.rows[0];
 };
 
-const createAdminUser = async (adminId, { email, password, full_name }) => {
+const createAdminUser = async (adminId, { email, password, full_name, permissions = [] }) => {
   if (!email || !password || !full_name) {
     throw new AppError('email, password, and full_name are required', 400);
   }
@@ -140,10 +151,10 @@ const createAdminUser = async (adminId, { email, password, full_name }) => {
   const passwordHash = await hashPassword(password);
   const result = await query(
     `INSERT INTO users
-       (email, password_hash, full_name, role, is_approved, approved_by, approved_at)
-     VALUES ($1, $2, $3, 'admin', true, $4, NOW())
-     RETURNING id, email, full_name, role, is_approved, created_at`,
-    [normalizedEmail, passwordHash, full_name.trim(), adminId]
+       (email, password_hash, full_name, role, is_approved, approved_by, approved_at, admin_permissions)
+     VALUES ($1, $2, $3, 'admin', true, $4, NOW(), $5)
+     RETURNING id, email, full_name, role, is_approved, admin_permissions, is_super_admin, created_at`,
+    [normalizedEmail, passwordHash, full_name.trim(), adminId, permissions]
   );
 
   logger.info('Admin user created', {
@@ -151,6 +162,33 @@ const createAdminUser = async (adminId, { email, password, full_name }) => {
     adminUserId: result.rows[0].id,
   });
 
+  return result.rows[0];
+};
+
+const setAdminPermissions = async (targetUserId, adminId, permissions, isSuperAdmin = false) => {
+  if (targetUserId === adminId && !isSuperAdmin) {
+    throw new AppError('You cannot remove your own super-admin access', 400);
+  }
+  const beforeResult = await query(
+    'SELECT id, role, admin_permissions, is_super_admin FROM users WHERE id = $1',
+    [targetUserId]
+  );
+  const before = beforeResult.rows[0];
+  if (!before || before.role !== 'admin') throw new AppError('Admin user not found', 404);
+  const result = await query(
+    `UPDATE users SET admin_permissions = $1, is_super_admin = $2
+     WHERE id = $3 RETURNING id, email, full_name, role, admin_permissions, is_super_admin`,
+    [permissions, isSuperAdmin, targetUserId]
+  );
+  await writeAudit({
+    actorId: adminId,
+    actorRole: 'admin',
+    action: 'admin.permissions.updated',
+    entityType: 'user',
+    entityId: targetUserId,
+    beforeState: before,
+    afterState: result.rows[0],
+  });
   return result.rows[0];
 };
 
@@ -185,6 +223,14 @@ const setFreelancerLevel = async (targetUserId, adminId, { level }) => {
   );
 
   logger.info('Freelancer level set', { targetUserId, adminId, level });
+  await writeAudit({
+    actorId: adminId,
+    actorRole: 'admin',
+    action: 'freelancer.level.updated',
+    entityType: 'user',
+    entityId: targetUserId,
+    afterState: result.rows[0],
+  });
   return result.rows[0];
 };
 
@@ -332,6 +378,7 @@ module.exports = {
   getUserById,
   setUserApproval,
   createAdminUser,
+  setAdminPermissions,
   setFreelancerLevel,
   getCategories,
   createCategory,

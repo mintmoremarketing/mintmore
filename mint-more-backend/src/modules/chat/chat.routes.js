@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const controller = require('./chat.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
+const { requirePermission, requirePermissionIfAdmin } = require('../../middleware/permissions');
 
 const router = Router();
 
@@ -8,13 +9,13 @@ router.use(authenticate);
 
 // ── Chat rooms ────────────────────────────────────────────────────────────────
 // GET    /api/v1/chat/rooms                    — list my rooms
-router.get('/rooms', controller.getMyRooms);
+router.get('/rooms', requirePermissionIfAdmin('support.manage'), controller.getMyRooms);
 
 // GET    /api/v1/chat/rooms/:roomId            — room detail
-router.get('/rooms/:roomId', controller.getRoom);
+router.get('/rooms/:roomId', requirePermissionIfAdmin('support.manage'), controller.getRoom);
 
 // GET    /api/v1/chat/rooms/:roomId/messages   — paginated messages
-router.get('/rooms/:roomId/messages', controller.getMessages);
+router.get('/rooms/:roomId/messages', requirePermissionIfAdmin('support.manage'), controller.getMessages);
 
 // POST   /api/v1/chat/rooms/:roomId/messages   — send a message
 router.post('/rooms/:roomId/messages', controller.sendMessage);
@@ -31,9 +32,9 @@ router.get('/presence/:userId', controller.getPresence);
 
 // ── Admin: WhatsApp number management ────────────────────────────────────────
 // GET    /api/v1/chat/admin/wa-numbers
-router.get('/admin/wa-numbers', authorize('admin'), controller.getWhatsAppNumbers);
+router.get('/admin/wa-numbers', authorize('admin'), requirePermission('support.manage'), controller.getWhatsAppNumbers);
 
 // POST   /api/v1/chat/admin/wa-numbers
-router.post('/admin/wa-numbers', authorize('admin'), controller.upsertWhatsAppNumber);
+router.post('/admin/wa-numbers', authorize('admin'), requirePermission('support.manage'), controller.upsertWhatsAppNumber);
 
 module.exports = router;

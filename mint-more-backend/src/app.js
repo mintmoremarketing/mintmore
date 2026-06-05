@@ -23,6 +23,7 @@ const negotiationRouter  = require('./modules/negotiation/negotiation.routes');
 const notificationRouter = require('./modules/notifications/notification.routes');
 const walletRouter       = require('./modules/wallet/wallet.routes');
 const paymentRouter      = require('./modules/payments/payment.routes');
+const paymentController  = require('./modules/payments/payment.controller');
 const chatRouter         = require('./modules/chat/chat.routes');
 const whatsappRouter     = require('./modules/whatsapp/webhook.routes');
 const socialRouter       = require('./modules/social/social.routes');
@@ -35,6 +36,7 @@ const portfolioRouter    = require('./modules/portfolio/portfolio.routes');
 const reviewRouter       = require('./modules/reviews/review.routes');
 const inquiryRouter      = require('./modules/inquiries/inquiry.routes');
 const mintboxRouter      = require('./modules/mintbox/mintbox.routes');
+const commerceRouter     = require('./modules/commerce/commerce.routes');
 
 // Initialise SSE subscriber (does not require main Redis client)
 initSSESubscriber();
@@ -61,7 +63,7 @@ app.use(cors({
 }));
 
 // ── Raw body routes BEFORE express.json() ────────────────────────────────────
-app.use(`/api/${env.apiVersion}/payments`,  paymentRouter);
+app.post(`/api/${env.apiVersion}/payments/webhook/razorpay`, rawBody, paymentController.razorpayWebhook);
 app.use(`/api/${env.apiVersion}/whatsapp`,  whatsappRouter);
 
 // Social webhooks also need raw body
@@ -87,6 +89,7 @@ app.use(`/api/${env.apiVersion}/matching`,      matchingRouter);
 app.use(`/api/${env.apiVersion}/negotiations`,  negotiationRouter);
 app.use(`/api/${env.apiVersion}/notifications`, notificationRouter);
 app.use(`/api/${env.apiVersion}/wallet`,        walletRouter);
+app.use(`/api/${env.apiVersion}/payments`,      paymentRouter);
 app.use(`/api/${env.apiVersion}/chat`,          chatRouter);
 app.use(`/api/${env.apiVersion}/social`,        socialRouter);
 app.use(`/api/${env.apiVersion}/ai`,            aiRouter);
@@ -97,6 +100,7 @@ app.use(`/api/${env.apiVersion}/portfolio`,     portfolioRouter);
 app.use(`/api/${env.apiVersion}/reviews`,       reviewRouter);
 app.use(`/api/${env.apiVersion}/inquiries`,     inquiryRouter);
 app.use(`/api/${env.apiVersion}/mintbox`,       mintboxRouter);
+app.use(`/api/${env.apiVersion}/commerce`,      commerceRouter);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -6,10 +6,13 @@ const submitReview = async (clientId, {
 	freelancer_id, job_id,
 	rating_overall, rating_communication,
 	rating_quality, rating_value,
+	brief_adherence_rating, timeliness_rating,
 	review_text,
 	price_range_min, price_range_max, job_duration,
 }) => {
-	const ratings = [rating_overall, rating_communication, rating_quality, rating_value];
+	const briefAdherence = brief_adherence_rating || rating_value;
+	const timeliness = timeliness_rating || rating_value;
+	const ratings = [rating_overall, rating_communication, rating_quality, briefAdherence, timeliness];
 	if (ratings.some((r) => !r || r < 1 || r > 5)) {
 		throw new AppError('All ratings must be between 1 and 5', 400);
 	}
@@ -35,19 +38,22 @@ const submitReview = async (clientId, {
 			`INSERT INTO reviews
 				 (freelancer_id, client_id, job_id,
 					rating_overall, rating_communication, rating_quality, rating_value,
+					brief_adherence_rating, timeliness_rating,
 					review_text, price_range_min, price_range_max, job_duration)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 			 ON CONFLICT (client_id, job_id) DO UPDATE SET
 				 rating_overall       = EXCLUDED.rating_overall,
 				 rating_communication = EXCLUDED.rating_communication,
 				 rating_quality       = EXCLUDED.rating_quality,
 				 rating_value         = EXCLUDED.rating_value,
+				 brief_adherence_rating = EXCLUDED.brief_adherence_rating,
+				 timeliness_rating    = EXCLUDED.timeliness_rating,
 				 review_text          = EXCLUDED.review_text
 			 RETURNING *`,
 			[
 				freelancer_id, clientId, job_id || null,
-				rating_overall, rating_communication, rating_quality, rating_value,
-				review_text || null,
+				rating_overall, rating_communication, rating_quality, rating_value || briefAdherence,
+				briefAdherence, timeliness, review_text || null,
 				price_range_min || null, price_range_max || null,
 				job_duration || null,
 			]
