@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as tus from 'tus-js-client'
@@ -33,6 +33,13 @@ const poolOptions = [
   },
 ]
 
+const attachmentTypes = [
+  { icon: 'image', label: 'Images & design', hint: 'JPG, PNG, PSD, AI' },
+  { icon: 'video', label: 'Video & audio', hint: 'MP4, MOV, MP3, WAV' },
+  { icon: 'file', label: 'Documents', hint: 'PDF and Office files' },
+  { icon: 'layers', label: 'Packages', hint: 'ZIP, RAR and 7Z' },
+]
+
 export default function PostJob() {
   const navigate = useNavigate()
   const { id } = useParams()
@@ -41,6 +48,7 @@ export default function PostJob() {
   const [step, setStep] = useState(1)
   const [tagInput, setTagInput] = useState('')
   const [briefFiles, setBriefFiles] = useState([])
+  const briefFileRef = useRef(null)
   const [data, setData] = useState({
     title: '',
     category_id: '',
@@ -164,6 +172,14 @@ export default function PostJob() {
     setData((d) => ({ ...d, [k]: v }))
   }
 
+  function addBriefFiles(fileList) {
+    const incoming = Array.from(fileList || [])
+    setBriefFiles(current => {
+      const known = new Set(current.map(file => `${file.name}-${file.size}-${file.lastModified}`))
+      return [...current, ...incoming.filter(file => !known.has(`${file.name}-${file.size}-${file.lastModified}`))]
+    })
+  }
+
   function canContinue() {
     return !validationMessage()
   }
@@ -270,9 +286,56 @@ export default function PostJob() {
             {!isEditMode && (
               <div className="field">
                 <label className="field-label">Reference attachments</label>
-                <input className="input" type="file" multiple onChange={e => setBriefFiles(Array.from(e.target.files || []))} />
-                <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 6 }}>Stored privately in the project Mintbox. Only the matched creative can view them.</div>
-                {briefFiles.map(file => <div key={`${file.name}-${file.size}`} style={{ fontSize: 12, marginTop: 5 }}><Icon name="paperclip" size={11} /> {file.name}</div>)}
+                <input
+                  ref={briefFileRef}
+                  type="file"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    addBriefFiles(e.target.files)
+                    e.target.value = ''
+                  }}
+                />
+                <div
+                  onClick={() => briefFileRef.current?.click()}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => {
+                    e.preventDefault()
+                    addBriefFiles(e.dataTransfer.files)
+                  }}
+                  style={{ border: '1px dashed var(--ink-300)', padding: 16, cursor: 'pointer', background: 'var(--paper-tint)' }}
+                >
+                  <div className="row between" style={{ gap: 12, marginBottom: 12 }}>
+                    <div>
+                      <strong style={{ fontSize: 13 }}>Drop reference files here</strong>
+                      <div className="field-hint">Stored privately in the project Mintbox for the matched creative.</div>
+                    </div>
+                    <button type="button" className="btn ghost sm" onClick={e => { e.stopPropagation(); briefFileRef.current?.click() }}>
+                      <Icon name="upload" size={12} /> Choose files
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: 8 }}>
+                    {attachmentTypes.map(type => (
+                      <div key={type.label} style={{ minHeight: 68, border: '1px solid var(--hairline)', background: 'var(--paper)', padding: 10, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                        <Icon name={type.icon} size={14} />
+                        <div>
+                          <div style={{ fontSize: 11.5, fontWeight: 600 }}>{type.label}</div>
+                          <div style={{ fontSize: 10.5, color: 'var(--ink-500)', marginTop: 3 }}>{type.hint}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {briefFiles.length > 0 && (
+                  <div className="stack" style={{ gap: 6, marginTop: 8 }}>
+                    {briefFiles.map(file => (
+                      <div key={`${file.name}-${file.size}-${file.lastModified}`} className="row between" style={{ padding: '7px 9px', border: '1px solid var(--hairline)', background: 'var(--paper-tint)', gap: 10 }}>
+                        <span style={{ fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><Icon name="paperclip" size={11} /> {file.name}</span>
+                        <button type="button" className="icon-btn" aria-label={`Remove ${file.name}`} onClick={() => setBriefFiles(files => files.filter(item => item !== file))}><Icon name="x" size={11} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

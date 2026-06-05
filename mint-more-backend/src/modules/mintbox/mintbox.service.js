@@ -11,7 +11,8 @@ const {
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const notificationService = require('../notifications/notification.service');
-const { getWalletByUserId, recordTransaction } = require('../wallet/wallet.service');
+const { getWalletByUserId, recordTransaction, completeJob } = require('../wallet/wallet.service');
+const reviewService = require('../reviews/review.service');
 
 const BUCKET = env.supabase.mintboxBucket;
 const CLIENT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;
@@ -662,6 +663,64 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
   return { ...result.rows[0], revision };
 };
 
+const completeProject = async (jobId, clientId, role, review = {}) => {
+  if (role !== 'client') throw new AppError('Only the client can complete this project', 403);
+
+  const ratings = [
+    review.rating_overall,
+    review.rating_communication,
+    review.rating_quality,
+    review.rating_value,
+  ].map(Number);
+  if (ratings.some((rating) => !Number.isInteger(rating) || rating < 1 || rating > 5)) {
+    throw new AppError('Rate every category from 1 to 5 before completing the project', 400);
+  }
+
+  const result = await query(
+    `SELECT j.id, j.status, j.active_freelancer_id,
+            EXISTS (
+              SELECT 1 FROM mintbox_files file
+              WHERE file.job_id = j.id
+                AND file.purpose = 'delivery'
+                AND file.status = 'approved'
+            ) AS has_approved_delivery
+     FROM jobs j
+     WHERE j.id = $1 AND j.client_id = $2`,
+    [jobId, clientId]
+  );
+  const job = result.rows[0];
+  if (!job) throw new AppError('Project not found', 404);
+  if (job.status !== 'in_progress') {
+    throw new AppError(`Project cannot be completed in its current status: ${job.status}`, 400);
+  }
+  if (!job.active_freelancer_id) throw new AppError('No creative is assigned to this project', 400);
+  if (!job.has_approved_delivery) throw new AppError('Approve a delivery before completing the project', 400);
+
+  const completion = await completeJob(jobId, clientId, {
+    completion_note: String(review.review_text || '').trim() || null,
+  });
+  const submittedReview = await reviewService.submitReview(clientId, {
+    freelancer_id: job.active_freelancer_id,
+    job_id: jobId,
+    rating_overall: ratings[0],
+    rating_communication: ratings[1],
+    rating_quality: ratings[2],
+    rating_value: ratings[3],
+    review_text: String(review.review_text || '').trim() || null,
+  });
+  notificationService.createNotification({
+    userId: job.active_freelancer_id,
+    type: 'job_completed',
+    title: 'Project completed',
+    body: 'The client completed the project. Payment has been released to your wallet.',
+    entityType: 'job',
+    entityId: jobId,
+    data: { job_id: jobId },
+  });
+
+  return { completion, review: submittedReview };
+};
+
 module.exports = {
   CLIENT_QUOTA_BYTES,
   getUploadPolicy,
@@ -673,4 +732,5 @@ module.exports = {
   cancelUpload,
   reviewFile,
   markSeen,
+  completeProject,
 };

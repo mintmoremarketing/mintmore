@@ -242,10 +242,11 @@ const holdEscrow = async ({ jobId, clientId, freelancerId, amount, dbClient: ext
  * Called when job is marked complete.
  * Moves amount from client's escrow → freelancer's available balance.
  */
-const releaseEscrow = async (jobId, adminId) => {
-  const dbClient = await getClient();
+const releaseEscrow = async (jobId, adminId, externalClient = null) => {
+  const useExternal = !!externalClient;
+  const dbClient = externalClient || await getClient();
   try {
-    await dbClient.query('BEGIN');
+    if (!useExternal) await dbClient.query('BEGIN');
 
     // Fetch escrow record
     const escrowResult = await dbClient.query(
@@ -294,7 +295,7 @@ const releaseEscrow = async (jobId, adminId) => {
       [freelancerCreditTx.id, escrow.id]
     );
 
-    await dbClient.query('COMMIT');
+    if (!useExternal) await dbClient.query('COMMIT');
 
     logger.info('Escrow released', {
       jobId,
@@ -309,10 +310,10 @@ const releaseEscrow = async (jobId, adminId) => {
       freelancer_credit_tx: freelancerCreditTx,
     };
   } catch (err) {
-    await dbClient.query('ROLLBACK');
+    if (!useExternal) await dbClient.query('ROLLBACK');
     throw err;
   } finally {
-    dbClient.release();
+    if (!useExternal) dbClient.release();
   }
 };
 
@@ -592,6 +593,7 @@ const completeJob = async (jobId, adminId, { completion_note } = {}) => {
       );
     }
 
+    await releaseEscrow(jobId, adminId, dbClient);
     await dbClient.query('COMMIT');
     // Mark WhatsApp session as completed
     setImmediate(async () => {
@@ -601,16 +603,6 @@ const completeJob = async (jobId, adminId, { completion_note } = {}) => {
         logger.warn('WA session mark complete failed', { jobId, error: err.message });
       }
     });
-
-    // Release escrow — separate transaction (can fail independently)
-    try {
-      await releaseEscrow(jobId, adminId);
-    } catch (escrowErr) {
-      logger.error('Escrow release failed after job completion — manual action required', {
-        jobId, error: escrowErr.message,
-      });
-      // Don't re-throw — job is completed; escrow failure is a separate concern
-    }
 
     logger.info('Job completed', { jobId, adminId });
     return { job_id: jobId, status: 'completed' };

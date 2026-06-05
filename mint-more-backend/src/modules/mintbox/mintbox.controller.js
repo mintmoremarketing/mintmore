@@ -87,6 +87,21 @@ const reviewFile = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const completeProject = async (req, res, next) => {
+  try {
+    const result = await mintboxService.completeProject(
+      req.params.jobId,
+      req.user.sub,
+      req.user.role,
+      req.body
+    );
+    return sendSuccess(res, {
+      data: result,
+      message: 'Project completed, review submitted, and escrow released',
+    });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   listFolders,
   getProjectFolder,
@@ -96,4 +111,5 @@ module.exports = {
   completeUpload,
   cancelUpload,
   reviewFile,
+  completeProject,
 };

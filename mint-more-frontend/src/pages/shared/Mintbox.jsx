@@ -72,6 +72,15 @@ export default function Mintbox() {
 	const [note, setNote] = useState('')
 	const [reviewNotes, setReviewNotes] = useState({})
 	const [confirmPlan, setConfirmPlan] = useState(null)
+	const [approvedFileId, setApprovedFileId] = useState(null)
+	const [showRating, setShowRating] = useState(false)
+	const [completionReview, setCompletionReview] = useState({
+		rating_overall: 0,
+		rating_communication: 0,
+		rating_quality: 0,
+		rating_value: 0,
+		review_text: '',
+	})
 	const [uploadState, setUploadState] = useState({ status: 'idle', progress: 0, file: null, error: '', uploadId: null })
 	const uploadRef = useRef(null)
 
@@ -243,13 +252,26 @@ export default function Mintbox() {
 			action,
 			note: reviewNotes[fileId] || undefined,
 		}),
-		onSuccess: () => {
+		onSuccess: (_, variables) => {
 			pushToast({ title: 'Review saved', icon: 'check' })
+			if (variables.action === 'approve') setApprovedFileId(variables.fileId)
+			if (variables.action === 'revision') setApprovedFileId(null)
 			queryClient.invalidateQueries({ queryKey })
 			queryClient.invalidateQueries({ queryKey: ['wallet'] })
 			queryClient.invalidateQueries({ queryKey: ['notifications'] })
 		},
 		onError: err => pushToast({ title: 'Review failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+	})
+
+	const completeMutation = useMutation({
+		mutationFn: () => mintboxApi.completeProject(folder.job_id, completionReview),
+		onSuccess: () => {
+			pushToast({ title: 'Project completed', body: 'Your review was submitted and escrow was released.', icon: 'check' })
+			queryClient.invalidateQueries({ queryKey: ['jobs'] })
+			queryClient.invalidateQueries({ queryKey: ['wallet'] })
+			navigate(`/jobs/${folder.job_id}`)
+		},
+		onError: err => pushToast({ title: 'Could not complete project', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
 	})
 
 	const purchaseMutation = useMutation({
@@ -328,6 +350,92 @@ export default function Mintbox() {
 				{walletBalance < Number(confirmPlan.price) && (
 					<div style={{ color: 'var(--amber)', fontSize: 12 }}>Add {rupee(Number(confirmPlan.price) - walletBalance)} to your wallet first.</div>
 				)}
+			</div>
+		</Modal>
+	)
+	const completionDecisionModal = approvedFileId && !showRating && (
+		<Modal
+			title="Delivery approved"
+			subtitle="What would you like to do next?"
+			onClose={() => setApprovedFileId(null)}
+			footer={(
+				<>
+					<button
+						className="btn ghost"
+						onClick={() => reviewMutation.mutate({ fileId: approvedFileId, action: 'revision' })}
+						disabled={reviewMutation.isPending || !String(reviewNotes[approvedFileId] || '').trim()}
+					>
+						<Icon name="refresh" size={13} /> Request another revision
+					</button>
+					<button className="btn primary" onClick={() => setShowRating(true)}>
+						<Icon name="check" size={13} /> Complete & rate
+					</button>
+				</>
+			)}
+		>
+			<p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--ink-600)', lineHeight: 1.6 }}>
+				Complete the project when you are satisfied. Escrow is released only after you submit your rating.
+			</p>
+			<textarea
+				className="textarea"
+				rows={3}
+				value={reviewNotes[approvedFileId] || ''}
+				onChange={e => setReviewNotes(prev => ({ ...prev, [approvedFileId]: e.target.value }))}
+				placeholder="For another revision, describe exactly what should change..."
+			/>
+		</Modal>
+	)
+	const ratingModal = approvedFileId && showRating && (
+		<Modal
+			title="Complete project"
+			subtitle="Rate the creative before escrow is released"
+			onClose={() => setShowRating(false)}
+			maxWidth={520}
+			footer={(
+				<>
+					<button className="btn ghost" onClick={() => setShowRating(false)}>Back</button>
+					<button
+						className="btn primary"
+						onClick={() => completeMutation.mutate()}
+						disabled={completeMutation.isPending || ['rating_overall', 'rating_communication', 'rating_quality', 'rating_value'].some(key => !completionReview[key])}
+					>
+						<Icon name="check" size={13} /> {completeMutation.isPending ? 'Completing...' : 'Submit review & release escrow'}
+					</button>
+				</>
+			)}
+		>
+			<div className="stack" style={{ gap: 14 }}>
+				{[
+					['rating_overall', 'Overall experience'],
+					['rating_communication', 'Communication'],
+					['rating_quality', 'Quality of work'],
+					['rating_value', 'Value'],
+				].map(([key, label]) => (
+					<div className="row between" key={key} style={{ gap: 16 }}>
+						<span style={{ fontSize: 13 }}>{label}</span>
+						<div className="row" style={{ gap: 5 }}>
+							{[1, 2, 3, 4, 5].map(value => (
+								<button
+									key={value}
+									type="button"
+									className="icon-btn"
+									aria-label={`${label}: ${value} stars`}
+									onClick={() => setCompletionReview(prev => ({ ...prev, [key]: value }))}
+									style={{ color: value <= completionReview[key] ? '#F59E0B' : 'var(--ink-300)' }}
+								>
+									<Icon name="star" size={16} />
+								</button>
+							))}
+						</div>
+					</div>
+				))}
+				<textarea
+					className="textarea"
+					rows={4}
+					value={completionReview.review_text}
+					onChange={e => setCompletionReview(prev => ({ ...prev, review_text: e.target.value }))}
+					placeholder="Share a short review (optional)"
+				/>
 			</div>
 		</Modal>
 	)
@@ -484,7 +592,7 @@ export default function Mintbox() {
 				</div>
 			</div>
 
-			{['client', 'freelancer'].includes(role) && (
+			{role === 'freelancer' && (
 				<div className="card reveal" style={{ padding: 18 }}>
 					<div className="row between" style={{ gap: 14, alignItems: 'flex-start', marginBottom: 14 }}>
 						<div>
@@ -668,6 +776,13 @@ export default function Mintbox() {
 										</div>
 									</div>
 								)}
+								{role === 'client' && file.purpose !== 'brief' && file.status === 'approved' && (
+									<div className="row" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--hairline)', justifyContent: 'flex-end' }}>
+										<button className="btn primary" onClick={() => setApprovedFileId(file.id)}>
+											<Icon name="check" size={13} /> Continue project completion
+										</button>
+									</div>
+								)}
 							</div>
 						)
 					})}
@@ -747,6 +862,8 @@ export default function Mintbox() {
 			</div>}
 
 			{purchaseModal}
+			{completionDecisionModal}
+			{ratingModal}
 		</div>
 	)
 }
