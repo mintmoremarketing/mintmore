@@ -40,6 +40,7 @@ const env = {
   supabase: {
     url:        process.env.SUPABASE_URL,
     serviceKey: process.env.SUPABASE_SERVICE_KEY,
+    mintboxBucket: process.env.MINTBOX_STORAGE_BUCKET || 'mintbox-files',
   },
 
   razorpay: {
@@ -53,6 +54,37 @@ const env = {
     allowedFileTypes: process.env.ALLOWED_FILE_TYPES
       ? process.env.ALLOWED_FILE_TYPES.split(',')
       : ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+    mintboxMaxFileSizeMb: parseInt(process.env.MINTBOX_MAX_FILE_SIZE_MB, 10) || 2048,
+    mintboxAllowedFileTypes: process.env.MINTBOX_ALLOWED_FILE_TYPES
+      ? process.env.MINTBOX_ALLOWED_FILE_TYPES.split(',').map((type) => type.trim())
+      : [
+          'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/tiff',
+          'image/svg+xml', 'application/pdf', 'application/zip',
+          'application/x-zip-compressed', 'application/vnd.rar',
+          'application/x-rar-compressed', 'application/x-7z-compressed',
+          'application/vnd.adobe.photoshop', 'application/x-photoshop',
+          'image/vnd.adobe.photoshop', 'application/postscript',
+          'video/mp4', 'video/quicktime', 'video/webm',
+          'audio/mpeg', 'audio/wav', 'audio/x-wav',
+          'font/otf', 'font/ttf', 'font/woff', 'font/woff2',
+          'application/vnd.ms-fontobject',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-powerpoint',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'text/plain', 'text/csv',
+        ],
+    mintboxAllowedExtensions: process.env.MINTBOX_ALLOWED_EXTENSIONS
+      ? process.env.MINTBOX_ALLOWED_EXTENSIONS.split(',').map((ext) => ext.trim().toLowerCase())
+      : [
+          '.jpg', '.jpeg', '.png', '.webp', '.gif', '.tif', '.tiff', '.svg',
+          '.pdf', '.zip', '.rar', '.7z', '.psd', '.ai', '.eps',
+          '.mp4', '.mov', '.webm', '.mp3', '.wav',
+          '.otf', '.ttf', '.woff', '.woff2',
+          '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt', '.csv',
+        ],
   },
 
   whatsapp: {

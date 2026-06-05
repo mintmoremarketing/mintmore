@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import * as tus from 'tus-js-client'
 import { mintboxApi } from '../../api/mintbox'
 import { addonsApi } from '../../api/addons'
 import { walletApi } from '../../api/wallet'
@@ -24,6 +25,25 @@ const statusLabel = {
 	submitted: 'Submitted',
 	revision_requested: 'Revision requested',
 	approved: 'Approved',
+}
+
+const inferredMimeTypes = {
+	psd: 'application/vnd.adobe.photoshop',
+	ai: 'application/postscript',
+	eps: 'application/postscript',
+	zip: 'application/zip',
+	rar: 'application/vnd.rar',
+	'7z': 'application/x-7z-compressed',
+	otf: 'font/otf',
+	ttf: 'font/ttf',
+	woff: 'font/woff',
+	woff2: 'font/woff2',
+}
+
+const getFileType = (file) => {
+	if (file.type) return file.type
+	const extension = file.name.split('.').pop()?.toLowerCase()
+	return inferredMimeTypes[extension] || 'application/octet-stream'
 }
 
 function StorageBar({ quota }) {
@@ -51,6 +71,8 @@ export default function Mintbox() {
 	const [note, setNote] = useState('')
 	const [reviewNotes, setReviewNotes] = useState({})
 	const [confirmPlan, setConfirmPlan] = useState(null)
+	const [uploadState, setUploadState] = useState({ status: 'idle', progress: 0, file: null, error: '', uploadId: null })
+	const uploadRef = useRef(null)
 
 	const isOverview = !jobId && !token
 	const queryKey = token ? ['mintbox-share', token] : jobId ? ['mintbox-job', jobId] : ['mintbox']
@@ -70,6 +92,7 @@ export default function Mintbox() {
 	const folders = data?.folders || []
 	const files = data?.files || []
 	const quota = data?.quota
+	const uploadPolicy = data?.upload_policy
 	const shareUrl = folder?.share_token ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
 
 	const { data: plansData } = useQuery({
@@ -89,20 +112,104 @@ export default function Mintbox() {
 	)
 	const walletBalance = Number(walletData?.wallet?.balance ?? 0)
 
-	const uploadMutation = useMutation({
-		mutationFn: (file) => {
-			const fd = new FormData()
-			fd.append('file', file)
-			if (note.trim()) fd.append('note', note.trim())
-			return mintboxApi.uploadWork(folder.job_id, fd)
-		},
-		onSuccess: () => {
-			pushToast({ title: 'Uploaded to Mintbox', icon: 'check' })
-			setNote('')
-			queryClient.invalidateQueries({ queryKey })
-		},
-		onError: err => pushToast({ title: 'Upload failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
-	})
+	const startUpload = async (file) => {
+		if (!file || !folder) return
+		const extension = `.${file.name.split('.').pop()?.toLowerCase()}`
+		const fileType = getFileType(file)
+		if (uploadPolicy?.max_file_size_bytes && file.size > Number(uploadPolicy.max_file_size_bytes)) {
+			pushToast({ title: 'File is too large', body: `Maximum size is ${uploadPolicy.max_file_size_mb}MB`, tone: 'amber', icon: 'x' })
+			return
+		}
+		const allowedByType = uploadPolicy?.allowed_file_types?.includes(fileType)
+		const allowedByExtension = uploadPolicy?.allowed_extensions?.includes(extension)
+		if (uploadPolicy?.allowed_file_types?.length && !allowedByType && !allowedByExtension) {
+			pushToast({ title: 'File type not allowed', body: fileType, tone: 'amber', icon: 'x' })
+			return
+		}
+
+		setUploadState({ status: 'preparing', progress: 0, file, error: '', uploadId: null })
+		try {
+			const prepared = await mintboxApi.prepareUpload(folder.job_id, {
+				name: file.name,
+				size: file.size,
+				type: fileType,
+				note: note.trim() || undefined,
+			})
+			const config = prepared.data?.data?.upload
+			setUploadState(prev => ({ ...prev, uploadId: config.upload_id }))
+			const upload = new tus.Upload(file, {
+				endpoint: config.endpoint,
+				retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
+				chunkSize: config.policy?.chunk_size_bytes || 6 * 1024 * 1024,
+				uploadDataDuringCreation: true,
+				removeFingerprintOnSuccess: true,
+				headers: {
+					'x-signature': config.token,
+				},
+				metadata: {
+					bucketName: config.bucket,
+					objectName: config.storage_path,
+					contentType: fileType,
+					cacheControl: '3600',
+				},
+				onProgress: (uploaded, total) => {
+					setUploadState(prev => ({ ...prev, status: 'uploading', progress: Math.round((uploaded / total) * 100), error: '' }))
+				},
+				onError: (error) => {
+					setUploadState(prev => ({ ...prev, status: 'failed', error: error.message || 'Upload failed' }))
+				},
+				onSuccess: async () => {
+					try {
+						await mintboxApi.completeUpload(config.upload_id)
+						setUploadState({ status: 'complete', progress: 100, file: null, error: '', uploadId: null })
+						setNote('')
+						queryClient.invalidateQueries({ queryKey })
+						queryClient.invalidateQueries({ queryKey: ['mintbox'] })
+						pushToast({ title: 'Uploaded to Mintbox', icon: 'check' })
+					} catch (error) {
+						setUploadState(prev => ({ ...prev, status: 'failed', error: error.response?.data?.message || 'Upload finished but could not be finalized' }))
+					}
+				},
+			})
+			uploadRef.current = upload
+			const previous = await upload.findPreviousUploads()
+			if (previous.length) upload.resumeFromPreviousUpload(previous[0])
+			upload.start()
+		} catch (error) {
+			setUploadState({ status: 'failed', progress: 0, file, error: error.response?.data?.message || error.message || 'Could not prepare upload', uploadId: null })
+		}
+	}
+
+	const pauseUpload = async () => {
+		await uploadRef.current?.abort()
+		setUploadState(prev => ({ ...prev, status: 'paused' }))
+	}
+
+	const resumeUpload = () => {
+		uploadRef.current?.start()
+		setUploadState(prev => ({ ...prev, status: 'uploading', error: '' }))
+	}
+
+	const retryUpload = () => {
+		if (uploadRef.current) {
+			resumeUpload()
+		} else if (uploadState.file) {
+			startUpload(uploadState.file)
+		}
+	}
+
+	const cancelUpload = async () => {
+		await uploadRef.current?.abort(true)
+		if (uploadState.uploadId) {
+			try {
+				await mintboxApi.cancelUpload(uploadState.uploadId)
+			} catch {
+				// The signed upload may already have expired or completed.
+			}
+		}
+		uploadRef.current = null
+		setUploadState({ status: 'idle', progress: 0, file: null, error: '', uploadId: null })
+	}
 
 	const reviewMutation = useMutation({
 		mutationFn: ({ fileId, action }) => mintboxApi.reviewFile(fileId, {
@@ -295,17 +402,18 @@ export default function Mintbox() {
 							<div className="h-eyebrow" style={{ marginBottom: 6 }}>Submit work</div>
 							<div style={{ fontSize: 13, color: 'var(--ink-600)' }}>Upload finished work, drafts, or revised files for the client to review.</div>
 						</div>
-						<button className="btn primary" onClick={() => fileRef.current?.click()} disabled={uploadMutation.isPending}>
+						<button className="btn primary" onClick={() => fileRef.current?.click()} disabled={['preparing', 'uploading', 'paused'].includes(uploadState.status)}>
 							<Icon name="upload" size={13} />
-							{uploadMutation.isPending ? 'Uploading...' : 'Upload file'}
+							{['preparing', 'uploading'].includes(uploadState.status) ? 'Uploading...' : 'Choose file'}
 						</button>
 						<input
 							ref={fileRef}
 							type="file"
+							accept={uploadPolicy?.allowed_file_types?.join(',')}
 							style={{ display: 'none' }}
 							onChange={(e) => {
 								const file = e.target.files?.[0]
-								if (file) uploadMutation.mutate(file)
+								if (file) startUpload(file)
 								e.target.value = ''
 							}}
 						/>
@@ -317,6 +425,43 @@ export default function Mintbox() {
 						onChange={e => setNote(e.target.value)}
 						placeholder="Optional note for the client..."
 					/>
+					<div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 8 }}>
+						JPG, PNG, WebP, GIF, TIFF, SVG, PSD, AI, EPS, PDF, ZIP, RAR, 7Z, MP4, MOV, WebM, MP3, WAV, fonts, Office documents, TXT and CSV. Maximum {uploadPolicy?.max_file_size_mb || 2048}MB per file.
+					</div>
+
+					{uploadState.status !== 'idle' && (
+						<div style={{ marginTop: 14, padding: 12, background: 'var(--paper-tint)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}>
+							<div className="row between" style={{ gap: 12, marginBottom: 8 }}>
+								<div style={{ minWidth: 0 }}>
+									<div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+										{uploadState.file?.name || 'Upload complete'}
+									</div>
+									<div style={{ fontSize: 11.5, color: uploadState.status === 'failed' ? 'var(--rose)' : 'var(--ink-500)', marginTop: 2 }}>
+										{uploadState.status === 'failed' ? uploadState.error : uploadState.status === 'complete' ? 'Upload complete' : `${uploadState.progress}% uploaded - resumable`}
+									</div>
+								</div>
+								<div className="row" style={{ gap: 6, flexShrink: 0 }}>
+									{uploadState.status === 'failed' && uploadState.file && (
+										<button className="btn ghost sm" onClick={retryUpload}>
+											<Icon name="refresh" size={12} /> Retry
+										</button>
+									)}
+									{uploadState.status === 'uploading' && (
+										<button className="btn ghost sm" onClick={pauseUpload}>Pause</button>
+									)}
+									{uploadState.status === 'paused' && (
+										<button className="btn ghost sm" onClick={resumeUpload}>Resume</button>
+									)}
+									{['preparing', 'uploading', 'paused'].includes(uploadState.status) && (
+										<button className="btn ghost sm" onClick={cancelUpload}>Cancel</button>
+									)}
+								</div>
+							</div>
+							<div style={{ height: 6, background: 'var(--hairline)', borderRadius: 3, overflow: 'hidden' }}>
+								<div style={{ height: '100%', width: `${uploadState.progress}%`, background: uploadState.status === 'failed' ? 'var(--rose)' : 'var(--mint-500)', transition: 'width 0.2s ease' }} />
+							</div>
+						</div>
+					)}
 				</div>
 			)}
 

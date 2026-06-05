@@ -13,6 +13,28 @@ if (!env.supabase.url || !env.supabase.serviceKey) {
 const supabase = createClient(env.supabase.url, env.supabase.serviceKey, {
   auth: { persistSession: false },
 });
+const bucketChecks = new Map();
+
+const ensureStorageBucket = async (bucket, options = {}) => {
+  if (!bucketChecks.has(bucket)) {
+    bucketChecks.set(bucket, (async () => {
+      const { data, error } = await supabase.storage.getBucket(bucket);
+      if (data && !error) return data;
+
+      const { data: created, error: createError } = await supabase.storage.createBucket(bucket, {
+        public: false,
+        ...options,
+      });
+      if (createError) {
+        logger.error('Supabase bucket setup failed', { bucket, error: createError.message });
+        throw new Error(`Storage bucket is unavailable: ${createError.message}`);
+      }
+      logger.info('Supabase storage bucket created', { bucket });
+      return created;
+    })());
+  }
+  return bucketChecks.get(bucket);
+};
 
 /**
  * Upload a file buffer to Supabase Storage.
@@ -54,4 +76,78 @@ const deleteFile = async (bucket, filePath) => {
   }
 };
 
-module.exports = { supabase, uploadFile, deleteFile };
+const createSignedResumableUpload = async (bucket, filePath) => {
+  await ensureStorageBucket(bucket, {
+    fileSizeLimit: env.upload.mintboxMaxFileSizeMb * 1024 * 1024,
+    allowedMimeTypes: [...env.upload.mintboxAllowedFileTypes, 'application/octet-stream'],
+  });
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUploadUrl(filePath, { upsert: false });
+
+  if (error) {
+    logger.error('Supabase signed upload URL failed', { bucket, filePath, error: error.message });
+    throw new Error(`Could not prepare file upload: ${error.message}`);
+  }
+
+  const baseUrl = env.supabase.url.replace(/\/+$/, '');
+  const directStorageUrl = baseUrl.includes('.supabase.co')
+    ? baseUrl.replace('.supabase.co', '.storage.supabase.co')
+    : baseUrl;
+
+  return {
+    token: data.token,
+    signedUrl: data.signedUrl,
+    endpoint: `${directStorageUrl}/storage/v1/upload/resumable`,
+  };
+};
+
+const createSignedDownloadUrl = async (bucket, filePath, expiresIn = 3600) => {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(filePath, expiresIn);
+  if (error) {
+    logger.warn('Supabase signed download URL failed', { bucket, filePath, error: error.message });
+    return null;
+  }
+  return data.signedUrl;
+};
+
+const createSignedDownloadUrls = async (bucket, filePaths, expiresIn = 3600) => {
+  if (!filePaths.length) return new Map();
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrls(filePaths, expiresIn);
+  if (error) {
+    logger.warn('Supabase batch signed download URLs failed', { bucket, count: filePaths.length, error: error.message });
+    return new Map();
+  }
+  return new Map((data || []).map((item) => [item.path, item.signedUrl]));
+};
+
+const storageObjectExists = async (bucket, filePath) => {
+  const slash = filePath.lastIndexOf('/');
+  const folder = slash >= 0 ? filePath.slice(0, slash) : '';
+  const fileName = slash >= 0 ? filePath.slice(slash + 1) : filePath;
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .list(folder, { search: fileName, limit: 2 });
+
+  if (error) {
+    logger.error('Supabase object verification failed', { bucket, filePath, error: error.message });
+    throw new Error(`Could not verify uploaded file: ${error.message}`);
+  }
+
+  return data?.some((item) => item.name === fileName) || false;
+};
+
+module.exports = {
+  supabase,
+  uploadFile,
+  deleteFile,
+  ensureStorageBucket,
+  createSignedResumableUpload,
+  createSignedDownloadUrl,
+  createSignedDownloadUrls,
+  storageObjectExists,
+};
