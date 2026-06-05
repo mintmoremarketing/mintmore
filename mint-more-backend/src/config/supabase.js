@@ -15,11 +15,28 @@ const supabase = createClient(env.supabase.url, env.supabase.serviceKey, {
 });
 const bucketChecks = new Map();
 
+const isMissingBucketError = (error) => {
+  const status = Number(error?.statusCode || error?.status);
+  return status === 404 || /bucket.+not found|not found.+bucket|does not exist/i.test(error?.message || '');
+};
+
 const ensureStorageBucket = async (bucket, options = {}) => {
   if (!bucketChecks.has(bucket)) {
-    bucketChecks.set(bucket, (async () => {
+    const check = (async () => {
       const { data, error } = await supabase.storage.getBucket(bucket);
       if (data && !error) return data;
+
+      if (error && !isMissingBucketError(error)) {
+        logger.error('Supabase bucket lookup failed', {
+          bucket,
+          error: error.message,
+          status: error.statusCode || error.status,
+        });
+        throw new Error(
+          `Storage bucket lookup failed: ${error.message}. ` +
+          'Check that SUPABASE_URL is the project API URL and SUPABASE_SERVICE_KEY belongs to the same project.'
+        );
+      }
 
       const { data: created, error: createError } = await supabase.storage.createBucket(bucket, {
         public: false,
@@ -31,7 +48,10 @@ const ensureStorageBucket = async (bucket, options = {}) => {
       }
       logger.info('Supabase storage bucket created', { bucket });
       return created;
-    })());
+    })();
+
+    bucketChecks.set(bucket, check);
+    check.catch(() => bucketChecks.delete(bucket));
   }
   return bucketChecks.get(bucket);
 };

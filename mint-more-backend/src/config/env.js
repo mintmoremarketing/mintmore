@@ -1,5 +1,35 @@
 require('dotenv').config();
 
+const normalizeSupabaseUrl = (rawUrl) => {
+  const value = String(rawUrl || '').trim().replace(/^(['"])(.*)\1$/, '$2');
+  if (!value) return value;
+
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('must use http or https');
+    }
+    if (url.hostname === 'supabase.com' || url.hostname === 'www.supabase.com') {
+      throw new Error('must be the project API URL, not the Supabase dashboard URL');
+    }
+    return url.origin;
+  } catch (error) {
+    throw new Error(`Invalid SUPABASE_URL: ${error.message}`);
+  }
+};
+
+const normalizeStorageBucket = (rawBucket) => {
+  const bucket = String(rawBucket || 'mintbox-files')
+    .trim()
+    .replace(/^(['"])(.*)\1$/, '$2')
+    .replace(/^\/+|\/+$/g, '');
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(bucket)) {
+    throw new Error('Invalid MINTBOX_STORAGE_BUCKET: use only letters, numbers, hyphens, and underscores');
+  }
+  return bucket;
+};
+
 const env = {
   node_env: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT, 10) || 5000,
@@ -38,9 +68,9 @@ const env = {
   },
 
   supabase: {
-    url:        process.env.SUPABASE_URL,
+    url:        normalizeSupabaseUrl(process.env.SUPABASE_URL),
     serviceKey: process.env.SUPABASE_SERVICE_KEY,
-    mintboxBucket: process.env.MINTBOX_STORAGE_BUCKET || 'mintbox-files',
+    mintboxBucket: normalizeStorageBucket(process.env.MINTBOX_STORAGE_BUCKET),
   },
 
   razorpay: {
