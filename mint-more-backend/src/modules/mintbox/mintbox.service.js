@@ -563,8 +563,8 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
           `INSERT INTO mintbox_revision_rounds
              (job_id, folder_id, client_id, freelancer_id, round_number,
               feedback_window_ends_at, charge_amount, charged_at)
-           VALUES ($1,$2,$3,$4,$5,NOW() + INTERVAL '24 hours',$6,
-                   CASE WHEN $6 > 0 THEN NOW() ELSE NULL END)
+           VALUES ($1,$2,$3,$4,$5,NOW() + INTERVAL '24 hours',$6::NUMERIC,
+                   CASE WHEN $6::NUMERIC > 0 THEN NOW() ELSE NULL END)
            RETURNING *`,
           [file.job_id, file.folder_id, clientId, file.active_freelancer_id, roundNumber, charge]
         );
