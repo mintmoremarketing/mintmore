@@ -165,13 +165,30 @@ export default function PostJob() {
   }
 
   function canContinue() {
-    if (step === 1) return data.title.trim().length >= 5 && data.category_id && data.description.trim().length >= 20
-    if (step === 2) return data.pricing_mode && data.deadline
-    return true
+    return !validationMessage()
+  }
+
+  function validationMessage() {
+    if (step === 1) {
+      if (data.title.trim().length < 5) return 'Add a brief title with at least 5 characters.'
+      if (!data.category_id) return 'Choose a category.'
+      if (data.description.trim().length < 5) return 'Add a brief description with at least 5 characters.'
+    }
+    if (step === 2) {
+      if (!data.pricing_mode) return 'Choose Budget creatives or Pro creatives.'
+      if (!data.deadline) return 'Choose a deadline.'
+      if (new Date(`${data.deadline}T23:59:59`) <= new Date()) return 'Choose a future deadline.'
+    }
+    return ''
   }
 
   function handlePrimaryAction() {
-    if (isPending || !canContinue()) return
+    if (isPending) return
+    const error = validationMessage()
+    if (error) {
+      pushToast({ title: 'Complete this step', body: error, tone: 'amber' })
+      return
+    }
     if (step < 3) {
       setStep(step + 1)
       return
@@ -222,6 +239,7 @@ export default function PostJob() {
             <div className="field">
               <label className="field-label">Brief title</label>
               <input className="input" value={data.title} onChange={(e) => update('title', e.target.value)} placeholder="e.g. Diwali campaign hero video" />
+              <span className={data.title.length > 0 && data.title.trim().length < 5 ? 'field-error' : 'field-hint'}>Minimum 5 characters</span>
             </div>
             <div className="field">
               <label className="field-label">Category</label>
@@ -233,6 +251,7 @@ export default function PostJob() {
             <div className="field">
               <label className="field-label">Brief description</label>
               <textarea className="textarea" value={data.description} onChange={(e) => update('description', e.target.value)} rows={6} placeholder="Describe what you need, tone, references, audience..." />
+              <span className={data.description.length > 0 && data.description.trim().length < 5 ? 'field-error' : 'field-hint'}>{data.description.trim().length}/5 minimum characters</span>
             </div>
             <div className="field">
               <label className="field-label">Brief tags</label>
@@ -292,6 +311,7 @@ export default function PostJob() {
               <input
                 className="input"
                 type="date"
+                min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
                 value={data.deadline}
                 onChange={e => update('deadline', e.target.value)}
               />
@@ -341,7 +361,7 @@ export default function PostJob() {
         <button className="btn ghost" onClick={() => step > 1 ? setStep(step - 1) : navigate('/jobs')}>
           <Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}
         </button>
-        <button className="btn primary" onClick={handlePrimaryAction} disabled={isPending || !canContinue()}>
+        <button className="btn primary" onClick={handlePrimaryAction} disabled={isPending}>
           {isPending
             ? (isEditMode ? 'Saving...' : 'Posting...')
             : step < 3

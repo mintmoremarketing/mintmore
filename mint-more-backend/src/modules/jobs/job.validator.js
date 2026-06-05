@@ -33,8 +33,8 @@ const validateCreateJob = (body) => {
   if (title && title.trim().length > 255) {
     errors.push('title must be under 255 characters');
   }
-  if (!description || description.trim().length < 20) {
-    errors.push('description is required (min 20 characters)');
+  if (!description || description.trim().length < 5) {
+    errors.push('description is required (min 5 characters)');
   }
   if (!category_id) {
     errors.push('category_id is required');
@@ -92,8 +92,8 @@ const validateUpdateJob = (body) => {
     if (title.trim().length < 5) errors.push('title must be at least 5 characters');
     if (title.trim().length > 255) errors.push('title must be under 255 characters');
   }
-  if (description !== undefined && description.trim().length < 20) {
-    errors.push('description must be at least 20 characters');
+  if (description !== undefined && description.trim().length < 5) {
+    errors.push('description must be at least 5 characters');
   }
   if (pricing_mode !== undefined && !ALLOWED_PRICING_MODES.includes(pricing_mode)) {
     errors.push(`pricing_mode must be one of: ${ALLOWED_PRICING_MODES.join(', ')}`);
