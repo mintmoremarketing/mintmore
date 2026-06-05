@@ -8,6 +8,7 @@ import { walletApi } from '../../api/wallet'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
+import Avatar from '../../components/ui/Avatar'
 import Modal from '../../components/ui/Modal'
 import { rupee, timeAgo } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
@@ -276,6 +277,26 @@ export default function Mintbox() {
 		groups[category].push(file)
 		return groups
 	}, {}), [sortedFiles])
+	const conversationItems = useMemo(() => {
+		const fileItems = sortedFiles.map(file => ({
+			id: `file-${file.id}`,
+			kind: 'file',
+			created_at: file.created_at,
+			mine: file.uploaded_by_role === role,
+			file,
+		}))
+		const feedbackItems = (revisions?.rounds || []).flatMap(round =>
+			(round.feedback || []).map(feedback => ({
+				id: `feedback-${feedback.id}`,
+				kind: 'feedback',
+				created_at: feedback.created_at,
+				mine: role === 'client',
+				round,
+				feedback,
+			}))
+		)
+		return [...fileItems, ...feedbackItems].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+	}, [sortedFiles, revisions?.rounds, role])
 	const categoryMeta = {
 		brief: { label: 'Brief references', icon: 'paperclip', hint: 'Source material from the client' },
 		photos: { label: 'Photos & design', icon: 'image', hint: 'Drop JPG, PNG, PSD, AI or EPS files' },
@@ -458,25 +479,6 @@ export default function Mintbox() {
 						{Number(revisions.active_round.charge_amount) > 0 ? ` - ${rupee(revisions.active_round.charge_amount)} paid` : ' - included'}
 					</div>
 				)}
-				{revisions?.rounds?.length > 0 && (
-					<div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
-						{revisions.rounds.map(round => (
-							<div key={round.id} style={{ borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
-								<div className="row between" style={{ gap: 10 }}>
-									<strong style={{ fontSize: 12.5 }}>Revision {round.round_number}</strong>
-									<span style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>
-										{round.status === 'delivered' ? 'Delivered' : 'Awaiting revised delivery'}
-									</span>
-								</div>
-								{round.feedback?.map(item => (
-									<div key={item.id} style={{ fontSize: 12, color: 'var(--ink-600)', marginTop: 6 }}>
-										{item.file_name}: {item.note}
-									</div>
-								))}
-							</div>
-						))}
-					</div>
-				)}
 				<div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 10 }}>
 					Both parties acknowledge these terms by accepting the order.
 				</div>
@@ -573,7 +575,106 @@ export default function Mintbox() {
 				</div>
 			)}
 
-			<div className="card reveal" style={{ padding: 0, overflow: 'hidden' }}>
+			<div className="card reveal" style={{ padding: 18 }}>
+				<div className="row between" style={{ gap: 16, marginBottom: 16 }}>
+					<div>
+						<div className="h-eyebrow">Messages & deliveries</div>
+						<div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>Project files and revision feedback stay together in one conversation.</div>
+					</div>
+					<span className="badge neutral">{conversationItems.length} messages</span>
+				</div>
+
+				<div style={{ padding: 18, background: 'var(--paper-tint)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)', minHeight: 220 }}>
+					{conversationItems.length === 0 ? (
+						<div className="empty" style={{ border: 0, padding: 32 }}>
+							<div className="empty-glyph"><Icon name="upload" /></div>
+							<h3>No messages yet</h3>
+							<p>References, deliveries, and revision feedback will appear here.</p>
+						</div>
+					) : conversationItems.map(item => {
+						if (item.kind === 'feedback') {
+							return (
+								<div key={item.id} className={`offer-card ${item.mine ? 'me' : 'them'}`}>
+									<div className="row between" style={{ gap: 12 }}>
+										<div className="row" style={{ gap: 8 }}>
+											<Avatar name={item.mine ? 'You' : 'Client'} size="sm" />
+											<strong style={{ fontSize: 12.5 }}>{item.mine ? 'You' : 'Client'}</strong>
+											<span className="muted" style={{ fontSize: 12 }}>requested a revision</span>
+										</div>
+										<span className="muted" style={{ fontSize: 11.5 }}>Round {item.round.round_number}</span>
+									</div>
+									<div className="msg">{item.feedback.feedback_text || item.feedback.note || 'Revision requested'}</div>
+									<div className="row between" style={{ gap: 12, marginTop: 10 }}>
+										<span className="muted" style={{ fontSize: 11.5 }}>{timeAgo(item.created_at)}</span>
+										{item.mine && <span className="muted" style={{ fontSize: 11.5 }}>{item.feedback.seen_by_freelancer_at ? 'Seen' : 'Delivered'}</span>}
+									</div>
+								</div>
+							)
+						}
+
+						const file = item.file
+						const seen = role === 'freelancer' ? file.seen_by_client_at : file.seen_by_freelancer_at
+						const action = file.purpose === 'brief'
+							? 'shared a reference'
+							: file.revision_round
+								? 'delivered a revision'
+								: 'delivered work'
+
+						return (
+							<div key={item.id} className={`offer-card ${item.mine ? 'me' : 'them'}`}>
+								<div className="row between" style={{ gap: 12 }}>
+									<div className="row" style={{ gap: 8 }}>
+										<Avatar name={item.mine ? 'You' : file.uploaded_by_name} size="sm" />
+										<strong style={{ fontSize: 12.5 }}>{item.mine ? 'You' : file.uploaded_by_name}</strong>
+										<span className="muted" style={{ fontSize: 12 }}>{action}</span>
+									</div>
+									{file.revision_round && <span className="muted" style={{ fontSize: 11.5 }}>Round {file.revision_round}</span>}
+								</div>
+
+								<a href={file.public_url} target="_blank" rel="noreferrer" className="offer-row" style={{ textDecoration: 'none', alignItems: 'center' }}>
+									<span style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--paper)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+										<Icon name="file" size={14} />
+									</span>
+									<span style={{ minWidth: 0 }}>
+										<span className="big" style={{ display: 'block', fontFamily: 'inherit', fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.original_name}</span>
+										<span className="small">{formatBytes(Number(file.size_bytes))}</span>
+									</span>
+								</a>
+
+								{file.freelancer_note && <div className="msg">{file.freelancer_note}</div>}
+								<div className="row between" style={{ gap: 12, marginTop: 10 }}>
+									<span className={`badge ${file.status === 'approved' ? 'mint' : file.status === 'revision_requested' ? 'amber' : 'neutral'}`}>
+										<span className="bdot" /> {statusLabel[file.status] || file.status}
+									</span>
+									<span className="muted" style={{ fontSize: 11.5 }}>{timeAgo(file.created_at)}{item.mine ? ` - ${seen ? 'Seen' : 'Delivered'}` : ''}</span>
+								</div>
+
+								{role === 'client' && file.purpose !== 'brief' && file.status !== 'approved' && (
+									<div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--hairline)' }}>
+										<input
+											className="input"
+											value={reviewNotes[file.id] || ''}
+											onChange={e => setReviewNotes(prev => ({ ...prev, [file.id]: e.target.value }))}
+											placeholder="Describe what needs changing..."
+											style={{ marginBottom: 8 }}
+										/>
+										<div className="row" style={{ gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+											<button className="btn ghost" onClick={() => reviewMutation.mutate({ fileId: file.id, action: 'revision' })} disabled={reviewMutation.isPending}>
+												<Icon name="refresh" size={13} /> Request revision
+											</button>
+											<button className="btn primary" onClick={() => reviewMutation.mutate({ fileId: file.id, action: 'approve' })} disabled={reviewMutation.isPending}>
+												<Icon name="check" size={13} /> Accept delivery
+											</button>
+										</div>
+									</div>
+								)}
+							</div>
+						)
+					})}
+				</div>
+			</div>
+
+			{false && <div className="card reveal" style={{ padding: 0, overflow: 'hidden' }}>
 				{sortedFiles.length === 0 ? (
 					<div className="empty" style={{ border: 0, padding: 48 }}>
 						<div className="empty-glyph"><Icon name="upload" /></div>
@@ -643,7 +744,7 @@ export default function Mintbox() {
 						</div>
 					))
 				)}
-			</div>
+			</div>}
 
 			{purchaseModal}
 		</div>
