@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const controller = require('./ai.controller');
-const { authenticate } = require('../../middleware/authenticate');
-const { requireEntitlement } = require('../../middleware/permissions');
+const { authenticate, authorize } = require('../../middleware/authenticate');
+const { requireEntitlement, requirePermission } = require('../../middleware/permissions');
 
 const router = Router();
 
@@ -28,5 +28,12 @@ router.get('/generations/:generationId', controller.getGeneration);
 
 // GET  /api/v1/ai/usage                          — credits + rate limit summary
 router.get('/usage', controller.getUsageSummary);
+
+router.get('/admin/stats', authorize('admin'), requirePermission('pricing.manage'), controller.adminGetAIStats);
+router.get('/admin/models/:modelId/stats', authorize('admin'), requirePermission('pricing.manage'), controller.adminGetModelStats);
+router.get('/admin/openrouter/browse', authorize('admin'), requirePermission('pricing.manage'), controller.adminBrowseOpenRouterModels);
+router.post('/admin/models', authorize('admin'), requirePermission('pricing.manage'), controller.adminAddModel);
+router.patch('/admin/models/:modelId', authorize('admin'), requirePermission('pricing.manage'), controller.adminUpdateModel);
+router.patch('/admin/models/:modelId/toggle', authorize('admin'), requirePermission('pricing.manage'), controller.adminToggleModel);
 
 module.exports = router;

@@ -4,7 +4,6 @@ import { api } from '../../api/client'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import Avatar from '../../components/ui/Avatar'
-import StatusChip from '../../components/ui/StatusChip'
 import Modal from '../../components/ui/Modal'
 import Tabs from '../../components/ui/Tabs'
 import { rupee, timeAgo } from '../../utils/format'
@@ -106,6 +105,7 @@ function CreateAdminModal({ onClose }) {
     ['support.manage', 'Support and disputes'],
     ['pricing.manage', 'AI and pricing'],
     ['audit.read', 'Audit records'],
+    ['operations.manage', 'Background operations'],
   ]
 
   const createAdmin = useMutation({

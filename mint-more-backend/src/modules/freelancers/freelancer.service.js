@@ -125,7 +125,7 @@ const browseFreelancers = async ({
 	};
 };
 
-const getFreelancerProfile = async (freelancerId) => {
+const getFreelancerProfile = async (freelancerId, clientId = null) => {
 	const result = await query(
 		`SELECT
 			 u.id, u.full_name, u.avatar_url, u.tagline, u.bio,
@@ -139,12 +139,16 @@ const getFreelancerProfile = async (freelancerId) => {
 			 CASE WHEN up.is_online AND up.last_seen_at > NOW() - INTERVAL '2 minutes'
 						THEN true ELSE false END AS is_online,
 			 up.last_seen_at
+			 ,EXISTS(
+				 SELECT 1 FROM preferred_creators pc
+				 WHERE pc.client_id = $2 AND pc.freelancer_id = u.id
+			 ) AS is_preferred_creator
 		 FROM users u
 		 LEFT JOIN user_presence up ON up.user_id = u.id
 		 WHERE u.id = $1
 			 AND u.role = 'freelancer'
 			 AND u.is_active = true`,
-		[freelancerId]
+		[freelancerId, clientId]
 	);
 
 	const freelancer = result.rows[0];
@@ -164,6 +168,32 @@ const getFreelancerProfile = async (freelancerId) => {
 		reviews:        reviewData.reviews,
 		review_summary: reviewData.summary,
 	};
+};
+
+const setPreferredCreator = async (clientId, freelancerId, preferred) => {
+	const freelancer = await query(
+		`SELECT id FROM users
+		 WHERE id = $1 AND role = 'freelancer' AND is_active = true`,
+		[freelancerId]
+	);
+	if (!freelancer.rows[0]) throw new AppError('Freelancer not found', 404);
+
+	if (preferred) {
+		await query(
+			`INSERT INTO preferred_creators (client_id, freelancer_id)
+			 VALUES ($1, $2)
+			 ON CONFLICT (client_id, freelancer_id) DO NOTHING`,
+			[clientId, freelancerId]
+		);
+	} else {
+		await query(
+			`DELETE FROM preferred_creators
+			 WHERE client_id = $1 AND freelancer_id = $2`,
+			[clientId, freelancerId]
+		);
+	}
+
+	return { freelancer_id: freelancerId, is_preferred_creator: preferred };
 };
 
 const updateMarketplaceProfile = async (freelancerId, updates) => {
@@ -192,5 +222,6 @@ const updateMarketplaceProfile = async (freelancerId, updates) => {
 module.exports = {
 	browseFreelancers,
 	getFreelancerProfile,
+	setPreferredCreator,
 	updateMarketplaceProfile,
 };

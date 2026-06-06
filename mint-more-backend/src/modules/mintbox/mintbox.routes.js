@@ -21,6 +21,8 @@ router.post('/jobs/:jobId/uploads/prepare', controller.prepareUpload);
 router.post('/uploads/:uploadId/complete', controller.completeUpload);
 router.delete('/uploads/:uploadId', controller.cancelUpload);
 router.patch('/files/:fileId/review', controller.reviewFile);
+router.patch('/shares/:scope/:id/revoke', controller.revokeShare);
+router.patch('/shares/:scope/:id/rotate', controller.rotateShare);
 router.get('/share/:token', controller.getSharedFolder);
 
 module.exports = router;

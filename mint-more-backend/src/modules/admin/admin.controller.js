@@ -5,6 +5,8 @@ const {
   validateCategoryCreate,
 } = require('./admin.validator');
 const { sendSuccess } = require('../../utils/apiResponse');
+const { listOutboxEvents, retryOutboxEvent } = require('../events/outbox.service');
+const { writeAudit } = require('../audit/audit.service');
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 
@@ -28,8 +30,8 @@ const getUsers = async (req, res, next) => {
 
 const getUserById = async (req, res, next) => {
   try {
-    const user = await adminService.getUserById(req.params.userId);
-    return sendSuccess(res, { data: { user } });
+    const detail = await adminService.getUserById(req.params.userId);
+    return sendSuccess(res, { data: detail });
   } catch (err) { next(err); }
 };
 
@@ -148,6 +150,31 @@ const getAllCategoryPriceRanges = async (req, res, next) => {
 };
 
 
+const getOutboxEvents = async (req, res, next) => {
+  try {
+    const events = await listOutboxEvents({
+      status: req.query.status || null,
+      limit: req.query.limit,
+    });
+    return sendSuccess(res, { data: { events } });
+  } catch (err) { next(err); }
+};
+
+const retryOutbox = async (req, res, next) => {
+  try {
+    const event = await retryOutboxEvent(req.params.eventId);
+    await writeAudit({
+      actorId: req.user.sub,
+      actorRole: 'admin',
+      action: 'outbox.retry',
+      entityType: 'event_outbox',
+      entityId: event.id,
+      afterState: event,
+    });
+    return sendSuccess(res, { data: { event }, message: 'Event queued for retry' });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   getUsers,
   getUserById,
@@ -161,4 +188,6 @@ module.exports = {
   getDashboardStats,
   upsertCategoryPriceRange,
   getAllCategoryPriceRanges,
+  getOutboxEvents,
+  retryOutbox,
 };

@@ -7,6 +7,7 @@ const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
 const env      = require('../../config/env');
 const axios    = require('axios');
+const { getSetting } = require('../commerce/settings.service');
 
 const FB_API = 'https://graph.facebook.com/v19.0';
 
@@ -363,6 +364,18 @@ const createPost = async (userId, data) => {
 };
 
 const addMediaToPost = async (postId, userId, mediaItems) => {
+  const postResult = await query(
+    `SELECT id, status
+     FROM social_posts
+     WHERE id = $1 AND user_id = $2`,
+    [postId, userId]
+  );
+  const post = postResult.rows[0];
+  if (!post) throw new AppError('Post not found', 404);
+  if (!['draft', 'failed'].includes(post.status)) {
+    throw new AppError(`Media cannot be added to a post with status: ${post.status}`, 409);
+  }
+
   const values = mediaItems.map((m, i) => ({
     postId, userId,
     mediaUrl:     m.media_url,
@@ -395,6 +408,40 @@ const addMediaToPost = async (postId, userId, mediaItems) => {
     inserted.push(res.rows[0]);
   }
   return inserted;
+};
+
+const getMintboxMediaLibrary = async (userId, baseUrl) => {
+  const result = await query(
+    `SELECT
+       file.id,
+       file.original_name,
+       file.mime_type,
+       file.size_bytes,
+       file.file_category,
+       file.created_at,
+       file.share_token,
+       job.id AS job_id,
+       job.title AS job_title
+     FROM mintbox_files file
+     JOIN mintbox_folders folder ON folder.id = file.folder_id
+     JOIN jobs job ON job.id = folder.job_id
+     WHERE folder.client_id = $1
+       AND file.deleted_by_client_at IS NULL
+       AND file.share_revoked_at IS NULL
+       AND (
+         file.mime_type LIKE 'image/%'
+         OR file.mime_type LIKE 'video/%'
+       )
+     ORDER BY file.created_at DESC
+     LIMIT 100`,
+    [userId]
+  );
+
+  return result.rows.map((file) => ({
+    ...file,
+    media_type: file.mime_type.startsWith('video/') ? 'video' : 'image',
+    media_url: `${baseUrl}/api/v1/mintbox/public/files/${file.share_token}/content`,
+  }));
 };
 
 /**
@@ -784,6 +831,75 @@ const pullAnalytics = async (postId, userId) => {
   return updated;
 };
 
+const getAnalyticsSummary = async (userId, requestedDays = null) => {
+  const benchmarks = await getSetting('social_benchmarks', {
+    engagement_rate_percent: 3,
+    summary_days: 30,
+  });
+  const days = Math.min(Math.max(Number(requestedDays || benchmarks.summary_days || 30), 7), 365);
+  const result = await query(
+    `SELECT
+       COUNT(DISTINCT sp.id) FILTER (
+         WHERE spp.published_at >= NOW() - ($2::TEXT || ' days')::INTERVAL
+       ) AS posts,
+       COALESCE(SUM(spp.views_count) FILTER (
+         WHERE spp.published_at >= NOW() - ($2::TEXT || ' days')::INTERVAL
+       ), 0) AS views,
+       COALESCE(SUM(spp.reach_count) FILTER (
+         WHERE spp.published_at >= NOW() - ($2::TEXT || ' days')::INTERVAL
+       ), 0) AS reach,
+       COALESCE(SUM(spp.likes_count + spp.comments_count + spp.shares_count) FILTER (
+         WHERE spp.published_at >= NOW() - ($2::TEXT || ' days')::INTERVAL
+       ), 0) AS engagements,
+       COALESCE(SUM(spp.views_count) FILTER (
+         WHERE spp.published_at < NOW() - ($2::TEXT || ' days')::INTERVAL
+           AND spp.published_at >= NOW() - ($2::TEXT || ' days')::INTERVAL * 2
+       ), 0) AS previous_views,
+       COALESCE(SUM(spp.reach_count) FILTER (
+         WHERE spp.published_at < NOW() - ($2::TEXT || ' days')::INTERVAL
+           AND spp.published_at >= NOW() - ($2::TEXT || ' days')::INTERVAL * 2
+       ), 0) AS previous_reach,
+       COALESCE(SUM(spp.likes_count + spp.comments_count + spp.shares_count) FILTER (
+         WHERE spp.published_at < NOW() - ($2::TEXT || ' days')::INTERVAL
+           AND spp.published_at >= NOW() - ($2::TEXT || ' days')::INTERVAL * 2
+       ), 0) AS previous_engagements
+     FROM social_posts sp
+     JOIN social_post_platforms spp ON spp.post_id = sp.id
+     WHERE sp.user_id = $1 AND spp.status = 'published'`,
+    [userId, days]
+  );
+  const row = result.rows[0];
+  const reach = Number(row.reach);
+  const views = Number(row.views);
+  const engagements = Number(row.engagements);
+  const denominator = reach || views;
+  const engagementRate = denominator > 0 ? (engagements / denominator) * 100 : 0;
+  const benchmark = Number(benchmarks.engagement_rate_percent || 3);
+  const compare = (current, previous) => previous > 0
+    ? Math.round(((current - previous) / previous) * 1000) / 10
+    : null;
+
+  return {
+    period_days: days,
+    posts: Number(row.posts),
+    views,
+    reach,
+    engagements,
+    engagement_rate_percent: Math.round(engagementRate * 10) / 10,
+    benchmark_engagement_rate_percent: benchmark,
+    comparison: {
+      views_percent: compare(views, Number(row.previous_views)),
+      reach_percent: compare(reach, Number(row.previous_reach)),
+      engagements_percent: compare(engagements, Number(row.previous_engagements)),
+    },
+    insight: denominator === 0
+      ? 'Publish content and refresh post analytics to see performance guidance.'
+      : engagementRate >= benchmark
+        ? `Your engagement rate is above the ${benchmark}% platform benchmark.`
+        : `Your engagement rate is below the ${benchmark}% platform benchmark. Try clearer calls to action and test a new format.`,
+  };
+};
+
 module.exports = {
   getOAuthUrl,
   handleOAuthCallback,
@@ -791,10 +907,12 @@ module.exports = {
   disconnectAccount,
   createPost,
   addMediaToPost,
+  getMintboxMediaLibrary,
   publishPost,
   executePublish,
   cancelPost,
   getMyPosts,
   getPostById,
   pullAnalytics,
+  getAnalyticsSummary,
 };

@@ -2,12 +2,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { query, getClient } = require('../../config/database');
 const env = require('../../config/env');
-const {
-  supabase,
-  createSignedResumableUpload,
-  createSignedDownloadUrl,
-  storageObjectExists,
-} = require('../../config/supabase');
+const storage = require('../storage/mintbox-storage.provider');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const notificationService = require('../notifications/notification.service');
@@ -16,7 +11,7 @@ const reviewService = require('../reviews/review.service');
 const { getSetting } = require('../commerce/settings.service');
 const { appendSystemMessageByJob } = require('../chat/chat.service');
 
-const BUCKET = env.supabase.mintboxBucket;
+const BUCKET = storage.getBucket();
 const CLIENT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;
 const BYTES_PER_GB = 1024 * 1024 * 1024;
 const DEFAULT_REVISION_POLICY = { included_rounds: 3, paid_revision_price: 20, feedback_window_hours: 24 };
@@ -39,8 +34,8 @@ const publishProjectActivity = (jobId, content) => {
 const makeToken = () => crypto.randomBytes(24).toString('base64url');
 const toSharedFile = (file) => ({
   ...file,
-  public_url: `/mintbox/file/${file.share_token}`,
-  share_url: `/mintbox/file/${file.share_token}`,
+  public_url: file.share_revoked_at ? null : `/mintbox/file/${file.share_token}`,
+  share_url: file.share_revoked_at ? null : `/mintbox/file/${file.share_token}`,
   storage_bucket: undefined,
   storage_path: undefined,
 });
@@ -262,7 +257,7 @@ const getFolderByShareToken = async (token, requesterId, role) => {
     `SELECT mf.*, j.client_id, j.active_freelancer_id, j.status AS job_status
      FROM mintbox_folders mf
      JOIN jobs j ON j.id = mf.job_id
-     WHERE mf.share_token = $1`,
+     WHERE mf.share_token = $1 AND mf.share_revoked_at IS NULL`,
     [token]
   );
   const folder = folderResult.rows[0];
@@ -292,13 +287,17 @@ const getPublicFolderByShareToken = async (token) => {
     `SELECT mf.*, j.title AS job_title
      FROM mintbox_folders mf
      JOIN jobs j ON j.id = mf.job_id
-     WHERE mf.share_token = $1`,
+     WHERE mf.share_token = $1 AND mf.share_revoked_at IS NULL`,
     [token]
   );
   const folder = folderResult.rows[0];
   if (!folder) throw new AppError('Mintbox folder not found', 404);
-  const files = await listFiles(folder.id);
-  return { folder, files, category_shares: await listCategoryShares(folder.id) };
+  const files = (await listFiles(folder.id)).filter((file) => !file.share_revoked_at);
+  return {
+    folder,
+    files,
+    category_shares: (await listCategoryShares(folder.id)).filter((share) => share.share_url),
+  };
 };
 
 const getPublicCategoryByShareToken = async (token) => {
@@ -306,14 +305,14 @@ const getPublicCategoryByShareToken = async (token) => {
     `SELECT share.*, folder.name, folder.job_id
      FROM mintbox_category_shares share
      JOIN mintbox_folders folder ON folder.id = share.folder_id
-     WHERE share.share_token = $1`,
+     WHERE share.share_token = $1 AND share.share_revoked_at IS NULL`,
     [token]
   );
   const share = result.rows[0];
   if (!share) throw new AppError('Shared folder not found', 404);
   return {
     folder: { id: share.folder_id, job_id: share.job_id, name: `${share.name} / ${share.category}`, shared_category: share.category },
-    files: await listFiles(share.folder_id, share.category),
+    files: (await listFiles(share.folder_id, share.category)).filter((file) => !file.share_revoked_at),
     category_shares: [],
   };
 };
@@ -329,6 +328,13 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
     const job = await getJobForAccess(jobId, uploaderId, role, dbClient);
     if (role === 'freelancer' && !['assigned', 'in_progress'].includes(job.status)) {
       throw new AppError('Work can only be submitted after the assignment starts', 400);
+    }
+    if (role === 'freelancer') {
+      const dispute = await dbClient.query(
+        `SELECT id FROM disputes WHERE job_id=$1 AND status IN ('open','under_review') LIMIT 1`,
+        [job.id]
+      );
+      if (dispute.rows[0]) throw new AppError('Deliveries are paused while support reviews this dispute', 409);
     }
     if (role === 'client' && !['draft', 'open', 'matching'].includes(job.status)) {
       throw new AppError('Brief references can only be added before negotiation starts', 400);
@@ -370,7 +376,7 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
     ) : { rows: [] };
     const revisionRound = activeRevision.rows[0]?.round_number || null;
     const storagePath = `${folder.storage_prefix}/${uploadPurpose}/${fileCategory}/${Date.now()}-${crypto.randomUUID()}${ext}`;
-    const signedUpload = await createSignedResumableUpload(BUCKET, storagePath);
+    const signedUpload = await storage.prepareResumableUpload(storagePath);
     const session = await dbClient.query(
       `INSERT INTO mintbox_upload_sessions
          (folder_id, job_id, client_id, uploaded_by, original_name, storage_bucket,
@@ -436,13 +442,17 @@ const completeUpload = async (uploadId, uploaderId, role) => {
     if (session.status !== 'pending' || new Date(session.expires_at) <= new Date()) {
       throw new AppError('Upload session has expired', 410);
     }
+    if (session.purpose === 'delivery') {
+      const dispute = await dbClient.query(
+        `SELECT id FROM disputes WHERE job_id=$1 AND status IN ('open','under_review') LIMIT 1`,
+        [session.job_id]
+      );
+      if (dispute.rows[0]) throw new AppError('Deliveries are paused while support reviews this dispute', 409);
+    }
 
-    const exists = await storageObjectExists(session.storage_bucket, session.storage_path);
+    const exists = await storage.objectExists(session.storage_path);
     if (!exists) throw new AppError('Upload has not finished yet', 409);
 
-    const { data: urlData } = supabase.storage
-      .from(session.storage_bucket)
-      .getPublicUrl(session.storage_path);
     const inserted = await dbClient.query(
       `INSERT INTO mintbox_files
          (folder_id, job_id, uploaded_by, original_name, storage_bucket, storage_path,
@@ -457,7 +467,7 @@ const completeUpload = async (uploadId, uploaderId, role) => {
         session.original_name,
         session.storage_bucket,
         session.storage_path,
-        urlData.publicUrl,
+        `internal://mintbox/${session.storage_path}`,
         session.mime_type,
         session.size_bytes,
         session.freelancer_note,
@@ -574,7 +584,7 @@ const listCategoryShares = async (folderId) => {
     );
   }
   const result = await query(
-    `SELECT category, share_token
+    `SELECT id, category, share_token, share_revoked_at
      FROM mintbox_category_shares
      WHERE folder_id = $1
      ORDER BY category`,
@@ -582,7 +592,7 @@ const listCategoryShares = async (folderId) => {
   );
   return result.rows.map((share) => ({
     ...share,
-    share_url: `/mintbox/share-category/${share.share_token}`,
+    share_url: share.share_revoked_at ? null : `/mintbox/share-category/${share.share_token}`,
   }));
 };
 
@@ -591,7 +601,7 @@ const getPublicFile = async (token) => {
     `SELECT id, original_name, storage_bucket, storage_path, mime_type, size_bytes,
             file_category, created_at
      FROM mintbox_files
-     WHERE share_token = $1 AND deleted_by_client_at IS NULL`,
+     WHERE share_token = $1 AND share_revoked_at IS NULL AND deleted_by_client_at IS NULL`,
     [token]
   );
   const file = result.rows[0];
@@ -601,9 +611,68 @@ const getPublicFile = async (token) => {
 
 const getPublicFileStream = async (token) => {
   const file = await getPublicFile(token);
-  const signedUrl = await createSignedDownloadUrl(file.storage_bucket, file.storage_path, 60);
+  const signedUrl = await storage.createDownloadUrl(file.storage_path, 60);
   if (!signedUrl) throw new AppError('File is temporarily unavailable', 503);
   return { file, signedUrl };
+};
+
+const revokeShare = async (scope, id, requesterId, role) => {
+  const tables = {
+    folder: 'mintbox_folders',
+    file: 'mintbox_files',
+    category: 'mintbox_category_shares',
+  };
+  const table = tables[scope];
+  if (!table) throw new AppError('Invalid share scope', 400);
+
+  const ownershipCondition = scope === 'folder'
+    ? 'target.client_id = $3'
+    : `EXISTS (
+        SELECT 1 FROM mintbox_folders folder
+        WHERE folder.id = target.folder_id AND folder.client_id = $3
+      )`;
+  const result = await query(
+    `UPDATE ${table} target
+     SET share_revoked_at = NOW()
+     WHERE target.id = $1
+       AND ($2::BOOLEAN OR ${ownershipCondition})
+     RETURNING target.id, target.share_revoked_at`,
+    [id, role === 'admin', requesterId]
+  );
+  if (!result.rows[0]) throw new AppError('Share link not found', 404);
+  return result.rows[0];
+};
+
+const rotateShare = async (scope, id, requesterId, role) => {
+  const tables = {
+    folder: 'mintbox_folders',
+    file: 'mintbox_files',
+    category: 'mintbox_category_shares',
+  };
+  const table = tables[scope];
+  if (!table) throw new AppError('Invalid share scope', 400);
+  const ownershipCondition = scope === 'folder'
+    ? 'target.client_id = $4'
+    : `EXISTS (
+        SELECT 1 FROM mintbox_folders folder
+        WHERE folder.id = target.folder_id AND folder.client_id = $4
+      )`;
+  const token = makeToken();
+  const result = await query(
+    `UPDATE ${table} target
+     SET share_token = $2, share_revoked_at = NULL
+     WHERE target.id = $1
+       AND ($3::BOOLEAN OR ${ownershipCondition})
+     RETURNING target.id, target.share_token`,
+    [id, token, role === 'admin', requesterId]
+  );
+  if (!result.rows[0]) throw new AppError('Share link not found', 404);
+  const prefixes = {
+    folder: '/mintbox/share/',
+    category: '/mintbox/share-category/',
+    file: '/mintbox/file/',
+  };
+  return { ...result.rows[0], share_url: `${prefixes[scope]}${result.rows[0].share_token}` };
 };
 
 const markSeen = async (jobId, requesterId, role) => {
@@ -681,6 +750,35 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
     );
     const file = fileResult.rows[0];
     if (!file) throw new AppError('File not found', 404);
+    if (file.purpose !== 'delivery') {
+      throw new AppError('Only creative deliveries can be reviewed', 400);
+    }
+    const activeDispute = await dbClient.query(
+      `SELECT id FROM disputes WHERE job_id=$1 AND status IN ('open','under_review') LIMIT 1`,
+      [file.job_id]
+    );
+    if (activeDispute.rows[0]) throw new AppError('Delivery review is paused while support reviews this dispute', 409);
+    const latestDelivery = await dbClient.query(
+      `SELECT id FROM mintbox_files
+       WHERE job_id = $1 AND purpose = 'delivery' AND deleted_by_client_at IS NULL
+       ORDER BY created_at DESC LIMIT 1`,
+      [file.job_id]
+    );
+    if (latestDelivery.rows[0]?.id !== file.id) {
+      throw new AppError('Review the latest delivery instead of an older version', 409);
+    }
+
+    if (action === 'approve') {
+      const pendingRevision = await dbClient.query(
+        `SELECT id FROM mintbox_revision_rounds
+         WHERE job_id = $1 AND status IN ('feedback_open', 'awaiting_delivery')
+         LIMIT 1`,
+        [file.job_id]
+      );
+      if (pendingRevision.rows[0]) {
+        throw new AppError('Wait for the revised delivery before approving the project', 409);
+      }
+    }
 
     if (action === 'revision') {
       const openResult = await dbClient.query(
@@ -717,11 +815,13 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
           await recordTransaction(dbClient, {
             walletId: clientWallet.id, userId: clientId, type: 'adjustment', amount: -charge,
             referenceId: file.job_id, referenceType: 'revision',
+            idempotencyKey: `revision-charge-client:${file.job_id}:${roundNumber}`,
             description: `Paid revision ${roundNumber}`, metadata: { revision_round: roundNumber },
           });
           await recordTransaction(dbClient, {
             walletId: freelancerWallet.id, userId: file.active_freelancer_id, type: 'adjustment', amount: charge,
             referenceId: file.job_id, referenceType: 'revision',
+            idempotencyKey: `revision-charge-freelancer:${file.job_id}:${roundNumber}`,
             description: `Paid revision ${roundNumber}`, metadata: { revision_round: roundNumber },
           });
         }
@@ -803,12 +903,20 @@ const completeProject = async (jobId, clientId, role, review = {}) => {
 
   const result = await query(
     `SELECT j.id, j.status, j.active_freelancer_id,
-            EXISTS (
-              SELECT 1 FROM mintbox_files file
+            (
+              SELECT file.status = 'approved'
+              FROM mintbox_files file
               WHERE file.job_id = j.id
                 AND file.purpose = 'delivery'
-                AND file.status = 'approved'
-            ) AS has_approved_delivery
+                AND file.deleted_by_client_at IS NULL
+              ORDER BY file.created_at DESC
+              LIMIT 1
+            ) AS has_approved_delivery,
+            EXISTS (
+              SELECT 1 FROM mintbox_revision_rounds revision
+              WHERE revision.job_id = j.id
+                AND revision.status IN ('feedback_open', 'awaiting_delivery')
+            ) AS has_open_revision
      FROM jobs j
      WHERE j.id = $1 AND j.client_id = $2`,
     [jobId, clientId]
@@ -819,6 +927,7 @@ const completeProject = async (jobId, clientId, role, review = {}) => {
     throw new AppError(`Project cannot be completed in its current status: ${job.status}`, 400);
   }
   if (!job.active_freelancer_id) throw new AppError('No creative is assigned to this project', 400);
+  if (job.has_open_revision) throw new AppError('Wait for the revised delivery before completing the project', 409);
   if (!job.has_approved_delivery) throw new AppError('Approve a delivery before completing the project', 400);
 
   const completion = await completeJob(jobId, clientId, {
@@ -859,6 +968,8 @@ module.exports = {
   getPublicCategoryByShareToken,
   getPublicFile,
   getPublicFileStream,
+  revokeShare,
+  rotateShare,
   prepareUpload,
   completeUpload,
   cancelUpload,

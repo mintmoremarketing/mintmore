@@ -3,6 +3,7 @@ const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { markSessionCompleted } = require('../whatsapp/conversation.service');
 const { writeAudit } = require('../audit/audit.service');
+const { getSetting } = require('../commerce/settings.service');
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -50,9 +51,18 @@ const recordTransaction = async (dbClient, {
   escrowDelta = 0,
   referenceId = null,
   referenceType = null,
+  idempotencyKey = null,
   description = '',
   metadata = {},
 }) => {
+  if (idempotencyKey) {
+    const existing = await dbClient.query(
+      'SELECT * FROM transactions WHERE idempotency_key = $1',
+      [idempotencyKey]
+    );
+    if (existing.rows[0]) return existing.rows[0];
+  }
+
   // Lock the wallet row
   const walletResult = await dbClient.query(
     'SELECT * FROM wallets WHERE id = $1 FOR UPDATE',
@@ -88,8 +98,8 @@ const recordTransaction = async (dbClient, {
     `INSERT INTO transactions
        (wallet_id, user_id, type, amount, currency,
         balance_after, escrow_after,
-        reference_id, reference_type, description, metadata)
-     VALUES ($1, $2, $3, $4, 'INR', $5, $6, $7, $8, $9, $10)
+        reference_id, reference_type, idempotency_key, description, metadata)
+     VALUES ($1, $2, $3, $4, 'INR', $5, $6, $7, $8, $9, $10, $11)
      RETURNING *`,
     [
       walletId,
@@ -100,6 +110,7 @@ const recordTransaction = async (dbClient, {
       newEscrow,
       referenceId,
       referenceType,
+      idempotencyKey,
       description,
       JSON.stringify(metadata),
     ]
@@ -116,13 +127,21 @@ const recordTransaction = async (dbClient, {
 const getWallet = async (userId) => {
   const wallet = await getWalletByUserId(userId);
 
-  const transactions = await query(
-    `SELECT * FROM transactions
-     WHERE wallet_id = $1
-     ORDER BY created_at DESC
-     LIMIT 50`,
-    [wallet.id]
-  );
+  const [transactions, payoutRules] = await Promise.all([
+    query(
+      `SELECT * FROM transactions
+       WHERE wallet_id = $1
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [wallet.id]
+    ),
+    getSetting('payouts', {
+      scheduled_fee: 0,
+      instant_fee: 25,
+      scheduled_label: 'Weekly payout',
+      instant_label: 'Instant payout',
+    }),
+  ]);
 
   return {
     wallet: {
@@ -133,6 +152,7 @@ const getWallet = async (userId) => {
       currency:        wallet.currency,
     },
     recent_transactions: transactions.rows,
+    payout_rules: payoutRules,
   };
 };
 
@@ -206,6 +226,27 @@ const holdEscrow = async ({
   try {
     if (!useExternal) await dbClient.query('BEGIN');
 
+    const existingEscrowResult = await dbClient.query(
+      'SELECT * FROM escrow_records WHERE job_id = $1 FOR UPDATE',
+      [jobId]
+    );
+    const existingEscrow = existingEscrowResult.rows[0];
+    if (existingEscrow) {
+      const sameHold =
+        existingEscrow.client_id === clientId &&
+        existingEscrow.freelancer_id === freelancerId &&
+        Number(existingEscrow.amount) === Number(amount);
+      if (!sameHold) {
+        throw new AppError('Escrow already exists for this job with different terms', 409);
+      }
+      const existingTransaction = await dbClient.query(
+        'SELECT * FROM transactions WHERE id = $1',
+        [existingEscrow.hold_tx_id]
+      );
+      if (!useExternal) await dbClient.query('COMMIT');
+      return existingTransaction.rows[0] || existingEscrow;
+    }
+
     const clientWallet = await getWalletByUserId(clientId, dbClient, true);
 
     if (parseFloat(clientWallet.balance) < amount) {
@@ -224,6 +265,7 @@ const holdEscrow = async ({
       escrowDelta:   +amount,       // escrow goes up
       referenceId:   jobId,
       referenceType: 'job',
+      idempotencyKey: `escrow-hold:${jobId}`,
       description:   `Escrow held for job`,
       metadata:      { job_id: jobId, freelancer_id: freelancerId },
     });
@@ -265,7 +307,7 @@ const releaseEscrow = async (jobId, adminId, externalClient = null) => {
 
     // Fetch escrow record
     const escrowResult = await dbClient.query(
-      `SELECT * FROM escrow_records WHERE job_id = $1 AND status = 'held' FOR UPDATE`,
+      `SELECT * FROM escrow_records WHERE job_id = $1 AND status IN ('held', 'disputed') FOR UPDATE`,
       [jobId]
     );
     const escrow = escrowResult.rows[0];
@@ -283,6 +325,7 @@ const releaseEscrow = async (jobId, adminId, externalClient = null) => {
       escrowDelta:   -escrow.amount,  // escrow goes down
       referenceId:   jobId,
       referenceType: 'job',
+      idempotencyKey: `escrow-release-client:${jobId}`,
       description:   'Escrow released — job completed',
       metadata:      { job_id: jobId, freelancer_id: escrow.freelancer_id },
     });
@@ -296,6 +339,7 @@ const releaseEscrow = async (jobId, adminId, externalClient = null) => {
       escrowDelta:   0,
       referenceId:   jobId,
       referenceType: 'job',
+      idempotencyKey: `escrow-release-freelancer:${jobId}`,
       description:   'Payment received — job completed',
       metadata:      { job_id: jobId, client_id: escrow.client_id },
     });
@@ -358,19 +402,20 @@ const releaseEscrow = async (jobId, adminId, externalClient = null) => {
  * Called when job is cancelled after deal approval.
  * Moves amount from client's escrow → client's available balance.
  */
-const refundEscrow = async (jobId, reason = 'Job cancelled') => {
-  const dbClient = await getClient();
+const refundEscrow = async (jobId, reason = 'Job cancelled', externalClient = null) => {
+  const useExternal = !!externalClient;
+  const dbClient = externalClient || await getClient();
   try {
-    await dbClient.query('BEGIN');
+    if (!useExternal) await dbClient.query('BEGIN');
 
     const escrowResult = await dbClient.query(
-      `SELECT * FROM escrow_records WHERE job_id = $1 AND status = 'held' FOR UPDATE`,
+      `SELECT * FROM escrow_records WHERE job_id = $1 AND status IN ('held', 'disputed') FOR UPDATE`,
       [jobId]
     );
     const escrow = escrowResult.rows[0];
     if (!escrow) {
       // No escrow — job may have been cancelled before deal approval
-      await dbClient.query('COMMIT');
+      if (!useExternal) await dbClient.query('COMMIT');
       return null;
     }
 
@@ -384,6 +429,7 @@ const refundEscrow = async (jobId, reason = 'Job cancelled') => {
       escrowDelta:   -escrow.amount,  // escrow goes down
       referenceId:   jobId,
       referenceType: 'job',
+      idempotencyKey: `escrow-refund:${jobId}`,
       description:   `Escrow refunded — ${reason}`,
       metadata:      { job_id: jobId, freelancer_id: escrow.freelancer_id },
     });
@@ -397,15 +443,15 @@ const refundEscrow = async (jobId, reason = 'Job cancelled') => {
       [refundTx.id, escrow.id]
     );
 
-    await dbClient.query('COMMIT');
+    if (!useExternal) await dbClient.query('COMMIT');
 
     logger.info('Escrow refunded', { jobId, amount: escrow.amount, clientId: escrow.client_id });
     return refundTx;
   } catch (err) {
-    await dbClient.query('ROLLBACK');
+    if (!useExternal) await dbClient.query('ROLLBACK');
     throw err;
   } finally {
-    dbClient.release();
+    if (!useExternal) dbClient.release();
   }
 };
 
@@ -421,6 +467,7 @@ const requestWithdrawal = async (userId, {
   account_number,
   ifsc_code,
   upi_id,
+  payout_mode = 'scheduled',
 }) => {
   const dbClient = await getClient();
   try {
@@ -435,16 +482,26 @@ const requestWithdrawal = async (userId, {
       );
     }
 
+    const payoutRules = await getSetting('payouts', {}, dbClient);
+    const payoutMode = payout_mode === 'instant' ? 'instant' : 'scheduled';
+    const feeAmount = Number(payoutMode === 'instant'
+      ? payoutRules.instant_fee || 0
+      : payoutRules.scheduled_fee || 0);
+    const netAmount = Number(amount) - feeAmount;
+    if (netAmount <= 0) throw new AppError('Withdrawal amount must be greater than the payout fee', 400);
+
     // Create withdrawal record
     const withdrawalResult = await dbClient.query(
       `INSERT INTO withdrawals
-         (user_id, wallet_id, amount, account_name, account_number, ifsc_code, upi_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (user_id, wallet_id, amount, account_name, account_number, ifsc_code, upi_id,
+          payout_mode, fee_amount, net_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         userId, wallet.id, amount,
         account_name, account_number || null,
         ifsc_code || null, upi_id || null,
+        payoutMode, feeAmount, netAmount,
       ]
     );
     const withdrawal = withdrawalResult.rows[0];
@@ -459,7 +516,12 @@ const requestWithdrawal = async (userId, {
       referenceId:   withdrawal.id,
       referenceType: 'withdrawal',
       description:   'Withdrawal requested — pending admin approval',
-      metadata:      { withdrawal_id: withdrawal.id },
+      metadata:      {
+        withdrawal_id: withdrawal.id,
+        payout_mode: payoutMode,
+        fee_amount: feeAmount,
+        net_amount: netAmount,
+      },
     });
 
     await dbClient.query('COMMIT');
@@ -518,6 +580,7 @@ const reviewWithdrawal = async (withdrawalId, adminId, { action, admin_note }) =
         escrowDelta:   0,
         referenceId:   withdrawalId,
         referenceType: 'withdrawal',
+        idempotencyKey: `withdrawal-refund:${withdrawalId}`,
         description:   `Withdrawal rejected — ${admin_note || 'no reason given'}`,
         metadata:      { withdrawal_id: withdrawalId },
       });
@@ -601,6 +664,14 @@ const completeJob = async (jobId, adminId, { completion_note } = {}) => {
       throw new AppError(`Job must be in_progress to complete. Current: ${job.status}`, 400);
     }
 
+    const activeDispute = await dbClient.query(
+      `SELECT id FROM disputes WHERE job_id = $1 AND status IN ('open', 'under_review') LIMIT 1`,
+      [jobId]
+    );
+    if (activeDispute.rows[0]) {
+      throw new AppError('This project is in dispute. Escrow can only be released by support.', 409);
+    }
+
     // Update job status
     await dbClient.query(
       `UPDATE jobs SET status = 'completed' WHERE id = $1`,
@@ -674,6 +745,14 @@ const cancelActiveJob = async (jobId, cancelledBy, { cancel_reason } = {}) => {
       );
     }
 
+    const activeDispute = await dbClient.query(
+      `SELECT id FROM disputes WHERE job_id = $1 AND status IN ('open', 'under_review') LIMIT 1`,
+      [jobId]
+    );
+    if (activeDispute.rows[0]) {
+      throw new AppError('This project is in dispute. Support must resolve it before cancellation.', 409);
+    }
+
     await dbClient.query(
       `UPDATE jobs SET status = 'cancelled', admin_note = $1 WHERE id = $2`,
       [cancel_reason || null, jobId]
@@ -696,6 +775,8 @@ const cancelActiveJob = async (jobId, cancelledBy, { cancel_reason } = {}) => {
       );
     }
 
+    // Keep cancellation and the escrow refund in one transaction.
+    await refundEscrow(jobId, cancel_reason || 'Job cancelled', dbClient);
     await dbClient.query('COMMIT');
 
     // Refund escrow

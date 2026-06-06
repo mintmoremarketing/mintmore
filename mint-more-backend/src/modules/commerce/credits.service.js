@@ -21,6 +21,7 @@ const recordCreditTransaction = async (dbClient, {
   idempotencyKey = null,
   description = '',
   metadata = {},
+  consumeLots = true,
 }) => {
   if (idempotencyKey) {
     const existing = await dbClient.query(
@@ -52,7 +53,7 @@ const recordCreditTransaction = async (dbClient, {
       [userId, transaction.id, amount, expiresAt]
     );
   }
-  if (Number(amount) < 0) {
+  if (Number(amount) < 0 && consumeLots) {
     let remaining = Math.abs(Number(amount));
     const lots = await dbClient.query(
       `SELECT * FROM mint_credit_lots
@@ -90,6 +91,7 @@ const expireCreditsForUser = async (userId) => {
         userId, type: 'expiry', amount: -amount,
         idempotencyKey: `credit-expiry:${lots.rows.map(lot => lot.id).sort().join(':')}`,
         description: 'Expired Mint Credits',
+        consumeLots: false,
       });
       await dbClient.query(
         `UPDATE mint_credit_lots SET remaining_amount=0, expired_at=NOW()

@@ -23,6 +23,7 @@ function useIsMobile() {
 export default function Login() {
 	const navigate = useNavigate()
 	const setAuth = useAuthStore((s) => s.setAuth)
+	const enterDemo = useAuthStore((s) => s.enterDemo)
 	const isMobile = useIsMobile() // --- RECENTLY CHANGED PART --- Call the hook
 
 	const [email, setEmail] = useState('')
@@ -190,6 +191,17 @@ export default function Login() {
 						) : (
 							<>Sign in <Icon name="arrowRight" /></>
 						)}
+					</button>
+					<button
+						type="button"
+						className="btn ghost block lg"
+						style={{ marginTop: 8 }}
+						onClick={() => {
+							enterDemo()
+							navigate('/dashboard')
+						}}
+					>
+						Explore demo dashboard
 					</button>
 
 					<div style={{ marginTop: 22, fontSize: 13, color: 'var(--ink-500)', textAlign: 'center' }}>

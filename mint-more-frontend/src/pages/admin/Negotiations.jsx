@@ -124,7 +124,7 @@ export default function AdminNegotiations() {
                   {[
                     { label: 'Agreed price', value: rupee(deal.agreed_price || 0), mono: true },
                     { label: 'Delivery', value: `${deal.agreed_days || 0} days` },
-                    { label: 'Rounds used', value: `${deal.current_round || 0} of ${deal.max_rounds || 6}` },
+                    { label: 'Rounds used', value: `${deal.current_round || 0} of ${deal.max_rounds || 4}` },
                     { label: 'Client total', value: rupee(deal.economics?.client_total || deal.agreed_price || 0), mono: true },
                   ].map(item => (
                     <div key={item.label}>

@@ -5,6 +5,11 @@ const env      = require('../../config/env');
 const { getWalletByUserId, recordTransaction } = require('../wallet/wallet.service');
 const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
+const {
+  processCapturedPayment,
+  processSubscriptionCharge,
+  processSubscriptionState,
+} = require('../commerce/membership.service');
 
 const razorpay = new Razorpay({
   key_id:     env.razorpay.keyId,
@@ -73,6 +78,40 @@ const handleWebhook = async (rawBody, signature) => {
   logger.info('Razorpay webhook received', { event: event.event });
 
   // Only handle payment.captured — the confirmed payment event
+  if (event.event === 'subscription.charged') {
+    const subscription = event.payload?.subscription?.entity;
+    const payment = event.payload?.payment?.entity;
+    if (!subscription?.id || !payment?.id) {
+      throw new AppError('Malformed subscription charge webhook', 400);
+    }
+    const result = await processSubscriptionCharge(subscription.id, payment.id, payment.amount);
+    logger.info('Membership subscription charge processed', {
+      subscriptionId: subscription.id,
+      paymentId: payment.id,
+      userId: result.user_id,
+      handled: result.handled,
+    });
+    return result;
+  }
+
+  const subscriptionStateEvents = {
+    'subscription.paused': 'paused',
+    'subscription.cancelled': 'cancelled',
+    'subscription.completed': 'completed',
+    'subscription.halted': 'halted',
+  };
+  if (subscriptionStateEvents[event.event]) {
+    const subscriptionId = event.payload?.subscription?.entity?.id;
+    if (!subscriptionId) throw new AppError('Malformed subscription state webhook', 400);
+    const result = await processSubscriptionState(subscriptionId, subscriptionStateEvents[event.event]);
+    logger.info('Membership subscription state updated', {
+      subscriptionId,
+      state: subscriptionStateEvents[event.event],
+      handled: result.handled,
+    });
+    return result;
+  }
+
   if (event.event !== 'payment.captured') {
     return { handled: false, event: event.event };
   }
@@ -80,6 +119,16 @@ const handleWebhook = async (rawBody, signature) => {
   const payment  = event.payload.payment.entity;
   const orderId  = payment.order_id;
   const paymentId = payment.id;
+
+  const membershipResult = await processCapturedPayment(orderId, paymentId);
+  if (membershipResult.handled) {
+    logger.info('Membership payment processed via Razorpay webhook', {
+      orderId,
+      paymentId,
+      userId: membershipResult.user_id,
+    });
+    return membershipResult;
+  }
 
   const dbClient = await getClient();
   try {
@@ -123,6 +172,7 @@ const handleWebhook = async (rawBody, signature) => {
       escrowDelta:   0,
       referenceId:   order.id,
       referenceType: 'razorpay_order',
+      idempotencyKey: `wallet-topup:${order.id}`,
       description:   `Wallet top-up via Razorpay (${paymentId})`,
       metadata:      {
         razorpay_order_id:   orderId,
@@ -195,10 +245,31 @@ const verifyPayment = async (userId, {
   if (rpPayment.status !== 'captured') {
     throw new AppError('Payment has not been captured yet', 400);
   }
+  if (rpPayment.order_id !== razorpay_order_id) {
+    throw new AppError('Payment does not belong to this order', 400);
+  }
+  if (Number(rpPayment.amount) !== Number(order.rows[0].amount_paise) || rpPayment.currency !== 'INR') {
+    throw new AppError('Captured payment amount does not match this order', 400);
+  }
 
   const dbClient = await getClient();
   try {
     await dbClient.query('BEGIN');
+    const lockedOrderResult = await dbClient.query(
+      `SELECT * FROM razorpay_orders
+       WHERE razorpay_order_id = $1 AND user_id = $2
+       FOR UPDATE`,
+      [razorpay_order_id, userId]
+    );
+    const lockedOrder = lockedOrderResult.rows[0];
+    if (!lockedOrder) throw new AppError('Order not found', 404);
+    if (lockedOrder.status === 'paid') {
+      await dbClient.query('COMMIT');
+      return { already_credited: true, amount: lockedOrder.amount };
+    }
+    if (lockedOrder.status !== 'created') {
+      throw new AppError(`Order cannot be credited from status: ${lockedOrder.status}`, 409);
+    }
 
     await dbClient.query(
       `UPDATE razorpay_orders
@@ -206,8 +277,8 @@ const verifyPayment = async (userId, {
            razorpay_payment_id = $1,
            razorpay_signature  = $2,
            webhook_verified    = false
-       WHERE razorpay_order_id = $3`,
-      [razorpay_payment_id, razorpay_signature, razorpay_order_id]
+       WHERE id = $3 AND status = 'created'`,
+      [razorpay_payment_id, razorpay_signature, lockedOrder.id]
     );
 
     const wallet = await getWalletByUserId(userId, dbClient, true);
@@ -216,17 +287,18 @@ const verifyPayment = async (userId, {
       walletId:      wallet.id,
       userId,
       type:          'topup',
-      amount:        +order.rows[0].amount,
+      amount:        +lockedOrder.amount,
       escrowDelta:   0,
-      referenceId:   order.rows[0].id,
+      referenceId:   lockedOrder.id,
       referenceType: 'razorpay_order',
+      idempotencyKey: `wallet-topup:${lockedOrder.id}`,
       description:   `Wallet top-up via manual verify (${razorpay_payment_id})`,
       metadata:      { razorpay_order_id, razorpay_payment_id },
     });
 
     await dbClient.query('COMMIT');
 
-    return { credited: true, amount: order.rows[0].amount };
+    return { credited: true, amount: lockedOrder.amount };
   } catch (err) {
     await dbClient.query('ROLLBACK');
     throw err;

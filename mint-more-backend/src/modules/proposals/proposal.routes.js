@@ -2,6 +2,7 @@ const { Router } = require('express');
 const controller = require('./proposal.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
 const { requireApproved } = require('../../middleware/requireApproved');
+const { requirePermission } = require('../../middleware/permissions');
 
 const router = Router();
 
@@ -46,6 +47,7 @@ router.get(
 router.get(
   '/jobs/:jobId/admin',
   authorize('admin'),
+  requirePermission('matching.manage'),
   controller.adminGetJobProposals
 );
 
@@ -53,6 +55,7 @@ router.get(
 router.patch(
   '/:proposalId/review',
   authorize('admin'),
+  requirePermission('matching.manage'),
   controller.adminReviewProposal
 );
 

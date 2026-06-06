@@ -20,7 +20,10 @@ const createChatRoom = async ({ jobId, clientId, freelancerId, clientWaNumber = 
     'SELECT * FROM chat_rooms WHERE job_id = $1',
     [jobId]
   );
-  if (existing.rows[0]) return existing.rows[0];
+  if (existing.rows[0]) {
+    await query(`UPDATE wa_sessions SET state = 'active_job_chat' WHERE job_id = $1`, [jobId]);
+    return existing.rows[0];
+  }
 
   const result = await query(
     `INSERT INTO chat_rooms
@@ -31,6 +34,7 @@ const createChatRoom = async ({ jobId, clientId, freelancerId, clientWaNumber = 
   );
 
   logger.info('Chat room created', { jobId, clientId, freelancerId });
+  await query(`UPDATE wa_sessions SET state = 'active_job_chat' WHERE job_id = $1`, [jobId]);
   return result.rows[0];
 };
 

@@ -7,6 +7,8 @@ const { connectDB } = require('./src/config/database');
 const { connectRedis } = require('./src/config/redis');
 const { startPublishWorker } = require('./src/modules/social/queue/publish.worker');
 const { startAIWorker } = require('./src/modules/ai/queue/ai.worker');
+const { startFulfillmentWorker } = require('./src/modules/fulfillment/queue/fulfillment.worker');
+const { startOutboxWorker } = require('./src/modules/events/queue/outbox.worker');
 
 let server;
 
@@ -27,6 +29,8 @@ const bootstrap = async () => {
     // Start Redis-dependent background workers after Redis is ready
     startPublishWorker();
     startAIWorker();
+    await startFulfillmentWorker();
+    await startOutboxWorker();
 
     server = app.listen(env.port, () => {
       logger.info(`🚀 Mint More API running`);

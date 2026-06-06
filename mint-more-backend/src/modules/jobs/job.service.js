@@ -1,13 +1,12 @@
 const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
+const { enqueueOutboxEvent } = require('../events/outbox.service');
 
 // ── Lazy-load matching service to avoid circular dependency ───────────────────
 // Dependency chain: job.service → matching.service → negotiation.service
 // negotiation.service does NOT import job.service — chain is safe.
 // We use a function-level require so Node resolves it after all modules load.
-const getMatchingService = () => require('../matching/matching.service');
-
 const redactManagedJobForClient = (job) => {
   if (!job) return job;
   const {
@@ -26,21 +25,11 @@ const redactManagedJobForClient = (job) => {
 
 // ── Internal helper ───────────────────────────────────────────────────────────
 
-const triggerMatchingAsync = (jobId, reason) => {
+const queueMatching = async (jobId, reason) => {
   // Fire-and-forget — never blocks the HTTP response.
   // Errors are caught and logged; they must not surface to the caller.
-  setImmediate(async () => {
-    try {
-      const { runMatchingForJob } = getMatchingService();
-      await runMatchingForJob(jobId);
-      logger.info(`[Jobs] Auto-matching completed (${reason})`, { jobId });
-    } catch (err) {
-      logger.error(`[Jobs] Auto-matching failed (${reason})`, {
-        jobId,
-        error: err.message,
-      });
-    }
-  });
+  await enqueueOutboxEvent('matching.run', { jobId, reason });
+  logger.info(`[Jobs] Auto-matching queued (${reason})`, { jobId });
 };
 
 const normalizeBriefPricing = ({
@@ -129,7 +118,7 @@ const createJob = async (clientId, {
 
   // ── Auto-trigger matching ─────────────────────────────────────────────────
   if (job.pricing_mode === 'budget') {
-    triggerMatchingAsync(job.id, 'job_created');
+    await queueMatching(job.id, 'job_created');
   } else {
     logger.info('[Jobs] Pro brief awaiting admin matching review', { jobId: job.id, clientId });
   }
@@ -247,7 +236,7 @@ const publishJob = async (clientId, jobId) => {
 
   // ── Auto-trigger matching ─────────────────────────────────────────────────
   if (job.pricing_mode === 'budget') {
-    triggerMatchingAsync(job.id, 'job_published');
+    await queueMatching(job.id, 'job_published');
   } else {
     logger.info('[Jobs] Pro brief awaiting admin matching review', { jobId: job.id, clientId });
   }
@@ -683,7 +672,7 @@ const approveProMatching = async (jobId, adminId) => {
     [adminId, jobId]
   );
   if (!result.rows[0]) throw new AppError('Pro brief not found or cannot be reviewed', 404);
-  triggerMatchingAsync(jobId, 'pro_admin_approved');
+  await queueMatching(jobId, 'pro_admin_approved');
   return result.rows[0];
 };
 

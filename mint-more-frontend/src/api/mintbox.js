@@ -12,4 +12,6 @@ export const mintboxApi = {
 	completeUpload: (uploadId) => api.post(`/mintbox/uploads/${uploadId}/complete`),
 	cancelUpload: (uploadId) => api.delete(`/mintbox/uploads/${uploadId}`),
 	reviewFile: (fileId, data) => api.patch(`/mintbox/files/${fileId}/review`, data),
+	revokeShare: (scope, id) => api.patch(`/mintbox/shares/${scope}/${id}/revoke`),
+	rotateShare: (scope, id) => api.patch(`/mintbox/shares/${scope}/${id}/rotate`),
 }

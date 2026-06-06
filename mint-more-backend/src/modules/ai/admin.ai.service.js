@@ -31,6 +31,8 @@ const addModel = async (adminId, data) => {
   const {
     openrouter_id, name, description, provider_name,
     supported_tools, tier, cost_per_1k_tokens,
+    provider_cost_per_1k_tokens, user_price_per_1k_tokens,
+    failover_model_id, resolution_labels, margin_alert_below_pct,
     context_window, tags, is_trending, sort_order,
     system_prompts,
   } = data;
@@ -43,9 +45,11 @@ const addModel = async (adminId, data) => {
     `INSERT INTO ai_models
        (openrouter_id, name, description, provider_name,
         supported_tools, tier, cost_per_1k_tokens,
+        provider_cost_per_1k_tokens, user_price_per_1k_tokens,
+        failover_model_id, resolution_labels, margin_alert_below_pct,
         context_window, tags, is_trending, sort_order,
         system_prompts, added_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      ON CONFLICT (openrouter_id) DO UPDATE SET
        name                = EXCLUDED.name,
        description         = EXCLUDED.description,
@@ -53,6 +57,11 @@ const addModel = async (adminId, data) => {
        supported_tools     = EXCLUDED.supported_tools,
        tier                = EXCLUDED.tier,
        cost_per_1k_tokens  = EXCLUDED.cost_per_1k_tokens,
+       provider_cost_per_1k_tokens = EXCLUDED.provider_cost_per_1k_tokens,
+       user_price_per_1k_tokens = EXCLUDED.user_price_per_1k_tokens,
+       failover_model_id   = EXCLUDED.failover_model_id,
+       resolution_labels   = EXCLUDED.resolution_labels,
+       margin_alert_below_pct = EXCLUDED.margin_alert_below_pct,
        context_window      = EXCLUDED.context_window,
        tags                = EXCLUDED.tags,
        is_trending         = EXCLUDED.is_trending,
@@ -64,7 +73,12 @@ const addModel = async (adminId, data) => {
       openrouter_id, name, description || null, provider_name || null,
       supported_tools || ['text'],
       tier || 'free',
-      parseFloat(cost_per_1k_tokens || 0),
+      parseFloat(user_price_per_1k_tokens ?? cost_per_1k_tokens ?? 0),
+      parseFloat(provider_cost_per_1k_tokens || 0),
+      parseFloat(user_price_per_1k_tokens ?? cost_per_1k_tokens ?? 0),
+      failover_model_id || null,
+      resolution_labels || [],
+      parseFloat(margin_alert_below_pct ?? 20),
       context_window || 8192,
       tags || [],
       is_trending || false,
@@ -85,15 +99,26 @@ const addModel = async (adminId, data) => {
 const updateModel = async (modelId, adminId, updates) => {
   const allowed = [
     'name', 'description', 'supported_tools', 'tier',
-    'cost_per_1k_tokens', 'tags', 'is_trending',
+    'cost_per_1k_tokens', 'provider_cost_per_1k_tokens', 'user_price_per_1k_tokens',
+    'failover_model_id', 'resolution_labels', 'margin_alert_below_pct', 'tags', 'is_trending',
     'is_active', 'sort_order', 'system_prompts', 'context_window',
   ];
 
-  const fields = Object.keys(updates).filter((k) => allowed.includes(k));
+  const normalizedUpdates = { ...updates };
+  if (
+    normalizedUpdates.cost_per_1k_tokens !== undefined &&
+    normalizedUpdates.user_price_per_1k_tokens === undefined
+  ) {
+    normalizedUpdates.user_price_per_1k_tokens = normalizedUpdates.cost_per_1k_tokens;
+  }
+  if (normalizedUpdates.user_price_per_1k_tokens !== undefined) {
+    normalizedUpdates.cost_per_1k_tokens = normalizedUpdates.user_price_per_1k_tokens;
+  }
+  const fields = Object.keys(normalizedUpdates).filter((k) => allowed.includes(k));
   if (fields.length === 0) throw new AppError('No valid fields to update', 400);
 
   const setClauses = fields.map((f, i) => `${f} = $${i + 2}`);
-  const values     = fields.map((f) => updates[f]);
+  const values     = fields.map((f) => normalizedUpdates[f]);
 
   const result = await query(
     `UPDATE ai_models
@@ -161,6 +186,8 @@ const getAdminAIStats = async ({ days = 7 } = {}) => {
          g.model_name,
          m.tier,
          m.cost_per_1k_tokens,
+         m.provider_cost_per_1k_tokens,
+         m.user_price_per_1k_tokens,
          m.is_active,
          COUNT(*)                                              AS total_requests,
          COUNT(*) FILTER (WHERE g.status = 'completed')       AS completed,
@@ -175,7 +202,8 @@ const getAdminAIStats = async ({ days = 7 } = {}) => {
        FROM ai_generations g
        LEFT JOIN ai_models m ON m.id = g.ai_model_id
        WHERE g.created_at > NOW() - INTERVAL '${days} days'
-       GROUP BY g.openrouter_id, g.model_name, m.tier, m.cost_per_1k_tokens, m.is_active
+       GROUP BY g.openrouter_id, g.model_name, m.tier, m.cost_per_1k_tokens,
+                m.provider_cost_per_1k_tokens, m.user_price_per_1k_tokens, m.is_active
        ORDER BY total_requests DESC`
     ),
 

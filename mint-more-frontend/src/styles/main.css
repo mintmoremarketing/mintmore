@@ -2283,3 +2283,15 @@ kbd {
   outline: 2px solid var(--mint-500);
   outline-offset: 2px;
 }
+.dispute-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, .7fr) minmax(0, 1.6fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 767px) {
+  .dispute-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

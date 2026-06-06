@@ -33,7 +33,7 @@ function normalizeTools(value) {
 
 // ── Add / Edit Model Modal ─────────────────────────────────────────────────────
 
-function ModelModal({ model, onClose }) {
+function ModelModal({ model, models, onClose }) {
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
   const isEdit      = !!model
@@ -43,7 +43,11 @@ function ModelModal({ model, onClose }) {
   const [provider,     setProvider]     = useState(model?.provider_name || '')
   const [tier,         setTier]         = useState(model?.tier || 'free')
   const [tools,        setTools]        = useState(normalizeTools(model?.supported_tools))
-  const [costPerK,     setCostPerK]     = useState(model?.cost_per_1k_tokens || '')
+  const [providerCost, setProviderCost] = useState(model?.provider_cost_per_1k_tokens || '')
+  const [userPrice,    setUserPrice]    = useState(model?.user_price_per_1k_tokens ?? model?.cost_per_1k_tokens ?? '')
+  const [marginAlert,  setMarginAlert]  = useState(model?.margin_alert_below_pct ?? 20)
+  const [failoverId,   setFailoverId]   = useState(model?.failover_model_id || '')
+  const [resolutions,  setResolutions]  = useState((model?.resolution_labels || []).join(', '))
   const [description,  setDescription]  = useState(model?.description || '')
   const [isTrending,   setIsTrending]   = useState(model?.is_trending || false)
 
@@ -56,13 +60,21 @@ function ModelModal({ model, onClose }) {
       ? aiApi.updateModel(model.id, {
           name, provider_name: provider, tier,
           supported_tools: tools,
-          cost_per_1k_tokens: costPerK ? parseFloat(costPerK) : null,
+          provider_cost_per_1k_tokens: providerCost ? parseFloat(providerCost) : 0,
+          user_price_per_1k_tokens: userPrice ? parseFloat(userPrice) : 0,
+          failover_model_id: failoverId || null,
+          resolution_labels: resolutions.split(',').map(value => value.trim()).filter(Boolean),
+          margin_alert_below_pct: Number(marginAlert || 0),
           description, is_trending: isTrending,
         })
       : aiApi.addModel({
           openrouter_id: openrouterId, name, provider_name: provider,
           tier, supported_tools: tools,
-          cost_per_1k_tokens: costPerK ? parseFloat(costPerK) : null,
+          provider_cost_per_1k_tokens: providerCost ? parseFloat(providerCost) : 0,
+          user_price_per_1k_tokens: userPrice ? parseFloat(userPrice) : 0,
+          failover_model_id: failoverId || null,
+          resolution_labels: resolutions.split(',').map(value => value.trim()).filter(Boolean),
+          margin_alert_below_pct: Number(marginAlert || 0),
           description, is_trending: isTrending,
         }),
     onSuccess: () => {
@@ -125,10 +137,50 @@ function ModelModal({ model, onClose }) {
             </select>
           </div>
           <div className="field">
-            <label className="field-label">Cost per 1K tokens (₹)</label>
-            <input className="input" type="number" step="0.001" value={costPerK}
-              onChange={e => setCostPerK(e.target.value)} placeholder="e.g. 0.03" />
+            <label className="field-label">User price per 1K tokens (INR)</label>
+            <input className="input" type="number" min="0" step="0.001" value={userPrice}
+              onChange={e => setUserPrice(e.target.value)} placeholder="0.00" />
           </div>
+        </div>
+
+        <div className="grid-3" style={{ gap: 10 }}>
+          <div className="field">
+            <label className="field-label">Provider cost / 1K</label>
+            <input className="input" type="number" min="0" step="0.001" value={providerCost}
+              onChange={e => setProviderCost(e.target.value)} placeholder="0.00" />
+          </div>
+          <div className="field">
+            <label className="field-label">Margin alert below (%)</label>
+            <input className="input" type="number" min="0" max="100" value={marginAlert}
+              onChange={e => setMarginAlert(e.target.value)} />
+          </div>
+          <div className="field">
+            <label className="field-label">Failover model</label>
+            <select className="select" value={failoverId} onChange={e => setFailoverId(e.target.value)}>
+              <option value="">Automatic best available</option>
+              {(models || []).filter(candidate => candidate.id !== model?.id).map(candidate => (
+                <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {Number(userPrice) > 0 && (
+          <div style={{
+            padding: 10, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)',
+            color: ((Number(userPrice) - Number(providerCost || 0)) / Number(userPrice)) * 100 < Number(marginAlert)
+              ? 'var(--rose)' : 'var(--mint-700)',
+            fontSize: 12.5,
+          }}>
+            Gross margin: {Math.round(((Number(userPrice) - Number(providerCost || 0)) / Number(userPrice)) * 100)}%
+            {' '}({Number(marginAlert)}% alert threshold)
+          </div>
+        )}
+
+        <div className="field">
+          <label className="field-label">Resolution labels</label>
+          <input className="input" value={resolutions} onChange={e => setResolutions(e.target.value)}
+            placeholder="Standard, HD, 4K" />
         </div>
 
         <div className="field">
@@ -179,7 +231,7 @@ function ModelModal({ model, onClose }) {
             }} />
           </button>
           <span style={{ fontSize: 13, color: 'var(--ink-700)' }}>
-            Mark as trending 🔥 (shown first to users)
+            Mark as trending (shown first to users)
           </span>
         </div>
       </div>
@@ -393,7 +445,7 @@ export default function AdminAIPanel() {
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
                           {model.name}
-                          {model.is_trending && <span style={{ fontSize: 12 }}>🔥</span>}
+                          {model.is_trending && <Icon name="trending" size={12} />}
                           {!model.is_active && (
                             <span style={{ fontSize: 11, color: 'var(--ink-400)', fontWeight: 400 }}>Disabled</span>
                           )}
@@ -449,8 +501,11 @@ export default function AdminAIPanel() {
                     {model.avg_response_ms > 0 && (
                       <span>Avg: <strong style={{ color: 'var(--ink-800)' }}>{Math.round(model.avg_response_ms)}ms</strong></span>
                     )}
-                    {model.cost_per_1k_tokens && (
-                      <span>Cost: <strong style={{ color: 'var(--ink-800)' }}>₹{model.cost_per_1k_tokens}/1K</strong></span>
+                    {model.user_price_per_1k_tokens != null && (
+                      <span>User price: <strong style={{ color: 'var(--ink-800)' }}>INR {model.user_price_per_1k_tokens}/1K</strong></span>
+                    )}
+                    {model.provider_cost_per_1k_tokens != null && (
+                      <span>Provider cost: <strong style={{ color: 'var(--ink-800)' }}>INR {model.provider_cost_per_1k_tokens}/1K</strong></span>
                     )}
                     <span>Tools: <strong style={{ color: 'var(--ink-800)' }}>{normalizeTools(model.supported_tools).join(', ') || '—'}</strong></span>
                   </div>
@@ -476,7 +531,7 @@ export default function AdminAIPanel() {
                 </tr>
               </thead>
               <tbody>
-                {models.filter(m => (m.total_requests || 0) > 0).map((m, i) => {
+                {models.filter(m => (m.total_requests || 0) > 0).map((m) => {
                   const errRate = m.total_requests > 0 ? ((m.total_failures / m.total_requests) * 100).toFixed(1) : '0'
                   const tier    = TIER_COLORS[m.tier] || TIER_COLORS.free
                   return (
@@ -514,6 +569,7 @@ export default function AdminAIPanel() {
       {(showAdd || editModel) && (
         <ModelModal
           model={editModel || (addFromOR ? { ...addFromOR, supported_tools: [] } : null)}
+          models={models}
           onClose={() => { setShowAdd(false); setEditModel(null); setAddFromOR(null) }}
         />
       )}

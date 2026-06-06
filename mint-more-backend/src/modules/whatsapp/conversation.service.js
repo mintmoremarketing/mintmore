@@ -3,6 +3,7 @@ const { sendTextMessage, sendWelcomeTemplate } = require('../chat/whatsapp.servi
 const { createChatRoom } = require('../chat/chat.service');
 const logger = require('../../utils/logger');
 const crypto = require('crypto');
+const env = require('../../config/env');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -52,7 +53,8 @@ const BRIEF_PROMPT = (serviceName) =>
 Please describe your project in a few lines:
 - What do you need done?
 - Any deadline?
-- Budget (optional)?
+- Which styles or references do you like?
+- Anything the creative should avoid?
 
 Just type it out naturally — our team will review it.`;
 
@@ -438,6 +440,41 @@ const handleCategoryMessage = async ({
 
     // ── State: active_job_chat ────────────────────────────────────────────
     case 'active_job_chat': {
+      if (trimmed === 'APPROVE' || trimmed.startsWith('REVISION')) {
+        const latestDelivery = await query(
+          `SELECT id FROM mintbox_files
+           WHERE job_id = $1 AND purpose = 'delivery' AND deleted_by_client_at IS NULL
+           ORDER BY created_at DESC LIMIT 1`,
+          [session.job_id]
+        );
+        if (!latestDelivery.rows[0] || !session.user_id) {
+          await sendTextMessage(toPhoneNumberId, fromNumber, 'No delivery is ready for review yet.');
+          break;
+        }
+        const action = trimmed === 'APPROVE' ? 'approve' : 'revision';
+        const note = action === 'revision'
+          ? String(content || '').replace(/^revision\s*:?\s*/i, '').trim()
+          : null;
+        if (action === 'revision' && !note) {
+          await sendTextMessage(toPhoneNumberId, fromNumber, 'Reply with REVISION: followed by your complete feedback.');
+          break;
+        }
+        const mintboxService = require('../mintbox/mintbox.service');
+        await mintboxService.reviewFile(
+          latestDelivery.rows[0].id,
+          session.user_id,
+          'client',
+          { action, note }
+        );
+        await sendTextMessage(
+          toPhoneNumberId,
+          fromNumber,
+          action === 'approve'
+            ? 'Delivery approved. Open Mint More to request another revision or complete the project.'
+            : 'Revision feedback submitted to your Mint More creative.'
+        );
+        break;
+      }
       // Valid conversation — route to chat room
       const { receiveWhatsAppMessage } = require('../chat/chat.service');
       await receiveWhatsAppMessage({
@@ -452,6 +489,18 @@ const handleCategoryMessage = async ({
     }
 
     // ── State: job_completed ──────────────────────────────────────────────
+    case 'completed_intake': {
+      const draftUrl = session.job_id
+        ? `${env.social.frontendUrl}/jobs/${session.job_id}/edit`
+        : env.social.frontendUrl;
+      await sendTextMessage(
+        toPhoneNumberId,
+        fromNumber,
+        `Your brief is saved as a draft. Review, verify, and publish it here: ${draftUrl}`
+      );
+      break;
+    }
+
     case 'job_completed': {
       await sendTextMessage(
         toPhoneNumberId,
@@ -555,21 +604,26 @@ const activateFromHandoff = async ({
     fromNumber,
     `✅ *You're connected to ${mmNumber.display_name}!*
 
-Our team has received your brief and we're finding the best person for your project.
+Our team has received your brief and is preparing your draft.
 
-You'll hear from us shortly. Feel free to add any more details about your project here.`
+You'll receive a link here to review the brief, complete verification, and publish it.`
   );
 
   // Auto-create a job draft from the brief + trigger matching
   setImmediate(async () => {
     try {
-      await createJobFromWhatsApp({
+      const jobId = await createJobFromWhatsApp({
         fromNumber,
         mmNumber,
         brief:      mainSession.project_brief,
         categoryId: mmNumber.category_id,
         sessionId:  session.id,
       });
+      await sendTextMessage(
+        toPhoneNumberId,
+        fromNumber,
+        `Your Mint More brief is ready. Review and publish it here: ${env.social.frontendUrl}/jobs/${jobId}/edit`
+      );
     } catch (err) {
       logger.error('Auto job creation from WhatsApp failed', { error: err.message });
     }
@@ -627,8 +681,8 @@ const createJobFromWhatsApp = async ({ fromNumber, mmNumber, brief, categoryId, 
   // Create the job
   const jobResult = await query(
     `INSERT INTO jobs
-       (client_id, category_id, title, description, pricing_mode, status, metadata)
-     VALUES ($1, $2, $3, $4, 'budget', 'open', $5)
+       (client_id, category_id, title, description, budget_type, pricing_mode, status, metadata)
+     VALUES ($1, $2, $3, $4, 'quote', 'budget', 'draft', $5)
      RETURNING id`,
     [
       clientId,
@@ -648,18 +702,14 @@ const createJobFromWhatsApp = async ({ fromNumber, mmNumber, brief, categoryId, 
 
   // Link job to session
   await query(
-    'UPDATE wa_sessions SET job_id = $1 WHERE id = $2',
-    [jobId, sessionId]
+    'UPDATE wa_sessions SET job_id = $1, user_id = $2 WHERE id = $3',
+    [jobId, clientId, sessionId]
   );
 
-  // Trigger matching engine
-  const { runMatchingForJob } = require('../matching/matching.service');
-  await runMatchingForJob(jobId);
-
-  // Update session with job + client wa number in chat room context
+  // Project chat starts only after the paid order is assigned.
   await query(
     `UPDATE wa_sessions
-     SET state = 'active_job_chat'
+     SET state = 'completed_intake'
      WHERE id = $1`,
     [sessionId]
   );

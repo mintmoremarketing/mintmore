@@ -118,6 +118,7 @@ export default function NotifPanel({ onClose }) {
 	const unread = countData?.unread_count ?? notifs.filter((n) => !n.is_read).length
 	const getTarget = (n) => {
 		const meta = n.data || {}
+		if (n.entity_type === 'dispute' || meta.dispute_id) return `/disputes?id=${n.entity_id || meta.dispute_id}`
 		const jobId = n.entity_type === 'job' ? n.entity_id : meta.job_id || meta.jobId || meta.job?.id
 		if (jobId) return `/jobs/${jobId}`
 		if (n.entity_type === 'wallet' || n.type === 'wallet') return '/wallet'

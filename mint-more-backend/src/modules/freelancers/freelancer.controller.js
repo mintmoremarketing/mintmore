@@ -17,9 +17,24 @@ const browse = async (req, res, next) => {
 const getProfile = async (req, res, next) => {
 	try {
 		const profile = await freelancerService.getFreelancerProfile(
-			req.params.freelancerId
+			req.params.freelancerId,
+			req.user.sub
 		);
 		return sendSuccess(res, { data: { profile } });
+	} catch (err) { next(err); }
+};
+
+const setPreferred = async (req, res, next) => {
+	try {
+		const preference = await freelancerService.setPreferredCreator(
+			req.user.sub,
+			req.params.freelancerId,
+			req.method === 'POST'
+		);
+		return sendSuccess(res, {
+			data: { preference },
+			message: preference.is_preferred_creator ? 'Creative saved' : 'Creative removed',
+		});
 	} catch (err) { next(err); }
 };
 
@@ -35,4 +50,4 @@ const updateMarketplaceProfile = async (req, res, next) => {
 	} catch (err) { next(err); }
 };
 
-module.exports = { browse, getProfile, updateMarketplaceProfile };
+module.exports = { browse, getProfile, setPreferred, updateMarketplaceProfile };

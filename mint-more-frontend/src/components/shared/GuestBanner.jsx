@@ -19,9 +19,9 @@ export default function GuestBanner() {
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
         <Icon name="eye" size={14} style={{ color: 'var(--mint-400)', flexShrink: 0 }} />
         <span>
-          You're in <strong>demo mode</strong> — AI, dashboard and job tools are fully live.
+          You're in <strong>demo mode</strong> - explore the business dashboard before creating an account.
           <span style={{ color: 'rgba(255,255,255,0.6)', marginLeft: 6 }}>
-            Marketplace and freelancer browse require an account.
+            Live tools and real orders require an account.
           </span>
         </span>
       </div>

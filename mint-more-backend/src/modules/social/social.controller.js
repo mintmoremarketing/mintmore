@@ -3,6 +3,9 @@ const { validateCreatePost } = require('./social.validator');
 const { sendSuccess } = require('../../utils/apiResponse');
 const AppError = require('../../utils/AppError');
 const env = require('../../config/env');
+const { uploadFile } = require('../../config/supabase');
+const crypto = require('crypto');
+const path = require('path');
 
 // ── OAuth ──────────────────────────────────────────────────────────────────────
 
@@ -79,9 +82,43 @@ const createPost = async (req, res, next) => {
 
 const addMedia = async (req, res, next) => {
   try {
-    const { media_items } = req.body;
+    const post = await socialService.getPostById(
+      req.params.postId,
+      req.user.sub,
+      req.user.role
+    );
+    if (!['draft', 'failed'].includes(post.status)) {
+      throw new AppError(`Media cannot be added to a post with status: ${post.status}`, 409);
+    }
+
+    let { media_items } = req.body;
+    if (typeof media_items === 'string') {
+      try {
+        media_items = JSON.parse(media_items);
+      } catch {
+        throw new AppError('media_items must be valid JSON', 400);
+      }
+    }
+
+    if (req.file) {
+      const extension = path.extname(req.file.originalname || '').toLowerCase();
+      const filePath = `social/${req.user.sub}/${req.params.postId}/${crypto.randomUUID()}${extension}`;
+      const mediaUrl = await uploadFile(
+        'job-attachments',
+        filePath,
+        req.file.buffer,
+        req.file.mimetype
+      );
+      media_items = [{
+        media_url: mediaUrl,
+        media_type: req.file.mimetype.startsWith('video/') ? 'video' : 'image',
+        mime_type: req.file.mimetype,
+        file_size_bytes: req.file.size,
+      }];
+    }
+
     if (!Array.isArray(media_items) || media_items.length === 0) {
-      throw new AppError('media_items array is required', 400);
+      throw new AppError('A media file or media_items array is required', 400);
     }
     const media = await socialService.addMediaToPost(
       req.params.postId, req.user.sub, media_items
@@ -146,6 +183,23 @@ const pullAnalytics = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const getMediaLibrary = async (req, res, next) => {
+  try {
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    const protocol = forwardedProto || req.protocol;
+    const baseUrl = `${protocol}://${req.get('host')}`;
+    const media = await socialService.getMintboxMediaLibrary(req.user.sub, baseUrl);
+    return sendSuccess(res, { data: { media } });
+  } catch (err) { next(err); }
+};
+
+const getAnalyticsSummary = async (req, res, next) => {
+  try {
+    const summary = await socialService.getAnalyticsSummary(req.user.sub, req.query.days);
+    return sendSuccess(res, { data: { summary } });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   connectPlatform,
   oauthCallback,
@@ -153,9 +207,11 @@ module.exports = {
   disconnectAccount,
   createPost,
   addMedia,
+  getMediaLibrary,
   publishPost,
   cancelPost,
   getMyPosts,
   getPost,
   pullAnalytics,
+  getAnalyticsSummary,
 };

@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const controller = require('./notification.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
+const { requirePermission } = require('../../middleware/permissions');
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.patch('/:notificationId/read', controller.markAsRead);
 router.post(
   '/admin/broadcast',
   authorize('admin'),
+  requirePermission('support.manage'),
   controller.adminBroadcast
 );
 

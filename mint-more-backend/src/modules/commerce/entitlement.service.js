@@ -1,5 +1,6 @@
 const { query } = require('../../config/database');
 const { getSetting } = require('./settings.service');
+const { expireCreditsForUser } = require('./credits.service');
 
 const getEntitlements = async (userId) => {
   const userResult = await query(
@@ -23,6 +24,24 @@ const getEntitlements = async (userId) => {
       overrides: user.admin_overrides || {},
     };
   }
+
+  await Promise.all([
+    query(
+      `UPDATE memberships
+       SET status = 'expired'
+       WHERE user_id = $1
+         AND status IN ('trial','active','paused')
+         AND current_period_end <= NOW()`,
+      [userId]
+    ),
+    query(
+      `UPDATE access_passes
+       SET status = 'expired'
+       WHERE user_id = $1 AND status = 'active' AND ends_at <= NOW()`,
+      [userId]
+    ),
+    expireCreditsForUser(userId),
+  ]);
 
   const [membershipResult, passResult, activeOrders, creditsResult, membershipConfig] = await Promise.all([
     query('SELECT * FROM memberships WHERE user_id = $1', [userId]),

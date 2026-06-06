@@ -5,6 +5,7 @@ const logger = require('../../../utils/logger');
 let modelCache     = null;
 let cacheExpiresAt = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const userPrice = (model) => Number(model.user_price_per_1k_tokens ?? model.cost_per_1k_tokens ?? 0);
 
 /**
  * Get all active models from DB (cached).
@@ -60,7 +61,7 @@ const getFreeModels = async (toolType) => {
   return models.filter(
     (m) =>
       m.tier === 'free' &&
-      parseFloat(m.cost_per_1k_tokens) === 0 &&
+      userPrice(m) === 0 &&
       (!toolType || m.supported_tools?.includes(toolType))
   );
 };

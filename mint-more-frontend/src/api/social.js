@@ -23,10 +23,14 @@ export const socialApi = {
   listPosts:  (params) => api.get('/social/posts', { params }),
   getPost:    (id)     => api.get(`/social/posts/${id}`),
   createPost: (data)   => api.post('/social/posts', data),
-  addMedia:   (id, fd) => api.post(`/social/posts/${id}/media`, fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }),
-  publishPost:(id, data) => api.post(`/social/posts/${id}/publish`, data),
+  addMedia:   (id, data) => api.post(
+    `/social/posts/${id}/media`,
+    data,
+    data instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined
+  ),
+  publishPost:(id)       => api.post(`/social/posts/${id}/publish`),
   cancelPost: (id)     => api.post(`/social/posts/${id}/cancel`),
   getAnalytics:(id)    => api.get(`/social/posts/${id}/analytics`),
+  getAnalyticsSummary: (params) => api.get('/social/analytics/summary', { params }),
+  getMediaLibrary: () => api.get('/social/media-library'),
 }

@@ -394,7 +394,13 @@ export default function AdminWallet() {
                       </div>
                     </div>
                   </div>
-                  <div className="mono" style={{ fontSize: 22, fontWeight: 600 }}>{rupee(w.amount)}</div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div className="mono" style={{ fontSize: 22, fontWeight: 600 }}>{rupee(w.net_amount ?? w.amount)}</div>
+                    <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
+                      {w.payout_mode === 'instant' ? 'Instant payout' : 'Scheduled payout'}
+                      {Number(w.fee_amount || 0) > 0 ? ` · ${rupee(w.fee_amount)} fee` : ''}
+                    </div>
+                  </div>
                 </div>
 
                 <div style={{ padding: 12, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)', marginBottom: 14 }}>

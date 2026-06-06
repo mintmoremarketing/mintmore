@@ -54,7 +54,6 @@ const handleWebhook = async (req, res) => {
   res.status(200).json({ status: 'ok' });
 
   // After signature check, before processing
- logger.info('WA webhook raw payload', { body: req.rawBody?.slice(0, 500) });
 
   // ── Process payload asynchronously ──────────────────────────────────────────
   try {

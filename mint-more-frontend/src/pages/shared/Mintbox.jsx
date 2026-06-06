@@ -107,7 +107,7 @@ export default function Mintbox() {
 	const uploadPolicy = data?.upload_policy
 	const revisions = data?.revisions
 	const categoryShares = data?.category_shares || []
-	const shareUrl = folder?.share_token ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
+	const shareUrl = folder?.share_token && !folder?.share_revoked_at ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
 
 	useEffect(() => {
 		if (!folder?.job_id || !['client', 'freelancer', 'admin'].includes(role)) return
@@ -288,6 +288,24 @@ export default function Mintbox() {
 			if (jobId) queryClient.invalidateQueries({ queryKey: ['mintbox-job', jobId] })
 		},
 		onError: err => pushToast({ title: 'Purchase failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+	})
+
+	const revokeShareMutation = useMutation({
+		mutationFn: ({ scope, id }) => mintboxApi.revokeShare(scope, id),
+		onSuccess: (_, variables) => {
+			pushToast({ title: 'Share link revoked', icon: 'check' })
+			queryClient.invalidateQueries({ queryKey })
+			if (variables.scope === 'folder') navigate(`/mintbox/jobs/${folder.job_id}`)
+		},
+		onError: err => pushToast({ title: 'Could not revoke link', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+	})
+	const rotateShareMutation = useMutation({
+		mutationFn: ({ scope, id }) => mintboxApi.rotateShare(scope, id),
+		onSuccess: () => {
+			pushToast({ title: 'New share link created', icon: 'check' })
+			queryClient.invalidateQueries({ queryKey })
+		},
+		onError: err => pushToast({ title: 'Could not create link', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
 	})
 
 	const copyShare = async () => {
@@ -579,10 +597,21 @@ export default function Mintbox() {
 						Project files, submissions, and revisions in one folder.
 					</p>
 				</div>
-				{shareUrl && <button className="btn ghost" onClick={copyShare}>
-					<Icon name="copy" size={13} />
-					Copy folder link
-				</button>}
+				<div className="row" style={{ gap: 8 }}>
+					{jobId && ['client', 'freelancer'].includes(role) && (
+						<button className="btn ghost" onClick={() => navigate(`/disputes?jobId=${folder.job_id}`)}>
+							<Icon name="shield" size={13} /> Get support
+						</button>
+					)}
+					{shareUrl && <>
+					<button className="btn ghost" onClick={copyShare}>
+						<Icon name="copy" size={13} />
+						Copy folder link
+					</button>
+					{role === 'client' && <button className="icon-btn" onClick={() => revokeShareMutation.mutate({ scope: 'folder', id: folder.id })} title="Revoke folder share link"><Icon name="x" size={12} /></button>}
+					</>}
+					{role === 'client' && !shareUrl && <button className="btn ghost" onClick={() => rotateShareMutation.mutate({ scope: 'folder', id: folder.id })}><Icon name="refresh" size={13} /> Create folder link</button>}
+				</div>
 			</div>
 
 			{quota && <StorageBar quota={quota} />}
@@ -605,14 +634,20 @@ export default function Mintbox() {
 								</div>
 								<div className="row" style={{ gap: 5 }}>
 									<span className="badge neutral">{categoryFiles.length}</span>
-									{categoryShares.some(item => item.category === category) && <button className="icon-btn" onClick={() => copyCategoryShare(category)} title="Copy folder share link"><Icon name="copy" size={11} /></button>}
+									{categoryShares.find(item => item.category === category)?.share_url && <button className="icon-btn" onClick={() => copyCategoryShare(category)} title="Copy folder share link"><Icon name="copy" size={11} /></button>}
+									{role === 'client' && categoryShares.find(item => item.category === category)?.share_url && <button className="icon-btn" onClick={() => revokeShareMutation.mutate({ scope: 'category', id: categoryShares.find(item => item.category === category).id })} title="Revoke folder share link"><Icon name="x" size={11} /></button>}
+									{role === 'client' && categoryShares.find(item => item.category === category)?.id && !categoryShares.find(item => item.category === category)?.share_url && <button className="icon-btn" onClick={() => rotateShareMutation.mutate({ scope: 'category', id: categoryShares.find(item => item.category === category).id })} title="Create new folder share link"><Icon name="refresh" size={11} /></button>}
 								</div>
 							</div>
 							<div className="stack" style={{ gap: 5 }}>
 								{categoryFiles.map(file => (
 									<div key={file.id} className="row between" style={{ gap: 8, fontSize: 11.5 }}>
-										<a href={file.share_url} target="_blank" rel="noreferrer" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--ink-700)' }}>{file.original_name}</a>
-										<button className="icon-btn" onClick={() => copyFileShare(file)} title="Copy file share link"><Icon name="copy" size={11} /></button>
+										{file.share_url ? <a href={file.share_url} target="_blank" rel="noreferrer" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--ink-700)' }}>{file.original_name}</a> : <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.original_name}</span>}
+										<div className="row" style={{ gap: 4 }}>
+											{file.share_url && <button className="icon-btn" onClick={() => copyFileShare(file)} title="Copy file share link"><Icon name="copy" size={11} /></button>}
+											{role === 'client' && file.share_url && <button className="icon-btn" onClick={() => revokeShareMutation.mutate({ scope: 'file', id: file.id })} title="Revoke file share link"><Icon name="x" size={11} /></button>}
+											{role === 'client' && !file.share_url && <button className="icon-btn" onClick={() => rotateShareMutation.mutate({ scope: 'file', id: file.id })} title="Create new file share link"><Icon name="refresh" size={11} /></button>}
+										</div>
 									</div>
 								))}
 							</div>
@@ -793,7 +828,14 @@ export default function Mintbox() {
 									{file.revision_round && <span className="muted" style={{ fontSize: 11.5 }}>Round {file.revision_round}</span>}
 								</div>
 
-								<a href={file.public_url} target="_blank" rel="noreferrer" className="offer-row" style={{ textDecoration: 'none', alignItems: 'center' }}>
+								<div
+									className="offer-row"
+									role={file.public_url ? 'link' : undefined}
+									tabIndex={file.public_url ? 0 : undefined}
+									onClick={() => file.public_url && window.open(file.public_url, '_blank', 'noopener,noreferrer')}
+									onKeyDown={e => { if (file.public_url && e.key === 'Enter') window.open(file.public_url, '_blank', 'noopener,noreferrer') }}
+									style={{ textDecoration: 'none', alignItems: 'center', cursor: file.public_url ? 'pointer' : 'default' }}
+								>
 									<span style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--paper)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
 										<Icon name="file" size={14} />
 									</span>
@@ -801,7 +843,7 @@ export default function Mintbox() {
 										<span className="big" style={{ display: 'block', fontFamily: 'inherit', fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.original_name}</span>
 										<span className="small">{formatBytes(Number(file.size_bytes))}</span>
 									</span>
-								</a>
+								</div>
 
 								{file.freelancer_note && <div className="msg">{file.freelancer_note}</div>}
 								<div className="row between" style={{ gap: 12, marginTop: 10 }}>

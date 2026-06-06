@@ -75,6 +75,30 @@ const streamPublicFile = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const revokeShare = async (req, res, next) => {
+  try {
+    const share = await mintboxService.revokeShare(
+      req.params.scope,
+      req.params.id,
+      req.user.sub,
+      req.user.role
+    );
+    return sendSuccess(res, { data: { share }, message: 'Share link revoked' });
+  } catch (err) { next(err); }
+};
+
+const rotateShare = async (req, res, next) => {
+  try {
+    const share = await mintboxService.rotateShare(
+      req.params.scope,
+      req.params.id,
+      req.user.sub,
+      req.user.role
+    );
+    return sendSuccess(res, { data: { share }, message: 'New share link created' });
+  } catch (err) { next(err); }
+};
+
 const prepareUpload = async (req, res, next) => {
   try {
     const upload = await mintboxService.prepareUpload(
@@ -155,6 +179,8 @@ module.exports = {
   getPublicSharedCategory,
   getPublicFile,
   streamPublicFile,
+  revokeShare,
+  rotateShare,
   prepareUpload,
   markSeen,
   completeUpload,

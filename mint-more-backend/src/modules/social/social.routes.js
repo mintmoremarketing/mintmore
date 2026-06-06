@@ -5,6 +5,7 @@ const { requireApproved } = require('../../middleware/requireApproved');
 const { rawBody } = require('../../middleware/rawBody');
 const { verifyWebhook, handleWebhook } = require('./social.webhook');
 const { requireEntitlement } = require('../../middleware/permissions');
+const { upload, handleUploadError } = require('../../middleware/upload');
 
 const router = Router();
 
@@ -37,6 +38,8 @@ router.use(authenticate);
 
 // GET    /api/v1/social/accounts               — list connected accounts
 router.get('/accounts', controller.getMyAccounts);
+router.get('/analytics/summary', controller.getAnalyticsSummary);
+router.get('/media-library', requireEntitlement('can_use_social'), controller.getMediaLibrary);
 
 // DELETE /api/v1/social/accounts/:accountId    — disconnect account
 router.delete('/accounts/:accountId', controller.disconnectAccount);
@@ -53,7 +56,13 @@ router.post('/posts', requireApproved, requireEntitlement('can_use_social'), con
 router.get('/posts/:postId', controller.getPost);
 
 // POST   /api/v1/social/posts/:postId/media    — add media to draft
-router.post('/posts/:postId/media', requireApproved, requireEntitlement('can_use_social'), controller.addMedia);
+router.post(
+  '/posts/:postId/media',
+  requireApproved,
+  requireEntitlement('can_use_social'),
+  handleUploadError(upload.single('media')),
+  controller.addMedia
+);
 
 // POST   /api/v1/social/posts/:postId/publish  — publish or schedule
 router.post('/posts/:postId/publish', requireApproved, requireEntitlement('can_use_social'), controller.publishPost);

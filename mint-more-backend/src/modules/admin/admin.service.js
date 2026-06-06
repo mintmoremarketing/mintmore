@@ -73,7 +73,8 @@ const getUsers = async ({ page = 1, limit = 20, role, is_approved, search } = {}
  * Get single user detail (admin view — all fields).
  */
 const getUserById = async (userId) => {
-  const result = await query(
+  const [result, walletResult, kycResult] = await Promise.all([
+    query(
     `SELECT
        id, email, phone, full_name, role, avatar_url,
        bio, skills, gender, date_of_birth,
@@ -86,10 +87,25 @@ const getUserById = async (userId) => {
        last_login_at, created_at, updated_at
      FROM users WHERE id = $1`,
     [userId]
-  );
+    ),
+    query(
+      `SELECT id, balance, escrow_balance, currency, created_at, updated_at
+       FROM wallets WHERE user_id=$1`,
+      [userId]
+    ),
+    query(
+      `SELECT * FROM kyc_submissions
+       WHERE user_id=$1 ORDER BY created_at DESC`,
+      [userId]
+    ),
+  ]);
 
   if (!result.rows[0]) throw new AppError('User not found', 404);
-  return result.rows[0];
+  return {
+    user: result.rows[0],
+    wallet: walletResult.rows[0] || null,
+    kyc_submissions: kycResult.rows,
+  };
 };
 
 /**
@@ -276,7 +292,7 @@ const toggleCategory = async (categoryId) => {
 // ── Dashboard Stats ───────────────────────────────────────────────────────────
 
 const getDashboardStats = async () => {
-  const [users, jobs, kyc, proposals] = await Promise.all([
+  const [users, jobs, kyc, proposals, operations, escrow, stalled, reconciliation, outbox] = await Promise.all([
     query(`
       SELECT
         COUNT(*) FILTER (WHERE role = 'client')     AS total_clients,
@@ -303,13 +319,91 @@ const getDashboardStats = async () => {
       SELECT COUNT(*) AS pending_proposals
       FROM proposals WHERE status = 'pending'
     `),
+    query(`
+      SELECT
+        (SELECT COUNT(*) FROM jobs WHERE status='pending_admin_approval') AS pending_deals,
+        (SELECT COUNT(*) FROM withdrawals WHERE status='pending') AS pending_withdrawals,
+        (SELECT COUNT(*) FROM disputes WHERE status IN ('open','under_review')) AS open_disputes
+    `),
+    query(`
+      SELECT COALESCE(SUM(amount),0) AS total_escrow
+      FROM escrow_records WHERE status IN ('held','disputed')
+    `),
+    query(`
+      SELECT COUNT(DISTINCT j.id) AS stalled_deliveries
+      FROM jobs j
+      JOIN mintbox_files file ON file.job_id=j.id AND file.purpose='delivery'
+      WHERE j.status='in_progress'
+        AND file.status <> 'approved'
+        AND file.created_at <= NOW() - INTERVAL '48 hours'
+        AND NOT EXISTS (
+          SELECT 1 FROM mintbox_files newer
+          WHERE newer.job_id=j.id AND newer.purpose='delivery'
+            AND newer.deleted_by_client_at IS NULL
+            AND newer.created_at > file.created_at
+        )
+    `),
+    query(`
+      WITH latest_transactions AS (
+        SELECT DISTINCT ON (wallet_id)
+          wallet_id, balance_after, escrow_after
+        FROM transactions
+        WHERE status = 'completed'
+        ORDER BY wallet_id, created_at DESC, id DESC
+      ),
+      held_escrow AS (
+        SELECT client_id, COALESCE(SUM(amount), 0) AS amount
+        FROM escrow_records
+        WHERE status IN ('held', 'disputed')
+        GROUP BY client_id
+      )
+      SELECT COUNT(*) AS reconciliation_issues
+      FROM wallets wallet
+      LEFT JOIN latest_transactions latest ON latest.wallet_id = wallet.id
+      LEFT JOIN held_escrow held ON held.client_id = wallet.user_id
+      WHERE
+        (latest.wallet_id IS NOT NULL AND (
+          wallet.balance <> latest.balance_after
+          OR wallet.escrow_balance <> latest.escrow_after
+        ))
+        OR wallet.escrow_balance <> COALESCE(held.amount, 0)
+    `),
+    query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'failed') AS failed_events,
+        COUNT(*) FILTER (
+          WHERE status IN ('pending', 'processing')
+            AND available_at < NOW() - INTERVAL '15 minutes'
+        ) AS delayed_events
+      FROM event_outbox
+    `),
   ]);
 
+  const operationStats = operations.rows[0];
+  const pendingActions =
+    Number(kyc.rows[0].pending_kyc) +
+    Number(proposals.rows[0].pending_proposals) +
+    Number(operationStats.pending_deals) +
+    Number(operationStats.pending_withdrawals) +
+    Number(operationStats.open_disputes) +
+    Number(stalled.rows[0].stalled_deliveries) +
+    Number(reconciliation.rows[0].reconciliation_issues) +
+    Number(outbox.rows[0].failed_events) +
+    Number(outbox.rows[0].delayed_events);
   return {
     users:     users.rows[0],
     jobs:      jobs.rows[0],
     kyc:       { pending_kyc: kyc.rows[0].pending_kyc },
     proposals: { pending_proposals: proposals.rows[0].pending_proposals },
+    operations: {
+      ...operationStats,
+      stalled_deliveries: stalled.rows[0].stalled_deliveries,
+      reconciliation_issues: reconciliation.rows[0].reconciliation_issues,
+      failed_events: outbox.rows[0].failed_events,
+      delayed_events: outbox.rows[0].delayed_events,
+      pending_actions: pendingActions,
+    },
+    total_escrow: Number(escrow.rows[0].total_escrow),
   };
 };
 

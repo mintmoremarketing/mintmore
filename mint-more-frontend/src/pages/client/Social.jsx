@@ -6,7 +6,6 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
 import Modal from '../../components/ui/Modal'
-import StatusChip from '../../components/ui/StatusChip'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 import { timeAgo } from '../../utils/format'
 
@@ -78,15 +77,20 @@ function AccountCard({ account, onDisconnect }) {
 function CreatePostModal({ accounts, onClose, onCreated }) {
   const pushToast   = useUIStore(s => s.pushToast)
   const queryClient = useQueryClient()
-  const fileRef     = useState(null)
-
   const [caption,     setCaption]     = useState('')
   const [hashtags,    setHashtags]    = useState('')
   const [contentType, setContentType] = useState('text')
   const [selectedPlatforms, setSelectedPlatforms] = useState([])
   const [scheduleDate, setScheduleDate] = useState('')
   const [mediaFile,   setMediaFile]   = useState(null)
+  const [mintboxMedia, setMintboxMedia] = useState(null)
   const [step,        setStep]        = useState(1)
+  const needsMedia = contentType !== 'text'
+  const hasMedia = Boolean(mediaFile || mintboxMedia)
+  const { data: mediaLibrary = [] } = useQuery({
+    queryKey: ['social-media-library'],
+    queryFn: () => socialApi.getMediaLibrary().then(r => r.data.data.media || []),
+  })
 
   const togglePlatform = (id) => {
     setSelectedPlatforms(prev =>
@@ -102,11 +106,21 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
         hashtags: hashtags.split(' ').filter(Boolean),
         content_type:     contentType,
         target_platforms: selectedPlatforms,
+        publish_at: scheduleDate || undefined,
       })
       const post = postRes.data.data.post
 
       // 2. Upload media if any
-      if (mediaFile) {
+      if (mintboxMedia) {
+        await socialApi.addMedia(post.id, {
+          media_items: [{
+            media_url: mintboxMedia.media_url,
+            media_type: mintboxMedia.media_type,
+            mime_type: mintboxMedia.mime_type,
+            file_size_bytes: mintboxMedia.size_bytes,
+          }],
+        })
+      } else if (mediaFile) {
         const fd = new FormData()
         fd.append('media', mediaFile)
         fd.append('media_type', mediaFile.type.startsWith('video') ? 'video' : 'image')
@@ -114,10 +128,7 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
       }
 
       // 3. Publish or schedule
-      await socialApi.publishPost(post.id, {
-        publish_at: scheduleDate || undefined,
-        platforms:  selectedPlatforms,
-      })
+      await socialApi.publishPost(post.id)
 
       return post
     },
@@ -151,7 +162,7 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
             <button
               className="btn primary"
               onClick={() => createMutation.mutate()}
-              disabled={createMutation.isPending || selectedPlatforms.length === 0}
+              disabled={createMutation.isPending || selectedPlatforms.length === 0 || (needsMedia && !hasMedia)}
             >
               {createMutation.isPending ? 'Publishing…' : scheduleDate ? 'Schedule post' : 'Publish now'}
             </button>
@@ -203,7 +214,7 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
 
           {contentType !== 'text' && (
             <div className="field">
-              <label className="field-label">Media file</label>
+              <label className="field-label">Media</label>
               <div
                 style={{
                   height: 100, borderRadius: 'var(--radius-md)',
@@ -220,17 +231,50 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
                 ) : (
                   <div style={{ textAlign: 'center' }}>
                     <Icon name="upload" size={20} />
-                    <div style={{ fontSize: 12, marginTop: 6 }}>Click to upload</div>
+                    <div style={{ fontSize: 12, marginTop: 6 }}>Upload a JPG, PNG, or WebP</div>
                   </div>
                 )}
               </div>
               <input
                 id="social-media-upload"
                 type="file"
-                accept="image/*,video/*"
+                accept="image/jpeg,image/png,image/webp"
                 style={{ display: 'none' }}
-                onChange={e => setMediaFile(e.target.files?.[0] || null)}
+                onChange={e => {
+                  setMediaFile(e.target.files?.[0] || null)
+                  setMintboxMedia(null)
+                }}
               />
+              <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 7 }}>
+                Use Mintbox below for videos and larger reusable assets.
+              </div>
+              {mediaLibrary.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div className="field-label" style={{ marginBottom: 7 }}>Or choose from Mintbox</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 7, maxHeight: 160, overflowY: 'auto' }}>
+                    {mediaLibrary.map(item => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        className="btn ghost"
+                        onClick={() => {
+                          setMintboxMedia(item)
+                          setMediaFile(null)
+                        }}
+                        style={{
+                          justifyContent: 'flex-start',
+                          borderColor: mintboxMedia?.id === item.id ? 'var(--mint-500)' : undefined,
+                          minWidth: 0,
+                        }}
+                        title={`${item.job_title} - ${item.original_name}`}
+                      >
+                        <Icon name={item.media_type === 'video' ? 'video' : 'image'} size={13} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.original_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -248,11 +292,11 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
           ) : (
             connectedPlatforms.map(acc => {
               const meta    = PLATFORM_META[acc.platform] || {}
-              const selected = selectedPlatforms.includes(acc.id)
+              const selected = selectedPlatforms.includes(acc.platform)
               return (
                 <div
                   key={acc.id}
-                  onClick={() => togglePlatform(acc.id)}
+                  onClick={() => togglePlatform(acc.platform)}
                   style={{
                     display: 'flex', gap: 12, alignItems: 'center',
                     padding: '12px 14px',
@@ -348,6 +392,12 @@ export default function Social() {
     enabled:  tab === 'posts',
   })
 
+  const { data: analyticsData, isLoading: analyticsLoading } = useQuery({
+    queryKey: ['social-analytics-summary'],
+    queryFn: () => socialApi.getAnalyticsSummary().then(r => r.data.data),
+    enabled: tab === 'analytics',
+  })
+
   const disconnectMutation = useMutation({
     mutationFn: (id) => socialApi.disconnect(id),
     onSuccess: () => {
@@ -358,6 +408,7 @@ export default function Social() {
 
   const accounts = accountsData?.accounts || []
   const posts    = postsData?.posts || []
+  const summary  = analyticsData?.summary
 
   return (
     <div className="stack-6">
@@ -376,6 +427,7 @@ export default function Social() {
       <Tabs value={tab} onChange={setTab} items={[
         { value: 'accounts', label: 'Connected accounts' },
         { value: 'posts',    label: 'Posts' },
+        { value: 'analytics', label: 'Analytics' },
       ]} />
 
       {/* Accounts tab */}
@@ -426,6 +478,33 @@ export default function Social() {
             </div>
           )}
         </div>
+      )}
+
+      {tab === 'analytics' && (
+        analyticsLoading ? <SkeletonCard /> : (
+          <div className="stack" style={{ gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+              {[
+                ['Published posts', summary?.posts || 0],
+                ['Views', Number(summary?.views || 0).toLocaleString('en-IN')],
+                ['Reach', Number(summary?.reach || 0).toLocaleString('en-IN')],
+                ['Engagement rate', `${summary?.engagement_rate_percent || 0}%`],
+              ].map(([label, value]) => (
+                <div key={label} className="card" style={{ padding: 18 }}>
+                  <div className="h-eyebrow">{label}</div>
+                  <div className="mono" style={{ fontSize: 25, fontWeight: 600, marginTop: 8 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+            <div className="card" style={{ padding: 20 }}>
+              <div className="h-eyebrow">What this means</div>
+              <p style={{ margin: '8px 0 0', lineHeight: 1.6 }}>{summary?.insight}</p>
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>
+                Based on the last {summary?.period_days || 30} days. Engagement benchmark: {summary?.benchmark_engagement_rate_percent || 0}%.
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       {/* Posts tab */}

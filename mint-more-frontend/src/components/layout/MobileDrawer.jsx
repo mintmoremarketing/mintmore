@@ -1,18 +1,26 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../ui/Icon'
-import { ADMIN_NAV, CLIENT_NAV, FREELANCER_NAV } from './Sidebar'
+import { ADMIN_NAV, CLIENT_NAV, FREELANCER_NAV } from './navigation'
+import { useEntitlements } from '../../hooks/useEntitlements'
 
 export default function MobileDrawer({ role, onClose }) {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const { user, logout } = useAuthStore()
+  const { user, logout, isGuest } = useAuthStore()
+  const { data: access } = useEntitlements()
 
-  const items = role === 'admin'
+  const allItems = role === 'admin'
     ? ADMIN_NAV
     : role === 'freelancer'
     ? FREELANCER_NAV
     : CLIENT_NAV
+  const permissions = access?.admin_permissions || []
+  const items = isGuest
+    ? allItems.filter(item => item.route === '/dashboard')
+    : role === 'admin'
+    ? allItems.filter(item => !item.permission || access?.is_super_admin || permissions.includes('*') || permissions.includes(item.permission))
+    : allItems
 
   function go(route) {
     navigate(route)
@@ -42,13 +50,13 @@ export default function MobileDrawer({ role, onClose }) {
             ))}
           </div>
 
-          <button
+          {!isGuest && <button
             className={`nav-item ${location.pathname === '/settings' ? 'active' : ''}`}
             onClick={() => go('/settings')}
           >
             <Icon name="settings" size={15} />
             <span>Settings</span>
-          </button>
+          </button>}
 
           {/* User footer */}
           <div className="sidebar-user">

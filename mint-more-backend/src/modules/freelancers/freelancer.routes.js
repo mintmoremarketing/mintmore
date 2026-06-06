@@ -19,6 +19,18 @@ router.get('/:freelancerId',
 	controller.getProfile
 );
 
+router.post('/:freelancerId/preferred',
+	authorize('client'),
+	requireAddon('browse_freelancers'),
+	controller.setPreferred
+);
+
+router.delete('/:freelancerId/preferred',
+	authorize('client'),
+	requireAddon('browse_freelancers'),
+	controller.setPreferred
+);
+
 // Freelancer self-management
 router.patch('/me/marketplace',
 	authorize('freelancer'),

@@ -27,7 +27,7 @@ const levelLabel = (level) => {
 const getMarketRangeFromResponse = (res) =>
 	res.data?.data?.range ?? res.data?.data?.data?.range ?? res.data?.range ?? null
 
-const NEGOTIATION_MAX_ROUNDS = 6
+const NEGOTIATION_MAX_ROUNDS = 4
 
 const talentPoolLabel = (mode) => mode === 'expert' ? 'Pro creatives' : 'Budget creatives'
 

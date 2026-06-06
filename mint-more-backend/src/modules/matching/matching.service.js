@@ -3,8 +3,8 @@ const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { getCategoryPriceRange, evaluatePricingAlignment } = require('./pricing.service');
 const { saveMatchedCandidates } = require('../negotiation/negotiation.service');
-const { notifyMatchedCandidates } = require('../notifications/notification.triggers');
 const { getSetting } = require('../commerce/settings.service');
+const { enqueueOutboxEvent } = require('../events/outbox.service');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -376,13 +376,11 @@ const runMatchingForJob = async (jobId) => {
     await saveMatchedCandidates(jobId, ranked);
 
     // Fire notifications — non-blocking, post-commit
-    setImmediate(async () => {
-      try {
-        await notifyMatchedCandidates(job, ranked);
-      } catch (err) {
-        logger.error('[Matching] Notification trigger failed', { jobId, error: err.message });
-      }
-    });
+    await enqueueOutboxEvent(
+      'notification.trigger',
+      { trigger: 'notifyMatchedCandidates', args: [job, ranked] },
+      { dedupeKey: `matching:${jobId}:matched-candidates` }
+    );
   }
 
   

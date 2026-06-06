@@ -2,7 +2,7 @@ const aiService      = require('./ai.service');
 const adminAIService = require('./admin.ai.service');
 const { validateGenerateRequest } = require('./ai.validator');
 const {
-  getAllModels, getModelsByToolType, getTrendingModels,
+  getAllModels, getModelById, getModelsByToolType, getTrendingModels,
 } = require('./models/model.registry');
 const { getAllModelTraffic, getModelTraffic } = require('./models/model.traffic');
 const { sendSuccess } = require('../../utils/apiResponse');
@@ -40,7 +40,9 @@ const getModels = async (req, res, next) => {
 
 const getSingleModelTraffic = async (req, res, next) => {
   try {
-    const traffic = await getModelTraffic(req.params.openrouterId);
+    const model = await getModelById(req.params.modelId);
+    if (!model) throw new AppError('Model not found or inactive', 404);
+    const traffic = await getModelTraffic(model.openrouter_id);
     return sendSuccess(res, { data: { traffic } });
   } catch (err) { next(err); }
 };

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { freelancersApi } from '../../api/freelancers'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
@@ -229,6 +229,8 @@ function InquiryModal({ freelancer, selectedPackage, onClose, onSent }) {
 export default function FreelancerProfile() {
 	const { freelancerId } = useParams()
 	const navigate = useNavigate()
+	const queryClient = useQueryClient()
+	const pushToast = useUIStore((s) => s.pushToast)
 	const [activePackage, setActivePackage] = useState(0)
 	const [inquirePackage, setInquirePackage] = useState(null)
 	const [showInquiry, setShowInquiry] = useState(false)
@@ -250,6 +252,28 @@ export default function FreelancerProfile() {
 				.getReviews(freelancerId, { sort: reviewSort, limit: 10 })
 				.then((r) => r.data.data),
 		enabled: !!profileData,
+	})
+
+	const preferredMutation = useMutation({
+		mutationFn: (preferred) => freelancersApi.setPreferred(freelancerId, preferred),
+		onSuccess: (_, preferred) => {
+			queryClient.setQueryData(['freelancer-profile', freelancerId], (current) => (
+				current ? { ...current, is_preferred_creator: preferred } : current
+			))
+			pushToast({
+				title: preferred ? 'Creative saved' : 'Creative removed',
+				body: preferred
+					? 'This creative will receive priority when eligible for your managed briefs.'
+					: 'This creative no longer has preference for your managed briefs.',
+				icon: 'star',
+			})
+		},
+		onError: (err) => pushToast({
+			title: 'Could not update preference',
+			body: err.response?.data?.message || 'Please try again.',
+			tone: 'amber',
+			icon: 'x',
+		}),
 	})
 
 	if (isLoading) {
@@ -381,6 +405,16 @@ export default function FreelancerProfile() {
 											{f.freelancer_level}
 										</span>
 									)}
+									<button
+										className="btn ghost sm"
+										onClick={() => preferredMutation.mutate(!f.is_preferred_creator)}
+										disabled={preferredMutation.isPending}
+										title={f.is_preferred_creator ? 'Remove preferred creative' : 'Save as preferred creative'}
+										style={{ marginLeft: 'auto' }}
+									>
+										<Icon name="star" size={13} />
+										{f.is_preferred_creator ? 'Preferred' : 'Prefer'}
+									</button>
 								</div>
 
 								{f.tagline && (

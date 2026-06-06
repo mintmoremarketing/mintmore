@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const controller = require('./addon.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
+const { requirePermission } = require('../../middleware/permissions');
 
 const router = Router();
 router.use(authenticate);
@@ -18,9 +19,9 @@ router.post('/purchase', authorize('client'), controller.purchaseAddon);
 router.get('/check/:feature', controller.checkFeature);
 
 // Admin
-router.get('/admin/plans', authorize('admin'), controller.adminGetPlans);
-router.post('/admin/plans', authorize('admin'), controller.adminCreatePlan);
-router.patch('/admin/plans/:planId', authorize('admin'), controller.adminUpdatePlan);
-router.get('/admin/plans/:planId/subscribers', authorize('admin'), controller.adminGetSubscribers);
+router.get('/admin/plans', authorize('admin'), requirePermission('pricing.manage'), controller.adminGetPlans);
+router.post('/admin/plans', authorize('admin'), requirePermission('pricing.manage'), controller.adminCreatePlan);
+router.patch('/admin/plans/:planId', authorize('admin'), requirePermission('pricing.manage'), controller.adminUpdatePlan);
+router.get('/admin/plans/:planId/subscribers', authorize('admin'), requirePermission('pricing.manage'), controller.adminGetSubscribers);
 
 module.exports = router;

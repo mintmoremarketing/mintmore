@@ -6,6 +6,7 @@ const triggers = require('../notifications/notification.triggers');
 const { holdEscrow, getWalletByUserId } = require('../wallet/wallet.service');
 const { createChatRoom } = require('../chat/chat.service');
 const { writeAudit } = require('../audit/audit.service');
+const { enqueueOutboxEvent } = require('../events/outbox.service');
 
 const MAX_ROUNDS = 4;
 
@@ -998,6 +999,42 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
       },
     }, dbClient);
 
+    const outboxDb = (text, params) => dbClient.query(text, params);
+    await enqueueOutboxEvent(
+      'chat.create_for_job',
+      {
+        jobId,
+        clientId: negotiation.client_id,
+        freelancerId: negotiation.freelancer_id,
+      },
+      { dedupeKey: `job:${jobId}:chat-room`, db: outboxDb }
+    );
+    await enqueueOutboxEvent(
+      'notification.trigger',
+      {
+        trigger: 'notifyDealApproved',
+        args: [{
+          job,
+          freelancerUserId: negotiation.freelancer_id,
+          clientUserId: negotiation.client_id,
+          agreedPrice: negotiation.agreed_price,
+        }],
+      },
+      { dedupeKey: `job:${jobId}:deal-approved-notification`, db: outboxDb }
+    );
+    await enqueueOutboxEvent(
+      'notification.trigger',
+      {
+        trigger: 'notifyAssignmentCreated',
+        args: [{
+          job,
+          freelancerUserId: negotiation.freelancer_id,
+          agreedPrice: negotiation.agreed_price,
+        }],
+      },
+      { dedupeKey: `job:${jobId}:assignment-created-notification`, db: outboxDb }
+    );
+
     await dbClient.query('COMMIT');
     // Hold escrow from client wallet — non-blocking, post-commit
     setImmediate(async () => {
@@ -1023,6 +1060,7 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
     setImmediate(async () => {
       try {
         // Find client's WhatsApp number + best MM channel for this job's category
+        return;
         const [clientResult, jobCatResult] = await Promise.all([
           query('SELECT whatsapp_number FROM users WHERE id = $1', [negotiation.client_id]),
           query(
@@ -1051,6 +1089,7 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
     });
     setImmediate(async () => {
       try {
+        return;
         await triggers.notifyDealApproved({
           job,
           freelancerUserId: negotiation.freelancer_id,

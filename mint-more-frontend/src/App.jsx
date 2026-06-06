@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/auth'
+import { useEntitlements } from './hooks/useEntitlements'
 
 // Auth
 import Login    from './pages/auth/Login'
@@ -26,6 +28,7 @@ import Chat              from './pages/shared/Chat'
 import SharedFile        from './pages/public/SharedFile'
 import Membership        from './pages/client/Membership'
 import Onboarding        from './pages/client/Onboarding'
+import Disputes          from './pages/shared/Disputes'
 
 // Freelancer pages
 import FreelancerDashboard  from './pages/freelancer/Dashboard'
@@ -76,10 +79,27 @@ function RoleWallet() {
 
 // ── Guards ────────────────────────────────────────────────────────────────────
 
-function AdminOnly({ children }) {
+function AdminOnly({ children, permission }) {
   const role = useAuthStore(s => s.user?.role)
   if (role !== 'admin') return <Navigate to="/dashboard" replace />
+  return <AdminPermissionGate permission={permission}>{children}</AdminPermissionGate>
+}
+
+function AdminPermissionGate({ children, permission }) {
+  const { data: access, isLoading } = useEntitlements()
+  if (!permission) return children
+  if (isLoading) return null
+  const permissions = access?.admin_permissions || []
+  if (!access?.is_super_admin && !permissions.includes('*') && !permissions.includes(permission)) {
+    return <Navigate to="/admin" replace />
+  }
   return children
+}
+
+function PermissionIfAdmin({ children, permission }) {
+  const role = useAuthStore(s => s.user?.role)
+  if (role !== 'admin') return children
+  return <AdminPermissionGate permission={permission}>{children}</AdminPermissionGate>
 }
 
 function ClientOnly({ children }) {
@@ -92,6 +112,23 @@ function FreelancerOnly({ children }) {
   const role = useAuthStore(s => s.user?.role)
   if (role !== 'freelancer') return <Navigate to={role === 'admin' ? '/admin' : '/dashboard'} replace />
   return children
+}
+
+function RootRedirect() {
+  const isAuthed = useAuthStore(s => s.isAuthed)
+  const isGuest = useAuthStore(s => s.isGuest)
+  const user = useAuthStore(s => s.user)
+  if (!isAuthed && !isGuest) return <Navigate to="/login" replace />
+  if (user?.role === 'admin') return <Navigate to="/admin" replace />
+  return <Navigate to="/dashboard" replace />
+}
+
+function DemoEntry() {
+  const enterDemo = useAuthStore(s => s.enterDemo)
+  useEffect(() => {
+    enterDemo()
+  }, [enterDemo])
+  return <Navigate to="/dashboard" replace />
 }
 
 // ── Misc pages ────────────────────────────────────────────────────────────────
@@ -127,33 +164,16 @@ function PendingApproval() {
   )
 }
 
-function ComingSoon({ label }) {
-  return (
-    <div style={{ padding: 60, textAlign: 'center' }}>
-      <div style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>{label}</div>
-      <div style={{ color: 'var(--ink-500)', fontSize: 14 }}>Coming soon</div>
-    </div>
-  )
-}
-
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const isAuthed = useAuthStore(s => s.isAuthed)
-  const user     = useAuthStore(s => s.user)
-
-  function RootRedirect() {
-    if (!isAuthed)               return <Navigate to="/login" replace />
-    if (user?.role === 'admin')  return <Navigate to="/admin" replace />
-    return <Navigate to="/dashboard" replace />
-  }
-
   return (
     <BrowserRouter>
       <Routes>
         {/* Public */}
         <Route path="/login"            element={<Login />} />
         <Route path="/register"         element={<Register />} />
+        <Route path="/demo"             element={<DemoEntry />} />
         <Route path="/pending-approval" element={<PendingApproval />} />
         <Route path="/mintbox/share/:token" element={<Mintbox />} />
         <Route path="/mintbox/share-category/:categoryToken" element={<Mintbox />} />
@@ -187,22 +207,24 @@ export default function App() {
           <Route path="/inquiries"    element={<FreelancerOnly><Inquiries /></FreelancerOnly>} />
 
           {/* Shared */}
-          <Route path="/chat"     element={<Chat />} />
+          <Route path="/chat"     element={<PermissionIfAdmin permission="support.manage"><Chat /></PermissionIfAdmin>} />
           <Route path="/mintbox" element={<ClientOnly><Mintbox /></ClientOnly>} />
           <Route path="/mintbox/jobs/:jobId" element={<Mintbox />} />
           <Route path="/notifications" element={<NotificationsInbox />} />
+          <Route path="/disputes" element={<PermissionIfAdmin permission="support.manage"><Disputes /></PermissionIfAdmin>} />
           <Route path="/settings" element={<Settings />} />
 
           {/* Admin routes */}
           <Route path="/admin"            element={<AdminOnly><AdminDashboard /></AdminOnly>} />
-          <Route path="/admin/users"      element={<AdminOnly><AdminUsers /></AdminOnly>} />
-          <Route path="/admin/approvals"  element={<AdminOnly><AdminNegotiations /></AdminOnly>} />
-          <Route path="/admin/pricing"    element={<AdminOnly><AdminPricing /></AdminOnly>} />
-          <Route path="/admin/commerce"   element={<AdminOnly><AdminCommerce /></AdminOnly>} />
-          <Route path="/admin/audit"      element={<AdminOnly><AdminAudit /></AdminOnly>} />
-          <Route path="/admin/wallet"     element={<AdminOnly><AdminWallet /></AdminOnly>} />
-          <Route path="/admin/ai"         element={<AdminOnly><AdminAIPanel /></AdminOnly>} />
+          <Route path="/admin/users"      element={<AdminOnly permission="users.manage"><AdminUsers /></AdminOnly>} />
+          <Route path="/admin/approvals"  element={<AdminOnly permission="deals.approve"><AdminNegotiations /></AdminOnly>} />
+          <Route path="/admin/pricing"    element={<AdminOnly permission="pricing.manage"><AdminPricing /></AdminOnly>} />
+          <Route path="/admin/commerce"   element={<AdminOnly permission="pricing.manage"><AdminCommerce /></AdminOnly>} />
+          <Route path="/admin/audit"      element={<AdminOnly permission="audit.read"><AdminAudit /></AdminOnly>} />
+          <Route path="/admin/wallet"     element={<AdminOnly permission="payments.manage"><AdminWallet /></AdminOnly>} />
+          <Route path="/admin/ai"         element={<AdminOnly permission="pricing.manage"><AdminAIPanel /></AdminOnly>} />
         </Route>
+        <Route path="*" element={<RootRedirect />} />
       </Routes>
     </BrowserRouter>
   )

@@ -8,7 +8,7 @@ import Modal from '../../components/ui/Modal'
 import { rupee } from '../../utils/format'
 import { Skeleton } from '../../components/ui/Skeleton'
 
-function WithdrawModal({ wallet, onClose }) {
+function WithdrawModal({ wallet, payoutRules, onClose }) {
 	const queryClient = useQueryClient()
 	const pushToast = useUIStore((s) => s.pushToast)
 	const [amount, setAmount] = useState('')
@@ -17,6 +17,7 @@ function WithdrawModal({ wallet, onClose }) {
 	const [ifsc, setIfsc] = useState('')
 	const [upiId, setUpiId] = useState('')
 	const [method, setMethod] = useState('bank')
+	const [payoutMode, setPayoutMode] = useState('scheduled')
 
 	const { mutate, isPending } = useMutation({
 		mutationFn: () =>
@@ -26,11 +27,12 @@ function WithdrawModal({ wallet, onClose }) {
 				account_number: method === 'bank' ? accountNumber : undefined,
 				ifsc_code: method === 'bank' ? ifsc : undefined,
 				upi_id: method === 'upi' ? upiId : undefined,
+				payout_mode: payoutMode,
 			}),
 		onSuccess: () => {
 			pushToast({
 				title: 'Withdrawal requested!',
-				body: 'Admin will process within 2 business days',
+				body: payoutMode === 'instant' ? 'Your instant payout is queued for processing.' : 'Your free weekly payout is queued.',
 				icon: 'check',
 			})
 			queryClient.invalidateQueries({ queryKey: ['wallet'] })
@@ -48,8 +50,12 @@ function WithdrawModal({ wallet, onClose }) {
 	}
 
 	const available = parseFloat(wallet?.balance || 0)
+	const fee = Number(payoutMode === 'instant' ? payoutRules?.instant_fee || 0 : payoutRules?.scheduled_fee || 0)
+	const netAmount = Math.max(Number(amount || 0) - fee, 0)
 	const canSubmit =
 		parseFloat(amount) >= 100 &&
+		parseFloat(amount) <= available &&
+		netAmount > 0 &&
 		accountName.trim().length >= 2 &&
 		(method === 'upi'
 			? upiId.trim().length > 0
@@ -73,6 +79,26 @@ function WithdrawModal({ wallet, onClose }) {
 			}
 		>
 			<div className="stack" style={{ gap: 14 }}>
+				<div className="field">
+					<label className="field-label" style={{ marginBottom: 8, display: 'block' }}>Payout speed</label>
+					<div className="grid-2" style={{ gap: 8 }}>
+						{[
+							['scheduled', payoutRules?.scheduled_label || 'Weekly payout', payoutRules?.scheduled_fee || 0],
+							['instant', payoutRules?.instant_label || 'Instant payout', payoutRules?.instant_fee || 0],
+						].map(([value, label, optionFee]) => (
+							<button
+								key={value}
+								type="button"
+								onClick={() => setPayoutMode(value)}
+								className={`btn ${payoutMode === value ? 'primary' : 'ghost'}`}
+								style={{ justifyContent: 'flex-start' }}
+							>
+								{label} · {Number(optionFee) > 0 ? `${rupee(optionFee)} fee` : 'Free'}
+							</button>
+						))}
+					</div>
+				</div>
+
 				<div className="field">
 					<div className="row between">
 						<label className="field-label">Amount</label>
@@ -104,6 +130,19 @@ function WithdrawModal({ wallet, onClose }) {
 						/>
 					</div>
 				</div>
+
+				{Number(amount || 0) > 0 && (
+					<div className="card-flat" style={{ padding: 12 }}>
+						<div className="row between" style={{ fontSize: 12.5 }}>
+							<span className="muted">Payout fee</span>
+							<strong className="mono">{rupee(fee)}</strong>
+						</div>
+						<div className="row between" style={{ fontSize: 13.5, marginTop: 7 }}>
+							<span>You receive</span>
+							<strong className="mono">{rupee(netAmount)}</strong>
+						</div>
+					</div>
+				)}
 
 				<div className="field">
 					<label className="field-label">Account holder name</label>
@@ -324,7 +363,7 @@ export default function FreelancerWallet() {
 				</div>
 			</div>
 
-			{showWD && <WithdrawModal wallet={wallet} onClose={() => setShowWD(false)} />}
+			{showWD && <WithdrawModal wallet={wallet} payoutRules={walletData?.payout_rules} onClose={() => setShowWD(false)} />}
 		</div>
 	)
 }

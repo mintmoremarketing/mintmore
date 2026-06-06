@@ -32,14 +32,17 @@ const createNotification = async ({
   entityType = null,
   entityId   = null,
   data       = {},
+  dedupeKey  = null,
 }) => {
   try {
     const result = await query(
       `INSERT INTO notifications
-         (user_id, type, title, body, entity_type, entity_id, data)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (user_id, type, title, body, entity_type, entity_id, data, dedupe_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE
+         SET dedupe_key = EXCLUDED.dedupe_key
        RETURNING *`,
-      [userId, type, title, body, entityType, entityId, JSON.stringify(data)]
+      [userId, type, title, body, entityType, entityId, JSON.stringify(data), dedupeKey]
     );
 
     const notification = result.rows[0];

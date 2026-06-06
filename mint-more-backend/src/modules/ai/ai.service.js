@@ -23,9 +23,11 @@ const {
   expireCreditsForUser,
 } = require('../commerce/credits.service');
 const { getSetting } = require('../commerce/settings.service');
+const { getWalletByUserId, recordTransaction } = require('../wallet/wallet.service');
 
 const RATE_LIMIT_KEY      = (userId) => `ai:ratelimit:${userId}`;
 const AI_PROGRESS_CHANNEL = 'mint_more:ai_progress';
+const userPrice = (model) => Number(model?.user_price_per_1k_tokens ?? model?.cost_per_1k_tokens ?? 0);
 
 // ── Tool Prompts ──────────────────────────────────────────────────────────────
 
@@ -89,7 +91,7 @@ const checkRateLimit = async (userId) => {
 };
 
 const assertIncludedQuota = async (userId, toolType, model) => {
-  if (Number(model.cost_per_1k_tokens || 0) > 0) return;
+  if (userPrice(model) > 0) return;
   const membershipResult = await query(
     'SELECT status, current_period_start FROM memberships WHERE user_id = $1',
     [userId]
@@ -128,8 +130,14 @@ const deductCredits = async (userId, generationId, creditCost) => {
   try {
     await dbClient.query('BEGIN');
 
+    const existingCreditTx = await dbClient.query(
+      'SELECT amount FROM mint_credit_transactions WHERE idempotency_key = $1',
+      [`ai-credit:${generationId}`]
+    );
     const creditAccount = await getCreditAccount(userId, dbClient, true);
-    const creditSpend = Math.min(Number(creditAccount.balance), Number(creditCost));
+    const creditSpend = existingCreditTx.rows[0]
+      ? Math.abs(Number(existingCreditTx.rows[0].amount))
+      : Math.min(Number(creditAccount.balance), Number(creditCost));
     if (creditSpend > 0) {
       await recordCreditTransaction(dbClient, {
         userId,
@@ -147,31 +155,23 @@ const deductCredits = async (userId, generationId, creditCost) => {
       return;
     }
 
-    const walletResult = await dbClient.query(
-      'SELECT * FROM wallets WHERE user_id = $1 FOR UPDATE',
-      [userId]
-    );
-    const wallet = walletResult.rows[0];
+    const wallet = await getWalletByUserId(userId, dbClient, true);
     if (!wallet || parseFloat(wallet.balance) < cashSpend) {
       throw new AppError('Insufficient balance for this AI generation', 402);
       logger.warn('Credit deduction skipped — insufficient balance', { userId, creditCost });
     }
 
-    const newBalance = parseFloat(wallet.balance) - cashSpend;
-    await dbClient.query('UPDATE wallets SET balance = $1 WHERE id = $2', [newBalance, wallet.id]);
-
-    await dbClient.query(
-      `INSERT INTO transactions
-         (wallet_id, user_id, type, amount, currency,
-          balance_after, escrow_after,
-          reference_id, reference_type, description)
-       VALUES ($1,$2,'adjustment',$3,'INR',$4,$5,$6,'ai_generation','AI credit deduction')`,
-      [
-        wallet.id, userId, -cashSpend,
-        newBalance, parseFloat(wallet.escrow_balance),
-        generationId,
-      ]
-    );
+    await recordTransaction(dbClient, {
+      walletId: wallet.id,
+      userId,
+      type: 'adjustment',
+      amount: -cashSpend,
+      referenceId: generationId,
+      referenceType: 'ai_generation',
+      idempotencyKey: `ai-cash:${generationId}`,
+      description: 'Mint AI generation',
+      metadata: { generation_id: generationId },
+    });
 
     await dbClient.query('COMMIT');
   } catch (err) {
@@ -219,7 +219,7 @@ const createGeneration = async (userId, {
   await checkRateLimit(userId);
 
   // Credit preflight check
-  if (parseFloat(model.cost_per_1k_tokens) > 0) {
+  if (userPrice(model) > 0) {
     await expireCreditsForUser(userId);
     const walletResult = await query(
       `SELECT w.balance AS cash_balance, COALESCE(c.balance, 0) AS credit_balance
@@ -228,7 +228,7 @@ const createGeneration = async (userId, {
        WHERE w.user_id = $1`,
       [userId]
     );
-    const minRequired = parseFloat(model.cost_per_1k_tokens);
+    const minRequired = userPrice(model);
     const available = Number(walletResult.rows[0]?.cash_balance || 0) + Number(walletResult.rows[0]?.credit_balance || 0);
     if (available < minRequired) {
       throw new AppError(
@@ -334,7 +334,7 @@ const processGeneration = async (generationId) => {
       const filePath  = `ai-generated/${generation.user_id}/${generationId}.webp`;
       const storedUrl = await uploadFile('job-attachments', filePath, buffer, 'image/webp');
 
-      const creditCost = parseFloat(model?.cost_per_1k_tokens || 0);
+      const creditCost = userPrice(model);
       if (creditCost > 0) await deductCredits(generation.user_id, generationId, creditCost);
 
       await query(
@@ -360,8 +360,8 @@ const processGeneration = async (generationId) => {
       // Cost: per second of output video
       // Admin sets cost in model metadata - we use a flat per-second rate
       // Default: free models = 0 credits, paid = cost_per_1k_tokens as flat credit
-      const creditCost = parseFloat(model?.cost_per_1k_tokens || 0) > 0
-        ? parseFloat(model.cost_per_1k_tokens) * (result.duration_seconds || 5)
+      const creditCost = userPrice(model) > 0
+        ? userPrice(model) * (result.duration_seconds || 5)
         : 0;
 
       if (creditCost > 0) await deductCredits(generation.user_id, generationId, creditCost);
@@ -397,8 +397,19 @@ const processGeneration = async (generationId) => {
           openrouterId, error: primaryErr.message,
         });
 
-        const freeModels    = await getFreeModels(generation.tool_type);
-        const bestFree      = await getBestFreeModel(freeModels);
+        let bestFree = null;
+        if (model?.failover_model_id) {
+          const configured = await query(
+            `SELECT * FROM ai_models
+             WHERE id=$1 AND is_active=true AND $2::ai_tool_type = ANY(supported_tools)`,
+            [model.failover_model_id, generation.tool_type]
+          );
+          bestFree = configured.rows[0] || null;
+        }
+        if (!bestFree) {
+          const freeModels = await getFreeModels(generation.tool_type);
+          bestFree = await getBestFreeModel(freeModels);
+        }
 
         if (bestFree && bestFree.openrouter_id !== openrouterId) {
           logger.info('Failover activated', {
@@ -417,7 +428,7 @@ const processGeneration = async (generationId) => {
 
       const totalTokens = result.tokens_input + result.tokens_output;
       const creditCost  = usedFailover ? 0 :
-        Math.ceil((totalTokens / 1000) * parseFloat(model?.cost_per_1k_tokens || 0));
+        Math.ceil((totalTokens / 1000) * userPrice(model));
 
       if (creditCost > 0) await deductCredits(generation.user_id, generationId, creditCost);
 

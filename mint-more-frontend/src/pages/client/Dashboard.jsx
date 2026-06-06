@@ -20,7 +20,7 @@ const formatBytes = (bytes = 0) => {
 
 export default function ClientDashboard() {
 	const navigate = useNavigate()
-	const { user } = useAuthStore()
+	const { user, isGuest } = useAuthStore()
 	const setShowTopUp = useUIStore((s) => s.setShowTopUp)
 
 	const now = new Date()
@@ -30,21 +30,25 @@ export default function ClientDashboard() {
 	const { data: walletData } = useQuery({
 		queryKey: ['wallet'],
 		queryFn: () => api.get('/wallet').then((r) => r.data.data),
+		enabled: !isGuest,
 	})
 
 	const { data: jobsData, isLoading } = useQuery({
 		queryKey: ['jobs', 'active'],
 		queryFn: () => api.get('/jobs').then((r) => r.data.data),
+		enabled: !isGuest,
 	})
 
 	const { data: mintboxData } = useQuery({
 		queryKey: ['mintbox'],
 		queryFn: () => mintboxApi.getFolders().then((r) => r.data.data),
+		enabled: !isGuest,
 	})
 
 	const { data: profileData } = useQuery({
 		queryKey: ['my-profile'],
 		queryFn: () => api.get('/profile/me').then((r) => r.data.data),
+		enabled: !isGuest,
 	})
 	const profile = profileData?.profile || profileData || {}
 	const onboarding = profile.onboarding_checklist || {}
@@ -60,9 +64,11 @@ export default function ClientDashboard() {
 		['matching', 'locked', 'negotiating', 'in_progress', 'assigned'].includes(j.status)
 	) || []
 
-	const wallet = walletData?.wallet
-	const quota = mintboxData?.quota
+	const wallet = isGuest ? { balance: 999, escrow_balance: 0 } : walletData?.wallet
+	const quota = isGuest ? { used: 0, limit: 10 * GB } : mintboxData?.quota
 	const usedPct = quota?.limit ? Math.min(100, (quota.used / quota.limit) * 100) : 0
+	const openAccount = () => navigate('/register')
+	const requireAccount = (route) => isGuest ? openAccount : () => navigate(route)
 
 	return (
 		<div className="stack-6">
@@ -104,10 +110,10 @@ export default function ClientDashboard() {
 							</div>
 						</div>
 						<div className="row" style={{ marginTop: 22, gap: 8 }}>
-							<button className="btn mint" onClick={() => setShowTopUp(true)}>
+							<button className="btn mint" onClick={isGuest ? openAccount : () => setShowTopUp(true)}>
 								<Icon name="plus" /> Top up wallet
 							</button>
-							<button className="btn link" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={() => navigate('/wallet')}>
+							<button className="btn link" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={requireAccount('/wallet')}>
 								View transactions <Icon name="arrowRight" />
 							</button>
 						</div>
@@ -116,10 +122,10 @@ export default function ClientDashboard() {
 
 				<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
 					{[
-						{ icon: 'plus', label: 'Post a new brief', sub: 'Get matched in ~6 min', onClick: () => navigate('/jobs/new'), primary: true },
-						{ icon: 'user', label: 'Browse freelancers', sub: 'Marketplace access', onClick: () => navigate('/freelancers') },
-						{ icon: 'sparkles', label: 'Mint AI', sub: 'Captions, scripts', onClick: () => navigate('/ai') },
-						{ icon: 'layers', label: 'Schedule a post', sub: '2 platforms', onClick: () => navigate('/social') },
+						{ icon: 'plus', label: 'Post a new brief', sub: 'Get matched in ~6 min', onClick: requireAccount('/jobs/new'), primary: true },
+						{ icon: 'user', label: 'Browse freelancers', sub: 'Marketplace access', onClick: requireAccount('/freelancers') },
+						{ icon: 'sparkles', label: 'Mint AI', sub: 'Captions, scripts', onClick: requireAccount('/ai') },
+						{ icon: 'layers', label: 'Schedule a post', sub: '2 platforms', onClick: requireAccount('/social') },
 					].map((a) => (
 						<button
 							key={a.label}
@@ -152,7 +158,7 @@ export default function ClientDashboard() {
 				</div>
 			</div>
 
-			{onboardingDone < onboardingItems.length && (
+			{!isGuest && onboardingDone < onboardingItems.length && (
 				<div className="card reveal" style={{ padding: 18 }}>
 					<div className="row between" style={{ gap: 16 }}>
 						<div style={{ flex: 1 }}>
@@ -178,7 +184,7 @@ export default function ClientDashboard() {
 							{formatBytes(quota?.used || 0)} used
 						</div>
 					</div>
-					<button className="btn ghost sm" onClick={() => navigate('/mintbox')}>
+					<button className="btn ghost sm" onClick={requireAccount('/mintbox')}>
 						Open Mintbox <Icon name="arrowRight" size={12} />
 					</button>
 				</div>
@@ -194,7 +200,7 @@ export default function ClientDashboard() {
 			<div className="stack reveal" data-d="3">
 				<div className="row between" style={{ alignItems: 'flex-end' }}>
 					<h2 className="h-display h-3" style={{ margin: 0 }}>Active jobs</h2>
-					<button className="btn link sm" onClick={() => navigate('/jobs')}>
+					<button className="btn link sm" onClick={requireAccount('/jobs')}>
 						See all <Icon name="arrowRight" size={12} />
 					</button>
 				</div>
@@ -207,7 +213,7 @@ export default function ClientDashboard() {
 						<div className="empty-glyph"><Icon name="briefcase" size={22} /></div>
 						<h3>No active jobs yet</h3>
 						<p>Post your first brief and we'll match you with the right creative.</p>
-						<button className="btn primary" onClick={() => navigate('/jobs/new')}>
+						<button className="btn primary" onClick={requireAccount('/jobs/new')}>
 							<Icon name="plus" /> Post a brief
 						</button>
 					</div>
@@ -246,7 +252,7 @@ export default function ClientDashboard() {
 					Skip matching and reach out directly to top creatives across India. 30 days of unlimited browse.
 				</p>
 				<div className="row">
-					<button className="btn mint sm" onClick={() => navigate('/addons')}>
+					<button className="btn mint sm" onClick={requireAccount('/addons')}>
 						Unlock for ₹599 <Icon name="arrowRight" size={12} />
 					</button>
 				</div>

@@ -54,7 +54,9 @@ const razorpayWebhook = async (req, res, next) => {
   } catch (err) {
     logger.error('Razorpay webhook handler error', { error: err.message });
     // Return 200 anyway — we log the error, don't want Razorpay to spam retries
-    return res.status(200).json({ success: false, message: err.message });
+    // Transient processing failures must be retried by Razorpay.
+    const status = err.statusCode >= 400 && err.statusCode < 500 ? err.statusCode : 500;
+    return res.status(status).json({ success: false, message: err.message });
   }
 };
 

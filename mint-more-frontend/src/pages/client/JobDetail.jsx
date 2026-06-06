@@ -28,7 +28,7 @@ const STAGE_ORDER = {
   completed: 4, cancelled: -1,
 }
 
-const NEGOTIATION_MAX_ROUNDS = 6
+const NEGOTIATION_MAX_ROUNDS = 4
 
 const talentPoolLabel = (mode) => mode === 'expert' ? 'Pro creatives' : 'Budget creatives'
 
@@ -651,9 +651,9 @@ function NegotiationPanel({ job }) {
         <div className="h-eyebrow">Negotiation</div>
         <div className="row" style={{ gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--ink-500)' }}>
-            Round {neg.current_round || 1} of {neg.max_rounds || 2}
+            Round {neg.current_round || 1} of {neg.max_rounds || 4}
           </span>
-          {Array.from({ length: neg.max_rounds || 2 }).map((_, i) => (
+          {Array.from({ length: neg.max_rounds || 4 }).map((_, i) => (
             <div
               key={i}
               style={{
@@ -765,7 +765,7 @@ function NegotiationPanel({ job }) {
               <Icon name="check" size={13} />
               {acceptMutation.isPending ? 'Accepting...' : 'Accept offer'}
             </button>
-            {neg.current_round < (neg.max_rounds || 2) && (
+            {neg.current_round < (neg.max_rounds || 4) && (
               <button className="btn ghost" onClick={() => setShowCounter(true)}>
                 Counter offer
               </button>

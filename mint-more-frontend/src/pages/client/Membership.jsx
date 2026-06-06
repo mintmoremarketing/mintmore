@@ -26,13 +26,11 @@ export default function Membership() {
 
   function openRazorpay(order, payload) {
     const launch = () => {
-      const rzp = new window.Razorpay({
+      const checkoutOptions = {
         key: order.key_id,
-        amount: order.amount_paise,
         currency: order.currency,
         name: 'Mint More',
         description: payload.kind === 'access_pass' ? `${payload.days}-day access pass` : 'Business membership',
-        order_id: order.order_id,
         theme: { color: '#10B981' },
         handler: async response => {
           try {
@@ -46,7 +44,14 @@ export default function Membership() {
             pushToast({ title: 'Payment verification failed', body: error.response?.data?.message || 'Contact support', tone: 'amber', icon: 'x' })
           }
         },
-      })
+      }
+      if (order.checkout_mode === 'subscription') {
+        checkoutOptions.subscription_id = order.subscription_id
+      } else {
+        checkoutOptions.order_id = order.order_id
+        checkoutOptions.amount = order.amount_paise
+      }
+      const rzp = new window.Razorpay(checkoutOptions)
       rzp.open()
     }
     if (window.Razorpay) return launch()

@@ -95,6 +95,9 @@ function cleanNotifBody(body = '') {
 
 function getTarget(notification) {
 	const data = notification.data || {}
+	if (notification.entity_type === 'dispute' || data.dispute_id) {
+		return `/disputes?id=${notification.entity_id || data.dispute_id}`
+	}
 	const jobId =
 		notification.entity_type === 'job'
 			? notification.entity_id
