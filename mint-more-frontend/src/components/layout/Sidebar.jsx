@@ -1,14 +1,17 @@
+import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import Icon from '../ui/Icon'
 import { useEntitlements } from '../../hooks/useEntitlements'
 import { ADMIN_NAV, CLIENT_NAV, FREELANCER_NAV } from './navigation'
+import ProfilePopover from './ProfilePopover'
 
 export default function Sidebar({ role }) {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const { user, logout, isGuest } = useAuthStore()
+  const { user, isGuest } = useAuthStore()
+  const [profileOpen, setProfileOpen] = useState(false)
   const unreadCount = useUIStore((s) => s.unreadCount)
   const { data: access } = useEntitlements()
 
@@ -75,7 +78,7 @@ export default function Sidebar({ role }) {
           <span>Settings</span>
         </button>}
 
-        <div className="sidebar-user">
+        <button className="sidebar-user sidebar-user-button" onClick={() => setProfileOpen(open => !open)}>
           <div className="avatar sm">
             {(user?.full_name || 'U').split(' ').map(p => p[0]).slice(0, 2).join('')}
           </div>
@@ -90,10 +93,9 @@ export default function Sidebar({ role }) {
               {user?.role}
             </div>
           </div>
-          <button className="icon-btn" onClick={logout} title="Sign out">
-            <Icon name="arrowRight" size={13} />
-          </button>
-        </div>
+          <Icon name="chevronRight" size={13} />
+        </button>
+        {profileOpen && <ProfilePopover onClose={() => setProfileOpen(false)} />}
       </div>
     </nav>
   )

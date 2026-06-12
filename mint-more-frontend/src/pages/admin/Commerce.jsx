@@ -4,84 +4,186 @@ import { commerceApi } from '../../api/commerce'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 
-function SettingEditor({ setting }) {
-  const queryClient = useQueryClient()
-  const pushToast = useUIStore(s => s.pushToast)
-  const [value, setValue] = useState(JSON.stringify(setting.value, null, 2))
-  const save = useMutation({
-    mutationFn: () => commerceApi.updateSetting(setting.key, JSON.parse(value)),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['commerce-settings'] })
-      pushToast({ title: 'Commercial rule saved', icon: 'check' })
-    },
-    onError: err => pushToast({ title: 'Could not save', body: err.message, tone: 'amber', icon: 'x' }),
-  })
-  return (
-    <div className="card" style={{ padding: 18 }}>
-      <div className="row between" style={{ gap: 12 }}>
-        <div>
-          <strong>{setting.key}</strong>
-          <div className="muted" style={{ fontSize: 12, marginTop: 3 }}>{setting.description}</div>
-        </div>
-        <button className="btn ghost sm" onClick={() => save.mutate()} disabled={save.isPending}><Icon name="check" size={12} /> Save</button>
-      </div>
-      <textarea className="textarea mono" rows={8} value={value} onChange={e => setValue(e.target.value)} style={{ marginTop: 12, fontSize: 12 }} />
-    </div>
-  )
+const CONTROL_SCHEMAS = {
+  'membership.monthly': {
+    title: 'Membership and MintCoins',
+    description: 'Set membership pricing, storage, and automatic MintCoin grants.',
+    wide: true,
+    fields: [
+      ['price', 'Monthly membership price', 'currency'],
+      ['welcome_credits', 'First membership MintCoins', 'MintCoins'],
+      ['renewal_credits', 'Renewal MintCoins', 'MintCoins'],
+      ['welcome_expiry_days', 'Welcome MintCoins expire after', 'days'],
+      ['renewal_expiry_days', 'Renewal MintCoins expire after', 'days'],
+      ['mintbox_gb', 'Included Mintbox storage', 'GB'],
+      ['subscription_cycles', 'Subscription billing cycles', 'cycles'],
+      ['auto_renew', 'Automatic renewal', 'toggle'],
+    ],
+  },
+  'membership.trial': {
+    title: 'First-time access',
+    description: 'Let new businesses explore the real dashboard and use included AI tools.',
+    fields: [
+      ['duration_days', 'Access duration', 'days'],
+      ['text_generations', 'Text generations', 'generations'],
+      ['image_generations', 'Image generations', 'generations'],
+    ],
+  },
+  'ai.quotas': {
+    title: 'Member AI allowance',
+    description: 'Monthly standard AI usage included with membership.',
+    fields: [
+      ['text_generations', 'Text generations', 'generations'],
+      ['image_generations', 'Image generations', 'generations'],
+      ['video_generations', 'Video generations', 'generations'],
+    ],
+  },
+  managed_margins: {
+    title: 'Managed job margins',
+    description: 'Margin added to the freelancer amount before the client sees the price.',
+    fields: [
+      ['budget_percent', 'Budget managed jobs', '%'],
+      ['pro_percent', 'Pro managed jobs', '%'],
+      ['marketplace_percent', 'Marketplace direct hire', '%'],
+    ],
+  },
+  freelancer_commission: {
+    title: 'Freelancer commission',
+    description: 'Commission deducted from freelancer earnings after commission-free jobs.',
+    fields: [
+      ['free_completed_jobs', 'Commission-free completed jobs', 'jobs'],
+      ['default_percent', 'Default commission', '%'],
+      ['beginner_percent', 'Beginner commission', '%'],
+      ['intermediate_percent', 'Intermediate commission', '%'],
+      ['experienced_percent', 'Experienced commission', '%'],
+    ],
+  },
+  matching: {
+    title: 'Matching rules',
+    description: 'Control candidate capacity and ranking preferences.',
+    fields: [
+      ['max_active_jobs', 'Maximum active jobs per freelancer', 'jobs'],
+      ['top_candidates', 'Candidates selected per brief', 'freelancers'],
+      ['new_freelancer_boost', 'New freelancer ranking boost', '%'],
+      ['preferred_creator_boost', 'Preferred creator ranking boost', '%'],
+    ],
+  },
+  revisions: {
+    title: 'Revision policy',
+    description: 'Define included feedback rounds and paid-revision pricing.',
+    fields: [
+      ['included_rounds', 'Included revision rounds', 'rounds'],
+      ['paid_revision_price', 'Additional revision price', 'currency'],
+      ['feedback_window_hours', 'Feedback window', 'hours'],
+    ],
+  },
+  payouts: {
+    title: 'Freelancer payouts',
+    description: 'Set scheduled and instant payout fees.',
+    fields: [
+      ['scheduled_fee', 'Scheduled payout fee', 'currency'],
+      ['weekly_fee', 'Weekly payout fee', 'currency'],
+      ['instant_fee', 'Instant payout fee', 'currency'],
+    ],
+  },
+  social_benchmarks: {
+    title: 'Social benchmarks',
+    description: 'Default benchmarks used in plain-language analytics.',
+    fields: [
+      ['engagement_rate_percent', 'Healthy engagement benchmark', '%'],
+      ['summary_days', 'Summary period', 'days'],
+    ],
+  },
 }
 
-function MintCoinRulesEditor({ setting }) {
-  const queryClient = useQueryClient()
-  const pushToast = useUIStore(s => s.pushToast)
-  const [rules, setRules] = useState(setting.value)
-
-  const save = useMutation({
-    mutationFn: () => commerceApi.updateSetting(setting.key, rules),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['commerce-settings'] })
-      pushToast({ title: 'MintCoin rules saved', icon: 'check' })
-    },
-    onError: err => pushToast({ title: 'Could not save MintCoin rules', body: err.response?.data?.message || err.message, tone: 'amber', icon: 'x' }),
-  })
-
-  const numberField = (key, label, suffix = 'MintCoins') => (
+function Field({ field, value, onChange }) {
+  const [key, label, unit] = field
+  if (unit === 'toggle') {
+    return (
+      <label className="commerce-toggle">
+        <span>
+          <strong>{label}</strong>
+          <small>Charge the saved payment method when membership renews.</small>
+        </span>
+        <input type="checkbox" checked={Boolean(value)} onChange={event => onChange(key, event.target.checked)} />
+      </label>
+    )
+  }
+  return (
     <div className="field">
       <label className="field-label">{label}</label>
-      <div style={{ position: 'relative' }}>
+      <div className="commerce-input-wrap">
+        {unit === 'currency' && <span className="commerce-prefix">₹</span>}
         <input
           className="input mono"
           type="number"
           min="0"
-          value={rules[key] ?? 0}
-          onChange={e => setRules(prev => ({ ...prev, [key]: Number(e.target.value) }))}
-          style={{ paddingRight: 82 }}
+          value={value ?? 0}
+          onChange={event => onChange(key, Number(event.target.value))}
+          style={{ paddingLeft: unit === 'currency' ? 32 : undefined, paddingRight: unit !== 'currency' ? 92 : undefined }}
         />
-        <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--ink-500)' }}>{suffix}</span>
+        {unit !== 'currency' && <span className="commerce-suffix">{unit}</span>}
       </div>
     </div>
   )
+}
 
+function AccessPassEditor({ setting }) {
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore(s => s.pushToast)
+  const [passes, setPasses] = useState(Array.isArray(setting.value) ? setting.value : [])
+  const save = useMutation({
+    mutationFn: () => commerceApi.updateSetting(setting.key, passes),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commerce-settings'] })
+      pushToast({ title: 'Access passes saved', icon: 'check' })
+    },
+    onError: err => pushToast({ title: 'Could not save', body: err.response?.data?.message || err.message, tone: 'amber', icon: 'x' }),
+  })
+  const update = (index, key, value) => setPasses(current => current.map((pass, i) => i === index ? { ...pass, [key]: Number(value) } : pass))
   return (
-    <div className="card" style={{ padding: 20, gridColumn: '1 / -1' }}>
-      <div className="row between" style={{ gap: 12, marginBottom: 16 }}>
-        <div>
-          <div className="row" style={{ gap: 8 }}>
-            <span className="mintcoin-mark"><Icon name="coin" size={13} /></span>
-            <strong>MintCoin membership rules</strong>
-          </div>
-          <div className="muted" style={{ fontSize: 12, marginTop: 5 }}>
-            Controls automatic grants and expiration. MintCoins cannot fund escrow or freelancer payouts.
-          </div>
-        </div>
-        <button className="btn primary" onClick={() => save.mutate()} disabled={save.isPending}>
-          <Icon name="check" size={12} /> Save MintCoin rules
-        </button>
+    <div className="card commerce-card">
+      <div className="commerce-card-head">
+        <div><strong>Returning-member access passes</strong><div className="muted">Short access periods without MintCoins.</div></div>
+        <button className="btn ghost sm" onClick={() => save.mutate()} disabled={save.isPending}><Icon name="check" size={12} /> Save</button>
       </div>
-      <div className="grid-2" style={{ gap: 12 }}>
-        {numberField('welcome_credits', 'First membership grant')}
-        {numberField('renewal_credits', 'Renewal grant')}
-        {numberField('welcome_expiry_days', 'Welcome grant expires after', 'days')}
-        {numberField('renewal_expiry_days', 'Renewal grant expires after', 'days')}
+      <div className="stack" style={{ gap: 10 }}>
+        {passes.map((pass, index) => (
+          <div className="commerce-pass-row" key={`${index}-${pass.days}`}>
+            <div className="field"><label className="field-label">Duration</label><input className="input mono" type="number" min="1" value={pass.days} onChange={e => update(index, 'days', e.target.value)} /></div>
+            <div className="field"><label className="field-label">Price</label><input className="input mono" type="number" min="0" value={pass.price} onChange={e => update(index, 'price', e.target.value)} /></div>
+            <button className="icon-btn" title="Remove pass" onClick={() => setPasses(current => current.filter((_, i) => i !== index))}><Icon name="trash" /></button>
+          </div>
+        ))}
+        <button className="btn ghost" onClick={() => setPasses(current => [...current, { days: 7, price: 299 }])}><Icon name="plus" /> Add access pass</button>
+      </div>
+    </div>
+  )
+}
+
+function SettingEditor({ setting }) {
+  const schema = CONTROL_SCHEMAS[setting.key]
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore(s => s.pushToast)
+  const [value, setValue] = useState(setting.value || {})
+  const save = useMutation({
+    mutationFn: () => commerceApi.updateSetting(setting.key, value),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commerce-settings'] })
+      pushToast({ title: `${schema.title} saved`, icon: 'check' })
+    },
+    onError: err => pushToast({ title: 'Could not save', body: err.response?.data?.message || err.message, tone: 'amber', icon: 'x' }),
+  })
+  return (
+    <div className={`card commerce-card${schema.wide ? ' commerce-card-wide' : ''}`}>
+      <div className="commerce-card-head">
+        <div><strong>{schema.title}</strong><div className="muted">{schema.description}</div></div>
+        <button className="btn ghost sm" onClick={() => save.mutate()} disabled={save.isPending}><Icon name="check" size={12} /> Save</button>
+      </div>
+      <div className="commerce-fields">
+        {schema.fields.filter(([key]) => Object.hasOwn(value, key) || key !== 'weekly_fee').map(field => (
+          <Field key={field[0]} field={field} value={value[field[0]]} onChange={(key, next) => setValue(current => ({ ...current, [key]: next }))} />
+        ))}
       </div>
     </div>
   )
@@ -97,15 +199,14 @@ export default function AdminCommerce() {
       <div>
         <div className="h-eyebrow">Admin</div>
         <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>Commercial controls</h1>
-        <p className="muted">Membership, credits, margins, commissions, revisions, passes, and payout rules.</p>
+        <p className="muted">Manage pricing and platform rules without touching application code.</p>
       </div>
       {isLoading ? <div className="muted">Loading controls...</div> : (
-        <div className="grid-2" style={{ gap: 12 }}>
-          {(data?.settings || []).map(setting => (
-            setting.key === 'membership.monthly'
-              ? <MintCoinRulesEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
-              : <SettingEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
-          ))}
+        <div className="commerce-grid">
+          {(data?.settings || []).map(setting => setting.key === 'access_passes'
+            ? <AccessPassEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
+            : CONTROL_SCHEMAS[setting.key] && <SettingEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
+          )}
         </div>
       )}
     </div>

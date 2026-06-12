@@ -72,6 +72,18 @@ const register = async ({ email, password, full_name, role = 'client' }) => {
     [refreshToken, user.id]
   );
 
+  if (user.role === 'client') {
+    const trialSetting = await query("SELECT value FROM platform_settings WHERE key = 'membership.trial'");
+    const trialRules = trialSetting.rows[0]?.value || { duration_days: 14 };
+    const durationDays = Math.max(1, Number(trialRules.duration_days || 14));
+    await query(
+      `INSERT INTO memberships (user_id, status, current_period_start, current_period_end, metadata)
+       VALUES ($1, 'trial', NOW(), NOW() + ($2 * INTERVAL '1 day'), '{"source":"registration"}'::jsonb)
+       ON CONFLICT (user_id) DO NOTHING`,
+      [user.id, durationDays]
+    );
+  }
+
   logger.info('New user registered', { userId: user.id, role: user.role });
 
   return {

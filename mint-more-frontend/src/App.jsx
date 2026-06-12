@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/auth'
 import { useEntitlements } from './hooks/useEntitlements'
@@ -116,53 +115,13 @@ function FreelancerOnly({ children }) {
 
 function RootRedirect() {
   const isAuthed = useAuthStore(s => s.isAuthed)
-  const isGuest = useAuthStore(s => s.isGuest)
   const user = useAuthStore(s => s.user)
-  if (!isAuthed && !isGuest) return <Navigate to="/login" replace />
+  if (!isAuthed) return <Navigate to="/login" replace />
   if (user?.role === 'admin') return <Navigate to="/admin" replace />
   return <Navigate to="/dashboard" replace />
 }
 
-function DemoEntry() {
-  const enterDemo = useAuthStore(s => s.enterDemo)
-  useEffect(() => {
-    enterDemo()
-  }, [enterDemo])
-  return <Navigate to="/dashboard" replace />
-}
-
 // ── Misc pages ────────────────────────────────────────────────────────────────
-
-function PendingApproval() {
-  return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', background: 'var(--paper)',
-    }}>
-      <div style={{ maxWidth: 440, textAlign: 'center', padding: 32 }}>
-        <div style={{
-          width: 60, height: 60, borderRadius: '50%',
-          background: 'var(--mint-100)', color: 'var(--mint-700)',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          marginBottom: 20,
-        }}>
-          <svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8 1l5 2v5c0 3.5-2 5.5-5 7-3-1.5-5-3.5-5-7V3z" />
-          </svg>
-        </div>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 10px' }}>
-          Account under review
-        </h1>
-        <p style={{ color: 'var(--ink-600)', lineHeight: 1.6, marginBottom: 24 }}>
-          We manually verify every account. You'll receive an email within 24 hours once approved.
-        </p>
-        <a href="/login" style={{ color: 'var(--mint-700)', textDecoration: 'underline', fontSize: 13 }}>
-          Return to login
-        </a>
-      </div>
-    </div>
-  )
-}
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
@@ -173,8 +132,6 @@ export default function App() {
         {/* Public */}
         <Route path="/login"            element={<Login />} />
         <Route path="/register"         element={<Register />} />
-        <Route path="/demo"             element={<DemoEntry />} />
-        <Route path="/pending-approval" element={<PendingApproval />} />
         <Route path="/mintbox/share/:token" element={<Mintbox />} />
         <Route path="/mintbox/share-category/:categoryToken" element={<Mintbox />} />
         <Route path="/mintbox/file/:token" element={<SharedFile />} />

@@ -1,7 +1,6 @@
 const { Router } = require('express');
 const controller = require('./social.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
-const { requireApproved } = require('../../middleware/requireApproved');
 const { rawBody } = require('../../middleware/rawBody');
 const { verifyWebhook, handleWebhook } = require('./social.webhook');
 const { requireEntitlement } = require('../../middleware/permissions');
@@ -50,7 +49,7 @@ router.delete('/accounts/:accountId', controller.disconnectAccount);
 router.get('/posts', controller.getMyPosts);
 
 // POST   /api/v1/social/posts                  — create draft post
-router.post('/posts', requireApproved, requireEntitlement('can_use_social'), controller.createPost);
+router.post('/posts', requireEntitlement('can_use_social'), controller.createPost);
 
 // GET    /api/v1/social/posts/:postId          — get single post
 router.get('/posts/:postId', controller.getPost);
@@ -58,14 +57,13 @@ router.get('/posts/:postId', controller.getPost);
 // POST   /api/v1/social/posts/:postId/media    — add media to draft
 router.post(
   '/posts/:postId/media',
-  requireApproved,
   requireEntitlement('can_use_social'),
   handleUploadError(upload.single('media')),
   controller.addMedia
 );
 
 // POST   /api/v1/social/posts/:postId/publish  — publish or schedule
-router.post('/posts/:postId/publish', requireApproved, requireEntitlement('can_use_social'), controller.publishPost);
+router.post('/posts/:postId/publish', requireEntitlement('can_use_social'), controller.publishPost);
 
 // POST   /api/v1/social/posts/:postId/cancel   — cancel draft or scheduled
 router.post('/posts/:postId/cancel', controller.cancelPost);

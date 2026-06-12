@@ -1,7 +1,6 @@
 const { Router } = require('express');
 const controller = require('./mintbox.controller');
 const { authenticate } = require('../../middleware/authenticate');
-const { requireApproved } = require('../../middleware/requireApproved');
 const { requireEntitlement } = require('../../middleware/permissions');
 
 const router = Router();
@@ -11,7 +10,7 @@ router.get('/public/share-category/:token', controller.getPublicSharedCategory);
 router.get('/public/files/:token', controller.getPublicFile);
 router.get('/public/files/:token/content', controller.streamPublicFile);
 
-router.use(authenticate, requireApproved);
+router.use(authenticate);
 
 router.get('/', requireEntitlement('can_access_mintbox'), controller.listFolders);
 router.get('/jobs/:jobId', controller.getProjectFolder);

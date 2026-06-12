@@ -254,6 +254,15 @@ export default function PostJob() {
           <button className="btn primary" onClick={() => navigate('/membership')}>View membership</button>
         </div>
       )}
+      {access?.can_draft_job && !access?.can_create_job && (
+        <div className="card-mint row between" style={{ gap: 14 }}>
+          <div>
+            <strong>You can build and save this brief now.</strong>
+            <div className="muted" style={{ fontSize: 12, marginTop: 3 }}>Complete membership and verification before publishing it to creatives.</div>
+          </div>
+          <button className="btn ghost" onClick={() => navigate('/settings?section=verification')}>Verification</button>
+        </div>
+      )}
       <div className="reveal">
         <button className="btn link sm" onClick={() => navigate('/jobs')} style={{ padding: 0, color: 'var(--ink-500)', fontSize: 12 }}>
           <Icon name="arrowLeft" size={12} /> All jobs
@@ -489,12 +498,12 @@ export default function PostJob() {
         <button className="btn ghost" onClick={() => step > 1 ? setStep(step - 1) : navigate('/jobs')}>
           <Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}
         </button>
-        <button className="btn primary" onClick={handlePrimaryAction} disabled={isPending || (access && !access.can_draft_job)}>
+        <button className="btn primary" onClick={handlePrimaryAction} disabled={isPending || (access && !access.can_draft_job) || (step === 3 && access && !access.can_create_job)}>
           {isPending
             ? (isEditMode ? 'Saving...' : 'Posting...')
             : step < 3
             ? <>Continue <Icon name="arrowRight" /></>
-            : <>{isEditMode ? 'Save & restart matching' : 'Post brief'} <Icon name="arrowRight" /></>}
+            : <>{!access?.can_create_job ? 'Complete verification to post' : isEditMode ? 'Save & restart matching' : 'Post brief'} <Icon name="arrowRight" /></>}
         </button>
       </div>
     </div>

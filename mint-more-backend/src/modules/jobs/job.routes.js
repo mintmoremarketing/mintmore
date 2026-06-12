@@ -25,7 +25,6 @@ router.post(
 router.post(
   '/draft',
   authorize('client'),
-  requireApproved,
   requireEntitlement('can_draft_job'),
   controller.createJobAsDraft
 );
@@ -53,7 +52,6 @@ router.patch(
 router.patch(
   '/:id',
   authorize('client'),
-  requireApproved,
   controller.updateJob
 );
 
@@ -80,7 +78,6 @@ router.get(
 // - freelancer: only matched jobs
 router.get(
   '/',
-  requireApproved,
   controller.listJobs
 );
 
@@ -90,7 +87,6 @@ router.get(
 // - freelancer: only if matched → else 404
 router.get(
   '/:id',
-  requireApproved,
   controller.getJobById
 );
 

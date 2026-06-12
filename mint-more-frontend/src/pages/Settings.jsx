@@ -5,8 +5,11 @@ import { useAuthStore } from '../store/auth'
 import { useUIStore } from '../store/ui'
 import Icon from '../components/ui/Icon'
 import { SkeletonCard } from '../components/ui/Skeleton'
+import { useSearchParams } from 'react-router-dom'
 
 export default function Settings() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const section = searchParams.get('section') || 'profile'
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
   const { user, setAuth, refreshToken, accessToken } = useAuthStore()
@@ -127,15 +130,31 @@ export default function Settings() {
     <div className="stack-6"><SkeletonCard /><SkeletonCard /></div>
   )
 
+  const sections = [
+    ['profile', 'user', 'Profile'],
+    ['account', 'settings', 'Account info'],
+    ['security', 'lock', 'Password & security'],
+    ...(user?.role !== 'admin' ? [['verification', 'shield', 'Verification']] : []),
+  ]
+
   return (
-    <div className="stack-6">
+    <div className="settings-shell">
+      <aside className="settings-nav">
+        <div className="h-eyebrow">Settings</div>
+        {sections.map(([id, icon, label]) => (
+          <button key={id} className={section === id ? 'active' : ''} onClick={() => setSearchParams({ section: id })}>
+            <Icon name={icon} /> {label}
+          </button>
+        ))}
+      </aside>
+      <div className="stack-6 settings-content">
       <div className="reveal">
         <div className="h-eyebrow" style={{ marginBottom: 4 }}>Settings</div>
-        <h1 className="h-display h-1" style={{ margin: 0 }}>Account settings</h1>
+        <h1 className="h-display h-1" style={{ margin: 0 }}>{sections.find(([id]) => id === section)?.[2] || 'Account settings'}</h1>
       </div>
 
       {/* Avatar */}
-      <div className="card reveal" style={{ padding: 24 }}>
+      {section === 'profile' && <div className="card reveal" style={{ padding: 24 }}>
         <div className="h-eyebrow" style={{ marginBottom: 16 }}>Profile photo</div>
         <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
           <div style={{ position: 'relative', flexShrink: 0 }}>
@@ -180,10 +199,10 @@ export default function Settings() {
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Personal info */}
-      <div className="card reveal" style={{ padding: 24 }}>
+      {section === 'profile' && <div className="card reveal" style={{ padding: 24 }}>
         <div className="h-eyebrow" style={{ marginBottom: 16 }}>Personal information</div>
         <div className="stack" style={{ gap: 16 }}>
           <div className="grid-2" style={{ gap: 14 }}>
@@ -232,10 +251,10 @@ export default function Settings() {
             {savingProfile ? 'Saving…' : 'Save changes'}
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* KYC status (clients + freelancers only) */}
-      {user?.role !== 'admin' && (
+      {section === 'verification' && user?.role !== 'admin' && (
         <div className="card reveal" style={{ padding: 24 }}>
           <div className="row between" style={{ marginBottom: 14 }}>
             <div className="h-eyebrow">KYC verification</div>
@@ -295,7 +314,7 @@ export default function Settings() {
       )}
 
       {/* Change password */}
-      <div className="card reveal" style={{ padding: 24 }}>
+      {section === 'security' && <div className="card reveal" style={{ padding: 24 }}>
         <div className="h-eyebrow" style={{ marginBottom: 16 }}>Change password</div>
         <div className="stack" style={{ gap: 14 }}>
           <div className="field">
@@ -327,10 +346,10 @@ export default function Settings() {
             {changingPw ? 'Changing…' : 'Change password'}
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Account info (read-only) */}
-      <div className="card reveal" style={{ padding: 24 }}>
+      {section === 'account' && <div className="card reveal" style={{ padding: 24 }}>
         <div className="h-eyebrow" style={{ marginBottom: 16 }}>Account information</div>
         <div className="stack" style={{ gap: 10, fontSize: 13 }}>
           <div className="row between">
@@ -345,8 +364,8 @@ export default function Settings() {
           <div style={{ height: 1, background: 'var(--hairline)' }} />
           <div className="row between">
             <span style={{ color: 'var(--ink-500)' }}>Account status</span>
-            <span className={`badge ${profile.is_approved ? 'mint' : 'amber'}`}>
-              <span className="bdot" /> {profile.is_approved ? 'Approved' : 'Pending approval'}
+            <span className={`badge ${profile.is_active !== false ? 'mint' : 'rose'}`}>
+              <span className="bdot" /> {profile.is_active !== false ? 'Active' : 'Deactivated'}
             </span>
           </div>
           <div style={{ height: 1, background: 'var(--hairline)' }} />
@@ -364,6 +383,7 @@ export default function Settings() {
             </>
           )}
         </div>
+      </div>}
       </div>
     </div>
   )

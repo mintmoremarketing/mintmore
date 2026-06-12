@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react' // ADDED: imported useEffect
 import { useNavigate, Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { authApi } from '../../api/auth'
+import { useAuthStore } from '../../store/auth'
 import Icon from '../../components/ui/Icon'
 
 // --- RECENTLY CHANGED PART ---
@@ -21,6 +22,7 @@ function useIsMobile() {
 
 export default function Register() {
     const navigate = useNavigate()
+    const setAuth = useAuthStore((s) => s.setAuth)
     const isMobile = useIsMobile() // ADDED: call the hook
 
     const [role, setRole] = useState('client')
@@ -33,8 +35,9 @@ export default function Register() {
 
     const { mutate, isPending } = useMutation({
         mutationFn: () => authApi.register({ full_name: fullName, email, password, role }),
-        onSuccess: () => {
-            navigate('/pending-approval')
+        onSuccess: ({ data }) => {
+            setAuth(data.data.user, data.data.accessToken, data.data.refreshToken)
+            navigate(data.data.user.role === 'admin' ? '/admin' : '/dashboard')
         },
         onError: (err) => {
             const message = err.response?.data?.message || 'Registration failed'

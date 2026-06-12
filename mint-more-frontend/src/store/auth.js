@@ -6,22 +6,14 @@ function loadFromStorage() {
 	try {
 		const raw = sessionStorage.getItem(STORAGE_KEY)
 		if (!raw) return {}
-		return JSON.parse(raw)
+		const parsed = JSON.parse(raw)
+		return parsed.isGuest ? {} : parsed
 	} catch {
 		return {}
 	}
 }
 
 const saved = loadFromStorage()
-const DEMO_USER = {
-	id: 'demo-client',
-	full_name: 'Demo Business',
-	email: 'demo@mintmore.local',
-	role: 'client',
-	is_approved: true,
-	kyc_level: 0,
-}
-
 export const useAuthStore = create((set) => ({
 	user: saved.user || null,
 	accessToken: saved.accessToken || null,
@@ -35,17 +27,6 @@ export const useAuthStore = create((set) => ({
 			JSON.stringify({ user, accessToken, refreshToken, isGuest: false })
 		)
 		set({ user, accessToken, refreshToken, isGuest: false, isAuthed: true })
-	},
-
-	enterDemo: () => {
-		sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ user: DEMO_USER, isGuest: true }))
-		set({
-			user: DEMO_USER,
-			accessToken: null,
-			refreshToken: null,
-			isGuest: true,
-			isAuthed: false,
-		})
 	},
 
 	logout: () => {
