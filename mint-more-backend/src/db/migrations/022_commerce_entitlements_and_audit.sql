@@ -1,15 +1,26 @@
 -- Mint More commercial and access-control foundation.
 
-CREATE TYPE membership_status AS ENUM ('trial', 'active', 'paused', 'expired', 'cancelled');
-CREATE TYPE membership_payment_kind AS ENUM ('membership', 'renewal', 'access_pass');
-CREATE TYPE credit_transaction_type AS ENUM (
-  'welcome_grant',
-  'renewal_grant',
-  'admin_grant',
-  'platform_spend',
-  'expiry',
-  'reversal'
-);
+DO $$ BEGIN
+  CREATE TYPE membership_status AS ENUM ('trial', 'active', 'paused', 'expired', 'cancelled');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE membership_payment_kind AS ENUM ('membership', 'renewal', 'access_pass');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE credit_transaction_type AS ENUM (
+    'welcome_grant',
+    'renewal_grant',
+    'admin_grant',
+    'platform_spend',
+    'expiry',
+    'reversal'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS platform_settings (
   key         VARCHAR(120) PRIMARY KEY,
