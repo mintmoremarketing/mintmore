@@ -136,7 +136,31 @@ const grantCredits = async (userId, opts, externalClient = null) => {
   }
 };
 
+const ensureTrialCredits = async (userId) => {
+  const [membershipResult, settingResult] = await Promise.all([
+    query('SELECT status FROM memberships WHERE user_id = $1', [userId]),
+    query("SELECT value FROM platform_settings WHERE key = 'membership.trial'"),
+  ]);
+  if (membershipResult.rows[0]?.status !== 'trial') return null;
+
+  const rules = settingResult.rows[0]?.value || {};
+  const amount = Number(rules.mint_credits || 0);
+  const expiryDays = Math.max(1, Number(rules.mint_credit_expiry_days || rules.duration_days || 14));
+  if (amount <= 0) return null;
+
+  return grantCredits(userId, {
+    type: 'trial_grant',
+    amount,
+    expiresAt: new Date(Date.now() + expiryDays * 86400000),
+    referenceType: 'membership_trial',
+    idempotencyKey: `trial-mintcoin:${userId}`,
+    description: 'Trial MintCoins',
+    metadata: { expiry_days: expiryDays },
+  });
+};
+
 const getCredits = async (userId) => {
+  await ensureTrialCredits(userId);
   await expireCreditsForUser(userId);
   const account = await getCreditAccount(userId);
   const transactions = await query(
@@ -234,6 +258,7 @@ module.exports = {
   getCreditAccount,
   recordCreditTransaction,
   grantCredits,
+  ensureTrialCredits,
   getCredits,
   expireCreditsForUser,
   adjustCreditsByAdmin,

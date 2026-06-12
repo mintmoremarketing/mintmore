@@ -22,11 +22,13 @@ const CONTROL_SCHEMAS = {
   },
   'membership.trial': {
     title: 'First-time access',
-    description: 'Let new businesses explore the real dashboard and use included AI tools.',
+    description: 'Let new businesses explore the real dashboard, AI tools, and restricted trial MintCoins.',
     fields: [
       ['duration_days', 'Access duration', 'days'],
       ['text_generations', 'Text generations', 'generations'],
       ['image_generations', 'Image generations', 'generations'],
+      ['mint_credits', 'Trial MintCoins', 'MintCoins'],
+      ['mint_credit_expiry_days', 'Trial MintCoins expire after', 'days'],
     ],
   },
   'ai.quotas': {

@@ -33,6 +33,23 @@ const setSetting = async (key, value, admin, requestMeta = {}) => {
       throw new AppError('MintCoin expiry periods must be at least 1 day', 400);
     }
   }
+  if (key === 'membership.trial') {
+    const numericFields = [
+      'duration_days',
+      'text_generations',
+      'image_generations',
+      'mint_credits',
+      'mint_credit_expiry_days',
+    ];
+    for (const field of numericFields) {
+      if (!Number.isFinite(Number(value?.[field])) || Number(value[field]) < 0) {
+        throw new AppError(`${field} must be a non-negative number`, 400);
+      }
+    }
+    if (Number(value.duration_days) < 1 || Number(value.mint_credit_expiry_days) < 1) {
+      throw new AppError('Trial duration and MintCoin expiry must be at least 1 day', 400);
+    }
+  }
   const before = await getSetting(key);
   const result = await query(
     `INSERT INTO platform_settings (key, value, updated_by)
