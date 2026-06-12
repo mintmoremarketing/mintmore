@@ -64,15 +64,19 @@ const submitBasicKyc = async (userId, data) => {
  * files: { document_front, document_back, selfie }
  */
 const submitIdentityKyc = async (userId, data, files) => {
-  // Must have basic KYC approved first
+  // The whole verification application is reviewed once at the end.
   const basicKyc = await query(
     `SELECT status FROM kyc_submissions
-     WHERE user_id = $1 AND level = 'basic' AND status = 'approved'`,
+     WHERE user_id = $1 AND level = 'basic'
+     ORDER BY created_at DESC LIMIT 1`,
     [userId]
   );
 
   if (!basicKyc.rows[0]) {
-    throw new AppError('You must complete Basic KYC before submitting Identity KYC', 400);
+    throw new AppError('Submit personal details before identity documents', 400);
+  }
+  if (basicKyc.rows[0].status === 'rejected') {
+    throw new AppError('Resubmit personal details before identity documents', 400);
   }
 
   // Check existing identity submission
@@ -135,15 +139,19 @@ const submitIdentityKyc = async (userId, data, files) => {
  * files: { address_proof }
  */
 const submitAddressKyc = async (userId, data, files) => {
-  // Must have identity KYC approved first
+  // Identity only needs to be submitted, not separately approved.
   const identityKyc = await query(
     `SELECT status FROM kyc_submissions
-     WHERE user_id = $1 AND level = 'identity' AND status = 'approved'`,
+     WHERE user_id = $1 AND level = 'identity'
+     ORDER BY created_at DESC LIMIT 1`,
     [userId]
   );
 
   if (!identityKyc.rows[0]) {
-    throw new AppError('You must complete Identity KYC before submitting Address KYC', 400);
+    throw new AppError('Submit identity documents before address proof', 400);
+  }
+  if (identityKyc.rows[0].status === 'rejected') {
+    throw new AppError('Resubmit identity documents before address proof', 400);
   }
 
   const existing = await query(
@@ -249,14 +257,14 @@ const getPendingSubmissions = async ({ page = 1, limit = 20, level } = {}) => {
        ELSE 0 END AS portfolio_count
      FROM kyc_submissions ks
      JOIN users u ON u.id = ks.user_id
-     WHERE ks.status = $1 ${levelClause}
+     WHERE ks.status = $1 AND ks.level = 'address' ${levelClause}
      ORDER BY ks.created_at ASC
      LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );
 
   const countResult = await query(
-    `SELECT COUNT(*) FROM kyc_submissions WHERE status = 'pending'`
+    `SELECT COUNT(*) FROM kyc_submissions WHERE status = 'pending' AND level = 'address'`
   );
 
   return {
@@ -292,12 +300,16 @@ const reviewSubmission = async (submissionId, adminId, { status, admin_note }) =
       throw new AppError(`Submission is already ${submission.status}`, 409);
     }
 
-    // 2. Update submission status
+    if (submission.level !== 'address') {
+      throw new AppError('Review the completed verification application, not an individual step', 409);
+    }
+
+    // Review every section together from the final address submission.
     await client.query(
       `UPDATE kyc_submissions
        SET status = $1, admin_note = $2, reviewed_by = $3, reviewed_at = NOW()
-       WHERE id = $4`,
-      [status, admin_note || null, adminId, submissionId]
+       WHERE user_id = $4 AND status = 'pending'`,
+      [status, admin_note || null, adminId, submission.user_id]
     );
 
     if (status === 'approved') {
@@ -313,42 +325,11 @@ const reviewSubmission = async (submissionId, adminId, { status, admin_note }) =
           }
         }
       }
-      // 3. Always sync BOTH kyc_level AND kyc_status together.
-      //
-      //    Rule:
-      //    - kyc_level  = the level just approved (basic / identity / address)
-      //    - kyc_status = 'verified' when ALL 3 levels approved, else 'pending'
-      //
-      //    Fetch previously approved levels (excluding current submission
-      //    since it was 'pending' until the UPDATE above).
-
-      const prevApproved = await client.query(
-        `SELECT level FROM kyc_submissions
-         WHERE user_id = $1
-           AND status = 'approved'
-           AND id != $2`,
-        [submission.user_id, submissionId]
-      );
-
-      const approvedLevels = new Set(prevApproved.rows.map((r) => r.level));
-      approvedLevels.add(submission.level); // add the one just approved
-
-      const isFullyVerified =
-        approvedLevels.has('basic') &&
-        approvedLevels.has('identity') &&
-        approvedLevels.has('address');
-
-      // Always update BOTH fields — they must never be out of sync
       await client.query(
         `UPDATE users
-         SET kyc_level  = $1,
-             kyc_status = $2
-         WHERE id = $3`,
-        [
-          submission.level,                          // kyc_level = this submission's level
-          isFullyVerified ? 'verified' : 'pending',  // kyc_status = verified only when all 3 done
-          submission.user_id,
-        ]
+         SET kyc_level = 'address', kyc_status = 'verified'
+         WHERE id = $1`,
+        [submission.user_id]
       );
     }
 

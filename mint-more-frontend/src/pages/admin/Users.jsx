@@ -458,7 +458,7 @@ function UserDetailModal({ userId, onClose }) {
                     {k.selfie_url && <a className="btn ghost sm" href={k.selfie_url} target="_blank" rel="noreferrer"><Icon name="image" /> Selfie</a>}
                     {k.address_proof_url && <a className="btn ghost sm" href={k.address_proof_url} target="_blank" rel="noreferrer"><Icon name="file" /> Address proof</a>}
                   </div>
-                  {k.status === 'pending' && (
+                  {k.status === 'pending' && k.level === 'address' && (
                     <div className="stack" style={{ gap: 8 }}>
                       <input
                         className="input"
@@ -486,6 +486,9 @@ function UserDetailModal({ userId, onClose }) {
                         </button>
                       </div>
                     </div>
+                  )}
+                  {k.status === 'pending' && k.level !== 'address' && (
+                    <div className="muted" style={{ fontSize: 11.5 }}>Included in the complete verification application.</div>
                   )}
                 </div>
               ))}

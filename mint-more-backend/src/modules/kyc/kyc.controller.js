@@ -13,7 +13,7 @@ const submitBasic = async (req, res, next) => {
     const submission = await kycService.submitBasicKyc(req.user.sub, req.body);
     return sendSuccess(res, {
       data: { submission },
-      message: 'Basic KYC submitted successfully. Under review.',
+      message: 'Personal details saved.',
       statusCode: 201,
     });
   } catch (err) { next(err); }
@@ -29,7 +29,7 @@ const submitIdentity = async (req, res, next) => {
     );
     return sendSuccess(res, {
       data: { submission },
-      message: 'Identity KYC submitted successfully. Under review.',
+      message: 'Identity documents saved.',
       statusCode: 201,
     });
   } catch (err) { next(err); }
@@ -45,7 +45,7 @@ const submitAddress = async (req, res, next) => {
     );
     return sendSuccess(res, {
       data: { submission },
-      message: 'Address KYC submitted successfully. Under review.',
+      message: 'Verification application submitted for review.',
       statusCode: 201,
     });
   } catch (err) { next(err); }

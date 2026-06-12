@@ -6,6 +6,7 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import Avatar from '../../components/ui/Avatar'
 import { rupee } from '../../utils/format'
+import { CREATIVE_SKILLS } from '../../data/creativeOptions'
 
 const RESPONSE_TIME_OPTIONS = [
   { value: 1,  label: '< 1 hour' },
@@ -32,6 +33,7 @@ export default function MarketplaceProfile() {
   const [hourlyRate,    setHourlyRate]    = useState('')
   const [responseTime,  setResponseTime]  = useState(24)
   const [languages,     setLanguages]     = useState([])
+  const [skills,        setSkills]        = useState([])
   const [visible,       setVisible]       = useState(false)
   const [langInput,     setLangInput]     = useState('')
 
@@ -42,17 +44,21 @@ export default function MarketplaceProfile() {
     if (profile.hourly_rate)          setHourlyRate(profile.hourly_rate || '')
     if (profile.response_time_hours)  setResponseTime(profile.response_time_hours || 24)
     if (profile.languages)            setLanguages(profile.languages || [])
+    if (profile.skills)               setSkills(profile.skills || [])
     if (typeof profile.marketplace_visible === 'boolean') setVisible(profile.marketplace_visible)
   }, [profile.id])
 
   const { mutate, isPending } = useMutation({
-    mutationFn: () => api.patch('/freelancers/me/marketplace', {
-      tagline:            tagline || undefined,
-      hourly_rate:        hourlyRate ? parseFloat(hourlyRate) : undefined,
-      response_time_hours: responseTime,
-      languages,
-      marketplace_visible: visible,
-    }),
+    mutationFn: async () => {
+      await api.patch('/freelancers/me/marketplace', {
+        tagline: tagline || undefined,
+        hourly_rate: hourlyRate ? parseFloat(hourlyRate) : undefined,
+        response_time_hours: responseTime,
+        languages,
+        marketplace_visible: visible,
+      })
+      await api.patch('/profile/me', { bio, skills })
+    },
     onSuccess: () => {
       pushToast({ title: 'Profile updated!', body: visible ? 'You are now visible in the marketplace' : 'Profile saved', icon: 'check' })
       queryClient.invalidateQueries({ queryKey: ['my-profile'] })
@@ -235,6 +241,15 @@ export default function MarketplaceProfile() {
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--ink-400)', marginTop: 4 }}>
                   Press Enter or comma to add each language
+                </div>
+              </div>
+              <div className="field">
+                <label className="field-label">Creative skills</label>
+                <div className="row wrap" style={{ gap: 7 }}>
+                  {CREATIVE_SKILLS.map(skill => {
+                    const active = skills.includes(skill)
+                    return <button type="button" key={skill} className={`badge ${active ? 'mint' : 'neutral'}`} style={{ cursor: 'pointer', padding: '7px 10px' }} onClick={() => setSkills(active ? skills.filter(item => item !== skill) : [...skills, skill])}>{active && <Icon name="check" size={10} />} {skill}</button>
+                  })}
                 </div>
               </div>
             </div>

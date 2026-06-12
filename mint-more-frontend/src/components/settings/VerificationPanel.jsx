@@ -23,6 +23,7 @@ export default function VerificationPanel({ profile, kyc }) {
   const pushToast = useUIStore(s => s.pushToast)
   const submissions = kyc.submissions || []
   const latest = level => submissions.find(item => item.level === level)
+  const submitted = level => Boolean(latest(level))
   const approved = level => latest(level)?.status === 'approved'
   const pending = level => latest(level)?.status === 'pending'
   const nextLevel = LEVELS.find(level => !approved(level)) || 'address'
@@ -43,13 +44,22 @@ export default function VerificationPanel({ profile, kyc }) {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['kyc-status'] })
       queryClient.invalidateQueries({ queryKey: ['my-profile'] })
-      pushToast({ title: `${variables.level[0].toUpperCase()}${variables.level.slice(1)} verification submitted`, body: 'We will notify you after review.', icon: 'check' })
+      pushToast(variables.level === 'address'
+        ? { title: 'Verification application submitted', body: 'We will notify you after one complete review.', icon: 'check' }
+        : { title: 'Section saved', body: 'Continue to the next section when ready.', icon: 'check' })
     },
     onError: error => pushToast({ title: 'Could not submit verification', body: error.response?.data?.message || error.message, tone: 'amber', icon: 'x' }),
   })
 
-  const canOpen = level => level === 'basic' || (level === 'identity' && approved('basic')) || (level === 'address' && approved('identity'))
-  const statusLabel = level => approved(level) ? 'Approved' : pending(level) ? 'Under review' : latest(level)?.status === 'rejected' ? 'Needs resubmission' : canOpen(level) ? 'Ready' : 'Complete previous step'
+  const canOpen = level => level === 'basic' || (level === 'identity' && submitted('basic')) || (level === 'address' && submitted('identity'))
+  const applicationUnderReview = pending('address')
+  const statusLabel = level => approved(level)
+    ? 'Approved'
+    : latest(level)?.status === 'rejected'
+      ? 'Needs resubmission'
+      : pending(level)
+        ? (level === 'address' ? 'Application under review' : 'Saved')
+        : canOpen(level) ? 'Ready' : 'Complete previous section'
   const portfolioReady = Number(kyc.portfolio_count || 0) >= Number(kyc.required_portfolio_count || 3)
 
   return (
@@ -60,7 +70,7 @@ export default function VerificationPanel({ profile, kyc }) {
           <h2>{profile.role === 'freelancer' ? 'Verify your identity and creative work' : 'Verify your business account'}</h2>
           <p>{profile.role === 'freelancer' ? 'Identity checks protect payouts. Your work samples help our team assign the right creator tier.' : 'Verification protects payments and is required before publishing your first paid brief.'}</p>
         </div>
-        <div className="verification-progress"><strong>{LEVELS.filter(approved).length} / 3</strong><span>identity steps approved</span></div>
+        <div className="verification-progress"><strong>{LEVELS.filter(submitted).length} / 3</strong><span>{applicationUnderReview ? 'application under review' : 'sections completed'}</span></div>
       </div>
 
       {LEVELS.map((level, index) => (
@@ -68,7 +78,7 @@ export default function VerificationPanel({ profile, kyc }) {
           <button className="verification-step-head" disabled={!canOpen(level)} onClick={() => setOpenLevel(openLevel === level ? '' : level)}>
             <span className={`verification-step-number ${approved(level) ? 'done' : ''}`}>{approved(level) ? <Icon name="check" /> : index + 1}</span>
             <span><strong>{level === 'basic' ? 'Personal details' : level === 'identity' ? 'Government identity' : 'Address proof'}</strong><small>{level === 'basic' ? 'Date of birth, gender and nationality' : level === 'identity' ? 'Aadhaar, PAN, passport or driving licence' : 'Confirm your current residential or business address'}</small></span>
-            <span className={`badge ${approved(level) ? 'mint' : pending(level) ? 'amber' : 'neutral'}`}>{statusLabel(level)}</span>
+            <span className={`badge ${approved(level) ? 'mint' : level === 'address' && pending(level) ? 'amber' : 'neutral'}`}>{statusLabel(level)}</span>
             <Icon name="chevronDown" />
           </button>
           {openLevel === level && canOpen(level) && !pending(level) && !approved(level) && (

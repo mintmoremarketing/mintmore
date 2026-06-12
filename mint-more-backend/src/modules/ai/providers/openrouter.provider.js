@@ -2,11 +2,17 @@ const env    = require('../../../config/env');
 const logger = require('../../../utils/logger');
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
+const assertConfigured = () => {
+  if (!env.ai.openrouterKey || !env.ai.openrouterKey.startsWith('sk-or-')) {
+    throw new Error('OpenRouter is not configured with a valid OPENROUTER_API_KEY');
+  }
+};
 
 /**
  * Generate text via OpenRouter.
  */
 const generateText = async (openrouterId, prompt, params = {}, systemPromptOverride = null) => {
+  assertConfigured();
   const startTime = Date.now();
 
   const {
@@ -41,6 +47,14 @@ const generateText = async (openrouterId, prompt, params = {}, systemPromptOverr
   if (!response.ok) {
     const errorMsg = data.error?.message || `OpenRouter error: ${response.status}`;
     logger.error('OpenRouter error', { openrouterId, error: errorMsg, status: response.status });
+    if (
+      openrouterId !== 'openrouter/free' &&
+      [400, 404].includes(response.status) &&
+      /model|provider|endpoint|available|found/i.test(errorMsg)
+    ) {
+      logger.warn('OpenRouter model unavailable, using free router fallback', { openrouterId });
+      return generateText('openrouter/free', prompt, params, systemPromptOverride);
+    }
     throw new Error(errorMsg);
   }
 
@@ -57,15 +71,15 @@ const generateText = async (openrouterId, prompt, params = {}, systemPromptOverr
  * Supports models like dall-e-3, stable-diffusion via OpenRouter's image endpoint.
  */
 const generateImage = async (openrouterId, prompt, params = {}) => {
+  assertConfigured();
   const startTime = Date.now();
 
   const {
     width  = 1024,
     height = 1024,
-    n      = 1,
   } = params;
 
-  const response = await fetch(`${OPENROUTER_BASE}/images/generations`, {
+  const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
     method:  'POST',
     headers: {
       Authorization:  `Bearer ${env.ai.openrouterKey}`,
@@ -74,10 +88,10 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
       'X-Title':      'Mint More AI',
     },
     body: JSON.stringify({
-      model:  openrouterId,
-      prompt,
-      n,
-      size:   `${width}x${height}`,
+      model: openrouterId,
+      messages: [{ role: 'user', content: prompt }],
+      modalities: ['image', 'text'],
+      image_config: { aspect_ratio: width === height ? '1:1' : `${width}:${height}` },
     }),
   });
 
@@ -89,7 +103,8 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
     throw new Error(errorMsg);
   }
 
-  const url = data.data?.[0]?.url || data.data?.[0]?.b64_json;
+  const image = data.choices?.[0]?.message?.images?.[0];
+  const url = image?.image_url?.url || image?.url || data.data?.[0]?.url || data.data?.[0]?.b64_json;
   if (!url) throw new Error('OpenRouter returned no image URL');
 
   return {
@@ -104,6 +119,7 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
  */
 const fetchOpenRouterModels = async () => {
   try {
+    assertConfigured();
     const response = await fetch(`${OPENROUTER_BASE}/models`, {
       headers: { Authorization: `Bearer ${env.ai.openrouterKey}` },
     });

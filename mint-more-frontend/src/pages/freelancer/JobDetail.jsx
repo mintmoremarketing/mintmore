@@ -250,6 +250,12 @@ function InitiatePanel({ job, user, queryClient, pushToast }) {
 		enabled: Boolean(id),
 	})
 	const briefFiles = (mintboxData?.files || []).filter(file => file.purpose === 'brief')
+	const briefFileGroups = briefFiles.reduce((groups, file) => {
+		const category = file.file_category || 'other'
+		if (!groups[category]) groups[category] = []
+		groups[category].push(file)
+		return groups
+	}, {})
 
 	const levelRange = marketRange?.breakdown?.[freelancerLevel] || null
 	const marketMin = Number(levelRange?.min)
@@ -381,14 +387,21 @@ function InitiatePanel({ job, user, queryClient, pushToast }) {
 							<>
 								<div style={{ height: 1, background: 'var(--hairline)', margin: '16px 0' }} />
 								<div className="h-eyebrow" style={{ marginBottom: 8 }}>Reference attachments</div>
-								<div className="row wrap" style={{ gap: 8 }}>
-									{briefFiles.map(file => (
-										<a key={file.id} href={file.public_url} target="_blank" rel="noreferrer" className="btn ghost sm">
-											<Icon name={file.mime_type?.startsWith('image/') ? 'image' : file.mime_type?.startsWith('video/') ? 'video' : 'paperclip'} size={12} />
-											{file.original_name}
-										</a>
-									))}
-								</div>
+									<div className="stack" style={{ gap: 10 }}>
+										{Object.entries(briefFileGroups).map(([category, files]) => (
+											<div key={category}>
+												<div className="muted" style={{ fontSize: 11.5, marginBottom: 5, textTransform: 'capitalize' }}>{category.replace('_', ' ')}</div>
+												<div className="row wrap" style={{ gap: 8 }}>
+													{files.map(file => (
+														<a key={file.id} href={file.public_url} target="_blank" rel="noreferrer" className="btn ghost sm">
+															<Icon name={file.mime_type?.startsWith('image/') ? 'image' : file.mime_type?.startsWith('video/') ? 'video' : 'paperclip'} size={12} />
+															{file.original_name}
+														</a>
+													))}
+												</div>
+											</div>
+										))}
+									</div>
 							</>
 						)}
 					</div>

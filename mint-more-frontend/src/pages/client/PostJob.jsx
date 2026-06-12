@@ -8,6 +8,7 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import { rupee } from '../../utils/format'
 import { useEntitlements } from '../../hooks/useEntitlements'
+import { BRIEF_GUIDE_OPTIONS, CREATIVE_SKILLS } from '../../data/creativeOptions'
 
 const getMarketRangeFromResponse = (res) =>
   res.data?.data?.range ?? res.data?.data?.data?.range ?? res.data?.range ?? null
@@ -16,6 +17,7 @@ const formatRange = (range) => {
   if (!range?.min || !range?.max) return 'Market range pending'
   return `${rupee(range.min)} - ${rupee(range.max)}`
 }
+const asChoices = (value) => Array.isArray(value) ? value : value ? [value] : []
 
 const poolOptions = [
   {
@@ -34,12 +36,25 @@ const poolOptions = [
   },
 ]
 
-const attachmentTypes = [
-  { icon: 'image', label: 'Images & design', hint: 'JPG, PNG, PSD, AI' },
-  { icon: 'video', label: 'Video & audio', hint: 'MP4, MOV, MP3, WAV' },
-  { icon: 'file', label: 'Documents', hint: 'PDF and Office files' },
-  { icon: 'layers', label: 'Packages', hint: 'ZIP, RAR and 7Z' },
-]
+function ChoiceField({ label, options, values, customValue, onChange, onCustomChange }) {
+  const selected = Array.isArray(values) ? values : values ? [values] : []
+  return (
+    <div className="field">
+      <label className="field-label">{label}</label>
+      <div className="row wrap" style={{ gap: 7 }}>
+        {options.map(option => {
+          const active = selected.includes(option)
+          return (
+            <button type="button" key={option} className={`badge ${active ? 'mint' : 'neutral'}`} style={{ cursor: 'pointer', padding: '7px 10px' }} onClick={() => onChange(active ? selected.filter(item => item !== option) : [...selected, option])}>
+              {active && <Icon name="check" size={10} />} {option}
+            </button>
+          )
+        })}
+      </div>
+      {selected.includes('Other') && <input className="input" value={customValue || ''} onChange={event => onCustomChange(event.target.value)} placeholder="Tell the creative what is different" style={{ marginTop: 8 }} />}
+    </div>
+  )
+}
 
 export default function PostJob() {
   const navigate = useNavigate()
@@ -47,13 +62,18 @@ export default function PostJob() {
   const isEditMode = Boolean(id)
   const pushToast = useUIStore((s) => s.pushToast)
   const [step, setStep] = useState(1)
-  const [tagInput, setTagInput] = useState('')
   const [briefFiles, setBriefFiles] = useState([])
   const [briefContext, setBriefContext] = useState({
-    promotion_or_goal: '',
-    customer_profile: '',
-    style_references: '',
-    avoid: '',
+    deliverables: [],
+    deliverables_other: '',
+    promotion_or_goal: [],
+    promotion_or_goal_other: '',
+    customer_profile: [],
+    customer_profile_other: '',
+    style_references: [],
+    style_references_other: '',
+    avoid: [],
+    avoid_other: '',
   })
   const briefFileRef = useRef(null)
   const [data, setData] = useState({
@@ -111,18 +131,29 @@ export default function PostJob() {
       required_level: existingJob.pricing_mode === 'expert' ? 'experienced' : null,
     })
     setBriefContext({
-      promotion_or_goal: existingJob.metadata?.brief_context?.promotion_or_goal || '',
-      customer_profile: existingJob.metadata?.brief_context?.customer_profile || '',
-      style_references: existingJob.metadata?.brief_context?.style_references || '',
-      avoid: existingJob.metadata?.brief_context?.avoid || '',
+      deliverables: asChoices(existingJob.metadata?.brief_context?.deliverables),
+      deliverables_other: existingJob.metadata?.brief_context?.deliverables_other || '',
+      promotion_or_goal: asChoices(existingJob.metadata?.brief_context?.promotion_or_goal),
+      promotion_or_goal_other: existingJob.metadata?.brief_context?.promotion_or_goal_other || '',
+      customer_profile: asChoices(existingJob.metadata?.brief_context?.customer_profile),
+      customer_profile_other: existingJob.metadata?.brief_context?.customer_profile_other || '',
+      style_references: asChoices(existingJob.metadata?.brief_context?.style_references),
+      style_references_other: existingJob.metadata?.brief_context?.style_references_other || '',
+      avoid: asChoices(existingJob.metadata?.brief_context?.avoid),
+      avoid_other: existingJob.metadata?.brief_context?.avoid_other || '',
     })
   }, [existingJob])
 
   const selectedRange = data.pricing_mode === 'expert' ? expertRange : budgetRange
   const selectedPool = poolOptions.find((p) => p.value === data.pricing_mode)
+  const briefDescription = data.description.trim() || [
+    briefContext.deliverables.filter(item => item !== 'Other').join(', '),
+    briefContext.deliverables_other,
+  ].filter(Boolean).join('. ')
 
   const payload = {
     ...data,
+    description: briefDescription,
     budget_type: 'quote',
     budget_amount: null,
     required_level: data.pricing_mode === 'expert' ? 'experienced' : null,
@@ -208,7 +239,7 @@ export default function PostJob() {
     if (step === 1) {
       if (data.title.trim().length < 5) return 'Add a brief title with at least 5 characters.'
       if (!data.category_id) return 'Choose a category.'
-      if (data.description.trim().length < 5) return 'Add a brief description with at least 5 characters.'
+      if (!briefContext.deliverables.length) return 'Choose at least one thing you need.'
     }
     if (step === 2) {
       if (!data.pricing_mode) return 'Choose Budget creatives or Pro creatives.'
@@ -229,6 +260,16 @@ export default function PostJob() {
       setStep(step + 1)
       return
     }
+    if (access && !access.can_create_job) {
+      if (access.needs_kyc_for_paid_order) {
+        pushToast({ title: 'Complete verification to post', body: 'Your brief is ready. Verify your account to publish it.', tone: 'amber' })
+        navigate('/settings?section=verification')
+      } else {
+        pushToast({ title: 'Membership required to post', body: 'Your brief is ready. Activate access to publish it.', tone: 'amber' })
+        navigate('/membership')
+      }
+      return
+    }
     mutate()
   }
 
@@ -245,24 +286,6 @@ export default function PostJob() {
 
   return (
     <div className="stack-6">
-      {access && !access.can_draft_job && (
-        <div className="card-mint row between" style={{ gap: 14 }}>
-          <div>
-            <strong>Membership access is required to create a new brief.</strong>
-            <div className="muted" style={{ fontSize: 12, marginTop: 3 }}>Your files, wallet, and active projects remain available.</div>
-          </div>
-          <button className="btn primary" onClick={() => navigate('/membership')}>View membership</button>
-        </div>
-      )}
-      {access?.can_draft_job && !access?.can_create_job && (
-        <div className="card-mint row between" style={{ gap: 14 }}>
-          <div>
-            <strong>You can build and save this brief now.</strong>
-            <div className="muted" style={{ fontSize: 12, marginTop: 3 }}>Complete membership and verification before publishing it to creatives.</div>
-          </div>
-          <button className="btn ghost" onClick={() => navigate('/settings?section=verification')}>Verification</button>
-        </div>
-      )}
       <div className="reveal">
         <button className="btn link sm" onClick={() => navigate('/jobs')} style={{ padding: 0, color: 'var(--ink-500)', fontSize: 12 }}>
           <Icon name="arrowLeft" size={12} /> All jobs
@@ -302,41 +325,24 @@ export default function PostJob() {
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
-            <div className="field">
-              <label className="field-label">Tell the creative what you need</label>
-              <textarea className="textarea" value={data.description} onChange={(e) => update('description', e.target.value)} rows={5} placeholder="Describe the work, important details, and what a good result looks like." />
-              <span className={data.description.length > 0 && data.description.trim().length < 5 ? 'field-error' : 'field-hint'}>{data.description.trim().length}/5 minimum characters</span>
-            </div>
-            <div className="grid-2" style={{ gap: 14 }}>
-              <div className="field">
-                <label className="field-label">What are you promoting?</label>
-                <textarea className="textarea" rows={3} value={briefContext.promotion_or_goal} onChange={e => updateContext('promotion_or_goal', e.target.value)} placeholder="Product, service, event, launch, or offer" />
-              </div>
-              <div className="field">
-                <label className="field-label">Who are your customers?</label>
-                <textarea className="textarea" rows={3} value={briefContext.customer_profile} onChange={e => updateContext('customer_profile', e.target.value)} placeholder="Audience, location, interests, and buying context" />
-              </div>
-              <div className="field">
-                <label className="field-label">Styles or references you like</label>
-                <textarea className="textarea" rows={3} value={briefContext.style_references} onChange={e => updateContext('style_references', e.target.value)} placeholder="Links, creators, visual styles, or examples" />
-              </div>
-              <div className="field">
-                <label className="field-label">What should the creative avoid?</label>
-                <textarea className="textarea" rows={3} value={briefContext.avoid} onChange={e => updateContext('avoid', e.target.value)} placeholder="Words, visual choices, claims, or approaches to avoid" />
-              </div>
+            <ChoiceField label="What do you need?" options={BRIEF_GUIDE_OPTIONS.deliverables} values={briefContext.deliverables} customValue={briefContext.deliverables_other} onChange={value => updateContext('deliverables', value)} onCustomChange={value => updateContext('deliverables_other', value)} />
+            <div className="grid-2" style={{ gap: 18 }}>
+              <ChoiceField label="What is the main goal?" options={BRIEF_GUIDE_OPTIONS.goals} values={briefContext.promotion_or_goal} customValue={briefContext.promotion_or_goal_other} onChange={value => updateContext('promotion_or_goal', value)} onCustomChange={value => updateContext('promotion_or_goal_other', value)} />
+              <ChoiceField label="Who should this speak to?" options={BRIEF_GUIDE_OPTIONS.customers} values={briefContext.customer_profile} customValue={briefContext.customer_profile_other} onChange={value => updateContext('customer_profile', value)} onCustomChange={value => updateContext('customer_profile_other', value)} />
+              <ChoiceField label="Which styles feel right?" options={BRIEF_GUIDE_OPTIONS.styles} values={briefContext.style_references} customValue={briefContext.style_references_other} onChange={value => updateContext('style_references', value)} onCustomChange={value => updateContext('style_references_other', value)} />
+              <ChoiceField label="What should the creative avoid?" options={BRIEF_GUIDE_OPTIONS.avoid} values={briefContext.avoid} customValue={briefContext.avoid_other} onChange={value => updateContext('avoid', value)} onCustomChange={value => updateContext('avoid_other', value)} />
             </div>
             <div className="field">
-              <label className="field-label">Brief tags</label>
-              <div className="row" style={{ gap: 8 }}>
-                <input className="input" value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="e.g. Cinematic video" />
-                <button type="button" className="btn ghost" onClick={() => {
-                  const tag = tagInput.trim()
-                  if (tag && !data.required_skills.includes(tag)) update('required_skills', [...data.required_skills, tag])
-                  setTagInput('')
-                }}><Icon name="plus" /> Add</button>
-              </div>
+              <label className="field-label">Anything else the creative should know? <span className="muted">(optional)</span></label>
+              <textarea className="textarea" value={data.description} onChange={(e) => update('description', e.target.value)} rows={3} placeholder="A useful detail, required wording, or reference link." />
+            </div>
+            <div className="field">
+              <label className="field-label">Skills that fit this brief</label>
               <div className="row wrap" style={{ gap: 6, marginTop: 8 }}>
-                {data.required_skills.map(tag => <button type="button" key={tag} className="badge neutral" onClick={() => update('required_skills', data.required_skills.filter(item => item !== tag))}>{tag} ×</button>)}
+                {CREATIVE_SKILLS.map(skill => {
+                  const active = data.required_skills.includes(skill)
+                  return <button type="button" key={skill} className={`badge ${active ? 'mint' : 'neutral'}`} style={{ cursor: 'pointer', padding: '7px 10px' }} onClick={() => update('required_skills', active ? data.required_skills.filter(item => item !== skill) : [...data.required_skills, skill])}>{active && <Icon name="check" size={10} />} {skill}</button>
+                })}
               </div>
             </div>
             {!isEditMode && (
@@ -361,25 +367,14 @@ export default function PostJob() {
                   }}
                   style={{ border: '1px dashed var(--ink-300)', padding: 16, cursor: 'pointer', background: 'var(--paper-tint)' }}
                 >
-                  <div className="row between" style={{ gap: 12, marginBottom: 12 }}>
+                  <div className="row between" style={{ gap: 12 }}>
                     <div>
-                      <strong style={{ fontSize: 13 }}>Drop reference files here</strong>
-                      <div className="field-hint">Stored privately in the project Mintbox for the matched creative.</div>
+                      <strong style={{ fontSize: 13 }}>Drop all reference files here</strong>
+                      <div className="field-hint">Mintbox organises images, video, audio, documents and packages automatically.</div>
                     </div>
                     <button type="button" className="btn ghost sm" onClick={e => { e.stopPropagation(); briefFileRef.current?.click() }}>
                       <Icon name="upload" size={12} /> Choose files
                     </button>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: 8 }}>
-                    {attachmentTypes.map(type => (
-                      <div key={type.label} style={{ minHeight: 68, border: '1px solid var(--hairline)', background: 'var(--paper)', padding: 10, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                        <Icon name={type.icon} size={14} />
-                        <div>
-                          <div style={{ fontSize: 11.5, fontWeight: 600 }}>{type.label}</div>
-                          <div style={{ fontSize: 10.5, color: 'var(--ink-500)', marginTop: 3 }}>{type.hint}</div>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
                 {briefFiles.length > 0 && (
@@ -455,7 +450,7 @@ export default function PostJob() {
             <div className="grid-2" style={{ gap: 18 }}>
               <div>
                 <div className="h-eyebrow" style={{ marginBottom: 6 }}>Brief</div>
-                <p style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink-700)', margin: 0 }}>{data.description}</p>
+                <p style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink-700)', margin: 0 }}>{briefDescription}</p>
               </div>
               <div>
                 <div className="h-eyebrow" style={{ marginBottom: 6 }}>At a glance</div>
@@ -472,7 +467,7 @@ export default function PostJob() {
                 </div>
               </div>
             </div>
-            {Object.values(briefContext).some(Boolean) && (
+            {Object.values(briefContext).some(value => Array.isArray(value) ? value.length > 0 : Boolean(value)) && (
               <div>
                 <div className="h-eyebrow" style={{ marginBottom: 8 }}>Brief context</div>
                 <div className="grid-2" style={{ gap: 10 }}>
@@ -481,10 +476,10 @@ export default function PostJob() {
                     ['Customers', briefContext.customer_profile],
                     ['Style references', briefContext.style_references],
                     ['Avoid', briefContext.avoid],
-                  ].filter(([, value]) => value).map(([label, value]) => (
+                  ].filter(([, value]) => Array.isArray(value) ? value.length > 0 : Boolean(value)).map(([label, value]) => (
                     <div key={label} style={{ padding: 12, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}>
                       <div className="h-eyebrow" style={{ marginBottom: 4 }}>{label}</div>
-                      <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>{value}</div>
+                      <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>{Array.isArray(value) ? value.join(', ') : value}</div>
                     </div>
                   ))}
                 </div>
@@ -498,12 +493,12 @@ export default function PostJob() {
         <button className="btn ghost" onClick={() => step > 1 ? setStep(step - 1) : navigate('/jobs')}>
           <Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}
         </button>
-        <button className="btn primary" onClick={handlePrimaryAction} disabled={isPending || (access && !access.can_draft_job) || (step === 3 && access && !access.can_create_job)}>
+        <button className="btn primary" onClick={handlePrimaryAction} disabled={isPending}>
           {isPending
             ? (isEditMode ? 'Saving...' : 'Posting...')
             : step < 3
             ? <>Continue <Icon name="arrowRight" /></>
-            : <>{!access?.can_create_job ? 'Complete verification to post' : isEditMode ? 'Save & restart matching' : 'Post brief'} <Icon name="arrowRight" /></>}
+            : <>{isEditMode ? 'Save & restart matching' : 'Post brief'} <Icon name="arrowRight" /></>}
         </button>
       </div>
     </div>

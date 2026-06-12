@@ -87,7 +87,7 @@ function ModelPicker({ models, selected, onSelect, toolType }) {
 
 function GenerationResult({ generation, onCopy }) {
   if (!generation) return null
-  const { status, result_text, result_url } = generation
+  const { status, result_text, result_url, error_message } = generation
 
   if (status === 'queued' || status === 'processing') {
     return (
@@ -109,7 +109,7 @@ function GenerationResult({ generation, onCopy }) {
     return (
       <div style={{ padding: 20, textAlign: 'center' }}>
         <div style={{ color: 'var(--rose)', fontWeight: 500, marginBottom: 6 }}>Generation failed</div>
-        <div style={{ fontSize: 13, color: 'var(--ink-500)' }}>Using failover model if available</div>
+        <div style={{ fontSize: 13, color: 'var(--ink-500)' }}>{error_message || 'No compatible provider completed this request.'}</div>
       </div>
     )
   }
