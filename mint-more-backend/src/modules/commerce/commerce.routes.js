@@ -15,6 +15,7 @@ router.post('/membership/pause', authorize('client'), controller.pause);
 
 router.get('/admin/settings', authorize('admin'), requirePermission('pricing.manage'), controller.settings);
 router.put('/admin/settings/:key', authorize('admin'), requirePermission('pricing.manage'), controller.updateSetting);
+router.post('/admin/credits/:userId/adjust', authorize('admin'), requirePermission('pricing.manage'), controller.adjustCredits);
 router.get('/admin/audit', authorize('admin'), requirePermission('audit.read'), controller.audit);
 
 module.exports = router;

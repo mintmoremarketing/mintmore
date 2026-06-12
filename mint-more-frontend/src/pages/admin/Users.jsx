@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { useUIStore } from '../../store/ui'
@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Tabs from '../../components/ui/Tabs'
 import { rupee, timeAgo } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
+import { useEntitlements } from '../../hooks/useEntitlements'
 
 function WalletAdjustModal({ user, onClose }) {
   const queryClient = useQueryClient()
@@ -88,6 +89,94 @@ function WalletAdjustModal({ user, onClose }) {
             {parseFloat(amount) >= 0 ? '+ Adding' : '− Deducting'} {rupee(Math.abs(parseFloat(amount)))} from {user.full_name}'s wallet
           </div>
         )}
+      </div>
+    </Modal>
+  )
+}
+
+function MintCoinAdjustModal({ user, onClose }) {
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore(s => s.pushToast)
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [expiryDays, setExpiryDays] = useState('60')
+  const idempotencyKey = useRef(crypto.randomUUID())
+
+  const adjust = useMutation({
+    mutationFn: () => api.post(`/commerce/admin/credits/${user.id}/adjust`, {
+      amount: Number(amount),
+      note,
+      expiry_days: Number(amount) > 0 && expiryDays ? Number(expiryDays) : null,
+    }, {
+      headers: { 'Idempotency-Key': idempotencyKey.current },
+    }),
+    onSuccess: () => {
+      pushToast({
+        title: 'MintCoins adjusted',
+        body: `${Number(amount) > 0 ? '+' : ''}${Number(amount).toLocaleString('en-IN')} for ${user.full_name}`,
+        icon: 'check',
+      })
+      queryClient.invalidateQueries({ queryKey: ['admin-user', user.id] })
+      onClose()
+    },
+    onError: err => pushToast({
+      title: 'Could not adjust MintCoins',
+      body: err.response?.data?.message || 'Try again',
+      tone: 'amber',
+      icon: 'x',
+    }),
+  })
+
+  const parsedAmount = Number(amount)
+  return (
+    <Modal
+      title="Adjust MintCoins"
+      subtitle={`${user.full_name} - promotional platform balance`}
+      onClose={onClose}
+      maxWidth={420}
+      footer={
+        <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button
+            className="btn primary"
+            onClick={() => adjust.mutate()}
+            disabled={adjust.isPending || !Number.isFinite(parsedAmount) || parsedAmount === 0 || !note.trim()}
+          >
+            {adjust.isPending ? 'Applying...' : 'Apply adjustment'}
+          </button>
+        </div>
+      }
+    >
+      <div className="stack" style={{ gap: 14 }}>
+        <div className="field">
+          <label className="field-label">MintCoins</label>
+          <input
+            className="input"
+            type="number"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            placeholder="Positive to grant, negative to deduct"
+          />
+        </div>
+        {parsedAmount > 0 && (
+          <div className="field">
+            <label className="field-label">Expires after</label>
+            <select className="input" value={expiryDays} onChange={e => setExpiryDays(e.target.value)}>
+              <option value="30">30 days</option>
+              <option value="60">60 days</option>
+              <option value="90">90 days</option>
+              <option value="180">180 days</option>
+              <option value="">Never expires</option>
+            </select>
+          </div>
+        )}
+        <div className="field">
+          <label className="field-label">Reason</label>
+          <input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="Required audit note" />
+        </div>
+        <div className="muted" style={{ fontSize: 12, lineHeight: 1.5 }}>
+          MintCoins can pay only for Mint More platform services. They cannot fund freelancer earnings or be withdrawn.
+        </div>
       </div>
     </Modal>
   )
@@ -202,7 +291,11 @@ function UserDetailModal({ userId, onClose }) {
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
   const [showWalletAdjust, setShowWalletAdjust] = useState(false)
+  const [showMintCoinAdjust, setShowMintCoinAdjust] = useState(false)
   const [kycNote, setKycNote] = useState('')
+  const { data: adminAccess } = useEntitlements()
+  const adminPermissions = adminAccess?.admin_permissions || []
+  const canAdjustMintCoins = adminAccess?.is_super_admin || adminPermissions.includes('*') || adminPermissions.includes('pricing.manage')
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-user', userId],
@@ -211,6 +304,7 @@ function UserDetailModal({ userId, onClose }) {
 
   const user   = data?.user || data
   const wallet = data?.wallet
+  const mintCreditAccount = data?.mint_credit_account
 
   const approveMutation = useMutation({
   mutationFn: (action) => api.patch(`/admin/users/${userId}/approval`, {
@@ -299,6 +393,25 @@ function UserDetailModal({ userId, onClose }) {
                 <div style={{ color: 'var(--ink-500)' }}>Escrowed</div>
                 <div className="mono" style={{ fontWeight: 600, marginTop: 2 }}>{rupee(wallet.escrow_balance)}</div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {user.role === 'client' && (
+          <div style={{ padding: 14, background: 'rgba(16,185,129,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16,185,129,0.2)' }}>
+            <div className="row between" style={{ marginBottom: 8 }}>
+              <div className="h-eyebrow">MintCoins</div>
+              {canAdjustMintCoins && (
+                <button className="btn ghost" style={{ fontSize: 12 }} onClick={() => setShowMintCoinAdjust(true)}>
+                  <Icon name="coin" size={12} /> Adjust
+                </button>
+              )}
+            </div>
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <span className="mintcoin-mark"><Icon name="coin" size={13} /></span>
+              <span className="mono" style={{ fontSize: 20, fontWeight: 600 }}>
+                {Number(mintCreditAccount?.balance || 0).toLocaleString('en-IN')}
+              </span>
             </div>
           </div>
         )}
@@ -399,6 +512,9 @@ function UserDetailModal({ userId, onClose }) {
 
       {showWalletAdjust && (
         <WalletAdjustModal user={user} onClose={() => setShowWalletAdjust(false)} />
+      )}
+      {showMintCoinAdjust && (
+        <MintCoinAdjustModal user={user} onClose={() => setShowMintCoinAdjust(false)} />
       )}
     </Modal>
   )

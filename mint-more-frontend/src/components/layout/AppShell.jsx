@@ -63,7 +63,7 @@ export default function AppShell() {
     enabled: isAuthed && user?.role === 'client' && !isGuest,
     refetchInterval: 60_000,
   })
-  const mintCoinBalance = mintCreditData?.balance ?? null
+  const mintCoinBalance = Number(mintCreditData?.balance ?? 0)
 
   useQuery({
     queryKey: ['notif-count'],

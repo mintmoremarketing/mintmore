@@ -1,6 +1,6 @@
 const { sendSuccess } = require('../../utils/apiResponse');
 const { getEntitlements } = require('./entitlement.service');
-const { getCredits } = require('./credits.service');
+const { getCredits, adjustCreditsByAdmin } = require('./credits.service');
 const membershipService = require('./membership.service');
 const settingsService = require('./settings.service');
 const { listAuditLogs } = require('../audit/audit.service');
@@ -40,8 +40,22 @@ const updateSetting = async (req, res, next) => {
 const audit = async (req, res, next) => {
   try { return sendSuccess(res, { data: { logs: await listAuditLogs(req.query) } }); } catch (err) { next(err); }
 };
+const adjustCredits = async (req, res, next) => {
+  try {
+    const result = await adjustCreditsByAdmin({
+      userId: req.params.userId,
+      adminId: req.user.sub,
+      amount: req.body.amount,
+      note: req.body.note,
+      expiryDays: req.body.expiry_days,
+      idempotencyKey: req.get('Idempotency-Key'),
+      requestMeta: requestMeta(req),
+    });
+    return sendSuccess(res, { data: result, message: 'MintCoin balance adjusted' });
+  } catch (err) { next(err); }
+};
 
 module.exports = {
   entitlements, credits, membership, createCheckout, verifyCheckout, pause,
-  settings, updateSetting, audit,
+  settings, updateSetting, audit, adjustCredits,
 };

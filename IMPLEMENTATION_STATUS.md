@@ -4,6 +4,7 @@
 
 - Centralized membership, access-pass, KYC, add-on, active-order, and admin entitlements
 - Separate cash wallet, Mint Credits, escrow economics, managed margins, and freelancer commission rules
+- Persistent client MintCoin topbar balance plus audited admin grants, deductions, and expiry controls
 - Recurring Razorpay membership lifecycle with welcome and renewal credits
 - Budget auto-matching, Pro admin review, workload limits, primary-only visibility, and preferred-creator boost
 - Four-offer negotiation sequence with live updates and stale-action protection

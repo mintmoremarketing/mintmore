@@ -73,7 +73,7 @@ const getUsers = async ({ page = 1, limit = 20, role, is_approved, search } = {}
  * Get single user detail (admin view — all fields).
  */
 const getUserById = async (userId) => {
-  const [result, walletResult, kycResult] = await Promise.all([
+  const [result, walletResult, creditsResult, kycResult] = await Promise.all([
     query(
     `SELECT
        id, email, phone, full_name, role, avatar_url,
@@ -94,6 +94,11 @@ const getUserById = async (userId) => {
       [userId]
     ),
     query(
+      `SELECT id, balance, created_at, updated_at
+       FROM mint_credit_accounts WHERE user_id=$1`,
+      [userId]
+    ),
+    query(
       `SELECT * FROM kyc_submissions
        WHERE user_id=$1 ORDER BY created_at DESC`,
       [userId]
@@ -104,6 +109,7 @@ const getUserById = async (userId) => {
   return {
     user: result.rows[0],
     wallet: walletResult.rows[0] || null,
+    mint_credit_account: creditsResult.rows[0] || null,
     kyc_submissions: kycResult.rows,
   };
 };

@@ -1,12 +1,25 @@
 const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
+const { writeAudit } = require('../audit/audit.service');
 
 const getCreditAccount = async (userId, dbClient = null, forUpdate = false) => {
   const executor = dbClient || { query };
-  const result = await executor.query(
+  let result = await executor.query(
     `SELECT * FROM mint_credit_accounts WHERE user_id = $1 ${forUpdate ? 'FOR UPDATE' : ''}`,
     [userId]
   );
+  if (!result.rows[0]) {
+    await executor.query(
+      `INSERT INTO mint_credit_accounts (user_id)
+       SELECT id FROM users WHERE id = $1
+       ON CONFLICT (user_id) DO NOTHING`,
+      [userId]
+    );
+    result = await executor.query(
+      `SELECT * FROM mint_credit_accounts WHERE user_id = $1 ${forUpdate ? 'FOR UPDATE' : ''}`,
+      [userId]
+    );
+  }
   if (!result.rows[0]) throw new AppError('Mint Credit account not found', 404);
   return result.rows[0];
 };
@@ -133,4 +146,95 @@ const getCredits = async (userId) => {
   return { balance: Number(account.balance), transactions: transactions.rows };
 };
 
-module.exports = { getCreditAccount, recordCreditTransaction, grantCredits, getCredits, expireCreditsForUser };
+const adjustCreditsByAdmin = async ({
+  userId,
+  adminId,
+  amount,
+  note,
+  expiryDays = null,
+  idempotencyKey,
+  requestMeta = {},
+}) => {
+  const parsedAmount = Number(amount);
+  if (!Number.isFinite(parsedAmount) || parsedAmount === 0) {
+    throw new AppError('A non-zero MintCoin amount is required', 400);
+  }
+  if (!String(note || '').trim()) throw new AppError('A note is required', 400);
+  if (!idempotencyKey) throw new AppError('Idempotency-Key header is required', 400);
+
+  const target = await query('SELECT id, role, full_name, email FROM users WHERE id = $1', [userId]);
+  if (!target.rows[0]) throw new AppError('User not found', 404);
+  if (target.rows[0].role !== 'client') throw new AppError('MintCoins can only be adjusted for client accounts', 400);
+
+  const days = parsedAmount > 0 && expiryDays !== null && expiryDays !== ''
+    ? Number(expiryDays)
+    : null;
+  if (days !== null && (!Number.isInteger(days) || days < 1 || days > 3650)) {
+    throw new AppError('Expiry days must be between 1 and 3650', 400);
+  }
+
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+    const existing = await dbClient.query(
+      'SELECT * FROM mint_credit_transactions WHERE idempotency_key = $1',
+      [`admin-mintcoin:${idempotencyKey}`]
+    );
+    if (existing.rows[0]) {
+      await dbClient.query('COMMIT');
+      return {
+        balance: Number(existing.rows[0].balance_after),
+        transaction: existing.rows[0],
+        user: target.rows[0],
+        idempotent_replay: true,
+      };
+    }
+    const before = await getCreditAccount(userId, dbClient, true);
+    const transaction = await recordCreditTransaction(dbClient, {
+      userId,
+      type: parsedAmount > 0 ? 'admin_grant' : 'reversal',
+      amount: parsedAmount,
+      expiresAt: days ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null,
+      referenceType: 'admin_adjustment',
+      idempotencyKey: `admin-mintcoin:${idempotencyKey}`,
+      description: String(note).trim(),
+      metadata: { adjusted_by: adminId, expiry_days: days },
+    });
+    await writeAudit({
+      actorId: adminId,
+      actorRole: 'admin',
+      action: 'mintcoin.adjusted',
+      entityType: 'mint_credit_account',
+      entityId: before.id,
+      beforeState: { balance: Number(before.balance) },
+      afterState: { balance: Number(transaction.balance_after), transaction_id: transaction.id },
+      metadata: {
+        target_user_id: userId,
+        amount: parsedAmount,
+        note: String(note).trim(),
+        expiry_days: days,
+      },
+      ...requestMeta,
+    }, dbClient);
+    await dbClient.query('COMMIT');
+    return {
+      balance: Number(transaction.balance_after),
+      transaction,
+      user: target.rows[0],
+    };
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    dbClient.release();
+  }
+};
+
+module.exports = {
+  getCreditAccount,
+  recordCreditTransaction,
+  grantCredits,
+  getCredits,
+  expireCreditsForUser,
+  adjustCreditsByAdmin,
+};
