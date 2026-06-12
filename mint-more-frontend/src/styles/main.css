@@ -1660,6 +1660,56 @@ button:focus {
   position: relative;
 }
 
+.mintcoin-chip {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px 0 6px;
+  border: 1px solid rgba(5, 150, 105, 0.24);
+  border-radius: 17px;
+  background: rgba(16, 185, 129, 0.07);
+  color: var(--ink-900);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mintcoin-chip:hover {
+  border-color: rgba(5, 150, 105, 0.48);
+  background: rgba(16, 185, 129, 0.11);
+}
+.mintcoin-mark {
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mint-500);
+  color: white;
+}
+.mintcoin-label {
+  font-size: 11.5px;
+  color: var(--mint-700);
+  font-weight: 600;
+}
+.mintcoin-amount {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 520px) {
+  .mintcoin-label {
+    display: none;
+  }
+  .mintcoin-chip {
+    padding-right: 8px;
+    gap: 5px;
+  }
+  .guest-topbar-cta {
+    display: none;
+  }
+}
+
 @media (max-width: 767px) {
   .chat-workspace {
     grid-template-columns: 1fr !important;

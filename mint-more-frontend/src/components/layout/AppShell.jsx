@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Outlet, Navigate } from 'react-router-dom'
+import { Outlet, Navigate, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import { walletApi } from '../../api/wallet'
 import { notificationsApi } from '../../api/notifications'
+import { commerceApi } from '../../api/commerce'
 import { useSSE } from '../../hooks/useSSE'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
@@ -27,6 +28,7 @@ function useIsMobile() {
 }
 
 export default function AppShell() {
+  const navigate = useNavigate()
   const { isAuthed, isGuest, user } = useAuthStore()
   const {
     toasts, showTopUp, showNotif,
@@ -37,10 +39,14 @@ export default function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const isMobile = useIsMobile()
 
-  // Close drawer when switching to desktop
   useEffect(() => {
-    if (!isMobile) setDrawerOpen(false)
-  }, [isMobile])
+    const mq = window.matchMedia('(max-width: 767px)')
+    const closeOnDesktop = (event) => {
+      if (!event.matches) setDrawerOpen(false)
+    }
+    mq.addEventListener('change', closeOnDesktop)
+    return () => mq.removeEventListener('change', closeOnDesktop)
+  }, [])
 
   useSSE()
 
@@ -51,6 +57,13 @@ export default function AppShell() {
     refetchInterval: 60_000,
   })
   const walletBalance = walletData?.wallet?.balance ?? null
+  const { data: mintCreditData } = useQuery({
+    queryKey: ['mint-credits'],
+    queryFn: () => commerceApi.credits().then(r => r.data.data),
+    enabled: isAuthed && user?.role === 'client' && !isGuest,
+    refetchInterval: 60_000,
+  })
+  const mintCoinBalance = mintCreditData?.balance ?? null
 
   useQuery({
     queryKey: ['notif-count'],
@@ -79,7 +92,9 @@ export default function AppShell() {
           isMobile={isMobile}
           onMenuClick={() => setDrawerOpen(true)}
           walletBalance={role !== 'admin' && !isGuest ? walletBalance : undefined}
+          mintCoinBalance={role === 'client' ? (isGuest ? 999 : mintCoinBalance) : undefined}
           onWalletClick={() => setShowTopUp(true)}
+          onMintCoinClick={() => navigate(isGuest ? '/register' : '/membership')}
           onNotifClick={() => setShowNotif(!showNotif)}
           notifUnread={unreadCount > 0}
           unreadCount={unreadCount}

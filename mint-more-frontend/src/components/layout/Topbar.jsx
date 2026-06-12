@@ -7,7 +7,9 @@ export default function Topbar({
   isMobile,
   onMenuClick,
   walletBalance,
+  mintCoinBalance,
   onWalletClick,
+  onMintCoinClick,
   onNotifClick,
   notifUnread,
   unreadCount,
@@ -75,6 +77,24 @@ export default function Topbar({
       {/* ── Right ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
 
+        {/* MintCoin chip */}
+        {mintCoinBalance !== null && mintCoinBalance !== undefined && (
+          <button
+            className="mintcoin-chip"
+            onClick={onMintCoinClick}
+            title="MintCoin balance"
+            aria-label={`MintCoin balance ${mintCoinBalance}`}
+          >
+            <span className="mintcoin-mark">
+              <Icon name="coin" size={13} />
+            </span>
+            <span className="mintcoin-label">MintCoin</span>
+            <span className="mono mintcoin-amount">
+              {Number(mintCoinBalance).toLocaleString('en-IN')}
+            </span>
+          </button>
+        )}
+
         {/* Wallet chip */}
         {walletBalance !== null && walletBalance !== undefined && (
           <button
@@ -100,7 +120,7 @@ export default function Topbar({
         {/* Guest CTA */}
         {isGuest && (
           <button
-            className="btn mint"
+            className="btn mint guest-topbar-cta"
             style={{ fontSize: 12, padding: '6px 14px' }}
             onClick={() => navigate('/register')}
           >
