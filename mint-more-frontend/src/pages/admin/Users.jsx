@@ -332,8 +332,8 @@ function UserDetailModal({ userId, onClose }) {
 })
 
   const kycMutation = useMutation({
-    mutationFn: ({ submissionId, action }) =>
-      api.patch(`/kyc/admin/review/${submissionId}`, { action, admin_note: kycNote }),
+    mutationFn: ({ submissionId, status }) =>
+      api.patch(`/kyc/admin/review/${submissionId}`, { status, admin_note: kycNote }),
     onSuccess: () => {
       pushToast({ title: 'KYC reviewed', icon: 'check' })
       queryClient.invalidateQueries({ queryKey: ['admin-user', userId] })
@@ -445,12 +445,18 @@ function UserDetailModal({ userId, onClose }) {
                 <div key={k.id} style={{ padding: 14, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
                   <div className="row between" style={{ marginBottom: 10 }}>
                     <div>
-                      <div style={{ fontSize: 13.5, fontWeight: 500 }}>Level {k.kyc_level} KYC</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 500, textTransform: 'capitalize' }}>{k.level} verification</div>
                       <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>{timeAgo(k.created_at)}</div>
                     </div>
                     <span className={`badge ${k.status === 'approved' ? 'mint' : k.status === 'rejected' ? 'rose' : 'amber'}`}>
                       <span className="bdot" />{k.status}
                     </span>
+                  </div>
+                  <div className="row" style={{ gap: 7, flexWrap: 'wrap', marginBottom: 9 }}>
+                    {k.document_front_url && <a className="btn ghost sm" href={k.document_front_url} target="_blank" rel="noreferrer"><Icon name="file" /> Document front</a>}
+                    {k.document_back_url && <a className="btn ghost sm" href={k.document_back_url} target="_blank" rel="noreferrer"><Icon name="file" /> Document back</a>}
+                    {k.selfie_url && <a className="btn ghost sm" href={k.selfie_url} target="_blank" rel="noreferrer"><Icon name="image" /> Selfie</a>}
+                    {k.address_proof_url && <a className="btn ghost sm" href={k.address_proof_url} target="_blank" rel="noreferrer"><Icon name="file" /> Address proof</a>}
                   </div>
                   {k.status === 'pending' && (
                     <div className="stack" style={{ gap: 8 }}>
@@ -465,7 +471,7 @@ function UserDetailModal({ userId, onClose }) {
                         <button
                           className="btn primary"
                           style={{ fontSize: 12 }}
-                          onClick={() => kycMutation.mutate({ submissionId: k.id, action: 'approve' })}
+                          onClick={() => kycMutation.mutate({ submissionId: k.id, status: 'approved' })}
                           disabled={kycMutation.isPending}
                         >
                           <Icon name="check" size={12} /> Approve
@@ -473,7 +479,7 @@ function UserDetailModal({ userId, onClose }) {
                         <button
                           className="btn ghost"
                           style={{ fontSize: 12, color: 'var(--rose)' }}
-                          onClick={() => kycMutation.mutate({ submissionId: k.id, action: 'reject' })}
+                          onClick={() => kycMutation.mutate({ submissionId: k.id, status: 'rejected' })}
                           disabled={kycMutation.isPending}
                         >
                           Reject
@@ -484,6 +490,29 @@ function UserDetailModal({ userId, onClose }) {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {user.role === 'freelancer' && (
+          <div>
+            <div className="row between" style={{ marginBottom: 10 }}>
+              <div className="h-eyebrow">Creative work review</div>
+              <span className={`badge ${(data?.portfolio_items?.length || 0) >= 3 ? 'mint' : 'amber'}`}>
+                {data?.portfolio_items?.length || 0} / 3 samples
+              </span>
+            </div>
+            {(data?.portfolio_items?.length || 0) === 0 ? (
+              <div className="muted" style={{ fontSize: 12 }}>No work samples submitted yet.</div>
+            ) : (
+              <div className="admin-portfolio-grid">
+                {data.portfolio_items.map(item => (
+                  <a key={item.id} href={item.cover_image_url} target="_blank" rel="noreferrer" className="admin-portfolio-item">
+                    <img src={item.cover_image_url} alt="" />
+                    <span>{item.title}</span>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

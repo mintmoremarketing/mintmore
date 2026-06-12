@@ -208,14 +208,20 @@ const getMyKycStatus = async (userId) => {
   );
 
   const userResult = await query(
-    'SELECT kyc_status, kyc_level FROM users WHERE id = $1',
+    'SELECT role, kyc_status, kyc_level FROM users WHERE id = $1',
     [userId]
   );
+  const portfolioResult = userResult.rows[0]?.role === 'freelancer'
+    ? await query('SELECT COUNT(*)::int AS count FROM portfolio_items WHERE freelancer_id = $1', [userId])
+    : { rows: [{ count: 0 }] };
 
   return {
+    role: userResult.rows[0]?.role,
     overall_status: userResult.rows[0]?.kyc_status,
     current_level:  userResult.rows[0]?.kyc_level,
     submissions:    submissions.rows,
+    portfolio_count: Number(portfolioResult.rows[0]?.count || 0),
+    required_portfolio_count: userResult.rows[0]?.role === 'freelancer' ? 3 : 0,
   };
 };
 
@@ -237,7 +243,10 @@ const getPendingSubmissions = async ({ page = 1, limit = 20, level } = {}) => {
   const result = await query(
     `SELECT
        ks.*,
-       u.full_name, u.email, u.phone
+       u.full_name, u.email, u.phone, u.role,
+       CASE WHEN u.role = 'freelancer' THEN
+         (SELECT COUNT(*)::int FROM portfolio_items pi WHERE pi.freelancer_id = u.id)
+       ELSE 0 END AS portfolio_count
      FROM kyc_submissions ks
      JOIN users u ON u.id = ks.user_id
      WHERE ks.status = $1 ${levelClause}
@@ -292,6 +301,18 @@ const reviewSubmission = async (submissionId, adminId, { status, admin_note }) =
     );
 
     if (status === 'approved') {
+      if (submission.level === 'address') {
+        const target = await client.query('SELECT role FROM users WHERE id = $1', [submission.user_id]);
+        if (target.rows[0]?.role === 'freelancer') {
+          const portfolio = await client.query(
+            'SELECT COUNT(*)::int AS count FROM portfolio_items WHERE freelancer_id = $1',
+            [submission.user_id]
+          );
+          if (Number(portfolio.rows[0]?.count || 0) < 3) {
+            throw new AppError('Freelancer must submit at least 3 portfolio work samples before final verification', 409);
+          }
+        }
+      }
       // 3. Always sync BOTH kyc_level AND kyc_status together.
       //
       //    Rule:

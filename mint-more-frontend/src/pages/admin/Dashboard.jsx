@@ -243,10 +243,10 @@ export default function AdminDashboard() {
               <div className="stack" style={{ gap: 10 }}>
                 {kycs.slice(0, 4).map(k => (
                   <div key={k.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <Avatar name={k.user?.full_name || 'U'} size="sm" />
+                    <Avatar name={k.full_name || 'U'} size="sm" />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{k.user?.full_name}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--ink-500)' }}>Level {k.kyc_level} · {timeAgo(k.created_at)}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{k.full_name}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--ink-500)', textTransform: 'capitalize' }}>{k.level} · {timeAgo(k.created_at)}{k.role === 'freelancer' ? ` · ${k.portfolio_count || 0} samples` : ''}</div>
                     </div>
                     <button className="btn ghost" style={{ fontSize: 12 }} onClick={() => navigate('/admin/users')}>Review</button>
                   </div>

@@ -73,7 +73,7 @@ const getUsers = async ({ page = 1, limit = 20, role, is_approved, search } = {}
  * Get single user detail (admin view — all fields).
  */
 const getUserById = async (userId) => {
-  const [result, walletResult, creditsResult, kycResult] = await Promise.all([
+  const [result, walletResult, creditsResult, kycResult, portfolioResult] = await Promise.all([
     query(
     `SELECT
        id, email, phone, full_name, role, avatar_url,
@@ -103,6 +103,11 @@ const getUserById = async (userId) => {
        WHERE user_id=$1 ORDER BY created_at DESC`,
       [userId]
     ),
+    query(
+      `SELECT id, title, description, cover_image_url, media_urls, tags, created_at
+       FROM portfolio_items WHERE freelancer_id=$1 ORDER BY created_at DESC`,
+      [userId]
+    ),
   ]);
 
   if (!result.rows[0]) throw new AppError('User not found', 404);
@@ -111,6 +116,7 @@ const getUserById = async (userId) => {
     wallet: walletResult.rows[0] || null,
     mint_credit_account: creditsResult.rows[0] || null,
     kyc_submissions: kycResult.rows,
+    portfolio_items: portfolioResult.rows,
   };
 };
 

@@ -6,6 +6,7 @@ import { useUIStore } from '../store/ui'
 import Icon from '../components/ui/Icon'
 import { SkeletonCard } from '../components/ui/Skeleton'
 import { useSearchParams } from 'react-router-dom'
+import VerificationPanel from '../components/settings/VerificationPanel'
 
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -254,64 +255,7 @@ export default function Settings() {
       </div>}
 
       {/* KYC status (clients + freelancers only) */}
-      {section === 'verification' && user?.role !== 'admin' && (
-        <div className="card reveal" style={{ padding: 24 }}>
-          <div className="row between" style={{ marginBottom: 14 }}>
-            <div className="h-eyebrow">KYC verification</div>
-            <span className={`badge ${
-              profile.kyc_status === 'approved' ? 'mint' :
-              profile.kyc_status === 'rejected' ? 'rose' :
-              profile.kyc_status === 'pending'  ? 'amber' : 'neutral'
-            }`}>
-              <span className="bdot" />
-              {profile.kyc_status || 'Not started'}
-            </span>
-          </div>
-
-          {/* Level progress */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
-            {[
-              { level: 1, label: 'Basic',    desc: 'Name + date of birth' },
-              { level: 2, label: 'Identity', desc: 'Aadhaar / PAN / Passport' },
-              { level: 3, label: 'Address',  desc: 'Address proof' },
-            ].map(({ level, label, desc }) => {
-              const done = (profile.kyc_level || 0) >= level
-              const pending = kyc.kyc_submissions?.some(s => s.kyc_level === level && s.status === 'pending')
-              return (
-                <div key={level} style={{
-                  padding: '12px 14px',
-                  background: done ? 'rgba(16,185,129,0.06)' : 'var(--paper-tint)',
-                  border: `1px solid ${done ? 'rgba(16,185,129,0.2)' : 'var(--hairline)'}`,
-                  borderRadius: 'var(--radius-md)',
-                }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                    <div style={{
-                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                      background: done ? 'var(--mint-500)' : 'var(--paper-deep)',
-                      color: done ? 'white' : 'var(--ink-500)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 600,
-                    }}>
-                      {done ? <Icon name="check" size={10} strokeWidth={3} /> : level}
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: done ? 'var(--mint-800)' : 'var(--ink-900)' }}>
-                      {label}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>{desc}</div>
-                  {pending && <div style={{ fontSize: 11.5, color: 'var(--amber)', marginTop: 4 }}>Under review</div>}
-                </div>
-              )
-            })}
-          </div>
-
-          {profile.kyc_level < 3 && (
-            <div style={{ fontSize: 13, color: 'var(--ink-600)' }}>
-              Complete all 3 levels to get the verified badge and improve your matching score.
-            </div>
-          )}
-        </div>
-      )}
+      {section === 'verification' && user?.role !== 'admin' && <VerificationPanel profile={profile} kyc={kyc} />}
 
       {/* Change password */}
       {section === 'security' && <div className="card reveal" style={{ padding: 24 }}>
