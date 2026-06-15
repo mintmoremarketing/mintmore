@@ -263,16 +263,16 @@ export default function Settings() {
         <div className="stack" style={{ gap: 14 }}>
           <div className="field">
             <label className="field-label">Current password</label>
-            <input className="input" type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} />
+            <input className="input" type="password" autoComplete="current-password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} />
           </div>
           <div className="grid-2" style={{ gap: 14 }}>
             <div className="field">
               <label className="field-label">New password</label>
-              <input className="input" type="password" value={newPw} onChange={e => setNewPw(e.target.value)} />
+              <input className="input" type="password" autoComplete="new-password" value={newPw} onChange={e => setNewPw(e.target.value)} />
             </div>
             <div className="field">
               <label className="field-label">Confirm new password</label>
-              <input className="input" type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
+              <input className="input" type="password" autoComplete="new-password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
             </div>
           </div>
           {pwError && (

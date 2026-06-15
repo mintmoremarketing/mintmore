@@ -87,6 +87,9 @@ export default function Membership() {
           <div style={{ marginTop: 12, color: 'rgba(255,255,255,.7)', fontSize: 13 }}>
             {periodEnd ? `Access valid until ${new Date(periodEnd).toLocaleDateString('en-IN')}` : 'Subscribe to unlock business tools.'}
           </div>
+          <div style={{ marginTop: 8, color: 'rgba(255,255,255,.58)', fontSize: 11.5, lineHeight: 1.45 }}>
+            Memberships and access passes are paid securely through Razorpay. Cash Wallet and MintCoins remain untouched.
+          </div>
           <div className="row" style={{ marginTop: 20, gap: 8 }}>
             <button className="btn mint" onClick={() => checkout.mutate({ kind: 'membership' })} disabled={checkout.isPending}>
               <Icon name="wallet" size={13} /> Subscribe or renew

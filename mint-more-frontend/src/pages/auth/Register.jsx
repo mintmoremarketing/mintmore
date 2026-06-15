@@ -139,12 +139,12 @@ export default function Register() {
 
                     <div className="field" style={{ marginBottom: 12 }}>
                         <label className="field-label">Email</label>
-                        <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
+                        <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" required />
                     </div>
 
                     <div className="field" style={{ marginBottom: 12 }}>
                         <label className="field-label">Password</label>
-                        <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                        <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
                         <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
                             At least 8 characters, 1 uppercase letter, and 1 number.
                         </div>

@@ -166,6 +166,7 @@ export default function Login() {
 								type={showPw ? 'text' : 'password'}
 								value={password}
 								onChange={(e) => setPassword(e.target.value)}
+								autoComplete="current-password"
 								style={{ paddingRight: 38 }}
 								required
 							/>

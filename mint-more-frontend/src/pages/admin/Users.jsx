@@ -279,6 +279,7 @@ function CreateAdminModal({ onClose }) {
             type="password"
             value={form.password}
             onChange={e => updateField('password', e.target.value)}
+            autoComplete="new-password"
             placeholder="Minimum 8 characters"
           />
         </div>

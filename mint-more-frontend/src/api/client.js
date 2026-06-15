@@ -17,11 +17,26 @@ api.interceptors.request.use((config) => {
 let refreshing = false
 let queue = []
 
+const AUTH_FAILURE_MESSAGES = [
+	'access token expired',
+	'invalid access token',
+	'authorization header missing or malformed',
+	'token not provided',
+	'token has been revoked',
+	'not authenticated',
+]
+
+const shouldRefreshAccessToken = (err, original) => {
+	if (err.response?.status !== 401 || original?._retry || original?.url?.includes('/auth/')) return false
+	const message = String(err.response?.data?.message || '').toLowerCase()
+	return AUTH_FAILURE_MESSAGES.some((candidate) => message.includes(candidate))
+}
+
 api.interceptors.response.use(
 	(res) => res,
 	async (err) => {
 		const original = err.config
-		if (err.response?.status === 401 && !original._retry) {
+		if (shouldRefreshAccessToken(err, original)) {
 			if (refreshing) {
 				return new Promise((resolve, reject) => {
 					queue.push({ resolve, reject })
@@ -35,7 +50,7 @@ api.interceptors.response.use(
 			refreshing = true
 
 			try {
-				const { refreshToken, setAuth, logout } = useAuthStore.getState()
+				const { refreshToken, setAuth } = useAuthStore.getState()
 				if (!refreshToken) throw new Error('No refresh token')
 
 				const { data } = await axios.post(`${BASE}/auth/refresh`, {
@@ -49,6 +64,7 @@ api.interceptors.response.use(
 				queue.forEach((p) => p.resolve(newAccess))
 				queue = []
 
+				original.headers = original.headers || {}
 				original.headers.Authorization = `Bearer ${newAccess}`
 				return api(original)
 			} catch (refreshErr) {
