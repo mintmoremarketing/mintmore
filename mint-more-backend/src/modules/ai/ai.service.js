@@ -110,7 +110,7 @@ const assertIncludedQuota = async (userId, toolType, model) => {
     `SELECT COUNT(*)::int AS count
      FROM ai_generations
      WHERE user_id = $1
-       AND tool_type = ANY($2::text[])
+       AND tool_type::text = ANY($2::text[])
        AND created_at >= COALESCE($3::timestamptz, date_trunc('month', NOW()))
        AND status <> 'failed'`,
     [userId, tools, isTrial ? membership.current_period_start : null]

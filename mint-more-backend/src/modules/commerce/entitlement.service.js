@@ -86,7 +86,9 @@ const getEntitlements = async (userId) => {
     can_draft_job: fullAccess || trialAccess,
     can_use_ai: fullAccess || trialAccess,
     can_use_social: fullAccess,
-    can_access_mintbox: fullAccess || hasActiveOrders,
+    // Every active client receives their base Mintbox allocation. Project-level
+    // routes still enforce participant access before exposing files.
+    can_access_mintbox: user.is_active,
     can_finish_active_orders: hasActiveOrders,
     needs_kyc_for_paid_order: !kycVerified,
     base_storage_gb: Number(membershipConfig.mintbox_gb || 10),
