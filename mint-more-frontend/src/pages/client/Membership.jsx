@@ -112,7 +112,9 @@ export default function Membership() {
               <div className="h-eyebrow">{pass.days} days</div>
               <div className="mono" style={{ fontSize: 22, fontWeight: 600, margin: '9px 0' }}>{rupee(pass.price)}</div>
               <p className="muted" style={{ fontSize: 12 }}>Access only. No Mint Credits included.</p>
-              <button className="btn ghost" onClick={() => checkout.mutate({ kind: 'access_pass', days: pass.days })}>Buy pass</button>
+              <button className="btn ghost" disabled={checkout.isPending} onClick={() => checkout.mutate({ kind: 'access_pass', days: pass.days })}>
+                {checkout.isPending ? 'Opening checkout...' : 'Buy pass'}
+              </button>
             </div>
           ))}
         </div>

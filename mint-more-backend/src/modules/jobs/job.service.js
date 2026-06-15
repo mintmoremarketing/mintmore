@@ -165,9 +165,9 @@ const createJobAsDraft = async (clientId, {
      RETURNING *`,
     [
       clientId,
-      category_id,
-      title,
-      description,
+      category_id || null,
+      title?.trim() || 'Untitled brief',
+      description?.trim() || 'Brief in progress',
       requirements    || null,
       attachments     || [],
       pricing.budget_type,

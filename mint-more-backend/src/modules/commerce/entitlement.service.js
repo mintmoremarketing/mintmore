@@ -83,7 +83,9 @@ const getEntitlements = async (userId) => {
     access_pass: accessPass,
     mint_credits: Number(creditsResult.rows[0]?.balance || 0),
     can_create_job: fullAccess && kycVerified && user.is_approved,
-    can_draft_job: fullAccess || trialAccess,
+    // Drafts are workspace data, not a paid feature. Active clients must be
+    // able to save work before verification or membership checkout.
+    can_draft_job: user.is_active,
     can_use_ai: fullAccess || trialAccess,
     can_use_social: fullAccess,
     // Every active client receives their base Mintbox allocation. Project-level

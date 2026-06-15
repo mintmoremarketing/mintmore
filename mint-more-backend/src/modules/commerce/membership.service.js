@@ -7,8 +7,35 @@ const { getSetting } = require('./settings.service');
 const { recordCreditTransaction } = require('./credits.service');
 const { writeAudit } = require('../audit/audit.service');
 const { enqueueOutboxEvent } = require('../events/outbox.service');
+const logger = require('../../utils/logger');
 
 const razorpay = new Razorpay({ key_id: env.razorpay.keyId, key_secret: env.razorpay.keySecret });
+
+const assertRazorpayConfigured = () => {
+  const keyId = env.razorpay.keyId || '';
+  const keySecret = env.razorpay.keySecret || '';
+  const placeholder = /your_|placeholder|example|xxx/i;
+  if (!/^rzp_(test|live)_/.test(keyId) || keySecret.length < 20 || placeholder.test(keyId) || placeholder.test(keySecret)) {
+    throw new AppError('Payment checkout is temporarily unavailable because Razorpay is not configured. Please contact support.', 503);
+  }
+};
+
+const callRazorpay = async (operation, request) => {
+  try {
+    return await request();
+  } catch (error) {
+    const providerStatus = Number(error.statusCode || error.status || error.response?.status || 0);
+    logger.error('Razorpay request failed', {
+      operation,
+      providerStatus,
+      providerError: error.error?.description || error.error?.reason || error.message || 'Unknown Razorpay error',
+    });
+    if ([401, 403].includes(providerStatus)) {
+      throw new AppError('Payment checkout is temporarily unavailable because Razorpay credentials are invalid. Please contact support.', 503);
+    }
+    throw new AppError('Payment checkout is temporarily unavailable. Please try again shortly.', 502);
+  }
+};
 
 const getMembership = async (userId) => {
   const result = await query('SELECT * FROM memberships WHERE user_id = $1', [userId]);
@@ -16,6 +43,7 @@ const getMembership = async (userId) => {
 };
 
 const createCheckout = async (userId, { kind = 'membership', days } = {}) => {
+  assertRazorpayConfigured();
   const config = await getSetting(kind === 'access_pass' ? 'access_passes' : 'membership.monthly', {});
   const pass = kind === 'access_pass'
     ? (config || []).find((entry) => Number(entry.days) === Number(days))
@@ -27,13 +55,13 @@ const createCheckout = async (userId, { kind = 'membership', days } = {}) => {
     if (membership?.razorpay_subscription_id && membership.auto_renew && membership.status === 'active') {
       throw new AppError('Your recurring membership is already active', 409);
     }
-    const subscription = await razorpay.subscriptions.create({
+    const subscription = await callRazorpay('subscriptions.create', () => razorpay.subscriptions.create({
       plan_id: config.razorpay_plan_id,
       total_count: Number(config.subscription_cycles || 120),
       quantity: 1,
       customer_notify: true,
       notes: { user_id: userId, purpose: 'membership' },
-    });
+    }));
     await query(
       `UPDATE memberships
        SET razorpay_subscription_id=$1, auto_renew=true
@@ -62,11 +90,11 @@ const createCheckout = async (userId, { kind = 'membership', days } = {}) => {
       key_id: env.razorpay.keyId,
     };
   }
-  const order = await razorpay.orders.create({
+  const order = await callRazorpay('orders.create', () => razorpay.orders.create({
     amount: Math.round(amount * 100),
     currency: 'INR',
     notes: { user_id: userId, purpose: kind, days: pass?.days || '' },
-  });
+  }));
   const result = await query(
     `INSERT INTO membership_payments
        (membership_id,user_id,kind,amount,razorpay_order_id,status,metadata)
@@ -175,7 +203,7 @@ const verifyCheckout = async (userId, payload) => {
     .digest('hex');
   if (expected !== payload.razorpay_signature) throw new AppError('Payment signature verification failed', 400);
 
-  const capturedPayment = await razorpay.payments.fetch(payload.razorpay_payment_id);
+  const capturedPayment = await callRazorpay('payments.fetch', () => razorpay.payments.fetch(payload.razorpay_payment_id));
   if (capturedPayment.status !== 'captured') {
     throw new AppError('Membership payment has not been captured yet', 400);
   }
@@ -315,9 +343,9 @@ const processCapturedPayment = async (orderId, paymentId) => {
 const pauseMembership = async (userId) => {
   const membership = await getMembership(userId);
   if (membership?.razorpay_subscription_id && membership.auto_renew) {
-    await razorpay.subscriptions.cancel(membership.razorpay_subscription_id, {
+    await callRazorpay('subscriptions.cancel', () => razorpay.subscriptions.cancel(membership.razorpay_subscription_id, {
       cancel_at_cycle_end: true,
-    });
+    }));
   }
   const result = await query(
     `UPDATE memberships SET status='paused', auto_renew=false, paused_at=NOW()

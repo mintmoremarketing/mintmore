@@ -73,7 +73,7 @@ export default function Jobs() {
 							key={j.id}
 							className="job-card"
 							style={{ padding: 16 }}
-							onClick={() => navigate(`/jobs/${j.id}`)}
+							onClick={() => navigate(j.status === 'draft' ? `/jobs/${j.id}/edit` : `/jobs/${j.id}`)}
 						>
 							<div className="row between">
 								<div className="row" style={{ gap: 10 }}>
@@ -86,10 +86,19 @@ export default function Jobs() {
 								{j.title}
 							</div>
 							<div style={{ fontSize: 12.5, color: 'var(--ink-600)', marginTop: 4 }}>
-								{j.description?.slice(0, 120)}...
+								{j.status === 'draft' && j.description === 'Brief in progress'
+									? 'Continue answering a few quick questions to finish this brief.'
+									: `${j.description?.slice(0, 120) || 'Brief in progress'}...`}
 							</div>
 							<div className="row" style={{ marginTop: 12, gap: 18, fontSize: 11.5, color: 'var(--ink-500)' }}>
-								<span><Icon name="calendar" size={11} /> &nbsp;Deadline {j.deadline ? new Date(j.deadline).toLocaleDateString('en-IN') : 'TBD'}</span>
+								{j.status === 'draft' ? (
+									<span style={{ color: 'var(--mint-700)', fontWeight: 600 }}>
+										<Icon name="edit" size={11} /> &nbsp;Resume brief
+										{j.metadata?.brief_builder?.step ? ` · Step ${j.metadata.brief_builder.step} of ${j.metadata.brief_builder.total_steps || 13}` : ''}
+									</span>
+								) : (
+									<span><Icon name="calendar" size={11} /> &nbsp;Deadline {j.deadline ? new Date(j.deadline).toLocaleDateString('en-IN') : 'TBD'}</span>
+								)}
 								<span className="mono" style={{ color: 'var(--ink-900)', fontWeight: 500 }}>
 									{j.budget_amount ? rupee(j.budget_amount) : 'Open'}
 								</span>

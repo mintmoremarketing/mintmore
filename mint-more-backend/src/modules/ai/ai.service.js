@@ -293,6 +293,10 @@ const processGeneration = async (generationId) => {
   );
   const generation = genResult.rows[0];
   if (!generation) throw new Error(`Generation ${generationId} not found`);
+  if (generation.status === 'completed') {
+    logger.info('AI generation already completed; skipping retry', { generationId });
+    return;
+  }
 
   await query(
     `UPDATE ai_generations SET status = 'processing', started_at = NOW() WHERE id = $1`,
@@ -432,19 +436,6 @@ const processGeneration = async (generationId) => {
 
       if (creditCost > 0) await deductCredits(generation.user_id, generationId, creditCost);
 
-      // Update avg_response_ms on model
-      if (model) {
-        await query(
-          `UPDATE ai_models
-           SET avg_response_ms = CASE
-             WHEN avg_response_ms IS NULL THEN $1
-             ELSE (avg_response_ms * 0.8 + $1 * 0.2)::INTEGER
-           END
-           WHERE id = $2`,
-          [result.duration_ms, model.id]
-        );
-      }
-
       await query(
         `UPDATE ai_generations
          SET status          = 'completed',
@@ -468,6 +459,26 @@ const processGeneration = async (generationId) => {
           generationId,
         ]
       );
+
+      // Telemetry must never turn a successful generation into a failed one.
+      if (model) {
+        try {
+          await query(
+            `UPDATE ai_models
+             SET avg_response_ms = CASE
+               WHEN avg_response_ms IS NULL THEN $1::INTEGER
+               ELSE (avg_response_ms * 0.8 + $1::INTEGER * 0.2)::INTEGER
+             END
+             WHERE id = $2::UUID`,
+            [result.duration_ms, model.id]
+          );
+        } catch (metricError) {
+          logger.warn('AI response-time metric update failed', {
+            modelId: model.id,
+            error: metricError.message,
+          });
+        }
+      }
     }
 
     await decrementActive(generation.openrouter_id, result.duration_ms, false);

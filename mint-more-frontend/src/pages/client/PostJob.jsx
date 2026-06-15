@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as tus from 'tus-js-client'
 import { jobsApi } from '../../api/jobs'
 import { mintboxApi } from '../../api/mintbox'
@@ -10,103 +10,105 @@ import { rupee } from '../../utils/format'
 import { useEntitlements } from '../../hooks/useEntitlements'
 import { BRIEF_GUIDE_OPTIONS, CREATIVE_SKILLS } from '../../data/creativeOptions'
 
-const getMarketRangeFromResponse = (res) =>
-  res.data?.data?.range ?? res.data?.data?.data?.range ?? res.data?.range ?? null
-
-const formatRange = (range) => {
-  if (!range?.min || !range?.max) return 'Market range pending'
-  return `${rupee(range.min)} - ${rupee(range.max)}`
-}
-const asChoices = (value) => Array.isArray(value) ? value : value ? [value] : []
+const TOTAL_STEPS = 13
+const asChoices = value => Array.isArray(value) ? value : value ? [value] : []
+const getMarketRange = res => res.data?.data?.range ?? res.data?.data?.data?.range ?? res.data?.range ?? null
+const formatRange = range => range?.min && range?.max ? `${rupee(range.min)} - ${rupee(range.max)}` : 'Market range pending'
 
 const poolOptions = [
-  {
-    value: 'budget',
-    icon: 'rupee',
-    title: 'Budget creatives',
-    subtitle: 'Beginner and intermediate freelancers quote first.',
-    note: 'Good for clear, lighter briefs where speed and value matter.',
-  },
-  {
-    value: 'expert',
-    icon: 'sparkles',
-    title: 'Pro creatives',
-    subtitle: 'Experienced freelancers quote first.',
-    note: 'Good for premium work, complex campaigns, and higher quality expectations.',
-  },
+  { value: 'budget', icon: 'rupee', title: 'Budget creatives', subtitle: 'Great value for clear, lighter briefs.', note: 'Beginner and intermediate creatives quote first.' },
+  { value: 'expert', icon: 'sparkles', title: 'Pro creatives', subtitle: 'Premium talent for complex or high-impact work.', note: 'Experienced creatives quote first.' },
 ]
 
-function ChoiceField({ label, options, values, customValue, onChange, onCustomChange }) {
-  const selected = Array.isArray(values) ? values : values ? [values] : []
+function Question({ eyebrow, title, subtitle, children }) {
   return (
-    <div className="field">
-      <label className="field-label">{label}</label>
-      <div className="row wrap" style={{ gap: 7 }}>
-        {options.map(option => {
-          const active = selected.includes(option)
-          return (
-            <button type="button" key={option} className={`badge ${active ? 'mint' : 'neutral'}`} style={{ cursor: 'pointer', padding: '7px 10px' }} onClick={() => onChange(active ? selected.filter(item => item !== option) : [...selected, option])}>
-              {active && <Icon name="check" size={10} />} {option}
-            </button>
-          )
-        })}
+    <div className="stack" style={{ gap: 22 }}>
+      <div>
+        <div className="h-eyebrow" style={{ color: 'var(--mint-700)', marginBottom: 8 }}>{eyebrow}</div>
+        <h2 className="h-display h-2" style={{ margin: 0, maxWidth: 760 }}>{title}</h2>
+        {subtitle && <p className="muted" style={{ margin: '8px 0 0', maxWidth: 680, lineHeight: 1.55 }}>{subtitle}</p>}
       </div>
-      {selected.includes('Other') && <input className="input" value={customValue || ''} onChange={event => onCustomChange(event.target.value)} placeholder="Tell the creative what is different" style={{ marginTop: 8 }} />}
+      {children}
+    </div>
+  )
+}
+
+function ChoiceTiles({ options, selected = [], onToggle, renderOption }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+      {options.map(option => {
+        const value = typeof option === 'string' ? option : option.value
+        const active = selected.includes(value)
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onToggle(value)}
+            style={{
+              position: 'relative', minHeight: 104, padding: 18, textAlign: 'left',
+              border: `1.5px solid ${active ? 'var(--mint-500)' : 'var(--hairline)'}`,
+              background: active ? 'var(--mint-50)' : 'var(--paper)',
+              borderRadius: 'var(--radius-md)', cursor: 'pointer',
+              boxShadow: active ? '0 0 0 3px rgba(16,185,129,.08)' : 'none',
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: 14, right: 14, width: 20, height: 20, borderRadius: '50%',
+              border: `1.5px solid ${active ? 'var(--mint-500)' : 'var(--ink-300)'}`,
+              background: active ? 'var(--mint-500)' : 'transparent',
+              display: 'grid', placeItems: 'center', color: 'white',
+            }}>{active && <Icon name="check" size={11} strokeWidth={3} />}</span>
+            {renderOption ? renderOption(option, active) : <strong style={{ display: 'block', paddingRight: 24, fontSize: 14 }}>{value}</strong>}
+          </button>
+        )
+      })}
     </div>
   )
 }
 
 export default function PostJob() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { id } = useParams()
   const isEditMode = Boolean(id)
-  const pushToast = useUIStore((s) => s.pushToast)
+  const pushToast = useUIStore(state => state.pushToast)
+  const { data: access } = useEntitlements()
   const [step, setStep] = useState(1)
+  const [draftId, setDraftId] = useState(id || null)
+  const [saveState, setSaveState] = useState('idle')
   const [briefFiles, setBriefFiles] = useState([])
   const [briefContext, setBriefContext] = useState({
-    deliverables: [],
-    deliverables_other: '',
-    promotion_or_goal: [],
-    promotion_or_goal_other: '',
-    customer_profile: [],
-    customer_profile_other: '',
-    style_references: [],
-    style_references_other: '',
-    avoid: [],
-    avoid_other: '',
+    deliverables: [], deliverables_other: '',
+    promotion_or_goal: [], promotion_or_goal_other: '',
+    customer_profile: [], customer_profile_other: '',
+    style_references: [], style_references_other: '',
+    avoid: [], avoid_other: '',
   })
-  const briefFileRef = useRef(null)
   const [data, setData] = useState({
-    title: '',
-    category_id: '',
-    description: '',
-    pricing_mode: 'budget',
-    budget_type: 'quote',
-    budget_amount: null,
-    deadline: '',
-    required_skills: [],
-    required_level: null,
+    title: '', category_id: '', description: '', pricing_mode: '',
+    budget_type: 'quote', budget_amount: null, deadline: '',
+    required_skills: [], required_level: null,
   })
-  const { data: access } = useEntitlements()
+  const [minimumDeadline] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10))
+  const briefFileRef = useRef(null)
+  const draftIdRef = useRef(id || null)
+  const draftCreatePromiseRef = useRef(null)
+  const saveQueueRef = useRef(Promise.resolve())
+  const hydratedRef = useRef(!isEditMode)
+  const uploadedFileKeysRef = useRef(new Set())
 
-  const { data: catData } = useQuery({
-    queryKey: ['categories'],
-    queryFn: () => jobsApi.categories().then((r) => r.data.data),
-  })
+  const { data: catData } = useQuery({ queryKey: ['categories'], queryFn: () => jobsApi.categories().then(res => res.data.data) })
   const categories = catData?.categories || []
-
   const { data: budgetRange } = useQuery({
     queryKey: ['market-range', data.category_id, 'budget'],
-    queryFn: async () => getMarketRangeFromResponse(await jobsApi.marketRange(data.category_id, 'budget')),
+    queryFn: async () => getMarketRange(await jobsApi.marketRange(data.category_id, 'budget')),
     enabled: Boolean(data.category_id),
   })
-
   const { data: expertRange } = useQuery({
     queryKey: ['market-range', data.category_id, 'expert'],
-    queryFn: async () => getMarketRangeFromResponse(await jobsApi.marketRange(data.category_id, 'expert')),
+    queryFn: async () => getMarketRange(await jobsApi.marketRange(data.category_id, 'expert')),
     enabled: Boolean(data.category_id),
   })
-
   const { data: existingJob, isLoading: isJobLoading } = useQuery({
     queryKey: ['job', id],
     queryFn: async () => {
@@ -118,40 +120,44 @@ export default function PostJob() {
 
   useEffect(() => {
     if (!existingJob) return
-
+    const builder = existingJob.metadata?.brief_builder || null
+    /* eslint-disable react-hooks/set-state-in-effect */
     setData({
-      title: existingJob.title || '',
+      title: existingJob.title === 'Untitled brief' ? '' : existingJob.title || '',
       category_id: existingJob.category_id || '',
-      description: existingJob.description || '',
-      pricing_mode: existingJob.pricing_mode === 'expert' ? 'expert' : 'budget',
-      budget_type: 'quote',
-      budget_amount: null,
-      deadline: existingJob.deadline ? existingJob.deadline.slice(0, 10) : '',
+      description: typeof builder?.description === 'string'
+        ? builder.description
+        : existingJob.description === 'Brief in progress' ? '' : existingJob.description || '',
+      pricing_mode: typeof builder?.pricing_mode === 'string'
+        ? builder.pricing_mode
+        : existingJob.pricing_mode === 'expert' ? 'expert' : 'budget',
+      budget_type: 'quote', budget_amount: null,
+      deadline: existingJob.deadline?.slice(0, 10) || '',
       required_skills: existingJob.required_skills || [],
       required_level: existingJob.pricing_mode === 'expert' ? 'experienced' : null,
     })
+    const context = existingJob.metadata?.brief_context || {}
     setBriefContext({
-      deliverables: asChoices(existingJob.metadata?.brief_context?.deliverables),
-      deliverables_other: existingJob.metadata?.brief_context?.deliverables_other || '',
-      promotion_or_goal: asChoices(existingJob.metadata?.brief_context?.promotion_or_goal),
-      promotion_or_goal_other: existingJob.metadata?.brief_context?.promotion_or_goal_other || '',
-      customer_profile: asChoices(existingJob.metadata?.brief_context?.customer_profile),
-      customer_profile_other: existingJob.metadata?.brief_context?.customer_profile_other || '',
-      style_references: asChoices(existingJob.metadata?.brief_context?.style_references),
-      style_references_other: existingJob.metadata?.brief_context?.style_references_other || '',
-      avoid: asChoices(existingJob.metadata?.brief_context?.avoid),
-      avoid_other: existingJob.metadata?.brief_context?.avoid_other || '',
+      deliverables: asChoices(context.deliverables), deliverables_other: context.deliverables_other || '',
+      promotion_or_goal: asChoices(context.promotion_or_goal), promotion_or_goal_other: context.promotion_or_goal_other || '',
+      customer_profile: asChoices(context.customer_profile), customer_profile_other: context.customer_profile_other || '',
+      style_references: asChoices(context.style_references), style_references_other: context.style_references_other || '',
+      avoid: asChoices(context.avoid), avoid_other: context.avoid_other || '',
     })
+    setStep(Math.min(TOTAL_STEPS, Math.max(1, Number(existingJob.metadata?.brief_builder?.step || 1))))
+    setDraftId(existingJob.id)
+    draftIdRef.current = existingJob.id
+    hydratedRef.current = true
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [existingJob])
 
   const selectedRange = data.pricing_mode === 'expert' ? expertRange : budgetRange
-  const selectedPool = poolOptions.find((p) => p.value === data.pricing_mode)
+  const selectedPool = poolOptions.find(option => option.value === data.pricing_mode)
   const briefDescription = data.description.trim() || [
     briefContext.deliverables.filter(item => item !== 'Other').join(', '),
     briefContext.deliverables_other,
   ].filter(Boolean).join('. ')
-
-  const payload = {
+  const payload = useMemo(() => ({
     ...data,
     description: briefDescription,
     budget_type: 'quote',
@@ -161,344 +167,296 @@ export default function PostJob() {
       ...(existingJob?.metadata || {}),
       talent_pool: data.pricing_mode === 'expert' ? 'pro' : 'budget',
       brief_context: briefContext,
-      market_average: selectedRange
-        ? { min: selectedRange.min, max: selectedRange.max, label: selectedRange.label }
-        : null,
+      market_average: selectedRange ? { min: selectedRange.min, max: selectedRange.max, label: selectedRange.label } : null,
+      brief_builder: {
+        step,
+        total_steps: TOTAL_STEPS,
+        description: data.description,
+        pricing_mode: data.pricing_mode,
+      },
     },
-  }
+  }), [briefContext, briefDescription, data, existingJob?.metadata, selectedRange, step])
+
+  const draftPayload = useMemo(() => ({
+    ...payload,
+    category_id: data.category_id || null,
+    title: data.title.trim() || 'Untitled brief',
+    description: briefDescription || 'Brief in progress',
+  }), [briefDescription, data.category_id, data.title, payload])
+
+  const hasMeaningfulDraft = Boolean(
+    data.title.trim() ||
+    data.category_id ||
+    data.description.trim() ||
+    data.pricing_mode ||
+    data.deadline ||
+    data.required_skills.length ||
+    briefFiles.length ||
+    Object.values(briefContext).some(value => Array.isArray(value) ? value.length : String(value || '').trim())
+  )
+
+  const uploadBriefFiles = useCallback(async (jobId, files) => {
+    for (const file of files) {
+      const fileKey = `${file.name}-${file.size}-${file.lastModified}`
+      if (uploadedFileKeysRef.current.has(fileKey)) continue
+      const prepared = await mintboxApi.prepareUpload(jobId, { name: file.name, size: file.size, type: file.type || 'application/octet-stream', purpose: 'brief' })
+      const config = prepared.data?.data?.upload
+      await new Promise((resolve, reject) => {
+        const upload = new tus.Upload(file, {
+          endpoint: config.endpoint,
+          chunkSize: config.policy?.chunk_size_bytes || 6 * 1024 * 1024,
+          retryDelays: [0, 1000, 3000, 5000, 10000],
+          uploadDataDuringCreation: true,
+          headers: { 'x-signature': String(config.token || '').trim() },
+          metadata: { bucketName: config.bucket, objectName: config.storage_path, contentType: file.type || 'application/octet-stream', cacheControl: '3600' },
+          onError: reject,
+          onSuccess: async () => {
+            try { await mintboxApi.completeUpload(config.upload_id); resolve() } catch (error) { reject(error) }
+          },
+        })
+        upload.start()
+      })
+      uploadedFileKeysRef.current.add(fileKey)
+    }
+  }, [])
+
+  const persistDraft = useCallback(async ({ includeFiles = true } = {}) => {
+    if (!hydratedRef.current || !hasMeaningfulDraft) return draftIdRef.current
+    setSaveState('saving')
+    try {
+      let targetId = draftIdRef.current
+      if (!targetId) {
+        if (!draftCreatePromiseRef.current) {
+          draftCreatePromiseRef.current = jobsApi.draft(draftPayload)
+            .then(response => {
+              const created = response.data?.data
+              draftIdRef.current = created.id
+              setDraftId(created.id)
+              window.history.replaceState(window.history.state, '', `/jobs/${created.id}/edit`)
+              return created.id
+            })
+            .finally(() => { draftCreatePromiseRef.current = null })
+        }
+        targetId = await draftCreatePromiseRef.current
+      } else {
+        await jobsApi.update(targetId, draftPayload)
+      }
+      if (includeFiles && briefFiles.length) await uploadBriefFiles(targetId, briefFiles)
+      setSaveState('saved')
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      return targetId
+    } catch (error) {
+      setSaveState('error')
+      throw error
+    }
+  }, [briefFiles, draftPayload, hasMeaningfulDraft, queryClient, uploadBriefFiles])
+
+  const saveDraftNow = useCallback((options = {}) => {
+    const queuedSave = saveQueueRef.current.then(() => persistDraft(options))
+    saveQueueRef.current = queuedSave.catch(() => {})
+    return queuedSave
+  }, [persistDraft])
+
+  useEffect(() => {
+    if (!hydratedRef.current || !hasMeaningfulDraft) return undefined
+    const timer = window.setTimeout(() => {
+      saveDraftNow().catch(() => {})
+    }, 600)
+    return () => window.clearTimeout(timer)
+  }, [hasMeaningfulDraft, saveDraftNow])
+
+  useEffect(() => {
+    const warnBeforeUnsavedExit = event => {
+      if (!hasMeaningfulDraft || saveState === 'saved') return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnBeforeUnsavedExit)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnsavedExit)
+  }, [hasMeaningfulDraft, saveState])
 
   const { mutate, isPending } = useMutation({
     mutationFn: async () => {
-      if (!isEditMode) {
-        const draft = await jobsApi.draft(payload)
-        const job = draft.data?.data
-        for (const file of briefFiles) {
-          const prepared = await mintboxApi.prepareUpload(job.id, {
-            name: file.name, size: file.size, type: file.type || 'application/octet-stream', purpose: 'brief',
-          })
-          const config = prepared.data?.data?.upload
-          await new Promise((resolve, reject) => {
-            const upload = new tus.Upload(file, {
-              endpoint: config.endpoint,
-              chunkSize: config.policy?.chunk_size_bytes || 6 * 1024 * 1024,
-              retryDelays: [0, 1000, 3000, 5000, 10000],
-              uploadDataDuringCreation: true,
-              headers: { 'x-signature': String(config.token || '').trim() },
-              metadata: { bucketName: config.bucket, objectName: config.storage_path, contentType: file.type || 'application/octet-stream', cacheControl: '3600' },
-              onError: reject,
-              onSuccess: async () => {
-                try { await mintboxApi.completeUpload(config.upload_id); resolve() } catch (error) { reject(error) }
-              },
-            })
-            upload.start()
-          })
-        }
-        return jobsApi.publish(job.id)
-      }
-
-      await jobsApi.update(id, payload)
-      return jobsApi.publish(id)
+      const targetId = await saveDraftNow()
+      await jobsApi.update(targetId, payload)
+      return jobsApi.publish(targetId)
     },
     onSuccess: () => {
-      pushToast({
-        title: isEditMode ? 'Brief updated!' : 'Brief posted!',
-        body: 'Matching creatives now - ~6 min',
-      })
+      pushToast({ title: isEditMode ? 'Brief updated!' : 'Brief posted!', body: 'Matching creatives now - ~6 min' })
       navigate(isEditMode ? `/jobs/${id}` : '/jobs')
     },
-    onError: (err) => {
-      pushToast({
-        title: isEditMode ? 'Failed to update' : 'Failed to post',
-        body: err.response?.data?.message || 'Try again',
-        tone: 'amber',
-      })
-    },
+    onError: error => pushToast({ title: isEditMode ? 'Failed to update' : 'Failed to post', body: error.response?.data?.message || 'Try again', tone: 'amber' }),
   })
 
-  function update(k, v) {
-    setData((d) => ({ ...d, [k]: v }))
+  const update = (key, value) => {
+    setSaveState('saving')
+    setData(current => ({ ...current, [key]: value }))
   }
-
-  function updateContext(k, v) {
-    setBriefContext((current) => ({ ...current, [k]: v }))
+  const updateContext = (key, value) => {
+    setSaveState('saving')
+    setBriefContext(current => ({ ...current, [key]: value }))
   }
-
-  function addBriefFiles(fileList) {
+  const toggleContext = (key, value) => updateContext(key, briefContext[key].includes(value) ? briefContext[key].filter(item => item !== value) : [...briefContext[key], value])
+  const selectAndAdvance = (key, value) => {
+    update(key, value)
+    window.setTimeout(() => setStep(current => Math.min(TOTAL_STEPS, current + 1)), 180)
+  }
+  const addBriefFiles = fileList => {
     const incoming = Array.from(fileList || [])
+    if (incoming.length) setSaveState('saving')
     setBriefFiles(current => {
       const known = new Set(current.map(file => `${file.name}-${file.size}-${file.lastModified}`))
       return [...current, ...incoming.filter(file => !known.has(`${file.name}-${file.size}-${file.lastModified}`))]
     })
   }
 
-  function canContinue() {
-    return !validationMessage()
-  }
-
-  function validationMessage() {
-    if (step === 1) {
-      if (data.title.trim().length < 5) return 'Add a brief title with at least 5 characters.'
-      if (!data.category_id) return 'Choose a category.'
-      if (!briefContext.deliverables.length) return 'Choose at least one thing you need.'
-    }
-    if (step === 2) {
-      if (!data.pricing_mode) return 'Choose Budget creatives or Pro creatives.'
-      if (!data.deadline) return 'Choose a deadline.'
-      if (new Date(`${data.deadline}T23:59:59`) <= new Date()) return 'Choose a future deadline.'
-    }
+  const validationMessage = () => {
+    if (step === 1 && data.title.trim().length < 5) return 'Add a title with at least 5 characters.'
+    if (step === 2 && !data.category_id) return 'Choose a category.'
+    if (step === 3 && !briefContext.deliverables.length) return 'Choose at least one deliverable.'
+    if (step === 3 && briefContext.deliverables.includes('Other') && briefContext.deliverables_other.trim().length < 3) return 'Tell us what you need under Other.'
+    if (step === 4 && !briefContext.promotion_or_goal.length) return 'Choose the main goal.'
+    if (step === 5 && !briefContext.customer_profile.length) return 'Choose who this should speak to.'
+    if (step === 11 && !data.pricing_mode) return 'Choose Budget or Pro creatives.'
+    if (step === 12 && !data.deadline) return 'Choose a deadline.'
+    if (step === 12 && new Date(`${data.deadline}T23:59:59`) <= new Date()) return 'Choose a future deadline.'
     return ''
   }
 
-  function handlePrimaryAction() {
+  const finalValidation = () => {
+    if (data.title.trim().length < 5) return { step: 1, message: 'Add a title with at least 5 characters.' }
+    if (!data.category_id) return { step: 2, message: 'Choose a category.' }
+    if (!briefContext.deliverables.length) return { step: 3, message: 'Choose at least one deliverable.' }
+    if (briefContext.deliverables.includes('Other') && briefContext.deliverables_other.trim().length < 3) return { step: 3, message: 'Tell us what you need under Other.' }
+    if (!briefContext.promotion_or_goal.length) return { step: 4, message: 'Choose the main goal.' }
+    if (!briefContext.customer_profile.length) return { step: 5, message: 'Choose who this should speak to.' }
+    if (!data.pricing_mode) return { step: 11, message: 'Choose Budget or Pro creatives.' }
+    if (!data.deadline || new Date(`${data.deadline}T23:59:59`) <= new Date()) return { step: 12, message: 'Choose a future deadline.' }
+    return null
+  }
+
+  const handlePrimaryAction = async () => {
     if (isPending) return
     const error = validationMessage()
-    if (error) {
-      pushToast({ title: 'Complete this step', body: error, tone: 'amber' })
-      return
+    if (error) return pushToast({ title: 'Complete this step', body: error, tone: 'amber' })
+    if (step < TOTAL_STEPS) {
+      setSaveState('saving')
+      return setStep(current => current + 1)
     }
-    if (step < 3) {
-      setStep(step + 1)
-      return
+    const finalError = finalValidation()
+    if (finalError) {
+      setStep(finalError.step)
+      return pushToast({ title: 'Finish your brief', body: finalError.message, tone: 'amber' })
     }
     if (access && !access.can_create_job) {
-      if (access.needs_kyc_for_paid_order) {
-        pushToast({ title: 'Complete verification to post', body: 'Your brief is ready. Verify your account to publish it.', tone: 'amber' })
-        navigate('/settings?section=verification')
-      } else {
-        pushToast({ title: 'Membership required to post', body: 'Your brief is ready. Activate access to publish it.', tone: 'amber' })
-        navigate('/membership')
+      try {
+        await saveDraftNow()
+      } catch {
+        return pushToast({ title: 'Draft could not be saved', body: 'Please try again before leaving this page.', tone: 'amber' })
       }
-      return
+      if (access.needs_kyc_for_paid_order) {
+        pushToast({ title: 'Brief saved to drafts', body: 'Complete verification, then resume this brief to publish it.', tone: 'amber' })
+        return navigate('/settings?section=verification')
+      }
+      pushToast({ title: 'Brief saved to drafts', body: 'Activate access, then resume this brief to publish it.', tone: 'amber' })
+      return navigate('/membership')
     }
     mutate()
   }
 
-  if (isEditMode && isJobLoading) {
-    return (
-      <div className="stack-6">
-        <div className="card" style={{ padding: 28 }}>
-          <div className="skeleton" style={{ width: '45%', height: 18, borderRadius: 6, marginBottom: 18 }} />
-          <div className="skeleton" style={{ width: '100%', height: 120, borderRadius: 12 }} />
-        </div>
-      </div>
-    )
+  const leaveToJobs = async () => {
+    if (!hasMeaningfulDraft) return navigate('/jobs')
+    try {
+      await saveDraftNow()
+      navigate('/jobs')
+    } catch {
+      pushToast({ title: 'Draft could not be saved', body: 'Please try again before leaving this page.', tone: 'amber' })
+    }
   }
 
+  const otherInput = (key, placeholder) => briefContext[key].includes('Other') && (
+    <input className="input" value={briefContext[`${key}_other`]} onChange={event => updateContext(`${key}_other`, event.target.value)} placeholder={placeholder} autoFocus style={{ marginTop: 14 }} />
+  )
+  const optionalStepIsEmpty = (
+    (step === 6 && briefContext.style_references.length === 0) ||
+    (step === 7 && briefContext.avoid.length === 0) ||
+    (step === 8 && !data.description.trim()) ||
+    (step === 9 && data.required_skills.length === 0) ||
+    (step === 10 && briefFiles.length === 0)
+  )
+
+  if (isEditMode && isJobLoading) return <div className="card" style={{ padding: 28 }}><div className="skeleton" style={{ height: 180 }} /></div>
+
   return (
-    <div className="stack-6">
-      <div className="reveal">
-        <button className="btn link sm" onClick={() => navigate('/jobs')} style={{ padding: 0, color: 'var(--ink-500)', fontSize: 12 }}>
-          <Icon name="arrowLeft" size={12} /> All jobs
-        </button>
-        <h1 className="h-display h-1" style={{ margin: '6px 0 0' }}>{isEditMode ? 'Edit brief' : 'Post a brief'}</h1>
-        <p className="muted" style={{ marginTop: 6 }}>
-          Pick the creative pool and deadline. Freelancers quote first, then you can negotiate.
-        </p>
+    <div style={{ maxWidth: 980, margin: '0 auto' }}>
+      <div className="row between" style={{ marginBottom: 18 }}>
+        <button className="btn link sm" onClick={leaveToJobs} style={{ padding: 0, color: 'var(--ink-500)' }}><Icon name="arrowLeft" size={12} /> All jobs</button>
+        <div className="row" style={{ gap: 12 }}>
+          {draftId && (
+            <span style={{ fontSize: 12, color: saveState === 'error' ? 'var(--amber-700)' : 'var(--ink-500)' }}>
+              {saveState === 'saving' ? 'Saving draft...' : saveState === 'error' ? 'Draft not saved' : 'Draft saved'}
+            </span>
+          )}
+          <span className="muted" style={{ fontSize: 12 }}>Step {step} of {TOTAL_STEPS}</span>
+        </div>
+      </div>
+      <div style={{ height: 5, background: 'var(--paper-deep)', borderRadius: 8, overflow: 'hidden', marginBottom: 28 }}>
+        <div style={{ height: '100%', width: `${(step / TOTAL_STEPS) * 100}%`, background: 'var(--mint-500)', borderRadius: 8, transition: 'width .25s ease' }} />
       </div>
 
-      <div className="stepper">
-        {['Basics', 'Creative pool', 'Review'].map((s, i) => (
-          <Fragment key={s}>
-            <div className={`step ${step >= i + 1 ? 'active' : ''} ${step > i + 1 ? 'done' : ''}`}>
-              <span className="step-num">
-                {step > i + 1 ? <Icon name="check" size={11} strokeWidth={3} /> : i + 1}
-              </span>
-              <span>{s}</span>
+      <div className="card" style={{ padding: 'clamp(22px, 5vw, 46px)', minHeight: 440 }}>
+        {step === 1 && <Question eyebrow="Let’s start simple" title="What should we call this project?" subtitle="A short working title helps everyone stay oriented."><input className="input" value={data.title} onChange={event => update('title', event.target.value)} placeholder="Diwali campaign hero video" autoFocus style={{ fontSize: 17, minHeight: 54 }} /></Question>}
+
+        {step === 2 && <Question eyebrow="Project category" title="Which creative area is this closest to?" subtitle="Choose the closest match. We use this to find the right specialists."><ChoiceTiles options={categories.map(category => ({ value: category.id, ...category }))} selected={[data.category_id]} onToggle={value => selectAndAdvance('category_id', value)} renderOption={category => <><strong style={{ display: 'block', paddingRight: 25, fontSize: 15 }}>{category.name}</strong>{category.description && <span className="muted" style={{ display: 'block', marginTop: 5, fontSize: 12.5 }}>{category.description}</span>}</>} /></Question>}
+
+        {step === 3 && <Question eyebrow="Deliverables" title="What would you like the creative to make?" subtitle="Choose everything that belongs in this project."><ChoiceTiles options={BRIEF_GUIDE_OPTIONS.deliverables} selected={briefContext.deliverables} onToggle={value => toggleContext('deliverables', value)} />{otherInput('deliverables', 'Describe the deliverable you need')}</Question>}
+
+        {step === 4 && <Question eyebrow="The outcome" title="What is the main goal?" subtitle="This helps the creative make decisions that support your business."><ChoiceTiles options={BRIEF_GUIDE_OPTIONS.goals} selected={briefContext.promotion_or_goal} onToggle={value => toggleContext('promotion_or_goal', value)} />{otherInput('promotion_or_goal', 'Tell us the goal')}</Question>}
+
+        {step === 5 && <Question eyebrow="Your audience" title="Who should this speak to?" subtitle="Choose the people you most want to reach."><ChoiceTiles options={BRIEF_GUIDE_OPTIONS.customers} selected={briefContext.customer_profile} onToggle={value => toggleContext('customer_profile', value)} />{otherInput('customer_profile', 'Describe your audience')}</Question>}
+
+        {step === 6 && <Question eyebrow="Creative direction" title="Which styles feel right?" subtitle="Pick a few. You can also leave this blank and let the creative recommend a direction."><ChoiceTiles options={BRIEF_GUIDE_OPTIONS.styles} selected={briefContext.style_references} onToggle={value => toggleContext('style_references', value)} />{otherInput('style_references', 'Describe the style you have in mind')}</Question>}
+
+        {step === 7 && <Question eyebrow="Guardrails" title="Anything the creative should avoid?" subtitle="Optional, but useful when your brand has clear boundaries."><ChoiceTiles options={BRIEF_GUIDE_OPTIONS.avoid} selected={briefContext.avoid} onToggle={value => toggleContext('avoid', value)} />{otherInput('avoid', 'Tell the creative what to avoid')}</Question>}
+
+        {step === 8 && <Question eyebrow="A little more context" title="Anything else the creative should know?" subtitle="Add required wording, a reference link, important details, or leave this blank."><textarea className="textarea" rows={7} value={data.description} onChange={event => update('description', event.target.value)} placeholder="For example: the launch is on 24 October, the logo must stay visible, and the tone should feel warm rather than sales-heavy." autoFocus /></Question>}
+
+        {step === 9 && <Question eyebrow="Matching signals" title="Which skills seem relevant?" subtitle="Choose what feels right. Mint More also uses the rest of your brief to find suitable creatives."><ChoiceTiles options={CREATIVE_SKILLS} selected={data.required_skills} onToggle={value => update('required_skills', data.required_skills.includes(value) ? data.required_skills.filter(item => item !== value) : [...data.required_skills, value])} /></Question>}
+
+        {step === 10 && <Question eyebrow="References" title="Do you have anything useful to share?" subtitle="Optional. Drop everything in one place and Mintbox will organise it automatically.">
+          <>
+            <input ref={briefFileRef} type="file" multiple style={{ display: 'none' }} onChange={event => { addBriefFiles(event.target.files); event.target.value = '' }} />
+            <div onClick={() => briefFileRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); addBriefFiles(event.dataTransfer.files) }} style={{ minHeight: 190, border: '1.5px dashed var(--mint-500)', background: 'var(--mint-50)', borderRadius: 'var(--radius-md)', display: 'grid', placeItems: 'center', cursor: 'pointer', textAlign: 'center', padding: 24 }}>
+              <div><Icon name="upload" size={24} /><strong style={{ display: 'block', marginTop: 10 }}>Drop files here or choose files</strong><span className="muted" style={{ display: 'block', marginTop: 5, fontSize: 12.5 }}>Images, videos, audio, documents and packages</span></div>
             </div>
-            {i < 2 && <div className={`step-line ${step > i + 1 ? 'done' : ''}`} style={{ background: step > i + 1 ? 'var(--ink-950)' : 'var(--hairline)' }} />}
-          </Fragment>
-        ))}
+            {isEditMode && <div className="card-mint">Previously uploaded references remain attached. You can add more here.</div>}
+            {briefFiles.length > 0 && <div className="stack" style={{ gap: 7 }}>{briefFiles.map(file => <div key={`${file.name}-${file.size}-${file.lastModified}`} className="row between" style={{ padding: 10, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-sm)' }}><span><Icon name="paperclip" size={11} /> {file.name}</span><button type="button" className="icon-btn" onClick={() => setBriefFiles(files => files.filter(item => item !== file))}><Icon name="x" size={11} /></button></div>)}</div>}
+          </>
+        </Question>}
+
+        {step === 11 && <Question eyebrow="Creative pool" title="What kind of creative support fits this project?" subtitle="You will see the typical market range before anyone quotes."><ChoiceTiles options={poolOptions} selected={[data.pricing_mode]} onToggle={value => selectAndAdvance('pricing_mode', value)} renderOption={option => { const range = option.value === 'expert' ? expertRange : budgetRange; return <><Icon name={option.icon} size={18} /><strong style={{ display: 'block', marginTop: 10, fontSize: 15 }}>{option.title}</strong><span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 12.5 }}>{option.subtitle}</span><span style={{ display: 'block', marginTop: 10, fontSize: 12.5, fontWeight: 600 }}>Typical range: {formatRange(range)}</span></> }} /></Question>}
+
+        {step === 12 && <Question eyebrow="Timeline" title="When do you need the work?" subtitle="Choose a realistic final delivery date. The creative will confirm timing in their quote."><input className="input" type="date" min={minimumDeadline} value={data.deadline} onChange={event => update('deadline', event.target.value)} autoFocus style={{ maxWidth: 380, minHeight: 58, fontSize: 16 }} /></Question>}
+
+        {step === 13 && <Question eyebrow="Ready to find your creative" title={data.title} subtitle="Review the essentials. You can go back to change anything before posting.">
+          <div className="grid-2" style={{ gap: 12 }}>
+            <div style={{ padding: 16, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}><div className="h-eyebrow">What you need</div><p style={{ lineHeight: 1.55 }}>{briefDescription}</p><div className="row wrap" style={{ gap: 6 }}>{data.required_skills.map(skill => <span key={skill} className="badge neutral">{skill}</span>)}</div></div>
+            <div style={{ padding: 16, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}><div className="h-eyebrow">At a glance</div><div className="stack" style={{ gap: 10, marginTop: 12 }}><div className="row between"><span className="muted">Creative pool</span><strong>{selectedPool?.title}</strong></div><div className="row between"><span className="muted">Typical range</span><strong>{formatRange(selectedRange)}</strong></div><div className="row between"><span className="muted">Deadline</span><strong>{data.deadline && new Date(data.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></div><div className="row between"><span className="muted">References</span><strong>{briefFiles.length}</strong></div></div></div>
+          </div>
+        </Question>}
       </div>
 
-      <div className="card" style={{ padding: 28 }}>
-        {step === 1 && (
-          <div className="stack" style={{ gap: 18 }}>
-            <div className="field">
-              <label className="field-label">What do you want to create?</label>
-              <input className="input" value={data.title} onChange={(e) => update('title', e.target.value)} placeholder="e.g. Diwali campaign hero video" />
-              <span className={data.title.length > 0 && data.title.trim().length < 5 ? 'field-error' : 'field-hint'}>Minimum 5 characters</span>
-            </div>
-            <div className="field">
-              <label className="field-label">Category</label>
-              <select className="select" value={data.category_id} onChange={(e) => update('category_id', e.target.value)}>
-                <option value="">Select a category</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <ChoiceField label="What do you need?" options={BRIEF_GUIDE_OPTIONS.deliverables} values={briefContext.deliverables} customValue={briefContext.deliverables_other} onChange={value => updateContext('deliverables', value)} onCustomChange={value => updateContext('deliverables_other', value)} />
-            <div className="grid-2" style={{ gap: 18 }}>
-              <ChoiceField label="What is the main goal?" options={BRIEF_GUIDE_OPTIONS.goals} values={briefContext.promotion_or_goal} customValue={briefContext.promotion_or_goal_other} onChange={value => updateContext('promotion_or_goal', value)} onCustomChange={value => updateContext('promotion_or_goal_other', value)} />
-              <ChoiceField label="Who should this speak to?" options={BRIEF_GUIDE_OPTIONS.customers} values={briefContext.customer_profile} customValue={briefContext.customer_profile_other} onChange={value => updateContext('customer_profile', value)} onCustomChange={value => updateContext('customer_profile_other', value)} />
-              <ChoiceField label="Which styles feel right?" options={BRIEF_GUIDE_OPTIONS.styles} values={briefContext.style_references} customValue={briefContext.style_references_other} onChange={value => updateContext('style_references', value)} onCustomChange={value => updateContext('style_references_other', value)} />
-              <ChoiceField label="What should the creative avoid?" options={BRIEF_GUIDE_OPTIONS.avoid} values={briefContext.avoid} customValue={briefContext.avoid_other} onChange={value => updateContext('avoid', value)} onCustomChange={value => updateContext('avoid_other', value)} />
-            </div>
-            <div className="field">
-              <label className="field-label">Anything else the creative should know? <span className="muted">(optional)</span></label>
-              <textarea className="textarea" value={data.description} onChange={(e) => update('description', e.target.value)} rows={3} placeholder="A useful detail, required wording, or reference link." />
-            </div>
-            <div className="field">
-              <label className="field-label">Skills that fit this brief</label>
-              <div className="row wrap" style={{ gap: 6, marginTop: 8 }}>
-                {CREATIVE_SKILLS.map(skill => {
-                  const active = data.required_skills.includes(skill)
-                  return <button type="button" key={skill} className={`badge ${active ? 'mint' : 'neutral'}`} style={{ cursor: 'pointer', padding: '7px 10px' }} onClick={() => update('required_skills', active ? data.required_skills.filter(item => item !== skill) : [...data.required_skills, skill])}>{active && <Icon name="check" size={10} />} {skill}</button>
-                })}
-              </div>
-            </div>
-            {!isEditMode && (
-              <div className="field">
-                <label className="field-label">Reference attachments</label>
-                <input
-                  ref={briefFileRef}
-                  type="file"
-                  multiple
-                  style={{ display: 'none' }}
-                  onChange={e => {
-                    addBriefFiles(e.target.files)
-                    e.target.value = ''
-                  }}
-                />
-                <div
-                  onClick={() => briefFileRef.current?.click()}
-                  onDragOver={e => e.preventDefault()}
-                  onDrop={e => {
-                    e.preventDefault()
-                    addBriefFiles(e.dataTransfer.files)
-                  }}
-                  style={{ border: '1px dashed var(--ink-300)', padding: 16, cursor: 'pointer', background: 'var(--paper-tint)' }}
-                >
-                  <div className="row between" style={{ gap: 12 }}>
-                    <div>
-                      <strong style={{ fontSize: 13 }}>Drop all reference files here</strong>
-                      <div className="field-hint">Mintbox organises images, video, audio, documents and packages automatically.</div>
-                    </div>
-                    <button type="button" className="btn ghost sm" onClick={e => { e.stopPropagation(); briefFileRef.current?.click() }}>
-                      <Icon name="upload" size={12} /> Choose files
-                    </button>
-                  </div>
-                </div>
-                {briefFiles.length > 0 && (
-                  <div className="stack" style={{ gap: 6, marginTop: 8 }}>
-                    {briefFiles.map(file => (
-                      <div key={`${file.name}-${file.size}-${file.lastModified}`} className="row between" style={{ padding: '7px 9px', border: '1px solid var(--hairline)', background: 'var(--paper-tint)', gap: 10 }}>
-                        <span style={{ fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><Icon name="paperclip" size={11} /> {file.name}</span>
-                        <button type="button" className="icon-btn" aria-label={`Remove ${file.name}`} onClick={() => setBriefFiles(files => files.filter(item => item !== file))}><Icon name="x" size={11} /></button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="stack" style={{ gap: 22 }}>
-            <div>
-              <label className="field-label" style={{ marginBottom: 8, display: 'block' }}>Choose creative pool</label>
-              <div className="grid-2" style={{ gap: 12 }}>
-                {poolOptions.map((option) => {
-                  const range = option.value === 'expert' ? expertRange : budgetRange
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className={`role-card ${data.pricing_mode === option.value ? 'on' : ''}`}
-                      onClick={() => update('pricing_mode', option.value)}
-                      style={{ alignItems: 'flex-start', textAlign: 'left' }}
-                    >
-                      <Icon name={option.icon} />
-                      <span className="role-title">{option.title}</span>
-                      <span className="role-sub">{option.subtitle}</span>
-                      <span style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-700)', fontWeight: 500 }}>
-                        Market average: {formatRange(range)}
-                      </span>
-                      <span style={{ fontSize: 12, color: 'var(--ink-500)', lineHeight: 1.45 }}>{option.note}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div className="field" style={{ maxWidth: 360 }}>
-              <label className="field-label">Deadline</label>
-              <input
-                className="input"
-                type="date"
-                min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
-                value={data.deadline}
-                onChange={e => update('deadline', e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="stack" style={{ gap: 18 }}>
-            <div>
-              <span className="h-eyebrow" style={{ color: 'var(--mint-700)' }}>Ready to post</span>
-              <h2 className="h-display h-2" style={{ margin: '6px 0 8px' }}>{data.title}</h2>
-            </div>
-            <div className="divider" />
-            {(data.required_skills.length > 0 || briefFiles.length > 0) && (
-              <div>
-                <div className="h-eyebrow" style={{ marginBottom: 8 }}>References</div>
-                <div className="row wrap" style={{ gap: 6 }}>{data.required_skills.map(tag => <span key={tag} className="badge neutral">{tag}</span>)}</div>
-                {briefFiles.map(file => <div key={`${file.name}-${file.size}`} style={{ fontSize: 12.5, marginTop: 8 }}><Icon name="paperclip" size={12} /> {file.name}</div>)}
-              </div>
-            )}
-            <div className="grid-2" style={{ gap: 18 }}>
-              <div>
-                <div className="h-eyebrow" style={{ marginBottom: 6 }}>Brief</div>
-                <p style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink-700)', margin: 0 }}>{briefDescription}</p>
-              </div>
-              <div>
-                <div className="h-eyebrow" style={{ marginBottom: 6 }}>At a glance</div>
-                <div className="stack" style={{ gap: 8, fontSize: 13 }}>
-                  <div className="row between"><span className="muted">Pool</span><span>{selectedPool?.title}</span></div>
-                  <div className="row between"><span className="muted">Market average</span><span className="mono">{formatRange(selectedRange)}</span></div>
-                  {data.deadline && (
-                    <div className="row between">
-                      <span className="muted">Deadline</span>
-                      <span>{new Date(data.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                    </div>
-                  )}
-                  <div className="row between"><span className="muted">Client budget</span><span>Freelancers quote first</span></div>
-                </div>
-              </div>
-            </div>
-            {Object.values(briefContext).some(value => Array.isArray(value) ? value.length > 0 : Boolean(value)) && (
-              <div>
-                <div className="h-eyebrow" style={{ marginBottom: 8 }}>Brief context</div>
-                <div className="grid-2" style={{ gap: 10 }}>
-                  {[
-                    ['Goal', briefContext.promotion_or_goal],
-                    ['Customers', briefContext.customer_profile],
-                    ['Style references', briefContext.style_references],
-                    ['Avoid', briefContext.avoid],
-                  ].filter(([, value]) => Array.isArray(value) ? value.length > 0 : Boolean(value)).map(([label, value]) => (
-                    <div key={label} style={{ padding: 12, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}>
-                      <div className="h-eyebrow" style={{ marginBottom: 4 }}>{label}</div>
-                      <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>{Array.isArray(value) ? value.join(', ') : value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="row between">
-        <button className="btn ghost" onClick={() => step > 1 ? setStep(step - 1) : navigate('/jobs')}>
-          <Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}
-        </button>
-        <button className="btn primary" onClick={handlePrimaryAction} disabled={isPending}>
-          {isPending
-            ? (isEditMode ? 'Saving...' : 'Posting...')
-            : step < 3
-            ? <>Continue <Icon name="arrowRight" /></>
-            : <>{isEditMode ? 'Save & restart matching' : 'Post brief'} <Icon name="arrowRight" /></>}
+      <div className="row between" style={{ marginTop: 18, paddingBottom: 28 }}>
+        <button className="btn ghost" onClick={() => {
+          if (step > 1) {
+            setSaveState('saving')
+            setStep(current => current - 1)
+          } else {
+            leaveToJobs()
+          }
+        }}><Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}</button>
+        <button className="btn primary lg" onClick={handlePrimaryAction} disabled={isPending}>
+          {isPending ? 'Posting...' : step === TOTAL_STEPS ? <>Post brief <Icon name="arrowRight" /></> : <>{optionalStepIsEmpty ? 'Skip' : 'Continue'} <Icon name="arrowRight" /></>}
         </button>
       </div>
     </div>
