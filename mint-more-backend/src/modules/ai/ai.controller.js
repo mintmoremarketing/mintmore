@@ -26,18 +26,11 @@ const getModels = async (req, res, next) => {
       videoCapabilities.map((model) => [model.id, model])
     );
 
-    const enriched = models.map((m) => {
-      const videoModel = videoCapabilityMap[m.openrouter_id] || null;
-      const supportedTools = m.supported_tools?.includes('video') && !videoModel
-        ? m.supported_tools.filter((tool) => tool !== 'video')
-        : m.supported_tools;
-      return {
-        ...m,
-        supported_tools: supportedTools,
-        traffic: trafficMap[m.openrouter_id] || null,
-        video_capabilities: videoModel,
-      };
-    }).filter((model) => model.supported_tools?.length > 0);
+    const enriched = models.map((m) => ({
+      ...m,
+      traffic: trafficMap[m.openrouter_id] || null,
+      video_capabilities: videoCapabilityMap[m.openrouter_id] || null,
+    }));
 
     enriched.sort((a, b) => {
       if (a.tier === 'free' && b.tier !== 'free') return -1;

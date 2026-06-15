@@ -221,14 +221,16 @@ useEffect(() => {
 
   // Auto-select first compatible model when tool changes
   useEffect(() => {
-    const compatible = models.filter(m => m.supported_tools?.includes(activeTool) && m.is_active)
-    if (compatible.length > 0 && !selectedModel) {
-      const free = compatible.find(m => m.tier === 'free') || compatible[0]
-      setSelectedModel(free)
-    } else {
-      setSelectedModel(null)
+    const compatible = models.filter(m =>
+      m.supported_tools?.includes(activeTool) &&
+      m.is_active &&
+      (activeTool !== 'video' || m.video_capabilities)
+    )
+    const selectedIsCompatible = compatible.some(model => model.id === selectedModel?.id)
+    if (!selectedIsCompatible) {
+      setSelectedModel(compatible.find(model => model.tier === 'free') || compatible[0] || null)
     }
-  }, [activeTool, models.length])
+  }, [activeTool, models, selectedModel?.id])
 
   // Poll for generation result
   useEffect(() => {
