@@ -5,6 +5,7 @@ const {
   getAllModels, getModelById, getModelsByToolType, getTrendingModels,
 } = require('./models/model.registry');
 const { getAllModelTraffic, getModelTraffic } = require('./models/model.traffic');
+const { fetchOpenRouterVideoModels } = require('./providers/openrouter.provider');
 const { sendSuccess } = require('../../utils/apiResponse');
 const AppError = require('../../utils/AppError');
 
@@ -18,11 +19,25 @@ const getModels = async (req, res, next) => {
       : await getAllModels();
 
     const trafficMap = await getAllModelTraffic(models.map((m) => m.openrouter_id));
+    const videoCapabilities = models.some((m) => m.supported_tools?.includes('video'))
+      ? await fetchOpenRouterVideoModels()
+      : [];
+    const videoCapabilityMap = Object.fromEntries(
+      videoCapabilities.map((model) => [model.id, model])
+    );
 
-    const enriched = models.map((m) => ({
-      ...m,
-      traffic: trafficMap[m.openrouter_id] || null,
-    }));
+    const enriched = models.map((m) => {
+      const videoModel = videoCapabilityMap[m.openrouter_id] || null;
+      const supportedTools = m.supported_tools?.includes('video') && !videoModel
+        ? m.supported_tools.filter((tool) => tool !== 'video')
+        : m.supported_tools;
+      return {
+        ...m,
+        supported_tools: supportedTools,
+        traffic: trafficMap[m.openrouter_id] || null,
+        video_capabilities: videoModel,
+      };
+    }).filter((model) => model.supported_tools?.length > 0);
 
     enriched.sort((a, b) => {
       if (a.tier === 'free' && b.tier !== 'free') return -1;

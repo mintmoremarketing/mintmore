@@ -33,6 +33,7 @@ function ModelPicker({ models, selected, onSelect, toolType }) {
   const [search, setSearch] = useState('')
   const compatible = models.filter(m =>
     m.supported_tools?.includes(toolType) &&
+    (toolType !== 'video' || m.video_capabilities) &&
     m.is_active &&
     (search === '' || m.name.toLowerCase().includes(search.toLowerCase()) || m.provider_name?.toLowerCase().includes(search.toLowerCase()))
   )
@@ -173,6 +174,9 @@ export default function MintAI() {
   const [lastGenId,    setLastGenId]    = useState(null)
   const [pollingId,    setPollingId]    = useState(null)
   const [result,       setResult]       = useState(null)
+  const [videoDuration,setVideoDuration]= useState(null)
+  const [videoAspect,  setVideoAspect]  = useState(null)
+  const [videoResolution, setVideoResolution] = useState(null)
 
   const { data: modelsData } = useQuery({
     queryKey: ['ai-models'],
@@ -204,6 +208,16 @@ useEffect(() => {
   const models   = modelsData?.models || []
   const usage    = usageData?.usage || {}
   const history  = historyData?.generations || []
+  const videoCapabilities = selectedModel?.video_capabilities || {}
+  const effectiveVideoDuration = videoCapabilities.supported_durations?.includes(videoDuration)
+    ? videoDuration
+    : videoCapabilities.supported_durations?.[0] || null
+  const effectiveVideoAspect = videoCapabilities.supported_aspect_ratios?.includes(videoAspect)
+    ? videoAspect
+    : videoCapabilities.supported_aspect_ratios?.[0] || null
+  const effectiveVideoResolution = videoCapabilities.supported_resolutions?.includes(videoResolution)
+    ? videoResolution
+    : videoCapabilities.supported_resolutions?.[0] || null
 
   // Auto-select first compatible model when tool changes
   useEffect(() => {
@@ -241,6 +255,13 @@ useEffect(() => {
       model_id:   selectedModel?.id,
       tool_type:  activeTool,
       prompt,
+      parameters: activeTool === 'video'
+        ? {
+            duration: effectiveVideoDuration,
+            aspect_ratio: effectiveVideoAspect,
+            resolution: effectiveVideoResolution,
+          }
+        : {},
     }),
     onSuccess: (res) => {
       const gen = res.data.data
@@ -435,6 +456,33 @@ useEffect(() => {
           )}
         </div>
 
+        {activeTool === 'video' && selectedModel?.video_capabilities && (
+          <div className="card" style={{ padding: 16 }}>
+            <div className="h-eyebrow" style={{ marginBottom: 14 }}>Video settings</div>
+            {[
+              ['Duration', selectedModel.video_capabilities.supported_durations, effectiveVideoDuration, setVideoDuration, value => `${value}s`],
+              ['Aspect ratio', selectedModel.video_capabilities.supported_aspect_ratios, effectiveVideoAspect, setVideoAspect, value => value],
+              ['Resolution', selectedModel.video_capabilities.supported_resolutions, effectiveVideoResolution, setVideoResolution, value => value],
+            ].map(([label, options, selected, onSelect, format]) => options?.length > 0 && (
+              <div key={label} style={{ marginBottom: 14 }}>
+                <div className="field-label" style={{ marginBottom: 8 }}>{label}</div>
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  {options.map(option => (
+                    <button
+                      key={option}
+                      type="button"
+                      className={`btn ${selected === option ? 'primary' : 'ghost'}`}
+                      onClick={() => onSelect(option)}
+                    >
+                      {format(option)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Prompt */}
         <div className="field">
           <label className="field-label">
@@ -457,6 +505,8 @@ useEffect(() => {
           disabled={
             generateMutation.isPending ||
             !selectedModel ||
+            !selectedModel.supported_tools?.includes(activeTool) ||
+            (activeTool === 'video' && !selectedModel.video_capabilities) ||
             !prompt.trim() ||
             pollingId
           }

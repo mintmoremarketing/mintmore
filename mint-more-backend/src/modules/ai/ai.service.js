@@ -12,6 +12,8 @@ const {
   generateText,
   generateImage,
   generateVideo,
+  getOpenRouterVideoModel,
+  normalizeVideoParameters,
 } = require('./providers/openrouter.provider');
 const { uploadFile }         = require('../../config/supabase');
 const AppError  = require('../../utils/AppError');
@@ -215,6 +217,18 @@ const createGeneration = async (userId, {
     throw new AppError(`Model "${model.name}" does not support ${tool_type}`, 400);
   }
 
+  let normalizedParameters = parameters;
+  if (tool_type === 'video') {
+    let capabilities;
+    try {
+      capabilities = await getOpenRouterVideoModel(model.openrouter_id);
+    } catch (error) {
+      throw new AppError(error.message, error.retryable === false ? 400 : 503);
+    }
+
+    normalizedParameters = normalizeVideoParameters(capabilities, parameters);
+  }
+
   await assertIncludedQuota(userId, tool_type, model);
   await checkRateLimit(userId);
 
@@ -238,7 +252,7 @@ const createGeneration = async (userId, {
     }
   }
 
-  const promptData  = buildPrompt(tool_type, prompt, parameters, model.system_prompts || {});
+  const promptData  = buildPrompt(tool_type, prompt, normalizedParameters, model.system_prompts || {});
 
   const result = await query(
     `INSERT INTO ai_generations
@@ -250,7 +264,7 @@ const createGeneration = async (userId, {
       userId, model.id, tool_type,
       model.openrouter_id, model.name,
       promptData.user,
-      JSON.stringify({ ...parameters, _system: promptData.system }),
+      JSON.stringify({ ...normalizedParameters, _system: promptData.system }),
       source_post_id || null,
       source_job_id  || null,
     ]

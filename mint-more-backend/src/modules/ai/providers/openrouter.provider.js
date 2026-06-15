@@ -2,6 +2,9 @@ const env    = require('../../../config/env');
 const logger = require('../../../utils/logger');
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
+const VIDEO_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
+let videoModelsCache = null;
+let videoModelsCacheExpiresAt = 0;
 const openRouterHeaders = () => ({
   Authorization: `Bearer ${env.ai.openrouterKey}`,
   'Content-Type': 'application/json',
@@ -170,6 +173,70 @@ const fetchOpenRouterModels = async () => {
   }
 };
 
+const fetchOpenRouterVideoModels = async () => {
+  if (videoModelsCache && Date.now() < videoModelsCacheExpiresAt) {
+    return videoModelsCache;
+  }
+
+  try {
+    assertConfigured();
+    const response = await fetch(`${OPENROUTER_BASE}/videos/models`, {
+      headers: { Authorization: `Bearer ${env.ai.openrouterKey}` },
+    });
+    const data = await parseProviderJson(response, 'video model discovery');
+    if (!response.ok) {
+      throw new Error(data.error?.message || `OpenRouter video model discovery error: ${response.status}`);
+    }
+
+    videoModelsCache = (data.data || []).map((model) => ({
+      ...model,
+      supported_durations: [...(model.supported_durations || [])].sort((a, b) => a - b),
+    }));
+    videoModelsCacheExpiresAt = Date.now() + VIDEO_MODELS_CACHE_TTL_MS;
+    return videoModelsCache;
+  } catch (err) {
+    logger.error('fetchOpenRouterVideoModels failed', { error: err.message });
+    return videoModelsCache || [];
+  }
+};
+
+const getOpenRouterVideoModel = async (openrouterId) => {
+  const videoModels = await fetchOpenRouterVideoModels();
+  if (videoModels.length === 0) {
+    const error = new Error('OpenRouter video model catalog is temporarily unavailable');
+    error.retryable = true;
+    throw error;
+  }
+
+  const model = videoModels.find((candidate) => candidate.id === openrouterId);
+  if (!model) {
+    const error = new Error(`Model ${openrouterId} is not an available video generation model`);
+    error.retryable = false;
+    throw error;
+  }
+  return model;
+};
+
+const normalizeVideoParameters = (modelCapabilities, params = {}) => {
+  const supportedDurations = modelCapabilities.supported_durations || [];
+  const supportedAspectRatios = modelCapabilities.supported_aspect_ratios || [];
+  const supportedResolutions = modelCapabilities.supported_resolutions || [];
+  const requestedDuration = Number(params.duration);
+
+  return {
+    ...params,
+    duration: supportedDurations.includes(requestedDuration)
+      ? requestedDuration
+      : supportedDurations[0],
+    aspect_ratio: supportedAspectRatios.includes(params.aspect_ratio)
+      ? params.aspect_ratio
+      : supportedAspectRatios[0],
+    resolution: supportedResolutions.includes(params.resolution)
+      ? params.resolution
+      : supportedResolutions[0],
+  };
+};
+
 /**
  * Generate video via OpenRouter video generation endpoint.
  *
@@ -190,13 +257,15 @@ const fetchOpenRouterModels = async () => {
 const generateVideo = async (openrouterId, prompt, params = {}) => {
   const startTime = Date.now();
 
+  const modelCapabilities = await getOpenRouterVideoModel(openrouterId);
+  const normalizedParams = normalizeVideoParameters(modelCapabilities, params);
   const {
-    duration        = 5,      // seconds (4-10 depending on model)
-    aspect_ratio    = '16:9', // '16:9' | '9:16' | '1:1'
+    duration,
+    aspect_ratio,
+    resolution,
     first_frame_url = null,   // image-to-video: URL of first frame
     last_frame_url  = null,   // some models support last frame too
-    resolution      = '720p', // '720p' | '1080p'
-  } = params;
+  } = normalizedParams;
 
   // Build request body
   const body = {
@@ -322,4 +391,7 @@ module.exports = {
   generateImage,
   generateVideo,
   fetchOpenRouterModels,
+  fetchOpenRouterVideoModels,
+  getOpenRouterVideoModel,
+  normalizeVideoParameters,
 };
