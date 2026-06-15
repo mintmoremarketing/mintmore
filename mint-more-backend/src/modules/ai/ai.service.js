@@ -356,7 +356,12 @@ const processGeneration = async (generationId) => {
       result = await generateVideo(openrouterId, generation.prompt, params);
 
       // Download video and store in Supabase Storage
-      const videoRes  = await fetch(result.url);
+      const videoRes  = await fetch(result.url, { headers: result.download_headers || {} });
+      if (!videoRes.ok) {
+        const error = new Error(`Generated video download failed with status ${videoRes.status}`);
+        error.retryable = videoRes.status === 429 || videoRes.status >= 500;
+        throw error;
+      }
       const buffer    = Buffer.from(await videoRes.arrayBuffer());
       const filePath  = `ai-generated/${generation.user_id}/${generationId}.mp4`;
       const storedUrl = await uploadFile('job-attachments', filePath, buffer, 'video/mp4');

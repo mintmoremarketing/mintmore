@@ -2,6 +2,38 @@ const env    = require('../../../config/env');
 const logger = require('../../../utils/logger');
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
+const openRouterHeaders = () => ({
+  Authorization: `Bearer ${env.ai.openrouterKey}`,
+  'Content-Type': 'application/json',
+  'HTTP-Referer': 'https://mintmoremarketing.com',
+  'X-Title': 'Mint More AI',
+});
+
+const parseProviderJson = async (response, operation) => {
+  const contentType = response.headers.get('content-type') || '';
+  const body = await response.text();
+  if (!contentType.includes('application/json')) {
+    const error = new Error(
+      `OpenRouter ${operation} returned ${response.status} ${contentType || 'without a content type'} instead of JSON`
+    );
+    error.retryable = response.status >= 500;
+    logger.error('OpenRouter returned non-JSON response', {
+      operation,
+      status: response.status,
+      contentType,
+      bodyPreview: body.slice(0, 180),
+    });
+    throw error;
+  }
+  try {
+    return JSON.parse(body);
+  } catch {
+    const error = new Error(`OpenRouter ${operation} returned invalid JSON`);
+    error.retryable = response.status >= 500;
+    throw error;
+  }
+};
+
 const assertConfigured = () => {
   if (!env.ai.openrouterKey || !env.ai.openrouterKey.startsWith('sk-or-')) {
     throw new Error('OpenRouter is not configured with a valid OPENROUTER_API_KEY');
@@ -142,11 +174,11 @@ const fetchOpenRouterModels = async () => {
  * Generate video via OpenRouter video generation endpoint.
  *
  * OpenRouter video generation API:
- * POST /v1/video/generations
+ * POST /v1/videos
  *
  * Supports:
  * - text-to-video: just a prompt
- * - image-to-video: prompt + first_frame_image (base64 or URL)
+ * - image-to-video: prompt + frame_images
  *
  * Returns a generation ID -> we poll for completion.
  *
@@ -175,56 +207,79 @@ const generateVideo = async (openrouterId, prompt, params = {}) => {
     resolution,
   };
 
-  if (first_frame_url) body.first_frame_image = first_frame_url;
-  if (last_frame_url)  body.last_frame_image  = last_frame_url;
+  const frameImages = [];
+  if (first_frame_url) {
+    frameImages.push({
+      type: 'image_url',
+      image_url: { url: first_frame_url },
+      frame_type: 'first_frame',
+    });
+  }
+  if (last_frame_url) {
+    frameImages.push({
+      type: 'image_url',
+      image_url: { url: last_frame_url },
+      frame_type: 'last_frame',
+    });
+  }
+  if (frameImages.length) body.frame_images = frameImages;
 
   // Step 1 - Submit generation request
-  const submitRes = await fetch(`${OPENROUTER_BASE}/video/generations`, {
+  assertConfigured();
+  const submitRes = await fetch(`${OPENROUTER_BASE}/videos`, {
     method:  'POST',
-    headers: {
-      Authorization:  `Bearer ${env.ai.openrouterKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://mintmoremarketing.com',
-      'X-Title':      'Mint More AI',
-    },
+    headers: openRouterHeaders(),
     body: JSON.stringify(body),
   });
 
-  const submitData = await submitRes.json();
+  const submitData = await parseProviderJson(submitRes, 'video submission');
 
   if (!submitRes.ok) {
     const errorMsg = submitData.error?.message || `OpenRouter video error: ${submitRes.status}`;
     logger.error('OpenRouter video submit error', { openrouterId, error: errorMsg });
-    throw new Error(errorMsg);
+    const error = new Error(errorMsg);
+    error.retryable = submitRes.status === 429 || submitRes.status >= 500;
+    throw error;
   }
 
   const generationJobId = submitData.id;
-  if (!generationJobId) throw new Error('OpenRouter returned no video generation ID');
+  if (!generationJobId) {
+    const error = new Error('OpenRouter returned no video generation ID');
+    error.retryable = false;
+    throw error;
+  }
 
   logger.info('Video generation submitted', { openrouterId, generationJobId });
 
   // Step 2 - Poll for completion (max 10 minutes for video)
   const maxWaitMs   = 10 * 60 * 1000;
-  const pollEveryMs = 5000;
+  const pollEveryMs = 10000;
   const deadline    = Date.now() + maxWaitMs;
+  const pollingUrl = submitData.polling_url?.startsWith('http')
+    ? submitData.polling_url
+    : `${OPENROUTER_BASE}/videos/${generationJobId}`;
 
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, pollEveryMs));
 
-    const pollRes = await fetch(
-      `${OPENROUTER_BASE}/video/generations/${generationJobId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${env.ai.openrouterKey}`,
-        },
+    const pollRes = await fetch(pollingUrl, {
+      headers: { Authorization: `Bearer ${env.ai.openrouterKey}` },
+    });
+
+    const pollData = await parseProviderJson(pollRes, 'video polling');
+    if (!pollRes.ok) {
+      const error = new Error(pollData.error?.message || `OpenRouter video polling error: ${pollRes.status}`);
+      error.retryable = pollRes.status === 429 || pollRes.status >= 500;
+      throw error;
+    }
+
+    if (pollData.status === 'completed') {
+      const videoUrl = pollData.unsigned_urls?.[0];
+      if (!videoUrl) {
+        const error = new Error('Video generation completed but no URL returned');
+        error.retryable = false;
+        throw error;
       }
-    );
-
-    const pollData = await pollRes.json();
-
-    if (pollData.status === 'completed' || pollData.status === 'succeeded') {
-      const videoUrl = pollData.url || pollData.video_url || pollData.output?.[0];
-      if (!videoUrl) throw new Error('Video generation completed but no URL returned');
 
       const duration_ms = Date.now() - startTime;
       logger.info('Video generation completed', {
@@ -236,12 +291,18 @@ const generateVideo = async (openrouterId, prompt, params = {}) => {
         duration_ms,
         duration_seconds: duration,
         generation_job_id: generationJobId,
+        download_headers: { Authorization: `Bearer ${env.ai.openrouterKey}` },
       };
     }
 
-    if (pollData.status === 'failed' || pollData.status === 'error') {
-      const msg = pollData.error?.message || pollData.message || 'Video generation failed';
-      throw new Error(msg);
+    if (['failed', 'cancelled', 'expired'].includes(pollData.status)) {
+      const error = new Error(
+        typeof pollData.error === 'string'
+          ? pollData.error
+          : pollData.error?.message || pollData.message || `Video generation ${pollData.status}`
+      );
+      error.retryable = false;
+      throw error;
     }
 
     logger.debug('Video generation still processing', {
@@ -251,7 +312,9 @@ const generateVideo = async (openrouterId, prompt, params = {}) => {
     });
   }
 
-  throw new Error('Video generation timed out after 10 minutes');
+  const error = new Error('Video generation timed out after 10 minutes');
+  error.retryable = true;
+  throw error;
 };
 
 module.exports = {

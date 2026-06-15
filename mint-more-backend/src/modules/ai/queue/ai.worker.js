@@ -1,4 +1,4 @@
-const { Worker } = require('bullmq');
+const { Worker, UnrecoverableError } = require('bullmq');
 const { getRedis }  = require('../../../config/redis');
 const { processGeneration } = require('../ai.service');
 const logger = require('../../../utils/logger');
@@ -13,7 +13,14 @@ const startAIWorker = () => {
     async (job) => {
       const { generationId } = job.data;
       logger.info('AI worker processing', { generationId, attempt: job.attemptsMade + 1 });
-      await processGeneration(generationId);
+      try {
+        await processGeneration(generationId);
+      } catch (error) {
+        if (error.retryable === false) {
+          throw new UnrecoverableError(error.message);
+        }
+        throw error;
+      }
     },
     {
       connection:  getRedis(),
