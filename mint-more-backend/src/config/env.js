@@ -79,6 +79,10 @@ const env = {
     webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET?.trim(),
   },
 
+  payments: {
+    mockCheckout: process.env.PAYMENT_MOCK_CHECKOUT === 'true',
+  },
+
   upload: {
     maxFileSizeMb:    parseInt(process.env.MAX_FILE_SIZE_MB, 10) || 5,
     allowedFileTypes: process.env.ALLOWED_FILE_TYPES
@@ -154,10 +158,11 @@ const env = {
 const requiredAlways = [
   'JWT_ACCESS_SECRET',
   'JWT_REFRESH_SECRET',
-  'RAZORPAY_KEY_ID',
-  'RAZORPAY_KEY_SECRET',
-  'RAZORPAY_WEBHOOK_SECRET',
 ];
+
+if (!env.payments.mockCheckout) {
+  requiredAlways.push('RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET');
+}
 
 const requiredInProd = [
   'DB_HOST',

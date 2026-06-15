@@ -9,7 +9,9 @@ const { writeAudit } = require('../audit/audit.service');
 const { enqueueOutboxEvent } = require('../events/outbox.service');
 const logger = require('../../utils/logger');
 
-const razorpay = new Razorpay({ key_id: env.razorpay.keyId, key_secret: env.razorpay.keySecret });
+const razorpay = env.payments.mockCheckout
+  ? null
+  : new Razorpay({ key_id: env.razorpay.keyId, key_secret: env.razorpay.keySecret });
 
 const assertRazorpayConfigured = () => {
   const keyId = env.razorpay.keyId || '';
@@ -43,7 +45,6 @@ const getMembership = async (userId) => {
 };
 
 const createCheckout = async (userId, { kind = 'membership', days } = {}) => {
-  assertRazorpayConfigured();
   const config = await getSetting(kind === 'access_pass' ? 'access_passes' : 'membership.monthly', {});
   const pass = kind === 'access_pass'
     ? (config || []).find((entry) => Number(entry.days) === Number(days))
@@ -51,6 +52,43 @@ const createCheckout = async (userId, { kind = 'membership', days } = {}) => {
   if (kind === 'access_pass' && !pass) throw new AppError('Access pass is unavailable', 400);
   const amount = kind === 'access_pass' ? Number(pass.price) : Number(config.price || 999);
   const membership = await getMembership(userId);
+  if (env.payments.mockCheckout) {
+    const dbClient = await getClient();
+    try {
+      await dbClient.query('BEGIN');
+      const result = await dbClient.query(
+        `INSERT INTO membership_payments
+           (membership_id,user_id,kind,amount,status,metadata)
+         VALUES ($1,$2,$3,$4,'created',$5)
+         RETURNING *`,
+        [
+          membership?.id || null,
+          userId,
+          kind,
+          amount,
+          JSON.stringify({ days: pass?.days || null, mock_checkout: true }),
+        ]
+      );
+      const payment = result.rows[0];
+      const activated = await activatePayment(dbClient, payment, `mock_${crypto.randomUUID()}`);
+      await dbClient.query('COMMIT');
+      logger.warn('Mock membership checkout activated', { userId, kind, amount, paymentId: payment.id });
+      return {
+        checkout_mode: 'mock',
+        payment,
+        amount,
+        currency: 'INR',
+        activated,
+      };
+    } catch (error) {
+      await dbClient.query('ROLLBACK');
+      throw error;
+    } finally {
+      dbClient.release();
+    }
+  }
+
+  assertRazorpayConfigured();
   if (kind === 'membership' && config.razorpay_plan_id) {
     if (membership?.razorpay_subscription_id && membership.auto_renew && membership.status === 'active') {
       throw new AppError('Your recurring membership is already active', 409);

@@ -1,4 +1,5 @@
 const { query } = require('../../config/database');
+const env = require('../../config/env');
 const { getSetting } = require('./settings.service');
 const { expireCreditsForUser } = require('./credits.service');
 
@@ -82,6 +83,7 @@ const getEntitlements = async (userId) => {
     membership,
     access_pass: accessPass,
     mint_credits: Number(creditsResult.rows[0]?.balance || 0),
+    payment_checkout_mode: env.payments.mockCheckout ? 'mock' : 'razorpay',
     can_create_job: fullAccess && kycVerified && user.is_approved,
     // Drafts are workspace data, not a paid feature. Active clients must be
     // able to save work before verification or membership checkout.

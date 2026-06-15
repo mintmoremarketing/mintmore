@@ -20,9 +20,27 @@ export default function Membership() {
 
   const checkout = useMutation({
     mutationFn: payload => commerceApi.checkout(payload),
-    onSuccess: (res, payload) => openRazorpay(res.data.data, payload),
+    onSuccess: async (res, payload) => {
+      const checkoutData = res.data.data
+      if (checkoutData.checkout_mode === 'mock') {
+        await refreshMembershipState()
+        pushToast({
+          title: payload.kind === 'access_pass' ? 'Test access pass activated' : 'Test membership activated',
+          body: 'No payment was collected in test checkout mode.',
+          icon: 'check',
+        })
+        return
+      }
+      openRazorpay(checkoutData, payload)
+    },
     onError: err => pushToast({ title: 'Checkout failed', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
   })
+
+  const refreshMembershipState = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['entitlements'] }),
+    queryClient.invalidateQueries({ queryKey: ['mint-credits'] }),
+    queryClient.invalidateQueries({ queryKey: ['membership'] }),
+  ])
 
   function openRazorpay(order, payload) {
     const launch = () => {
@@ -35,10 +53,7 @@ export default function Membership() {
         handler: async response => {
           try {
             await commerceApi.verify(response)
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ['entitlements'] }),
-              queryClient.invalidateQueries({ queryKey: ['mint-credits'] }),
-            ])
+            await refreshMembershipState()
             pushToast({ title: payload.kind === 'access_pass' ? 'Access pass activated' : 'Membership activated', icon: 'check' })
           } catch (error) {
             pushToast({ title: 'Payment verification failed', body: error.response?.data?.message || 'Contact support', tone: 'amber', icon: 'x' })
@@ -88,7 +103,9 @@ export default function Membership() {
             {periodEnd ? `Access valid until ${new Date(periodEnd).toLocaleDateString('en-IN')}` : 'Subscribe to unlock business tools.'}
           </div>
           <div style={{ marginTop: 8, color: 'rgba(255,255,255,.58)', fontSize: 11.5, lineHeight: 1.45 }}>
-            Memberships and access passes are paid securely through Razorpay. Cash Wallet and MintCoins remain untouched.
+            {access?.payment_checkout_mode === 'mock'
+              ? 'Testing mode is active. Checkout activates access without collecting money.'
+              : 'Memberships and access passes are paid securely through Razorpay. Cash Wallet and MintCoins remain untouched.'}
           </div>
           <div className="row" style={{ marginTop: 20, gap: 8 }}>
             <button className="btn mint" onClick={() => checkout.mutate({ kind: 'membership' })} disabled={checkout.isPending}>
