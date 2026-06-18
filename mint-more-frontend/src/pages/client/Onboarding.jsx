@@ -28,7 +28,7 @@ export default function Onboarding() {
     queryKey: ['my-profile'],
     queryFn: () => api.get('/profile/me').then(res => res.data.data),
   })
-  const profile = data?.profile || data || {}
+  const profile = useMemo(() => data?.profile || data || {}, [data])
 
   useEffect(() => {
     if (!profile.id) return
@@ -39,7 +39,14 @@ export default function Onboarding() {
       preferred_language: profile.preferred_language || 'en',
       customer_profile: profile.customer_profile || '',
     })
-  }, [profile.id])
+  }, [
+    profile.id,
+    profile.business_name,
+    profile.business_type,
+    profile.address_city,
+    profile.preferred_language,
+    profile.customer_profile,
+  ])
 
   const checklist = useMemo(() => ({
     profile: Boolean(form.business_name && form.business_type && form.address_city && form.customer_profile),

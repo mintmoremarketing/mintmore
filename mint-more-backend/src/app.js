@@ -38,6 +38,8 @@ const inquiryRouter      = require('./modules/inquiries/inquiry.routes');
 const mintboxRouter      = require('./modules/mintbox/mintbox.routes');
 const commerceRouter     = require('./modules/commerce/commerce.routes');
 const disputeRouter      = require('./modules/disputes/dispute.routes');
+const creativeRouter     = require('./modules/creative/creative.routes');
+const supportRouter      = require('./modules/support/support.routes');
 
 // Initialise SSE subscriber (does not require main Redis client)
 initSSESubscriber();
@@ -105,6 +107,8 @@ app.use(`/api/${env.apiVersion}/inquiries`,     inquiryRouter);
 app.use(`/api/${env.apiVersion}/mintbox`,       mintboxRouter);
 app.use(`/api/${env.apiVersion}/commerce`,      commerceRouter);
 app.use(`/api/${env.apiVersion}/disputes`,      disputeRouter);
+app.use(`/api/${env.apiVersion}/creative`,      creativeRouter);
+app.use(`/api/${env.apiVersion}/support`,       supportRouter);
 
 app.use(notFound);
 app.use(errorHandler);

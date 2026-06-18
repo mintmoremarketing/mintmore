@@ -61,6 +61,17 @@ const createAdminUser = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const createDesignerUser = async (req, res, next) => {
+  try {
+    const user = await adminService.createDesignerUser(req.user.sub, req.body);
+    return sendSuccess(res, {
+      data: { user },
+      message: 'Designer created successfully',
+      statusCode: 201,
+    });
+  } catch (err) { next(err); }
+};
+
 const setAdminPermissions = async (req, res, next) => {
   try {
     const user = await adminService.setAdminPermissions(
@@ -70,6 +81,20 @@ const setAdminPermissions = async (req, res, next) => {
       Boolean(req.body.is_super_admin)
     );
     return sendSuccess(res, { data: { user }, message: 'Admin permissions updated' });
+  } catch (err) { next(err); }
+};
+
+const deleteUserData = async (req, res, next) => {
+  try {
+    const result = await adminService.deleteUserData(
+      req.params.userId,
+      req.user.sub,
+      req.body || {}
+    );
+    return sendSuccess(res, {
+      data: result,
+      message: 'User and related user data deleted',
+    });
   } catch (err) { next(err); }
 };
 
@@ -180,7 +205,9 @@ module.exports = {
   getUserById,
   setUserApproval,
   createAdminUser,
+  createDesignerUser,
   setAdminPermissions,
+  deleteUserData,
   setFreelancerLevel,
   getCategories,
   createCategory,

@@ -320,17 +320,22 @@ button:focus {
 /* .page is the only scrolling region on desktop */
 .page {
   flex: 1;
-  padding: 28px 32px 80px;
-  max-width: 1240px;
+  padding: 24px 24px 80px;
+  max-width: none;
   width: 100%;
-  margin: 0 auto;
+  margin: 0;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 .app.mobile .page {
-  padding: 8px 18px 100px;
+  padding: 8px 12px 100px;
+}
+
+[title]:hover > .mini-calendar-tooltip,
+[title]:focus-within > .mini-calendar-tooltip {
+  display: block !important;
 }
 
 /* ── Wallet chip ─────────────────────────────────────────────── */

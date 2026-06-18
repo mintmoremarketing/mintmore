@@ -289,6 +289,7 @@ export default function AdminDashboard() {
             <div className="h-eyebrow" style={{ marginBottom: 12 }}>Admin tools</div>
             <div className="stack" style={{ gap: 6 }}>
               {[
+                { icon: 'calendar', label: 'Operations',       route: '/admin/operations' },
                 { icon: 'user',     label: 'Manage users',     route: '/admin/users' },
                 { icon: 'zap',      label: 'Approve deals',    route: '/admin/approvals' },
                 { icon: 'wallet',   label: 'Platform wallet',  route: '/admin/wallet' },

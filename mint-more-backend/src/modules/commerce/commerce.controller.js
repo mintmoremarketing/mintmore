@@ -38,7 +38,7 @@ const updateSetting = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 const audit = async (req, res, next) => {
-  try { return sendSuccess(res, { data: { logs: await listAuditLogs(req.query) } }); } catch (err) { next(err); }
+  try { return sendSuccess(res, { data: await listAuditLogs(req.query) }); } catch (err) { next(err); }
 };
 const adjustCredits = async (req, res, next) => {
   try {

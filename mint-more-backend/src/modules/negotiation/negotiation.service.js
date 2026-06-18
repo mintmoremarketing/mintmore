@@ -1039,7 +1039,6 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
     // Hold escrow from client wallet — non-blocking, post-commit
     setImmediate(async () => {
       try {
-        return;
         await holdEscrow({
           jobId:        jobId,
           clientId:     negotiation.client_id,
@@ -1060,7 +1059,6 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
     setImmediate(async () => {
       try {
         // Find client's WhatsApp number + best MM channel for this job's category
-        return;
         const [clientResult, jobCatResult] = await Promise.all([
           query('SELECT whatsapp_number FROM users WHERE id = $1', [negotiation.client_id]),
           query(
@@ -1089,7 +1087,6 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
     });
     setImmediate(async () => {
       try {
-        return;
         await triggers.notifyDealApproved({
           job,
           freelancerUserId: negotiation.freelancer_id,

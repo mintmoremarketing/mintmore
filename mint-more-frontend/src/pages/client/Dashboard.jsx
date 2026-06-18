@@ -1,262 +1,377 @@
+import { useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
-import { api } from '../../api/client'
+import { creativeApi } from '../../api/creative'
 import { mintboxApi } from '../../api/mintbox'
+import { socialApi } from '../../api/social'
+import { api } from '../../api/client'
 import Icon from '../../components/ui/Icon'
-import StatusChip from '../../components/ui/StatusChip'
-import { rupee } from '../../utils/format'
-import { SkeletonCard } from '../../components/ui/Skeleton'
 
 const GB = 1024 * 1024 * 1024
 
 const formatBytes = (bytes = 0) => {
-	if (bytes >= GB) return `${(bytes / GB).toFixed(1)} GB`
-	if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-	if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
-	return `${bytes} B`
+  if (bytes >= GB) return `${(bytes / GB).toFixed(1)} GB`
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${bytes} B`
+}
+
+const startOfDay = (date) => {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+const sameDay = (a, b) => startOfDay(a).getTime() === startOfDay(b).getTime()
+const monthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+
+function MiniCalendar({ events = [], tasks = [], onOpenCalendar }) {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const first = new Date(year, month, 1)
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const leading = first.getDay()
+  const cells = [
+    ...Array.from({ length: leading }, (_, i) => ({ key: `blank-${i}`, blank: true })),
+    ...Array.from({ length: daysInMonth }, (_, i) => {
+      const date = new Date(year, month, i + 1)
+      const dayEvents = events.filter(event => event.event_date && sameDay(event.event_date, date) && !event.selection?.task_id)
+      const dayTasks = tasks.filter(task => task.due_date && sameDay(task.due_date, date))
+      return { key: date.toISOString(), date, dayEvents, dayTasks }
+    }),
+  ]
+  const describeCell = (cell) => {
+    if (cell.blank) return ''
+    const dayEvents = cell.dayEvents || []
+    const dayTasks = cell.dayTasks || []
+    const lines = [
+      cell.date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }),
+      ...dayEvents.map(event => `${event.title} - ${event.asset_type?.replace(/_/g, ' ') || 'creative'}`),
+      ...dayTasks.map(task => `${task.title} - ${task.client_status || task.status}`),
+    ]
+    return lines.join('\n')
+  }
+
+  return (
+    <div className="card" style={{ padding: 18 }}>
+      <div className="row between" style={{ marginBottom: 14 }}>
+        <div>
+          <div className="h-eyebrow">This month</div>
+          <div style={{ fontWeight: 650 }}>{now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</div>
+        </div>
+        <button className="btn ghost sm" onClick={onOpenCalendar}>Open</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, fontSize: 11, color: 'var(--ink-500)', marginBottom: 8 }}>
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => <div key={`${day}-${idx}`} style={{ textAlign: 'center' }}>{day}</div>)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+        {cells.map(cell => {
+          const dayEvents = cell.dayEvents || []
+          const dayTasks = cell.dayTasks || []
+          const details = [
+            ...dayEvents.map(event => ({ title: event.title, meta: event.asset_type?.replace(/_/g, ' ') || 'creative', tone: 'event' })),
+            ...dayTasks.map(task => ({ title: task.title, meta: task.client_status || task.status, tone: 'task' })),
+          ]
+          return (
+          <div
+            key={cell.key}
+            title={describeCell(cell)}
+            style={{
+              aspectRatio: '1',
+              borderRadius: 8,
+              border: cell.blank ? '1px solid transparent' : '1px solid var(--hairline)',
+              background: cell.blank ? 'transparent' : sameDay(cell.date, now) ? 'var(--mint-50)' : 'var(--paper)',
+              display: 'grid',
+              placeItems: 'center',
+              position: 'relative',
+              fontSize: 12,
+              fontWeight: !cell.blank && sameDay(cell.date, now) ? 700 : 500,
+              color: cell.blank ? 'transparent' : 'var(--ink-900)',
+            }}
+          >
+            {!cell.blank && cell.date.getDate()}
+            {!cell.blank && (dayEvents.length > 0 || dayTasks.length > 0) && (
+              <span style={{
+                position: 'absolute',
+                bottom: 4,
+                width: 5,
+                height: 5,
+                borderRadius: '50%',
+                background: dayTasks.length ? 'var(--mint-500)' : 'var(--amber)',
+              }} />
+            )}
+            {!cell.blank && details.length > 0 && (
+              <div
+                className="mini-calendar-tooltip"
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  bottom: 'calc(100% + 8px)',
+                  transform: 'translateX(-50%)',
+                  width: 220,
+                  padding: 10,
+                  border: '1px solid var(--hairline)',
+                  background: 'var(--paper)',
+                  boxShadow: 'var(--shadow-md)',
+                  borderRadius: 8,
+                  zIndex: 5,
+                  display: 'none',
+                  textAlign: 'left',
+                  pointerEvents: 'none',
+                }}
+              >
+                <div className="h-eyebrow" style={{ marginBottom: 6 }}>
+                  {cell.date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                </div>
+                <div className="stack" style={{ gap: 6 }}>
+                  {details.map((item, index) => (
+                    <div key={`${item.title}-${index}`} style={{ fontSize: 11.5, lineHeight: 1.35 }}>
+                      <strong>{item.title}</strong>
+                      <div className="muted" style={{ fontSize: 10.5 }}>{item.meta}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export default function ClientDashboard() {
-	const navigate = useNavigate()
-	const { user, isGuest } = useAuthStore()
-	const setShowTopUp = useUIStore((s) => s.setShowTopUp)
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const pushToast = useUIStore(s => s.pushToast)
+  const { user, isGuest } = useAuthStore()
 
-	const now = new Date()
-	const hour = now.getHours()
-	const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+  const { data: workData } = useQuery({
+    queryKey: ['creative-work'],
+    queryFn: () => creativeApi.work().then(r => r.data.data),
+    enabled: !isGuest,
+  })
+  const { data: calendarData } = useQuery({
+    queryKey: ['creative-calendar', monthKey()],
+    queryFn: () => creativeApi.calendar({ month: monthKey() }).then(r => r.data.data),
+    enabled: !isGuest,
+  })
+  const { data: mintboxData } = useQuery({
+    queryKey: ['mintbox'],
+    queryFn: () => mintboxApi.getFolders().then((r) => r.data.data),
+    enabled: !isGuest,
+  })
+  const { data: profileData } = useQuery({
+    queryKey: ['my-profile'],
+    queryFn: () => api.get('/profile/me').then((r) => r.data.data),
+    enabled: !isGuest,
+  })
+  const { data: accountsData } = useQuery({
+    queryKey: ['social-accounts'],
+    queryFn: () => socialApi.getAccounts().then(r => r.data.data),
+    enabled: !isGuest,
+  })
+  const { data: analyticsData } = useQuery({
+    queryKey: ['social-analytics-summary'],
+    queryFn: () => socialApi.getAnalyticsSummary().then(r => r.data.data),
+    enabled: !isGuest,
+  })
 
-	const { data: walletData } = useQuery({
-		queryKey: ['wallet'],
-		queryFn: () => api.get('/wallet').then((r) => r.data.data),
-		enabled: !isGuest,
-	})
+  useEffect(() => {
+    const socialError = searchParams.get('social_error')
+    const connected = searchParams.get('social_connected')
+    if (socialError) {
+      pushToast({
+        title: socialError === 'access_denied' ? 'Social connection cancelled' : 'Social connection failed',
+        body: socialError === 'access_denied' ? 'No problem, you can connect it later from Insights.' : socialError,
+        tone: 'amber',
+      })
+      setSearchParams({})
+    } else if (connected) {
+      pushToast({ title: 'Social account connected', body: 'Insights will update as data comes in.' })
+      setSearchParams({})
+    }
+  }, [pushToast, searchParams, setSearchParams])
 
-	const { data: jobsData, isLoading } = useQuery({
-		queryKey: ['jobs', 'active'],
-		queryFn: () => api.get('/jobs').then((r) => r.data.data),
-		enabled: !isGuest,
-	})
+  const profile = profileData?.profile || profileData || {}
+  const accounts = accountsData?.accounts || []
+  const connectedAccounts = accounts.filter(account => account.is_active)
+  const onboarding = profile.onboarding_checklist || {}
+  const setupItems = [
+    Boolean(onboarding.profile),
+    Boolean(onboarding.language),
+    connectedAccounts.length > 0,
+    profile.kyc_status === 'verified',
+  ]
+  const setupDone = setupItems.filter(Boolean).length
+  const quota = mintboxData?.quota || { used: 0, limit: 10 * GB }
+  const usedPct = quota?.limit ? Math.min(100, (quota.used / quota.limit) * 100) : 0
 
-	const { data: mintboxData } = useQuery({
-		queryKey: ['mintbox'],
-		queryFn: () => mintboxApi.getFolders().then((r) => r.data.data),
-		enabled: !isGuest,
-	})
+  const tasks = useMemo(() => workData?.tasks || [], [workData?.tasks])
+  const requests = useMemo(() => workData?.requests || [], [workData?.requests])
+  const events = calendarData?.events || []
+  const today = useMemo(() => startOfDay(new Date()), [])
+  const tomorrow = useMemo(() => {
+    const next = new Date(today)
+    next.setDate(next.getDate() + 1)
+    return next
+  }, [today])
 
-	const { data: profileData } = useQuery({
-		queryKey: ['my-profile'],
-		queryFn: () => api.get('/profile/me').then((r) => r.data.data),
-		enabled: !isGuest,
-	})
-	const profile = profileData?.profile || profileData || {}
-	const onboarding = profile.onboarding_checklist || {}
-	const onboardingItems = [
-		Boolean(onboarding.profile),
-		Boolean(onboarding.language),
-		Boolean(onboarding.social),
-		profile.kyc_status === 'verified',
-	]
-	const onboardingDone = onboardingItems.filter(Boolean).length
+  const todayTasks = useMemo(() => tasks.filter(task => task.due_date && sameDay(task.due_date, today)), [tasks, today])
+  const tomorrowTasks = useMemo(() => tasks.filter(task => task.due_date && sameDay(task.due_date, tomorrow)), [tasks, tomorrow])
+  const inProgress = tasks.filter(task => ['assigned', 'in_progress', 'revision', 'pending'].includes(task.status))
+  const done = tasks.filter(task => ['delivered', 'completed'].includes(task.status))
+  const taskSourceIds = new Set(tasks.map(task => `${task.source_type}-${task.source_id}`))
+  const activeRequests = requests
+    .filter(request => !taskSourceIds.has(`custom_request-${request.id}`))
+    .filter(request => !['completed', 'cancelled', 'rejected'].includes(request.status))
+    .slice(0, 4)
+  const summary = analyticsData?.summary
 
-	const activeJobs = jobsData?.jobs?.filter((j) =>
-		['matching', 'locked', 'negotiating', 'in_progress', 'assigned'].includes(j.status)
-	) || []
+  const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'
 
-	const wallet = isGuest ? { balance: 999, escrow_balance: 0 } : walletData?.wallet
-	const quota = isGuest ? { used: 0, limit: 10 * GB } : mintboxData?.quota
-	const usedPct = quota?.limit ? Math.min(100, (quota.used / quota.limit) * 100) : 0
-	const openAccount = () => navigate('/register')
-	const requireAccount = (route) => isGuest ? openAccount : () => navigate(route)
+  return (
+    <div className="stack-6">
+      <div className="reveal">
+        <div className="h-eyebrow" style={{ marginBottom: 4 }}>
+          {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </div>
+        <h1 className="h-display" style={{ fontSize: 30, margin: 0, lineHeight: 1.15 }}>
+          {greeting}, {user?.full_name?.split(' ')[0] || 'there'}.
+        </h1>
+      </div>
 
-	return (
-		<div className="stack-6">
-			<div className="reveal" data-d="0">
-				<div className="h-eyebrow" style={{ marginBottom: 4 }}>
-					{now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
-				</div>
-				<h1 className="h-display" style={{ fontSize: 30, margin: 0, lineHeight: 1.15 }}>
-					{greeting}, {user?.full_name?.split(' ')[0]}.
-				</h1>
-			</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(320px, .7fr)', gap: 18, alignItems: 'stretch' }}>
+        <div className="card-ink reveal" style={{ position: 'relative', overflow: 'hidden', minHeight: 330 }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 86% 18%, rgba(16,185,129,.22), transparent 46%)' }} />
+          <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 220px', gap: 20, alignItems: 'center', height: '100%' }}>
+            <div>
+              <div className="row between" style={{ marginBottom: 18 }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,.64)', textTransform: 'uppercase', letterSpacing: .04 }}>Mint More calendar</span>
+                <span className="badge mint" style={{ background: 'rgba(16,185,129,.18)', border: '1px solid rgba(16,185,129,.3)', color: 'var(--mint-200)' }}>
+                  <span className="bdot" /> Internal creative team
+                </span>
+              </div>
+              <div style={{ fontSize: 34, fontWeight: 650, letterSpacing: '-0.02em' }}>
+                {todayTasks.length ? `${todayTasks.length} creative${todayTasks.length === 1 ? '' : 's'} due today` : 'Your creative calendar is clear today'}
+              </div>
+              <p style={{ color: 'rgba(255,255,255,.68)', margin: '8px 0 0', maxWidth: 520 }}>
+                Track what Mint More is creating, what is due next, and which calendar moments are already handled.
+              </p>
+              <div className="row wrap" style={{ marginTop: 22, gap: 8 }}>
+                <button className="btn mint" onClick={() => navigate('/calendar')}>
+                  <Icon name="calendar" /> View full calendar
+                </button>
+                <button className="btn link" style={{ color: 'rgba(255,255,255,.85)' }} onClick={() => navigate('/jobs/new')}>
+                  New custom request <Icon name="arrowRight" />
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {[
+                ['In progress', inProgress.length],
+                ['Done', done.length],
+                ['Tomorrow', tomorrowTasks.length],
+              ].map(([label, value]) => (
+                <div key={label} style={{ border: '1px solid rgba(255,255,255,.14)', borderRadius: 12, padding: 14, background: 'rgba(255,255,255,.05)' }}>
+                  <div style={{ color: 'rgba(255,255,255,.58)', fontSize: 12 }}>{label}</div>
+                  <div className="mono" style={{ fontSize: 25, fontWeight: 700 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
-			<div className="grid-2" style={{ gridTemplateColumns: '1.4fr 1fr', gap: 14 }}>
-				<div className="card-ink reveal" data-d="1" style={{ position: 'relative', overflow: 'hidden' }}>
-					<div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.18), transparent 50%)' }} />
-					<div style={{ position: 'relative' }}>
-						<div className="row between" style={{ marginBottom: 18 }}>
-							<span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: 0.04 }}>Wallet balance</span>
-							<span className="badge mint" style={{ background: 'rgba(16,185,129,0.18)', border: '1px solid rgba(16,185,129,0.3)', color: 'var(--mint-200)' }}>
-								<span className="bdot" style={{ background: 'var(--mint-300)' }} /> Escrow-protected
-							</span>
-						</div>
-						<div className="row" style={{ alignItems: 'baseline', gap: 10 }}>
-							<span style={{ fontFamily: 'var(--font-display)', fontSize: 44, fontWeight: 500, letterSpacing: '-0.02em' }}>
-								{wallet ? rupee(wallet.balance) : '-'}
-							</span>
-						</div>
-						<div className="row" style={{ gap: 20, marginTop: 14, fontSize: 12 }}>
-							<div>
-								<div style={{ color: 'rgba(255,255,255,0.5)' }}>Available</div>
-								<div className="mono" style={{ color: 'white', marginTop: 2 }}>{wallet ? rupee(wallet.balance) : '-'}</div>
-							</div>
-							<div style={{ width: 1, height: 26, background: 'rgba(255,255,255,0.1)' }} />
-							<div>
-								<div style={{ color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
-									<Icon name="lock" size={11} /> In escrow
-								</div>
-								<div className="mono" style={{ color: 'white', marginTop: 2 }}>{wallet ? rupee(wallet.escrow_balance) : '-'}</div>
-							</div>
-						</div>
-						<div className="row" style={{ marginTop: 22, gap: 8 }}>
-							<button className="btn mint" onClick={isGuest ? openAccount : () => setShowTopUp(true)}>
-								<Icon name="plus" /> Top up wallet
-							</button>
-							<button className="btn link" style={{ color: 'rgba(255,255,255,0.85)' }} onClick={requireAccount('/wallet')}>
-								View transactions <Icon name="arrowRight" />
-							</button>
-						</div>
-					</div>
-				</div>
+        <MiniCalendar events={events} tasks={tasks} onOpenCalendar={() => navigate('/calendar')} />
+      </div>
 
-				<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-					{[
-						{ icon: 'plus', label: 'Post a new brief', sub: 'Get matched in ~6 min', onClick: requireAccount('/jobs/new'), primary: true },
-						{ icon: 'user', label: 'Browse freelancers', sub: 'Marketplace access', onClick: requireAccount('/freelancers') },
-						{ icon: 'sparkles', label: 'Mint AI', sub: 'Captions, scripts', onClick: requireAccount('/ai') },
-						{ icon: 'layers', label: 'Schedule a post', sub: '2 platforms', onClick: requireAccount('/social') },
-					].map((a) => (
-						<button
-							key={a.label}
-							onClick={a.onClick}
-							style={{
-								background: 'var(--paper)',
-								border: '1px solid var(--hairline)',
-								borderRadius: 'var(--radius-md)',
-								padding: 12,
-								textAlign: 'left',
-								cursor: 'pointer',
-								transition: 'all 0.12s ease',
-								display: 'flex',
-								flexDirection: 'column',
-								gap: 8,
-								minHeight: 88,
-							}}
-							onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--ink-300)' }}
-							onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--hairline)' }}
-						>
-							<div style={{ width: 28, height: 28, borderRadius: 8, background: a.primary ? 'var(--ink-950)' : 'var(--paper-tint)', color: a.primary ? 'white' : 'var(--ink-700)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-								<Icon name={a.icon} size={14} />
-							</div>
-							<div>
-								<div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-950)' }}>{a.label}</div>
-								<div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 2 }}>{a.sub}</div>
-							</div>
-						</button>
-					))}
-				</div>
-			</div>
+      {setupDone < setupItems.length && (
+        <div className="card reveal" style={{ padding: 18 }}>
+          <div className="row between" style={{ gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div className="h-eyebrow" style={{ marginBottom: 5 }}>Setup</div>
+              <div style={{ fontSize: 16, fontWeight: 650 }}>Make Mint More work around your business</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{setupDone} of {setupItems.length} steps complete</div>
+              <div style={{ height: 6, background: 'var(--hairline)', borderRadius: 3, overflow: 'hidden', marginTop: 10 }}>
+                <div style={{ width: `${(setupDone / setupItems.length) * 100}%`, height: '100%', background: 'var(--mint-500)' }} />
+              </div>
+            </div>
+            <button className="btn primary" onClick={() => navigate('/settings?section=setup')}>
+              Continue setup <Icon name="arrowRight" size={12} />
+            </button>
+          </div>
+        </div>
+      )}
 
-			{!isGuest && onboardingDone < onboardingItems.length && (
-				<div className="card reveal" style={{ padding: 18 }}>
-					<div className="row between" style={{ gap: 16 }}>
-						<div style={{ flex: 1 }}>
-							<div className="h-eyebrow" style={{ marginBottom: 5 }}>Account setup</div>
-							<div style={{ fontSize: 16, fontWeight: 600 }}>Make Mint More work around your business</div>
-							<div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{onboardingDone} of {onboardingItems.length} setup steps complete</div>
-							<div style={{ height: 6, background: 'var(--hairline)', borderRadius: 3, overflow: 'hidden', marginTop: 10 }}>
-								<div style={{ width: `${(onboardingDone / onboardingItems.length) * 100}%`, height: '100%', background: 'var(--mint-500)' }} />
-							</div>
-						</div>
-						<button className="btn primary" onClick={() => navigate('/onboarding')}>
-							Continue setup <Icon name="arrowRight" size={12} />
-						</button>
-					</div>
-				</div>
-			)}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: 18, alignItems: 'start' }}>
+        <section className="stack" style={{ gap: 12 }}>
+          <div className="row between">
+            <h2 className="h-display h-3" style={{ margin: 0 }}>In production</h2>
+            <button className="btn link sm" onClick={() => navigate('/jobs')}>See all <Icon name="arrowRight" size={12} /></button>
+          </div>
+          {inProgress.length === 0 && activeRequests.length === 0 ? (
+            <div className="empty">
+              <div className="empty-glyph"><Icon name="calendar" size={22} /></div>
+              <h3>No creatives queued yet</h3>
+              <p>Pick calendar events or send a custom request to Mint More.</p>
+              <button className="btn primary" onClick={() => navigate('/calendar')}><Icon name="plus" /> Choose creatives</button>
+            </div>
+          ) : (
+            [...inProgress, ...activeRequests].slice(0, 6).map(item => (
+              <button key={`${item.id}-${item.title}`} className="job-card" style={{ padding: 16 }} onClick={() => navigate('/jobs')}>
+                <div className="row between">
+                  <span className="badge neutral">{item.source_type ? 'Production task' : 'Custom request'}</span>
+                  <span className="badge mint">{item.client_status || item.status?.replace(/_/g, ' ')}</span>
+                </div>
+                <div className="title" style={{ marginTop: 8 }}>{item.title}</div>
+                <div className="description">{item.description || 'Mint More is reviewing this item.'}</div>
+              </button>
+            ))
+          )}
+        </section>
 
-			<div className="card reveal" data-d="2" style={{ padding: 18 }}>
-				<div className="row between" style={{ gap: 14, marginBottom: 14 }}>
-					<div>
-						<div className="h-eyebrow" style={{ marginBottom: 5 }}>Mintbox storage</div>
-						<div style={{ fontSize: 20, fontWeight: 600, color: 'var(--ink-950)' }}>
-							{formatBytes(quota?.used || 0)} used
-						</div>
-					</div>
-					<button className="btn ghost sm" onClick={requireAccount('/mintbox')}>
-						Open Mintbox <Icon name="arrowRight" size={12} />
-					</button>
-				</div>
-				<div className="row between" style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 8 }}>
-					<span>Total space</span>
-					<span className="mono">{formatBytes(quota?.limit || 10 * GB)}</span>
-				</div>
-				<div style={{ height: 7, background: 'var(--hairline)', borderRadius: 4, overflow: 'hidden' }}>
-					<div style={{ height: '100%', width: `${usedPct}%`, background: usedPct > 90 ? 'var(--rose)' : 'var(--mint-500)' }} />
-				</div>
-			</div>
+        <aside className="stack" style={{ gap: 14 }}>
+          <div className="card" style={{ padding: 18 }}>
+            <div className="row between" style={{ marginBottom: 10 }}>
+              <div className="h-eyebrow">Social growth</div>
+              <button className="btn ghost sm" onClick={() => navigate('/social')}>Open</button>
+            </div>
+            <div className="mono" style={{ fontSize: 26, fontWeight: 700 }}>{Number(summary?.reach || 0).toLocaleString('en-IN')}</div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 3 }}>people reached in the last {summary?.period_days || 30} days</div>
+            <div className="row wrap" style={{ gap: 6, marginTop: 12 }}>
+              <span className="badge neutral">{connectedAccounts.length} connected</span>
+              <span className="badge mint">{summary?.engagement_rate_percent || 0}% engagement</span>
+            </div>
+          </div>
 
-			<div className="stack reveal" data-d="3">
-				<div className="row between" style={{ alignItems: 'flex-end' }}>
-					<h2 className="h-display h-3" style={{ margin: 0 }}>Active jobs</h2>
-					<button className="btn link sm" onClick={requireAccount('/jobs')}>
-						See all <Icon name="arrowRight" size={12} />
-					</button>
-				</div>
-				{isLoading ? (
-					<div className="grid-3" style={{ gap: 10 }}>
-						<SkeletonCard /><SkeletonCard /><SkeletonCard />
-					</div>
-				) : activeJobs.length === 0 ? (
-					<div className="empty">
-						<div className="empty-glyph"><Icon name="briefcase" size={22} /></div>
-						<h3>No active jobs yet</h3>
-						<p>Post your first brief and we'll match you with the right creative.</p>
-						<button className="btn primary" onClick={requireAccount('/jobs/new')}>
-							<Icon name="plus" /> Post a brief
-						</button>
-					</div>
-				) : (
-					<div className="grid-3" style={{ gap: 10 }}>
-						{activeJobs.slice(0, 3).map((j) => (
-							<button key={j.id} className="job-card" onClick={() => navigate(`/jobs/${j.id}`)}>
-								<div className="row between">
-									<span className="h-eyebrow" style={{ color: 'var(--ink-500)' }}>{j.category?.name || 'General'}</span>
-									<StatusChip status={j.status} />
-								</div>
-								<div className="title">{j.title}</div>
-								<div className="description">{j.description}</div>
-								<div className="divider" style={{ margin: '12px 0 8px' }} />
-								<div className="row between" style={{ fontSize: 11.5 }}>
-									<span className="muted">Budget</span>
-									<span className="mono" style={{ color: 'var(--ink-900)', fontWeight: 500 }}>
-										{rupee(j.budget_amount || 0)}
-									</span>
-								</div>
-							</button>
-						))}
-					</div>
-				)}
-			</div>
+          <div className="card" style={{ padding: 18 }}>
+            <div className="row between" style={{ marginBottom: 10 }}>
+              <div className="h-eyebrow">Mintbox</div>
+              <button className="btn ghost sm" onClick={() => navigate('/mintbox')}>Open</button>
+            </div>
+            <div className="row between muted" style={{ fontSize: 12, marginBottom: 8 }}>
+              <span>{formatBytes(quota?.used || 0)} used</span>
+              <span>{formatBytes(quota?.limit || 10 * GB)}</span>
+            </div>
+            <div style={{ height: 7, background: 'var(--hairline)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${usedPct}%`, background: usedPct > 90 ? 'var(--rose)' : 'var(--mint-500)' }} />
+            </div>
+          </div>
 
-			<div className="card-mint reveal" data-d="6" style={{ position: 'relative', overflow: 'hidden' }}>
-				<div className="row between" style={{ marginBottom: 6 }}>
-					<span className="h-eyebrow" style={{ color: 'var(--mint-800)' }}>Tip · Marketplace</span>
-					<Icon name="sparkles" style={{ color: 'var(--mint-700)' }} size={14} />
-				</div>
-				<h3 className="h-display" style={{ fontSize: 17, margin: '4px 0 8px', color: 'var(--ink-950)' }}>
-					Unlock browse access for ₹599
-				</h3>
-				<p style={{ fontSize: 12.5, color: 'var(--ink-700)', lineHeight: 1.55, margin: '0 0 14px' }}>
-					Skip matching and reach out directly to top creatives across India. 30 days of unlimited browse.
-				</p>
-				<div className="row">
-					<button className="btn mint sm" onClick={requireAccount('/addons')}>
-						Unlock for ₹599 <Icon name="arrowRight" size={12} />
-					</button>
-				</div>
-			</div>
-		</div>
-	)
+          <div className="card" style={{ padding: 18 }}>
+            <div className="h-eyebrow" style={{ marginBottom: 12 }}>Next actions</div>
+            <div className="stack" style={{ gap: 8 }}>
+              <button className="nav-item" onClick={() => navigate('/calendar')}><Icon name="calendar" /> Choose monthly creatives</button>
+              <button className="nav-item" onClick={() => navigate('/jobs/new')}><Icon name="briefcase" /> Request custom design</button>
+              <button className="nav-item" onClick={() => navigate('/social')}><Icon name="trending" /> View insights</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
 }

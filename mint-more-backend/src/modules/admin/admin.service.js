@@ -189,7 +189,54 @@ const createAdminUser = async (adminId, { email, password, full_name, permission
     createdBy: adminId,
     adminUserId: result.rows[0].id,
   });
+  await writeAudit({
+    actorId: adminId,
+    actorRole: 'admin',
+    action: 'admin.created',
+    entityType: 'user',
+    entityId: result.rows[0].id,
+    afterState: result.rows[0],
+    metadata: {
+      email: result.rows[0].email,
+      permissions,
+    },
+  });
 
+  return result.rows[0];
+};
+
+const createDesignerUser = async (adminId, { email, password, full_name }) => {
+  if (!email || !password || !full_name) {
+    throw new AppError('email, password, and full_name are required', 400);
+  }
+  if (password.length < 8) {
+    throw new AppError('Password must be at least 8 characters', 400);
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const existing = await query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
+  if (existing.rows[0]) throw new AppError('An account with this email already exists', 409);
+
+  const passwordHash = await hashPassword(password);
+  const result = await query(
+    `INSERT INTO users
+       (email, password_hash, full_name, role, is_approved, approved_by, approved_at)
+     VALUES ($1, $2, $3, 'designer', true, $4, NOW())
+     RETURNING id, email, full_name, role, is_approved, created_at`,
+    [normalizedEmail, passwordHash, full_name.trim(), adminId]
+  );
+
+  await writeAudit({
+    actorId: adminId,
+    actorRole: 'admin',
+    action: 'designer.created',
+    entityType: 'user',
+    entityId: result.rows[0].id,
+    afterState: result.rows[0],
+    metadata: { email: result.rows[0].email },
+  });
+
+  logger.info('Designer user created', { createdBy: adminId, designerId: result.rows[0].id });
   return result.rows[0];
 };
 
@@ -227,6 +274,110 @@ const setAdminPermissions = async (targetUserId, adminId, permissions, isSuperAd
  * - beginner / intermediate: admin sets directly
  * - experienced: requires admin approval flag
  */
+const quoteIdent = (value) => `"${String(value).replace(/"/g, '""')}"`;
+const qualifiedTable = (ref) => `${quoteIdent(ref.schema_name)}.${quoteIdent(ref.table_name)}`;
+
+const getUserForeignKeyReferences = async (dbClient) => {
+  const result = await dbClient.query(
+    `SELECT
+       con.conname,
+       n.nspname AS schema_name,
+       c.relname AS table_name,
+       a.attname AS column_name,
+       a.attnotnull
+     FROM pg_constraint con
+     JOIN pg_class c ON c.oid = con.conrelid
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = con.conkey[1]
+     WHERE con.contype = 'f'
+       AND con.confrelid = 'public.users'::regclass
+       AND cardinality(con.conkey) = 1
+     ORDER BY a.attnotnull ASC, c.relname ASC`
+  );
+  return result.rows;
+};
+
+const deleteUserData = async (targetUserId, adminId, { confirm_email } = {}) => {
+  if (targetUserId === adminId) throw new AppError('You cannot delete your own account', 400);
+
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+
+    const userResult = await dbClient.query(
+      `SELECT id, email, full_name, role, is_super_admin, created_at
+       FROM users WHERE id = $1 FOR UPDATE`,
+      [targetUserId]
+    );
+    const user = userResult.rows[0];
+    if (!user) throw new AppError('User not found', 404);
+    if (user.is_super_admin) throw new AppError('Super admin accounts cannot be hard-deleted here', 403);
+    if (confirm_email !== user.email) {
+      throw new AppError('Type the user email exactly to confirm deletion', 400);
+    }
+
+    await writeAudit({
+      actorId: adminId,
+      actorRole: 'admin',
+      action: 'user.hard_delete.requested',
+      entityType: 'user',
+      entityId: targetUserId,
+      beforeState: user,
+    });
+
+    const touched = [];
+    const refs = await getUserForeignKeyReferences(dbClient);
+
+    for (const ref of refs.filter(row => !row.attnotnull)) {
+      const result = await dbClient.query(
+        `UPDATE ${qualifiedTable(ref)} SET ${quoteIdent(ref.column_name)} = NULL WHERE ${quoteIdent(ref.column_name)} = $1`,
+        [targetUserId]
+      );
+      if (result.rowCount) touched.push({ table: `${ref.schema_name}.${ref.table_name}`, action: 'nullified', rows: result.rowCount });
+    }
+
+    for (let pass = 0; pass < 4; pass += 1) {
+      let changed = false;
+      for (const ref of refs.filter(row => row.attnotnull && row.table_name !== 'users')) {
+        const result = await dbClient.query(
+          `DELETE FROM ${qualifiedTable(ref)} WHERE ${quoteIdent(ref.column_name)} = $1`,
+          [targetUserId]
+        );
+        if (result.rowCount) {
+          changed = true;
+          touched.push({ table: `${ref.schema_name}.${ref.table_name}`, action: 'deleted', rows: result.rowCount });
+        }
+      }
+      if (!changed) break;
+    }
+
+    const deleted = await dbClient.query(
+      `DELETE FROM users WHERE id = $1 RETURNING id, email, full_name, role`,
+      [targetUserId]
+    );
+    if (!deleted.rows[0]) throw new AppError('User could not be deleted', 409);
+
+    await writeAudit({
+      actorId: adminId,
+      actorRole: 'admin',
+      action: 'user.hard_deleted',
+      entityType: 'user',
+      entityId: targetUserId,
+      beforeState: user,
+      afterState: { deleted: true, touched },
+    });
+
+    await dbClient.query('COMMIT');
+    logger.warn('User hard deleted by admin', { targetUserId, adminId, touched });
+    return { user: deleted.rows[0], touched };
+  } catch (error) {
+    await dbClient.query('ROLLBACK');
+    throw error;
+  } finally {
+    dbClient.release();
+  }
+};
+
 const setFreelancerLevel = async (targetUserId, adminId, { level }) => {
   const userResult = await query(
     'SELECT role FROM users WHERE id = $1',
@@ -484,7 +635,9 @@ module.exports = {
   getUserById,
   setUserApproval,
   createAdminUser,
+  createDesignerUser,
   setAdminPermissions,
+  deleteUserData,
   setFreelancerLevel,
   getCategories,
   createCategory,

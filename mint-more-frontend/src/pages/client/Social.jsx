@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/auth'
 import { socialApi } from '../../api/social'
@@ -13,6 +13,123 @@ const PLATFORM_META = {
   facebook:  { icon: 'facebook',  label: 'Facebook',  color: '#1877F2' },
   instagram: { icon: 'instagram', label: 'Instagram',  color: '#E1306C' },
   youtube:   { icon: 'youtube',   label: 'YouTube',    color: '#FF0000' },
+}
+
+const normalizePlatforms = (value) => {
+  if (Array.isArray(value)) return value.filter(Boolean)
+  if (!value) return []
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return []
+    try {
+      const parsed = JSON.parse(trimmed)
+      return normalizePlatforms(parsed)
+    } catch {
+      return trimmed
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean)
+    }
+  }
+  if (typeof value === 'object') {
+    return Object.values(value).flatMap(item => normalizePlatforms(item))
+  }
+  return []
+}
+
+function SocialPostPreview({ platform, account, caption, hashtags, contentType, mediaUrl }) {
+  const meta = PLATFORM_META[platform] || PLATFORM_META.facebook
+  const name = account?.page_name || account?.platform_name || account?.platform_username || 'Your business'
+  const handle = account?.platform_username || name
+  const text = [caption, hashtags].filter(Boolean).join('\n')
+
+  if (platform === 'instagram') {
+    return (
+      <div style={{ border: '1px solid var(--hairline)', borderRadius: 16, overflow: 'hidden', background: 'var(--paper)', maxWidth: 360 }}>
+        <div className="row between" style={{ padding: '12px 14px' }}>
+          <div className="row" style={{ gap: 9 }}>
+            <div style={{ width: 34, height: 34, borderRadius: '50%', background: `${meta.color}18`, display: 'grid', placeItems: 'center', color: meta.color }}>
+              <Icon name={meta.icon} size={16} />
+            </div>
+            <strong style={{ fontSize: 13 }}>{handle}</strong>
+          </div>
+          <Icon name="more" size={16} />
+        </div>
+        <div style={{ aspectRatio: '1', background: 'var(--paper-tint)', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+          {mediaUrl ? (
+            contentType === 'video' || contentType === 'reel'
+              ? <video src={mediaUrl} muted controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <img src={mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ color: 'var(--ink-400)', textAlign: 'center', padding: 20 }}>
+              <Icon name="image" />
+              <div style={{ fontSize: 12, marginTop: 6 }}>Media preview</div>
+            </div>
+          )}
+        </div>
+        <div style={{ padding: 14 }}>
+          <div className="row" style={{ gap: 13, marginBottom: 9 }}>
+            <Icon name="heart" size={18} />
+            <Icon name="chat" size={18} />
+            <Icon name="send" size={18} />
+          </div>
+          <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
+            <strong>{handle}</strong> {text || 'Your caption will appear here.'}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (platform === 'youtube') {
+    return (
+      <div style={{ border: '1px solid var(--hairline)', borderRadius: 16, overflow: 'hidden', background: 'var(--paper)', maxWidth: 420 }}>
+        <div style={{ aspectRatio: '16 / 9', background: '#111827', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+          {mediaUrl && (contentType === 'video' || contentType === 'reel')
+            ? <video src={mediaUrl} muted controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <Icon name="youtube" size={38} style={{ color: meta.color }} />}
+        </div>
+        <div style={{ padding: 14 }}>
+          <strong style={{ display: 'block', marginBottom: 5 }}>{caption.split('\n')[0] || 'YouTube post preview'}</strong>
+          <div className="muted" style={{ fontSize: 12 }}>{name}</div>
+          <p style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{text || 'Description will appear here.'}</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--hairline)', borderRadius: 16, background: 'var(--paper)', maxWidth: 430, overflow: 'hidden' }}>
+      <div style={{ padding: 14 }}>
+        <div className="row" style={{ gap: 10 }}>
+          <div style={{ width: 40, height: 40, borderRadius: '50%', background: `${meta.color}16`, display: 'grid', placeItems: 'center', color: meta.color }}>
+            <Icon name={meta.icon} size={18} />
+          </div>
+          <div>
+            <strong style={{ fontSize: 14 }}>{name}</strong>
+            <div className="row" style={{ gap: 5, color: 'var(--ink-500)', fontSize: 12 }}>
+              Just now <span>-</span> <Icon name="globe" size={11} />
+            </div>
+          </div>
+        </div>
+        <p style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+          {text || 'Your caption will appear here.'}
+        </p>
+      </div>
+      {mediaUrl && (
+        <div style={{ maxHeight: 360, background: 'var(--paper-tint)', overflow: 'hidden' }}>
+          {contentType === 'video' || contentType === 'reel'
+            ? <video src={mediaUrl} muted controls style={{ width: '100%', display: 'block' }} />
+            : <img src={mediaUrl} alt="" style={{ width: '100%', display: 'block', objectFit: 'cover' }} />}
+        </div>
+      )}
+      <div className="row between" style={{ borderTop: '1px solid var(--hairline)', padding: '10px 18px', color: 'var(--ink-500)', fontSize: 13 }}>
+        <span><Icon name="thumbsUp" size={14} /> Like</span>
+        <span><Icon name="chat" size={14} /> Comment</span>
+        <span><Icon name="send" size={14} /> Share</span>
+      </div>
+    </div>
+  )
 }
 
 function AccountCard({ account, onDisconnect }) {
@@ -59,14 +176,14 @@ function AccountCard({ account, onDisconnect }) {
           background: isExp ? 'var(--rose)' : isLow ? 'var(--amber)' : 'var(--mint-500)',
         }} />
         {isExp ? (
-          <span style={{ color: 'var(--rose)', fontWeight: 500 }}>Token expired — reconnect needed</span>
+          <span style={{ color: 'var(--rose)', fontWeight: 500 }}>Token expired - reconnect needed</span>
         ) : isLow ? (
           <span style={{ color: 'var(--amber)' }}>
             Expires in {account.token_days_remaining} days
           </span>
         ) : (
           <span style={{ color: 'var(--ink-500)' }}>
-            Connected · {account.token_days_remaining ? `${account.token_days_remaining} days remaining` : 'Valid'}
+            Connected - {account.token_days_remaining ? `${account.token_days_remaining} days remaining` : 'Valid'}
           </span>
         )}
       </div>
@@ -87,6 +204,14 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
   const [step,        setStep]        = useState(1)
   const needsMedia = contentType !== 'text'
   const hasMedia = Boolean(mediaFile || mintboxMedia)
+  const mediaPreviewUrl = useMemo(() => {
+    if (mediaFile) return URL.createObjectURL(mediaFile)
+    return mintboxMedia?.media_url || ''
+  }, [mediaFile, mintboxMedia])
+
+  useEffect(() => () => {
+    if (mediaPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(mediaPreviewUrl)
+  }, [mediaPreviewUrl])
   const { data: mediaLibrary = [] } = useQuery({
     queryKey: ['social-media-library'],
     queryFn: () => socialApi.getMediaLibrary().then(r => r.data.data.media || []),
@@ -142,7 +267,6 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
   })
 
   const connectedPlatforms = accounts.filter(a => a.is_active)
-
   return (
     <Modal
       title="Create post"
@@ -164,7 +288,7 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
               onClick={() => createMutation.mutate()}
               disabled={createMutation.isPending || selectedPlatforms.length === 0 || (needsMedia && !hasMedia)}
             >
-              {createMutation.isPending ? 'Publishing…' : scheduleDate ? 'Schedule post' : 'Publish now'}
+              {createMutation.isPending ? 'Publishing...' : scheduleDate ? 'Schedule post' : 'Publish now'}
             </button>
           )}
         </div>
@@ -195,7 +319,7 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
               rows={5}
               value={caption}
               onChange={e => setCaption(e.target.value)}
-              placeholder="Write your caption…"
+              placeholder="Write your caption..."
             />
             <div style={{ fontSize: 11.5, color: 'var(--ink-400)', marginTop: 4 }}>
               {caption.length} characters
@@ -335,15 +459,15 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
           <div style={{ padding: 16, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
             <div className="h-eyebrow" style={{ marginBottom: 8 }}>Post summary</div>
             <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--ink-700)', marginBottom: 10 }}>
-              {caption.slice(0, 120)}{caption.length > 120 ? '…' : ''}
+              {caption.slice(0, 120)}{caption.length > 120 ? '...' : ''}
             </div>
             <div className="row" style={{ gap: 8 }}>
               {selectedPlatforms.map(id => {
-                const acc  = connectedPlatforms.find(a => a.id === id)
-                const meta = PLATFORM_META[acc?.platform] || {}
-                return (
-                  <span key={id} className="badge neutral" style={{ fontSize: 12 }}>
-                    <Icon name={meta.icon} size={11} style={{ color: meta.color }} />
+              const acc = connectedPlatforms.find(a => a.platform === id)
+              const meta = PLATFORM_META[id] || {}
+              return (
+                <span key={id} className="badge neutral" style={{ fontSize: 12 }}>
+                  <Icon name={meta.icon} size={11} style={{ color: meta.color }} />
                     &nbsp;{acc?.page_name || meta.label}
                   </span>
                 )
@@ -367,6 +491,30 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
               Scheduled for {new Date(scheduleDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
             </div>
           )}
+
+          <div>
+            <div className="h-eyebrow" style={{ marginBottom: 10 }}>Live preview</div>
+            <div style={{ display: 'grid', gap: 14 }}>
+              {selectedPlatforms.length === 0 ? (
+                <div className="empty" style={{ padding: 18 }}>
+                  <h3>Select a platform to preview the post</h3>
+                </div>
+              ) : selectedPlatforms.map(platform => {
+                const account = connectedPlatforms.find(a => a.platform === platform)
+                return (
+                  <SocialPostPreview
+                    key={platform}
+                    platform={platform}
+                    account={account}
+                    caption={caption}
+                    hashtags={hashtags}
+                    contentType={contentType}
+                    mediaUrl={mediaPreviewUrl}
+                  />
+                )
+              })}
+            </div>
+          </div>
         </div>
       )}
     </Modal>
@@ -377,7 +525,7 @@ export default function Social() {
   const { accessToken } = useAuthStore()
   const queryClient     = useQueryClient()
   const pushToast       = useUIStore(s => s.pushToast)
-  const [tab,          setTab]         = useState('accounts')
+  const [tab,          setTab]         = useState('analytics')
   const [showCreate,   setShowCreate]  = useState(false)
   const [postFilter,   setPostFilter]  = useState('all')
 
@@ -385,17 +533,22 @@ export default function Social() {
     queryKey: ['social-accounts'],
     queryFn:  () => socialApi.getAccounts().then(r => r.data.data),
   })
+  const accounts = accountsData?.accounts || []
+  const connectedAccounts = accounts.filter(account => account.is_active)
+  const effectiveTab = !accLoading && connectedAccounts.length === 0 && tab === 'analytics'
+    ? 'accounts'
+    : tab
 
   const { data: postsData, isLoading: postsLoading } = useQuery({
     queryKey: ['social-posts', postFilter],
     queryFn:  () => socialApi.listPosts(postFilter !== 'all' ? { status: postFilter } : {}).then(r => r.data.data),
-    enabled:  tab === 'posts',
+    enabled:  effectiveTab === 'posts',
   })
 
   const { data: analyticsData, isLoading: analyticsLoading } = useQuery({
     queryKey: ['social-analytics-summary'],
     queryFn: () => socialApi.getAnalyticsSummary().then(r => r.data.data),
-    enabled: tab === 'analytics',
+    enabled: effectiveTab === 'analytics',
   })
 
   const disconnectMutation = useMutation({
@@ -406,7 +559,6 @@ export default function Social() {
     },
   })
 
-  const accounts = accountsData?.accounts || []
   const posts    = postsData?.posts || []
   const summary  = analyticsData?.summary
 
@@ -415,23 +567,26 @@ export default function Social() {
       <div className="row between reveal">
         <div>
           <div className="h-eyebrow" style={{ marginBottom: 4 }}>Social media</div>
-          <h1 className="h-display h-1" style={{ margin: 0 }}>Publish &amp; schedule</h1>
+          <h1 className="h-display h-1" style={{ margin: 0 }}>Insights &amp; publishing</h1>
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            Track reach first, then plan posts for every connected channel from one place.
+          </p>
         </div>
-        {tab === 'posts' && (
+        {connectedAccounts.length > 0 && (
           <button className="btn primary" onClick={() => setShowCreate(true)}>
             <Icon name="plus" /> Create post
           </button>
         )}
       </div>
 
-      <Tabs value={tab} onChange={setTab} items={[
-        { value: 'accounts', label: 'Connected accounts' },
-        { value: 'posts',    label: 'Posts' },
+      <Tabs value={effectiveTab} onChange={setTab} items={[
         { value: 'analytics', label: 'Analytics' },
+        { value: 'posts',    label: 'Posts' },
+        { value: 'accounts', label: `Accounts (${connectedAccounts.length})` },
       ]} />
 
       {/* Accounts tab */}
-      {tab === 'accounts' && (
+      {effectiveTab === 'accounts' && (
         <div className="stack" style={{ gap: 14 }}>
           {/* Connect buttons */}
           <div className="card reveal" style={{ padding: 20 }}>
@@ -480,7 +635,7 @@ export default function Social() {
         </div>
       )}
 
-      {tab === 'analytics' && (
+      {effectiveTab === 'analytics' && (
         analyticsLoading ? <SkeletonCard /> : (
           <div className="stack" style={{ gap: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
@@ -496,6 +651,28 @@ export default function Social() {
                 </div>
               ))}
             </div>
+            <div className="grid-2" style={{ gap: 14 }}>
+              <div className="card" style={{ padding: 20 }}>
+                <div className="h-eyebrow">Connected channels</div>
+                <div style={{ fontSize: 28, fontWeight: 650, marginTop: 8 }}>{connectedAccounts.length}</div>
+                <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
+                  {connectedAccounts.length
+                    ? connectedAccounts.map(account => {
+                      const meta = PLATFORM_META[account.platform] || {}
+                      return <span key={account.id} className="badge neutral"><Icon name={meta.icon} size={11} style={{ color: meta.color }} /> {account.page_name || account.platform_name || meta.label}</span>
+                    })
+                    : <span className="muted">Connect Facebook, Instagram, or YouTube to start insights.</span>}
+                </div>
+              </div>
+              <div className="card" style={{ padding: 20 }}>
+                <div className="h-eyebrow">Posting queue</div>
+                <div style={{ fontSize: 28, fontWeight: 650, marginTop: 8 }}>{summary?.posts || 0}</div>
+                <p className="muted" style={{ margin: '6px 0 0' }}>published posts counted for this period.</p>
+                <button className="btn primary" style={{ marginTop: 12 }} disabled={!connectedAccounts.length} onClick={() => setShowCreate(true)}>
+                  <Icon name="plus" /> Create post
+                </button>
+              </div>
+            </div>
             <div className="card" style={{ padding: 20 }}>
               <div className="h-eyebrow">What this means</div>
               <p style={{ margin: '8px 0 0', lineHeight: 1.6 }}>{summary?.insight}</p>
@@ -508,7 +685,7 @@ export default function Social() {
       )}
 
       {/* Posts tab */}
-      {tab === 'posts' && (
+      {effectiveTab === 'posts' && (
         <div className="stack" style={{ gap: 14 }}>
           <div className="row" style={{ gap: 10 }}>
             <Tabs value={postFilter} onChange={setPostFilter} items={[
@@ -542,7 +719,7 @@ export default function Social() {
                 <div key={post.id} style={{ background: 'var(--paper)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-lg)', padding: 18 }}>
                   <div className="row between" style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 500, flex: 1, minWidth: 0 }}>
-                      {post.caption?.slice(0, 80)}{post.caption?.length > 80 ? '…' : ''}
+                      {post.caption?.slice(0, 80)}{post.caption?.length > 80 ? '...' : ''}
                     </div>
                     <span className={`badge ${post.status === 'published' ? 'mint' : post.status === 'failed' ? 'rose' : post.status === 'scheduled' ? 'violet' : 'neutral'}`} style={{ flexShrink: 0, marginLeft: 10 }}>
                       <span className="bdot" />{post.status}
@@ -550,7 +727,7 @@ export default function Social() {
                   </div>
 
                   <div className="row" style={{ gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                    {(post.target_platforms || []).map(p => {
+                    {normalizePlatforms(post.target_platforms).map(p => {
                       const meta = PLATFORM_META[p] || {}
                       return (
                         <span key={p} style={{ fontSize: 12, display: 'flex', gap: 4, alignItems: 'center', color: 'var(--ink-500)' }}>

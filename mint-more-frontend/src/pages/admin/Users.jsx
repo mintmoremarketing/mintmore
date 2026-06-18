@@ -288,11 +288,81 @@ function CreateAdminModal({ onClose }) {
   )
 }
 
+function DeleteUserModal({ user, onClose, onDeleted }) {
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore(s => s.pushToast)
+  const [confirmEmail, setConfirmEmail] = useState('')
+
+  const deleteUser = useMutation({
+    mutationFn: () => api.delete(`/admin/users/${user.id}`, {
+      data: { confirm_email: confirmEmail },
+    }),
+    onSuccess: (res) => {
+      const touched = res.data?.data?.touched || []
+      pushToast({
+        title: 'User deleted',
+        body: `${user.email} and related data were removed from ${touched.length} areas.`,
+        icon: 'check',
+      })
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      onDeleted()
+    },
+    onError: err => pushToast({
+      title: 'Could not delete user',
+      body: err.response?.data?.message || 'Try again',
+      tone: 'amber',
+      icon: 'x',
+    }),
+  })
+
+  return (
+    <Modal
+      title="Delete user data"
+      subtitle={user.email}
+      onClose={onClose}
+      maxWidth={460}
+      footer={
+        <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn ghost" onClick={onClose} disabled={deleteUser.isPending}>Cancel</button>
+          <button
+            className="btn"
+            style={{ background: 'var(--rose)', color: 'white' }}
+            onClick={() => deleteUser.mutate()}
+            disabled={deleteUser.isPending || confirmEmail !== user.email}
+          >
+            <Icon name="trash" size={13} />
+            {deleteUser.isPending ? 'Deleting...' : 'Delete user and data'}
+          </button>
+        </div>
+      }
+    >
+      <div className="stack" style={{ gap: 14 }}>
+        <div style={{ padding: 14, border: '1px solid rgba(225,29,72,.25)', background: 'rgba(225,29,72,.06)', borderRadius: 12 }}>
+          <strong style={{ display: 'block', marginBottom: 6 }}>This permanently deletes the account.</strong>
+          <div className="muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
+            Related user-owned rows such as social posts, media, wallet records, notifications, jobs, requests, and uploads will be removed or detached where the database allows.
+          </div>
+        </div>
+        <div className="field">
+          <label className="field-label">Type the user email to confirm</label>
+          <input
+            className="input"
+            value={confirmEmail}
+            onChange={event => setConfirmEmail(event.target.value)}
+            placeholder={user.email}
+          />
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 function UserDetailModal({ userId, onClose }) {
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
   const [showWalletAdjust, setShowWalletAdjust] = useState(false)
   const [showMintCoinAdjust, setShowMintCoinAdjust] = useState(false)
+  const [showDeleteUser, setShowDeleteUser] = useState(false)
   const [kycNote, setKycNote] = useState('')
   const { data: adminAccess } = useEntitlements()
   const adminPermissions = adminAccess?.admin_permissions || []
@@ -540,6 +610,13 @@ function UserDetailModal({ userId, onClose }) {
               Suspend user
             </button>
           )}
+          <button
+            className="btn ghost"
+            style={{ color: 'var(--rose)', marginLeft: 'auto' }}
+            onClick={() => setShowDeleteUser(true)}
+          >
+            <Icon name="trash" size={13} /> Delete user data
+          </button>
         </div>
       </div>
 
@@ -548,6 +625,16 @@ function UserDetailModal({ userId, onClose }) {
       )}
       {showMintCoinAdjust && (
         <MintCoinAdjustModal user={user} onClose={() => setShowMintCoinAdjust(false)} />
+      )}
+      {showDeleteUser && (
+        <DeleteUserModal
+          user={user}
+          onClose={() => setShowDeleteUser(false)}
+          onDeleted={() => {
+            setShowDeleteUser(false)
+            onClose()
+          }}
+        />
       )}
     </Modal>
   )

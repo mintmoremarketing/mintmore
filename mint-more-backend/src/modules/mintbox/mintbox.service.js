@@ -143,11 +143,13 @@ const getClientStorageLimit = async (clientId, dbClient = null) => {
 const getJobForAccess = async (jobId, requesterId, role, dbClient = null) => {
   const executor = dbClient || { query: (sql, params) => query(sql, params) };
   const result = await executor.query(
-    `SELECT j.*, ja.freelancer_id AS assignment_freelancer_id
+    `SELECT j.*, ja.freelancer_id AS assignment_freelancer_id,
+            task.assigned_to AS designer_id
      FROM jobs j
      LEFT JOIN job_assignments ja ON ja.job_id = j.id AND ja.status IN ('accepted', 'pending_acceptance')
+     LEFT JOIN creative_tasks task ON task.job_id = j.id AND task.assigned_to = $2
      WHERE j.id = $1`,
-    [jobId]
+    [jobId, requesterId]
   );
   const job = result.rows[0];
   if (!job) throw new AppError('Project not found', 404);
@@ -157,9 +159,10 @@ const getJobForAccess = async (jobId, requesterId, role, dbClient = null) => {
     job.active_freelancer_id === requesterId ||
     job.assignment_freelancer_id === requesterId
   );
+  const isDesigner = role === 'designer' && job.designer_id === requesterId;
   const isAdmin = role === 'admin';
 
-  if (!isClient && !isFreelancer && !isAdmin) {
+  if (!isClient && !isFreelancer && !isDesigner && !isAdmin) {
     throw new AppError('Mintbox folder not found', 404);
   }
 
@@ -318,7 +321,7 @@ const getPublicCategoryByShareToken = async (token) => {
 };
 
 const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, purpose = 'delivery' } = {}) => {
-  if (!['client', 'freelancer'].includes(role)) throw new AppError('Only project participants can upload files', 403);
+  if (!['client', 'freelancer', 'designer'].includes(role)) throw new AppError('Only project participants can upload files', 403);
   const uploadPurpose = role === 'client' ? 'brief' : 'delivery';
   validateMintboxFile({ name, size, type });
 
@@ -329,7 +332,7 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
     if (role === 'freelancer' && !['assigned', 'in_progress'].includes(job.status)) {
       throw new AppError('Work can only be submitted after the assignment starts', 400);
     }
-    if (role === 'freelancer') {
+    if (role === 'freelancer' || role === 'designer') {
       const dispute = await dbClient.query(
         `SELECT id FROM disputes WHERE job_id=$1 AND status IN ('open','under_review') LIMIT 1`,
         [job.id]
@@ -367,7 +370,7 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
 
     const ext = path.extname(safeName(name)).toLowerCase();
     const fileCategory = getFileCategory({ name, type });
-    const activeRevision = role === 'freelancer' ? await dbClient.query(
+    const activeRevision = role === 'freelancer' || role === 'designer' ? await dbClient.query(
       `SELECT round_number
        FROM mintbox_revision_rounds
        WHERE job_id = $1 AND status IN ('feedback_open', 'awaiting_delivery')
@@ -418,7 +421,7 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
 };
 
 const completeUpload = async (uploadId, uploaderId, role) => {
-  if (!['client', 'freelancer'].includes(role)) throw new AppError('Only project participants can complete uploads', 403);
+  if (!['client', 'freelancer', 'designer'].includes(role)) throw new AppError('Only project participants can complete uploads', 403);
 
   const dbClient = await getClient();
   try {
@@ -512,7 +515,7 @@ const completeUpload = async (uploadId, uploaderId, role) => {
       uploaderId,
       fileId: inserted.rows[0].id,
     });
-    if (role === 'freelancer') {
+    if (role === 'freelancer' || role === 'designer') {
       const job = await query('SELECT title, client_id FROM jobs WHERE id = $1', [session.job_id]);
       notificationService.createNotification({
         userId: job.rows[0].client_id,
@@ -540,7 +543,7 @@ const completeUpload = async (uploadId, uploaderId, role) => {
 };
 
 const cancelUpload = async (uploadId, uploaderId, role) => {
-  if (!['client', 'freelancer'].includes(role)) throw new AppError('Only project participants can cancel uploads', 403);
+  if (!['client', 'freelancer', 'designer'].includes(role)) throw new AppError('Only project participants can cancel uploads', 403);
   const result = await query(
     `UPDATE mintbox_upload_sessions
      SET status = 'cancelled'

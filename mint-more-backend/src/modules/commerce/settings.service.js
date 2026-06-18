@@ -15,6 +15,16 @@ const listSettings = async () => {
 
 const setSetting = async (key, value, admin, requestMeta = {}) => {
   if (!key || value === undefined) throw new AppError('key and value are required', 400);
+  if (key === 'feature_flags') {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new AppError('feature_flags must be an object', 400);
+    }
+    for (const [flag, enabled] of Object.entries(value)) {
+      if (typeof enabled !== 'boolean') {
+        throw new AppError(`${flag} must be true or false`, 400);
+      }
+    }
+  }
   if (key === 'membership.monthly') {
     const numericFields = [
       'price',

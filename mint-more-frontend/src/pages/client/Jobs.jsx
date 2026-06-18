@@ -1,112 +1,224 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { creativeApi } from '../../api/creative'
 import { jobsApi } from '../../api/jobs'
 import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
-import StatusChip from '../../components/ui/StatusChip'
 import { SkeletonCard } from '../../components/ui/Skeleton'
-import { rupee } from '../../utils/format'
+import { useUIStore } from '../../store/ui'
+
+const badgeTone = (status = '') => {
+  if (['completed', 'delivered'].includes(status)) return 'mint'
+  if (['pending_review', 'pending_ops_review', 'approved'].includes(status)) return 'amber'
+  return 'neutral'
+}
+
+const labelStatus = (status = '') => status.replace(/_/g, ' ')
 
 export default function Jobs() {
-	const navigate = useNavigate()
-	const [tab, setTab] = useState('all')
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore(s => s.pushToast)
+  const [tab, setTab] = useState('all')
 
-	const { data, isLoading } = useQuery({
-		queryKey: ['jobs'],
-		queryFn: () => jobsApi.list().then((r) => r.data.data.jobs || []),
-	})
+  const { data, isLoading } = useQuery({
+    queryKey: ['creative-work'],
+    queryFn: () => creativeApi.work().then((r) => r.data.data),
+  })
+  const { data: jobsData } = useQuery({
+    queryKey: ['jobs', 'drafts-for-requests'],
+    queryFn: () => jobsApi.list().then((r) => r.data.data.jobs || []),
+  })
+  const deleteDraft = useMutation({
+    mutationFn: (id) => jobsApi.deleteDraft(id),
+    onSuccess: () => {
+      pushToast({ title: 'Draft deleted', icon: 'trash' })
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not delete draft',
+        body: error?.response?.data?.message || 'Please try again.',
+        tone: 'danger',
+      })
+    },
+  })
 
-	const jobs = data || []
+  const items = useMemo(() => {
+    const rawTasks = data?.tasks || []
+    const taskSourceIds = new Set(rawTasks.map(task => `${task.source_type}-${task.source_id}`))
+    const drafts = (jobsData || [])
+      .filter(job => job.status === 'draft')
+      .map(job => ({
+        id: job.id,
+        type: 'draft',
+        title: job.title || 'Untitled request',
+        description: job.description === 'Brief in progress'
+          ? 'Continue answering a few quick questions to finish this request.'
+          : job.description || 'Draft request in progress.',
+        status: 'draft',
+        date: job.updated_at || job.created_at,
+        coin_cost: null,
+      }))
+    const tasks = rawTasks.map(task => ({
+      id: task.id,
+      type: 'task',
+      title: task.title,
+      description: task.client_status || task.description || 'Mint More production task.',
+      status: task.status,
+      date: task.due_date || task.created_at,
+      coin_cost: task.coin_cost,
+    }))
+    const requests = (data?.requests || [])
+      .filter(request => !taskSourceIds.has(`custom_request-${request.id}`))
+      .map(request => ({
+        id: request.id,
+        type: 'custom',
+        title: request.title,
+        description: request.description || 'Custom request sent to Mint More.',
+        status: request.status,
+        date: request.created_at,
+        coin_cost: request.coin_cost,
+      }))
+    const selections = (data?.selections || [])
+      .filter(selection => !selection.task_id && !taskSourceIds.has(`calendar_event-${selection.id}`))
+      .map(selection => ({
+        id: selection.id,
+        type: 'calendar',
+        title: selection.title,
+        description: selection.client_status || 'Calendar creative selected.',
+        status: selection.task_status || selection.status,
+        date: selection.event_date || selection.created_at,
+        coin_cost: selection.coin_cost,
+      }))
+    const seen = new Set()
+    return [...drafts, ...tasks, ...requests, ...selections]
+      .filter(item => {
+        const key = `${item.type}-${item.id}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+  }, [data, jobsData])
 
-	const filtered = jobs.filter((j) => {
-		if (tab === 'all') return true
-		if (tab === 'active') return ['matching', 'locked', 'negotiating', 'assigned', 'in_progress'].includes(j.status)
-		return j.status === tab
-	})
+  const filtered = items.filter(item => {
+    if (tab === 'all') return true
+    if (tab === 'draft') return item.status === 'draft'
+    if (tab === 'active') return ['pending', 'assigned', 'in_progress', 'revision', 'approved', 'pending_ops_review', 'pending_review'].includes(item.status)
+    return item.status === tab
+  })
 
-	const counts = {
-		all: jobs.length,
-		active: jobs.filter((j) => ['matching', 'locked', 'negotiating', 'assigned', 'in_progress'].includes(j.status)).length,
-		draft: jobs.filter((j) => j.status === 'draft').length,
-		completed: jobs.filter((j) => j.status === 'completed').length,
-	}
+  const counts = {
+    all: items.length,
+    draft: items.filter(item => item.status === 'draft').length,
+    active: items.filter(item => ['pending', 'assigned', 'in_progress', 'revision', 'approved', 'pending_ops_review', 'pending_review'].includes(item.status)).length,
+    delivered: items.filter(item => item.status === 'delivered').length,
+    completed: items.filter(item => item.status === 'completed').length,
+  }
 
-	return (
-		<div className="stack-6">
-			<div className="row between reveal">
-				<div>
-					<div className="h-eyebrow" style={{ marginBottom: 4 }}>Jobs</div>
-					<h1 className="h-display h-1" style={{ margin: 0 }}>Briefs &amp; campaigns</h1>
-				</div>
-				<button className="btn primary" onClick={() => navigate('/jobs/new')}>
-					<Icon name="plus" /> Post a new brief
-				</button>
-			</div>
+  return (
+    <div className="stack-6">
+      <div className="row between reveal">
+        <div>
+          <div className="h-eyebrow" style={{ marginBottom: 4 }}>Requests</div>
+          <h1 className="h-display h-1" style={{ margin: 0 }}>My creatives</h1>
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            Calendar picks and custom design requests handled by Mint More.
+          </p>
+        </div>
+        <button className="btn primary" onClick={() => navigate('/jobs/new')}>
+          <Icon name="plus" /> New custom request
+        </button>
+      </div>
 
-			<Tabs
-				value={tab}
-				onChange={setTab}
-				items={[
-					{ value: 'all', label: 'All', count: counts.all },
-					{ value: 'active', label: 'Active', count: counts.active },
-					{ value: 'draft', label: 'Drafts', count: counts.draft },
-					{ value: 'completed', label: 'Completed', count: counts.completed },
-				]}
-			/>
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: 'all', label: 'All', count: counts.all },
+          { value: 'draft', label: 'Drafts', count: counts.draft },
+          { value: 'active', label: 'Active', count: counts.active },
+          { value: 'delivered', label: 'Delivered', count: counts.delivered },
+          { value: 'completed', label: 'Completed', count: counts.completed },
+        ]}
+      />
 
-			<div className="stack" style={{ gap: 10 }}>
-				{isLoading ? (
-					[1, 2, 3].map((i) => <SkeletonCard key={i} />)
-				) : filtered.length === 0 ? (
-					<div className="empty">
-						<div className="empty-glyph"><Icon name="briefcase" size={22} /></div>
-						<h3>Nothing here yet</h3>
-						<p>Post your first brief and we'll start matching creatives.</p>
-						<button className="btn primary" onClick={() => navigate('/jobs/new')}>
-							<Icon name="plus" /> Post a brief
-						</button>
-					</div>
-				) : (
-					filtered.map((j) => (
-						<button
-							key={j.id}
-							className="job-card"
-							style={{ padding: 16 }}
-							onClick={() => navigate(j.status === 'draft' ? `/jobs/${j.id}/edit` : `/jobs/${j.id}`)}
-						>
-							<div className="row between">
-								<div className="row" style={{ gap: 10 }}>
-									<span className="badge neutral">{j.category?.name || 'General'}</span>
-									<StatusChip status={j.status} />
-								</div>
-								<Icon name="chevronRight" size={14} className="muted" />
-							</div>
-							<div style={{ marginTop: 8, fontWeight: 600, fontSize: 15.5, color: 'var(--ink-950)', letterSpacing: '-0.005em' }}>
-								{j.title}
-							</div>
-							<div style={{ fontSize: 12.5, color: 'var(--ink-600)', marginTop: 4 }}>
-								{j.status === 'draft' && j.description === 'Brief in progress'
-									? 'Continue answering a few quick questions to finish this brief.'
-									: `${j.description?.slice(0, 120) || 'Brief in progress'}...`}
-							</div>
-							<div className="row" style={{ marginTop: 12, gap: 18, fontSize: 11.5, color: 'var(--ink-500)' }}>
-								{j.status === 'draft' ? (
-									<span style={{ color: 'var(--mint-700)', fontWeight: 600 }}>
-										<Icon name="edit" size={11} /> &nbsp;Resume brief
-										{j.metadata?.brief_builder?.step ? ` · Step ${j.metadata.brief_builder.step} of ${j.metadata.brief_builder.total_steps || 13}` : ''}
-									</span>
-								) : (
-									<span><Icon name="calendar" size={11} /> &nbsp;Deadline {j.deadline ? new Date(j.deadline).toLocaleDateString('en-IN') : 'TBD'}</span>
-								)}
-								<span className="mono" style={{ color: 'var(--ink-900)', fontWeight: 500 }}>
-									{j.budget_amount ? rupee(j.budget_amount) : 'Open'}
-								</span>
-							</div>
-						</button>
-					))
-				)}
-			</div>
-		</div>
-	)
+      <div className="stack" style={{ gap: 10 }}>
+        {isLoading ? (
+          [1, 2, 3].map((i) => <SkeletonCard key={i} />)
+        ) : filtered.length === 0 ? (
+          <div className="empty">
+            <div className="empty-glyph"><Icon name="briefcase" size={22} /></div>
+            <h3>No requests yet</h3>
+            <p>Choose from the calendar or send a custom design request to Mint More.</p>
+            <div className="row wrap" style={{ justifyContent: 'center', gap: 8 }}>
+              <button className="btn primary" onClick={() => navigate('/calendar')}>
+                <Icon name="calendar" /> Open calendar
+              </button>
+              <button className="btn ghost" onClick={() => navigate('/jobs/new')}>
+                <Icon name="plus" /> Custom request
+              </button>
+            </div>
+          </div>
+        ) : (
+          filtered.map((item) => (
+            <div
+              key={`${item.type}-${item.id}`}
+              className="job-card"
+              style={{ padding: 16 }}
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate(item.type === 'draft' ? `/jobs/${item.id}/edit` : '/mintbox')}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  navigate(item.type === 'draft' ? `/jobs/${item.id}/edit` : '/mintbox')
+                }
+              }}
+            >
+              <div className="row between">
+                <div className="row" style={{ gap: 10 }}>
+                  <span className="badge neutral">{item.type === 'calendar' ? 'Calendar' : item.type === 'task' ? 'Production' : item.type === 'draft' ? 'Draft' : 'Custom'}</span>
+                  <span className={`badge ${badgeTone(item.status)}`}>{labelStatus(item.status)}</span>
+                </div>
+                {item.type === 'draft' ? (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="btn ghost sm"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      if (window.confirm('Delete this draft request?')) deleteDraft.mutate(item.id)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        if (window.confirm('Delete this draft request?')) deleteDraft.mutate(item.id)
+                      }
+                    }}
+                  >
+                    <Icon name="trash" size={12} /> Delete
+                  </span>
+                ) : (
+                  <Icon name="chevronRight" size={14} className="muted" />
+                )}
+              </div>
+              <div className="title" style={{ marginTop: 8 }}>{item.title}</div>
+              <div className="description">{item.description}</div>
+              <div className="row" style={{ marginTop: 12, gap: 18, fontSize: 11.5, color: 'var(--ink-500)' }}>
+                <span><Icon name="calendar" size={11} /> &nbsp;{item.date ? new Date(item.date).toLocaleDateString('en-IN') : 'TBD'}</span>
+                <span className="mono" style={{ color: 'var(--ink-900)', fontWeight: 500 }}>
+                  {item.type === 'draft' ? 'Resume request' : `${Number(item.coin_cost || 0)} MintCoin${Number(item.coin_cost || 0) === 1 ? '' : 's'}`}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
 }

@@ -3,6 +3,7 @@ const controller = require('./profile.controller');
 const { authenticate } = require('../../middleware/authenticate');
 const { upload, handleUploadError } = require('../../middleware/upload');
 const { authorize } = require('../../middleware/authenticate');
+const { requireFeatureFlag } = require('../../middleware/featureFlags');
 
 const router = Router();
 
@@ -23,12 +24,13 @@ router.patch(
 );
 
 // GET  /api/v1/profile/:userId       — get public profile (marketplace)
-router.get('/:userId', controller.getPublicProfile);
+router.get('/:userId', requireFeatureFlag('marketplace'), controller.getPublicProfile);
 
 // GET /api/v1/profile/me/pricing-guidance   — freelancer pricing market hints
 router.get(
   '/me/pricing-guidance',
   authorize('freelancer'),
+  requireFeatureFlag('freelancer_portal'),
   controller.getPricingGuidance
 );
 

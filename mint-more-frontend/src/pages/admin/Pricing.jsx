@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { addonsApi } from '../../api/addons'
@@ -67,27 +67,22 @@ export default function AdminPricing() {
     queryFn: () => addonsApi.adminPlans({ include_inactive: true }).then(r => r.data.data),
   })
 
-  const categories = categoriesData?.categories || []
-  const ranges = rangesData?.ranges || []
-  const selectedRange = ranges.find(r => r.category_id === selectedCategoryId)
-  const storagePlans = (addonPlansData?.plans || []).filter(plan =>
+  const categories = useMemo(() => categoriesData?.categories || [], [categoriesData?.categories])
+  const ranges = useMemo(() => rangesData?.ranges || [], [rangesData?.ranges])
+  const effectiveCategoryId = selectedCategoryId || categories[0]?.id || ''
+  const selectedRange = ranges.find(r => r.category_id === effectiveCategoryId)
+  const storagePlans = useMemo(() => (addonPlansData?.plans || []).filter(plan =>
     Number(plan.storage_gb || 0) > 0 || plan.features?.includes('mintbox_storage')
-  )
+  ), [addonPlansData?.plans])
 
   useEffect(() => {
-    if (!selectedCategoryId && categories[0]?.id) {
-      setSelectedCategoryId(categories[0].id)
+    if (effectiveCategoryId) {
+      setForm(rangeToForm(ranges.find(r => r.category_id === effectiveCategoryId)))
     }
-  }, [categories, selectedCategoryId])
-
-  useEffect(() => {
-    if (selectedCategoryId) {
-      setForm(rangeToForm(ranges.find(r => r.category_id === selectedCategoryId)))
-    }
-  }, [ranges, selectedCategoryId])
+  }, [ranges, effectiveCategoryId])
 
   const saveRange = useMutation({
-    mutationFn: () => api.put(`/admin/price-ranges/${selectedCategoryId}`, formToPayload(form)),
+    mutationFn: () => api.put(`/admin/price-ranges/${effectiveCategoryId}`, formToPayload(form)),
     onSuccess: () => {
       pushToast({ title: 'Price range saved', body: 'Freelancer offer limits updated', icon: 'check' })
       queryClient.invalidateQueries({ queryKey: ['admin-price-ranges'] })
@@ -134,7 +129,7 @@ export default function AdminPricing() {
 
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }))
   const updateStorageField = (field, value) => setStorageForm(prev => ({ ...prev, [field]: value }))
-  const canSave = selectedCategoryId &&
+  const canSave = effectiveCategoryId &&
     form.beginner_min && form.beginner_max &&
     form.intermediate_min && form.intermediate_max &&
     form.experienced_min && form.experienced_max
@@ -169,7 +164,7 @@ export default function AdminPricing() {
             <label className="field-label">Category</label>
             <select
               className="input"
-              value={selectedCategoryId}
+              value={effectiveCategoryId}
               onChange={e => setSelectedCategoryId(e.target.value)}
               disabled={isLoading}
             >

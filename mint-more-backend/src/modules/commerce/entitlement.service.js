@@ -3,7 +3,26 @@ const env = require('../../config/env');
 const { getSetting } = require('./settings.service');
 const { expireCreditsForUser } = require('./credits.service');
 
+const DEFAULT_FEATURE_FLAGS = {
+  calendar_creatives: true,
+  internal_ops: true,
+  custom_requests: true,
+  mintbox: true,
+  chat: true,
+  social_insights: true,
+  mint_ai: true,
+  wallet_ui: false,
+  marketplace: false,
+  freelancer_portal: false,
+  freelancer_matching: false,
+  negotiation: false,
+};
+
 const getEntitlements = async (userId) => {
+  const featureFlags = {
+    ...DEFAULT_FEATURE_FLAGS,
+    ...(await getSetting('feature_flags', DEFAULT_FEATURE_FLAGS) || {}),
+  };
   const userResult = await query(
     `SELECT id, role, kyc_status, is_approved, is_active, admin_permissions, is_super_admin, admin_overrides
      FROM users WHERE id = $1`,
@@ -23,6 +42,7 @@ const getEntitlements = async (userId) => {
       admin_permissions: user.admin_permissions || [],
       is_super_admin: user.is_super_admin,
       overrides: user.admin_overrides || {},
+      feature_flags: featureFlags || {},
     };
   }
 
@@ -97,6 +117,7 @@ const getEntitlements = async (userId) => {
     needs_kyc_for_paid_order: !kycVerified,
     base_storage_gb: Number(membershipConfig.mintbox_gb || 10),
     overrides: user.admin_overrides || {},
+    feature_flags: featureFlags || {},
   };
 };
 

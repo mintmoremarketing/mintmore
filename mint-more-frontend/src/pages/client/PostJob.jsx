@@ -3,11 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as tus from 'tus-js-client'
 import { jobsApi } from '../../api/jobs'
+import { creativeApi } from '../../api/creative'
 import { mintboxApi } from '../../api/mintbox'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import { rupee } from '../../utils/format'
-import { useEntitlements } from '../../hooks/useEntitlements'
 import { BRIEF_GUIDE_OPTIONS, CREATIVE_SKILLS } from '../../data/creativeOptions'
 
 const TOTAL_STEPS = 13
@@ -16,8 +16,8 @@ const getMarketRange = res => res.data?.data?.range ?? res.data?.data?.data?.ran
 const formatRange = range => range?.min && range?.max ? `${rupee(range.min)} - ${rupee(range.max)}` : 'Market range pending'
 
 const poolOptions = [
-  { value: 'budget', icon: 'rupee', title: 'Budget creatives', subtitle: 'Great value for clear, lighter briefs.', note: 'Beginner and intermediate creatives quote first.' },
-  { value: 'expert', icon: 'sparkles', title: 'Pro creatives', subtitle: 'Premium talent for complex or high-impact work.', note: 'Experienced creatives quote first.' },
+  { value: 'budget', icon: 'rupee', title: 'Budget creatives', subtitle: 'Great value for clear, lighter briefs.', note: 'Mint More ops will review and queue this internally.' },
+  { value: 'expert', icon: 'sparkles', title: 'Pro creatives', subtitle: 'Premium support for complex or high-impact work.', note: 'Mint More ops will review scope and priority.' },
 ]
 
 function Question({ eyebrow, title, subtitle, children }) {
@@ -72,7 +72,6 @@ export default function PostJob() {
   const { id } = useParams()
   const isEditMode = Boolean(id)
   const pushToast = useUIStore(state => state.pushToast)
-  const { data: access } = useEntitlements()
   const [step, setStep] = useState(1)
   const [draftId, setDraftId] = useState(id || null)
   const [saveState, setSaveState] = useState('idle')
@@ -86,7 +85,7 @@ export default function PostJob() {
   })
   const [data, setData] = useState({
     title: '', category_id: '', description: '', pricing_mode: '',
-    budget_type: 'quote', budget_amount: null, deadline: '',
+    budget_type: 'fixed', budget_amount: null, deadline: '',
     required_skills: [], required_level: null,
   })
   const [minimumDeadline] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10))
@@ -131,7 +130,7 @@ export default function PostJob() {
       pricing_mode: typeof builder?.pricing_mode === 'string'
         ? builder.pricing_mode
         : existingJob.pricing_mode === 'expert' ? 'expert' : 'budget',
-      budget_type: 'quote', budget_amount: null,
+      budget_type: 'fixed', budget_amount: null,
       deadline: existingJob.deadline?.slice(0, 10) || '',
       required_skills: existingJob.required_skills || [],
       required_level: existingJob.pricing_mode === 'expert' ? 'experienced' : null,
@@ -160,7 +159,7 @@ export default function PostJob() {
   const payload = useMemo(() => ({
     ...data,
     description: briefDescription,
-    budget_type: 'quote',
+    budget_type: 'fixed',
     budget_amount: null,
     required_level: data.pricing_mode === 'expert' ? 'experienced' : null,
     metadata: {
@@ -278,12 +277,32 @@ export default function PostJob() {
   const { mutate, isPending } = useMutation({
     mutationFn: async () => {
       const targetId = await saveDraftNow()
-      await jobsApi.update(targetId, payload)
-      return jobsApi.publish(targetId)
+      await jobsApi.update(targetId, {
+        ...payload,
+        metadata: {
+          ...(payload.metadata || {}),
+          fulfillment_provider: 'mintmore_internal',
+          matching_disabled: true,
+        },
+      })
+      return creativeApi.createRequest({
+        job_id: targetId,
+        title: data.title,
+        request_type: briefContext.deliverables?.[0] || 'other',
+        description: briefDescription,
+        deadline: data.deadline || null,
+        category_id: data.category_id || null,
+        brief_context: briefContext,
+        metadata: {
+          ...(payload.metadata || {}),
+          fulfillment_provider: 'mintmore_internal',
+          matching_disabled: true,
+        },
+      })
     },
     onSuccess: () => {
-      pushToast({ title: isEditMode ? 'Brief updated!' : 'Brief posted!', body: 'Matching creatives now - ~6 min' })
-      navigate(isEditMode ? `/jobs/${id}` : '/jobs')
+      pushToast({ title: 'Request sent to Mint More', body: 'The ops team will review the scope and MintCoin cost before production.' })
+      navigate('/jobs')
     },
     onError: error => pushToast({ title: isEditMode ? 'Failed to update' : 'Failed to post', body: error.response?.data?.message || 'Try again', tone: 'amber' }),
   })
@@ -348,19 +367,6 @@ export default function PostJob() {
       setStep(finalError.step)
       return pushToast({ title: 'Finish your brief', body: finalError.message, tone: 'amber' })
     }
-    if (access && !access.can_create_job) {
-      try {
-        await saveDraftNow()
-      } catch {
-        return pushToast({ title: 'Draft could not be saved', body: 'Please try again before leaving this page.', tone: 'amber' })
-      }
-      if (access.needs_kyc_for_paid_order) {
-        pushToast({ title: 'Brief saved to drafts', body: 'Complete verification, then resume this brief to publish it.', tone: 'amber' })
-        return navigate('/settings?section=verification')
-      }
-      pushToast({ title: 'Brief saved to drafts', body: 'Activate access, then resume this brief to publish it.', tone: 'amber' })
-      return navigate('/membership')
-    }
     mutate()
   }
 
@@ -390,7 +396,7 @@ export default function PostJob() {
   return (
     <div style={{ maxWidth: 980, margin: '0 auto' }}>
       <div className="row between" style={{ marginBottom: 18 }}>
-        <button className="btn link sm" onClick={leaveToJobs} style={{ padding: 0, color: 'var(--ink-500)' }}><Icon name="arrowLeft" size={12} /> All jobs</button>
+        <button className="btn link sm" onClick={leaveToJobs} style={{ padding: 0, color: 'var(--ink-500)' }}><Icon name="arrowLeft" size={12} /> All requests</button>
         <div className="row" style={{ gap: 12 }}>
           {draftId && (
             <span style={{ fontSize: 12, color: saveState === 'error' ? 'var(--amber-700)' : 'var(--ink-500)' }}>
@@ -421,7 +427,7 @@ export default function PostJob() {
 
         {step === 8 && <Question eyebrow="A little more context" title="Anything else the creative should know?" subtitle="Add required wording, a reference link, important details, or leave this blank."><textarea className="textarea" rows={7} value={data.description} onChange={event => update('description', event.target.value)} placeholder="For example: the launch is on 24 October, the logo must stay visible, and the tone should feel warm rather than sales-heavy." autoFocus /></Question>}
 
-        {step === 9 && <Question eyebrow="Matching signals" title="Which skills seem relevant?" subtitle="Choose what feels right. Mint More also uses the rest of your brief to find suitable creatives."><ChoiceTiles options={CREATIVE_SKILLS} selected={data.required_skills} onToggle={value => update('required_skills', data.required_skills.includes(value) ? data.required_skills.filter(item => item !== value) : [...data.required_skills, value])} /></Question>}
+        {step === 9 && <Question eyebrow="Creative signals" title="Which skills seem relevant?" subtitle="Choose what feels right. Mint More uses this to route the request internally."><ChoiceTiles options={CREATIVE_SKILLS} selected={data.required_skills} onToggle={value => update('required_skills', data.required_skills.includes(value) ? data.required_skills.filter(item => item !== value) : [...data.required_skills, value])} /></Question>}
 
         {step === 10 && <Question eyebrow="References" title="Do you have anything useful to share?" subtitle="Optional. Drop everything in one place and Mintbox will organise it automatically.">
           <>
@@ -434,11 +440,11 @@ export default function PostJob() {
           </>
         </Question>}
 
-        {step === 11 && <Question eyebrow="Creative pool" title="What kind of creative support fits this project?" subtitle="You will see the typical market range before anyone quotes."><ChoiceTiles options={poolOptions} selected={[data.pricing_mode]} onToggle={value => selectAndAdvance('pricing_mode', value)} renderOption={option => { const range = option.value === 'expert' ? expertRange : budgetRange; return <><Icon name={option.icon} size={18} /><strong style={{ display: 'block', marginTop: 10, fontSize: 15 }}>{option.title}</strong><span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 12.5 }}>{option.subtitle}</span><span style={{ display: 'block', marginTop: 10, fontSize: 12.5, fontWeight: 600 }}>Typical range: {formatRange(range)}</span></> }} /></Question>}
+        {step === 11 && <Question eyebrow="Mint More production" title="What level of support fits this request?" subtitle="This helps Mint More review scope and choose the right internal creative direction."><ChoiceTiles options={poolOptions} selected={[data.pricing_mode]} onToggle={value => selectAndAdvance('pricing_mode', value)} renderOption={option => { const range = option.value === 'expert' ? expertRange : budgetRange; return <><Icon name={option.icon} size={18} /><strong style={{ display: 'block', marginTop: 10, fontSize: 15 }}>{option.title}</strong><span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 12.5 }}>{option.subtitle}</span><span style={{ display: 'block', marginTop: 10, fontSize: 12.5, fontWeight: 600 }}>Typical effort range: {formatRange(range)}</span></> }} /></Question>}
 
-        {step === 12 && <Question eyebrow="Timeline" title="When do you need the work?" subtitle="Choose a realistic final delivery date. The creative will confirm timing in their quote."><input className="input" type="date" min={minimumDeadline} value={data.deadline} onChange={event => update('deadline', event.target.value)} autoFocus style={{ maxWidth: 380, minHeight: 58, fontSize: 16 }} /></Question>}
+        {step === 12 && <Question eyebrow="Timeline" title="When do you need the work?" subtitle="Choose a realistic final delivery date. Mint More ops will confirm timing after review."><input className="input" type="date" min={minimumDeadline} value={data.deadline} onChange={event => update('deadline', event.target.value)} autoFocus style={{ maxWidth: 380, minHeight: 58, fontSize: 16 }} /></Question>}
 
-        {step === 13 && <Question eyebrow="Ready to find your creative" title={data.title} subtitle="Review the essentials. You can go back to change anything before posting.">
+        {step === 13 && <Question eyebrow="Ready for Mint More review" title={data.title} subtitle="Review the essentials. You can go back to change anything before sending this request.">
           <div className="grid-2" style={{ gap: 12 }}>
             <div style={{ padding: 16, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}><div className="h-eyebrow">What you need</div><p style={{ lineHeight: 1.55 }}>{briefDescription}</p><div className="row wrap" style={{ gap: 6 }}>{data.required_skills.map(skill => <span key={skill} className="badge neutral">{skill}</span>)}</div></div>
             <div style={{ padding: 16, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}><div className="h-eyebrow">At a glance</div><div className="stack" style={{ gap: 10, marginTop: 12 }}><div className="row between"><span className="muted">Creative pool</span><strong>{selectedPool?.title}</strong></div><div className="row between"><span className="muted">Typical range</span><strong>{formatRange(selectedRange)}</strong></div><div className="row between"><span className="muted">Deadline</span><strong>{data.deadline && new Date(data.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></div><div className="row between"><span className="muted">References</span><strong>{briefFiles.length}</strong></div></div></div>
@@ -456,7 +462,7 @@ export default function PostJob() {
           }
         }}><Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}</button>
         <button className="btn primary lg" onClick={handlePrimaryAction} disabled={isPending}>
-          {isPending ? 'Posting...' : step === TOTAL_STEPS ? <>Post brief <Icon name="arrowRight" /></> : <>{optionalStepIsEmpty ? 'Skip' : 'Continue'} <Icon name="arrowRight" /></>}
+          {isPending ? 'Sending...' : step === TOTAL_STEPS ? <>Send request <Icon name="arrowRight" /></> : <>{optionalStepIsEmpty ? 'Skip' : 'Continue'} <Icon name="arrowRight" /></>}
         </button>
       </div>
     </div>

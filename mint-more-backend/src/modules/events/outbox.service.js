@@ -19,6 +19,12 @@ const handlers = {
   'notification.bulk_create': async ({ notifications }) =>
     notificationService.createBulkNotifications(notifications),
   'matching.run': async ({ jobId, reason }) => {
+    const { getSetting } = require('../commerce/settings.service');
+    const flags = await getSetting('feature_flags', { freelancer_matching: false });
+    if (flags?.freelancer_matching === false) {
+      logger.info('[Outbox] Matching event skipped by feature flag', { jobId, reason });
+      return { skipped: true, reason: 'freelancer_matching_disabled' };
+    }
     const { runMatchingForJob } = require('../matching/matching.service');
     const result = await runMatchingForJob(jobId);
     logger.info(`[Outbox] Auto-matching completed (${reason || 'event'})`, { jobId });

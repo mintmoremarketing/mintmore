@@ -3,6 +3,7 @@ const controller  = require('./job.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
 const { requireApproved }         = require('../../middleware/requireApproved');
 const { requireEntitlement, requirePermission } = require('../../middleware/permissions');
+const { requireFeatureFlag } = require('../../middleware/featureFlags');
 
 const router = Router();
 
@@ -15,6 +16,7 @@ router.use(authenticate);
 router.post(
   '/',
   authorize('client'),
+  requireFeatureFlag('freelancer_matching'),
   requireApproved,
   requireEntitlement('can_create_job'),
   controller.createJob
@@ -34,6 +36,7 @@ router.post(
 router.patch(
   '/:id/publish',
   authorize('client'),
+  requireFeatureFlag('freelancer_matching'),
   requireApproved,
   requireEntitlement('can_create_job'),
   controller.publishJob
@@ -43,6 +46,7 @@ router.patch(
 router.patch(
   '/:id/pause-matching',
   authorize('client'),
+  requireFeatureFlag('freelancer_matching'),
   requireApproved,
   controller.pauseMatching
 );
@@ -53,6 +57,14 @@ router.patch(
   '/:id',
   authorize('client'),
   controller.updateJob
+);
+
+// DELETE /jobs/:id
+// Delete an unfinished draft request.
+router.delete(
+  '/:id',
+  authorize('client'),
+  controller.deleteDraftJob
 );
 
 // PATCH /jobs/:id/cancel
@@ -68,6 +80,27 @@ router.get(
   '/my/summary',
   authorize('client'),
   controller.getClientJobSummary
+);
+
+router.get(
+  '/admin/all',
+  authorize('admin'),
+  requirePermission('matching.manage'),
+  controller.adminListAllJobs
+);
+
+router.patch(
+  '/admin/:id/status',
+  authorize('admin'),
+  requirePermission('matching.manage'),
+  controller.adminUpdateJobStatus
+);
+
+router.post(
+  '/admin/:id/approve-pro-matching',
+  authorize('admin'),
+  requirePermission('matching.manage'),
+  controller.approveProMatching
 );
 
 // ── Shared (role-filtered in service) ────────────────────────────────────────
@@ -91,26 +124,5 @@ router.get(
 );
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
-
-router.get(
-  '/admin/all',
-  authorize('admin'),
-  requirePermission('matching.manage'),
-  controller.adminListAllJobs
-);
-
-router.patch(
-  '/admin/:id/status',
-  authorize('admin'),
-  requirePermission('matching.manage'),
-  controller.adminUpdateJobStatus
-);
-
-router.post(
-  '/admin/:id/approve-pro-matching',
-  authorize('admin'),
-  requirePermission('matching.manage'),
-  controller.approveProMatching
-);
 
 module.exports = router;

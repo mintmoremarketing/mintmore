@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { jobsApi } from '../../api/jobs'
@@ -245,9 +245,9 @@ function InitiatePanel({ job, user, queryClient, pushToast }) {
 		enabled: Boolean(job.category_id),
 	})
 	const { data: mintboxData } = useQuery({
-		queryKey: ['mintbox-job', id],
-		queryFn: () => mintboxApi.getJobFolder(id).then(res => res.data?.data),
-		enabled: Boolean(id),
+		queryKey: ['mintbox-job', job.id],
+		queryFn: () => mintboxApi.getJobFolder(job.id).then(res => res.data?.data),
+		enabled: Boolean(job.id),
 	})
 	const briefFiles = (mintboxData?.files || []).filter(file => file.purpose === 'brief')
 	const briefFileGroups = briefFiles.reduce((groups, file) => {
@@ -441,7 +441,7 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 	const [price, setPrice] = useState('')
 	const [days, setDays] = useState('')
 	const [message, setMessage] = useState('')
-	const [pendingCounter, setPendingCounter] = useState(false)
+	const [pendingCounterRound, setPendingCounterRound] = useState(null)
 
 	const { data: negotiationData } = useQuery({
 		queryKey: ['negotiation-status', job.id],
@@ -459,17 +459,11 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 	const rounds = neg?.rounds || []
 	const lastRound = rounds[rounds.length - 1]
 	const lastSender = getSender(lastRound)
-	const isMyTurn = !pendingCounter && neg?.status === 'active' && lastSender === 'client'
 	const maxRounds = Math.max(Number(neg?.max_rounds) || 0, NEGOTIATION_MAX_ROUNDS)
 	const currentRound = neg?.current_round || Math.max(1, rounds.length)
+	const isMyTurn = neg?.status === 'active' && lastSender === 'client' && pendingCounterRound !== currentRound
 	const canAccept = currentRound >= maxRounds
 	const canCounter = currentRound < maxRounds
-
-	useEffect(() => {
-		if (pendingCounter && lastSender === 'freelancer') {
-			setPendingCounter(false)
-		}
-	}, [pendingCounter, lastSender])
 
 	const acceptMutation = useMutation({
 		mutationFn: () => negotiationsApi.freelancerRespond(job.id, { action: 'accept' }),
@@ -491,7 +485,7 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 			}),
 		onSuccess: () => {
 			pushToast({ title: 'Counter sent', body: 'Waiting for client response', icon: 'refresh' })
-			setPendingCounter(true)
+			setPendingCounterRound(currentRound)
 			queryClient.invalidateQueries({ queryKey: ['job', job.id] })
 			queryClient.invalidateQueries({ queryKey: ['negotiation-status', job.id] })
 			setShowCounter(false)

@@ -139,7 +139,7 @@ export default function NotificationsInbox() {
 		queryFn: () => notificationsApi.list({ limit: 100 }).then((r) => r.data.data),
 	})
 
-	const notifications = data?.notifications || []
+	const notifications = useMemo(() => data?.notifications || [], [data?.notifications])
 
 	const counts = useMemo(() => ({
 		all: notifications.length,

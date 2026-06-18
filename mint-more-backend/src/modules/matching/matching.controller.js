@@ -1,5 +1,14 @@
 const matchingService = require('./matching.service');
 const { sendSuccess } = require('../../utils/apiResponse');
+const AppError = require('../../utils/AppError');
+const { getSetting } = require('../commerce/settings.service');
+
+const assertMatchingEnabled = async () => {
+  const flags = await getSetting('feature_flags', { freelancer_matching: false });
+  if (flags?.freelancer_matching === false) {
+    throw new AppError('Freelancer matching is disabled by feature flag', 403);
+  }
+};
 
 /**
  * POST /api/v1/matching/jobs/:jobId/run
@@ -8,6 +17,7 @@ const { sendSuccess } = require('../../utils/apiResponse');
  */
 const runMatching = async (req, res, next) => {
   try {
+    await assertMatchingEnabled();
     const result = await matchingService.runMatchingForJob(req.params.jobId);
     return sendSuccess(res, {
       data: result,
@@ -25,6 +35,7 @@ const runMatching = async (req, res, next) => {
  */
 const previewMatching = async (req, res, next) => {
   try {
+    await assertMatchingEnabled();
     const result = await matchingService.previewMatchingForJob(req.params.jobId);
     return sendSuccess(res, { data: result });
   } catch (err) { next(err); }
@@ -38,6 +49,7 @@ const previewMatching = async (req, res, next) => {
  */
 const getFreelancerPool = async (req, res, next) => {
   try {
+    await assertMatchingEnabled();
     const { page, limit } = req.query;
     const result = await matchingService.getFreelancerPool(req.params.jobId, {
       page:  parseInt(page, 10) || 1,

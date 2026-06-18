@@ -682,7 +682,7 @@ const createJobFromWhatsApp = async ({ fromNumber, mmNumber, brief, categoryId, 
   const jobResult = await query(
     `INSERT INTO jobs
        (client_id, category_id, title, description, budget_type, pricing_mode, status, metadata)
-     VALUES ($1, $2, $3, $4, 'quote', 'budget', 'draft', $5)
+     VALUES ($1, $2, $3, $4, 'fixed', 'budget', 'draft', $5)
      RETURNING id`,
     [
       clientId,

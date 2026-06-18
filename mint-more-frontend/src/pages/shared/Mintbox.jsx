@@ -28,6 +28,8 @@ const statusLabel = {
 	approved: 'Approved',
 }
 
+const showLegacyFileGrid = import.meta.env.VITE_SHOW_LEGACY_MINTBOX_GRID === 'true'
+
 const inferredMimeTypes = {
 	psd: 'application/vnd.adobe.photoshop',
 	ai: 'application/postscript',
@@ -85,7 +87,9 @@ export default function Mintbox() {
 	const uploadRef = useRef(null)
 
 	const isOverview = !jobId && !token && !categoryToken
-	const queryKey = categoryToken ? ['mintbox-category-share', categoryToken] : token ? ['mintbox-share', token] : jobId ? ['mintbox-job', jobId] : ['mintbox']
+	const queryKey = useMemo(() => (
+		categoryToken ? ['mintbox-category-share', categoryToken] : token ? ['mintbox-share', token] : jobId ? ['mintbox-job', jobId] : ['mintbox']
+	), [categoryToken, jobId, token])
 	const { data, isLoading } = useQuery({
 		queryKey,
 		queryFn: async () => {
@@ -102,7 +106,7 @@ export default function Mintbox() {
 
 	const folder = data?.folder
 	const folders = data?.folders || []
-	const files = data?.files || []
+	const files = useMemo(() => data?.files || [], [data?.files])
 	const quota = data?.quota
 	const uploadPolicy = data?.upload_policy
 	const revisions = data?.revisions
@@ -110,11 +114,11 @@ export default function Mintbox() {
 	const shareUrl = folder?.share_token && !folder?.share_revoked_at ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
 
 	useEffect(() => {
-		if (!folder?.job_id || !['client', 'freelancer', 'admin'].includes(role)) return
+		if (!folder?.job_id || !['client', 'freelancer', 'designer', 'admin'].includes(role)) return
 		mintboxApi.markSeen(folder.job_id)
 			.then(() => queryClient.invalidateQueries({ queryKey }))
 			.catch(() => {})
-	}, [folder?.job_id, role])
+	}, [folder?.job_id, queryClient, queryKey, role])
 
 	const { data: plansData } = useQuery({
 		queryKey: ['addon-plans'],
@@ -598,7 +602,7 @@ export default function Mintbox() {
 					</p>
 				</div>
 				<div className="row" style={{ gap: 8 }}>
-					{jobId && ['client', 'freelancer'].includes(role) && (
+					{jobId && ['client', 'freelancer', 'designer'].includes(role) && (
 						<button className="btn ghost" onClick={() => navigate(`/disputes?jobId=${folder.job_id}`)}>
 							<Icon name="shield" size={13} /> Get support
 						</button>
@@ -681,12 +685,12 @@ export default function Mintbox() {
 				</div>
 			</div>
 
-			{role === 'freelancer' && (
+			{['freelancer', 'designer'].includes(role) && (
 				<div className="card reveal" style={{ padding: 18 }}>
 					<div className="row between" style={{ gap: 14, alignItems: 'flex-start', marginBottom: 14 }}>
 						<div>
-							<div className="h-eyebrow" style={{ marginBottom: 6 }}>{role === 'client' ? 'Brief references' : 'Submit work'}</div>
-							<div style={{ fontSize: 13, color: 'var(--ink-600)' }}>{role === 'client' ? 'Add private reference files for the matched creative.' : 'Upload finished work, drafts, or revised files for the client to review.'}</div>
+							<div className="h-eyebrow" style={{ marginBottom: 6 }}>Submit work</div>
+							<div style={{ fontSize: 13, color: 'var(--ink-600)' }}>Upload finished work, drafts, or revised files for the client to review.</div>
 						</div>
 						<button className="btn primary" onClick={() => fileRef.current?.click()} disabled={['preparing', 'uploading', 'paused'].includes(uploadState.status)}>
 							<Icon name="upload" size={13} />
@@ -810,7 +814,7 @@ export default function Mintbox() {
 						}
 
 						const file = item.file
-						const seen = role === 'freelancer' ? file.seen_by_client_at : file.seen_by_freelancer_at
+						const seen = ['freelancer', 'designer'].includes(role) ? file.seen_by_client_at : file.seen_by_freelancer_at
 						const action = file.purpose === 'brief'
 							? 'shared a reference'
 							: file.revision_round
@@ -885,7 +889,7 @@ export default function Mintbox() {
 				</div>
 			</div>
 
-			{false && <div className="card reveal" style={{ padding: 0, overflow: 'hidden' }}>
+			{showLegacyFileGrid && <div className="card reveal" style={{ padding: 0, overflow: 'hidden' }}>
 				{sortedFiles.length === 0 ? (
 					<div className="empty" style={{ border: 0, padding: 48 }}>
 						<div className="empty-glyph"><Icon name="upload" /></div>
@@ -915,7 +919,7 @@ export default function Mintbox() {
 										</a>
 										{file.uploaded_by_role === role && (
 											<div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 4 }}>
-												{(role === 'freelancer' ? file.seen_by_client_at : file.seen_by_freelancer_at) ? 'Seen' : 'Delivered'}
+												{(['freelancer', 'designer'].includes(role) ? file.seen_by_client_at : file.seen_by_freelancer_at) ? 'Seen' : 'Delivered'}
 											</div>
 										)}
 										{file.revision_round && <div style={{ fontSize: 11.5, color: 'var(--mint-700)', marginTop: 4 }}>Revised delivery · Round {file.revision_round}</div>}

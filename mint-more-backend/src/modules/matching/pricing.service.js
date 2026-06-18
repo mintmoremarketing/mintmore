@@ -1,12 +1,7 @@
 const { query } = require('../../config/database');
-const logger = require('../../utils/logger');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/**
- * How far above intermediate_max an experienced freelancer can be
- * and still receive a "competitive" boost in budget mode.
- */
 const COMPETITIVE_TOLERANCE = 0.15;
 
 /**
@@ -140,8 +135,7 @@ const getFreelancerPricingGuidance = async (
  *
  * Case A — budget mode:
  *   beginner/intermediate → always include
- *   experienced           → include only if price_min ≤ intermediate_max × 1.15
- *                           OR price_min ≤ job.budget_amount
+ *   experienced           → excluded; budget briefs are beginner/intermediate only
  *
  * Case B — expert mode:
  *   experienced → include (within hard exclusion limit)
@@ -150,8 +144,8 @@ const getFreelancerPricingGuidance = async (
  * No price set (price_min = null) → neutral inclusion always.
  */
 const evaluatePricingAlignment = (freelancer, job, priceRange) => {
-  const { pricing_mode, budget_amount } = job;
-  const { freelancer_level, price_min, price_max } = freelancer;
+  const { pricing_mode } = job;
+  const { freelancer_level, price_min } = freelancer;
 
   // No range data — neutral, include with mid score
   if (!priceRange) {
@@ -204,37 +198,6 @@ const evaluatePricingAlignment = (freelancer, job, priceRange) => {
         market_position: 'expert_only',
         within_range:    false,
         reason:          'Budget briefs are reserved for beginner and intermediate freelancers',
-      };
-
-      const competitiveThreshold = intermediateMax * (1 + COMPETITIVE_TOLERANCE);
-
-      if (pMin <= competitiveThreshold) {
-        return {
-          include:           true,
-          pricing_score:     0.6,
-          market_position:   'competitive',
-          within_range:      pMin <= intermediateMax,
-          reason:            'Experienced freelancer with competitive budget pricing',
-          competitive_boost: true,
-        };
-      }
-
-      if (budget_amount && pMin <= parseFloat(budget_amount)) {
-        return {
-          include:         true,
-          pricing_score:   0.4,
-          market_position: 'average',
-          within_range:    false,
-          reason:          'Price within client budget amount despite above intermediate range',
-        };
-      }
-
-      return {
-        include:         false,
-        pricing_score:   0,
-        market_position: 'expensive',
-        within_range:    false,
-        reason:          `Experienced freelancer price (₹${pMin.toLocaleString('en-IN')}) exceeds budget mode threshold (₹${competitiveThreshold.toFixed(0)})`,
       };
     }
   }

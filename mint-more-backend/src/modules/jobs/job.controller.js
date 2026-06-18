@@ -47,6 +47,13 @@ const updateJob = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const deleteDraftJob = async (req, res, next) => {
+  try {
+    const result = await jobService.deleteDraftJob(req.user.sub, req.params.id);
+    return sendSuccess(res, { data: result, message: 'Draft request deleted.' });
+  } catch (err) { next(err); }
+};
+
 const pauseMatching = async (req, res, next) => {
   try {
     const job = await jobService.pauseMatching(req.user.sub, req.params.id);
@@ -146,6 +153,7 @@ module.exports = {
   createJobAsDraft,
   publishJob,
   updateJob,
+  deleteDraftJob,
   pauseMatching,
   cancelJob,
   getClientJobSummary,

@@ -21,10 +21,11 @@ const oauthCallback = async (req, res, next) => {
   try {
     const { platform } = req.params;
     const { code, state, error } = req.query;
+    const dashboardUrl = `${env.social.frontendUrl}/dashboard`;
 
     if (error) {
       return res.redirect(
-        `${env.social.frontendUrl}/social/connect?error=${encodeURIComponent(error)}&platform=${platform}`
+        `${dashboardUrl}?social_error=${encodeURIComponent(error)}&platform=${encodeURIComponent(platform)}`
       );
     }
 
@@ -35,11 +36,11 @@ const oauthCallback = async (req, res, next) => {
     const accounts = await socialService.handleOAuthCallback(platform, code, state);
 
     return res.redirect(
-      `${env.social.frontendUrl}/social/connect?success=true&platform=${platform}&accounts=${accounts.length}`
+      `${dashboardUrl}?social_connected=true&platform=${encodeURIComponent(platform)}&accounts=${accounts.length}`
     );
   } catch (err) {
     return res.redirect(
-      `${env.social.frontendUrl}/social/connect?error=${encodeURIComponent(err.message)}`
+      `${env.social.frontendUrl}/dashboard?social_error=${encodeURIComponent(err.message)}`
     );
   }
 };

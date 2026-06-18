@@ -3,6 +3,7 @@ const controller = require('./negotiation.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
 const { requireApproved } = require('../../middleware/requireApproved');
 const { requirePermission } = require('../../middleware/permissions');
+const { requireFeatureFlag } = require('../../middleware/featureFlags');
 
 const router = Router();
 
@@ -15,6 +16,7 @@ router.use(authenticate);
 router.post(
   '/jobs/:jobId/initiate',
   authorize('freelancer'),
+  requireFeatureFlag('negotiation'),
   requireApproved,
   controller.initiateNegotiation
 );
@@ -24,6 +26,7 @@ router.post(
 router.patch(
   '/jobs/:jobId/freelancer-respond',
   authorize('freelancer'),
+  requireFeatureFlag('negotiation'),
   requireApproved,
   controller.freelancerRespond
 );
@@ -33,6 +36,7 @@ router.patch(
 router.patch(
   '/jobs/:jobId/assignment-respond',
   authorize('freelancer'),
+  requireFeatureFlag('negotiation'),
   requireApproved,
   controller.respondToAssignment
 );
@@ -44,6 +48,7 @@ router.patch(
 router.patch(
   '/jobs/:jobId/client-respond',
   authorize('client'),
+  requireFeatureFlag('negotiation'),
   requireApproved,
   controller.clientRespond
 );
@@ -54,6 +59,7 @@ router.patch(
 // View current negotiation state (admin sees all, client/freelancer see own)
 router.get(
   '/jobs/:jobId/status',
+  requireFeatureFlag('negotiation'),
   controller.getNegotiationStatus
 );
 

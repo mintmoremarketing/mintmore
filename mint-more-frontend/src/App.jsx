@@ -11,6 +11,7 @@ import AppShell from './components/layout/AppShell'
 
 // Client pages
 import ClientDashboard   from './pages/client/Dashboard'
+import ClientCalendar    from './pages/client/Calendar'
 import Jobs              from './pages/client/Jobs'
 import PostJob           from './pages/client/PostJob'
 import ClientJobDetail   from './pages/client/JobDetail'
@@ -28,6 +29,7 @@ import SharedFile        from './pages/public/SharedFile'
 import Membership        from './pages/client/Membership'
 import Onboarding        from './pages/client/Onboarding'
 import Disputes          from './pages/shared/Disputes'
+import Support           from './pages/shared/Support'
 
 // Freelancer pages
 import FreelancerDashboard  from './pages/freelancer/Dashboard'
@@ -38,6 +40,7 @@ import MarketplaceProfile   from './pages/freelancer/MarketplaceProfile'
 import Packages             from './pages/freelancer/Packages'
 import Portfolio            from './pages/freelancer/Portfolio'
 import Inquiries            from './pages/freelancer/Inquiries'
+import DesignerTasks        from './pages/designer/Tasks'
 
 // Admin pages
 import AdminDashboard    from './pages/admin/Dashboard'
@@ -48,11 +51,13 @@ import AdminAIPanel      from './pages/admin/AIPanel'
 import AdminPricing      from './pages/admin/Pricing'
 import AdminCommerce     from './pages/admin/Commerce'
 import AdminAudit        from './pages/admin/Audit'
+import AdminOperations   from './pages/admin/Operations'
 
 // ── Role-aware route wrappers ─────────────────────────────────────────────────
 
 function RoleDashboard() {
   const role = useAuthStore(s => s.user?.role)
+  if (role === 'designer') return <DesignerTasks />
   if (role === 'freelancer') return <FreelancerDashboard />
   if (role === 'admin')      return <Navigate to="/admin" replace />
   return <ClientDashboard />
@@ -60,6 +65,7 @@ function RoleDashboard() {
 
 function RoleJobs() {
   const role = useAuthStore(s => s.user?.role)
+  if (role === 'designer') return <DesignerTasks />
   if (role === 'freelancer') return <FreelancerJobs />
   return <Jobs />
 }
@@ -67,6 +73,13 @@ function RoleJobs() {
 function RoleJobDetail() {
   const role = useAuthStore(s => s.user?.role)
   if (role === 'freelancer') return <FreelancerJobDetail />
+  if (role === 'client') {
+    return (
+      <ClientFeature flag="negotiation">
+        <ClientJobDetail />
+      </ClientFeature>
+    )
+  }
   return <ClientJobDetail />
 }
 
@@ -107,6 +120,31 @@ function ClientOnly({ children }) {
   return children
 }
 
+const DEFAULT_FEATURE_FLAGS = {
+  calendar_creatives: true,
+  internal_ops: true,
+  custom_requests: true,
+  mintbox: true,
+  chat: true,
+  social_insights: true,
+  mint_ai: true,
+  wallet_ui: false,
+  marketplace: false,
+  freelancer_portal: false,
+  freelancer_matching: false,
+  negotiation: false,
+}
+
+function ClientFeature({ flag, children }) {
+  const role = useAuthStore(s => s.user?.role)
+  const { data: access, isLoading } = useEntitlements()
+  if (role !== 'client') return children
+  if (isLoading) return null
+  const flags = { ...DEFAULT_FEATURE_FLAGS, ...(access?.feature_flags || {}) }
+  if (flag && flags[flag] === false) return <Navigate to="/dashboard" replace />
+  return children
+}
+
 function FreelancerOnly({ children }) {
   const role = useAuthStore(s => s.user?.role)
   if (role !== 'freelancer') return <Navigate to={role === 'admin' ? '/admin' : '/dashboard'} replace />
@@ -118,6 +156,7 @@ function RootRedirect() {
   const user = useAuthStore(s => s.user)
   if (!isAuthed) return <Navigate to="/login" replace />
   if (user?.role === 'admin') return <Navigate to="/admin" replace />
+  if (user?.role === 'designer') return <Navigate to="/dashboard" replace />
   return <Navigate to="/dashboard" replace />
 }
 
@@ -127,7 +166,7 @@ function RootRedirect() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         {/* Public */}
         <Route path="/login"            element={<Login />} />
@@ -142,20 +181,21 @@ export default function App() {
 
           {/* Role-aware shared routes */}
           <Route path="/dashboard" element={<RoleDashboard />} />
-          <Route path="/jobs"      element={<RoleJobs />} />
-          <Route path="/jobs/new"  element={<ClientOnly><PostJob /></ClientOnly>} />
-          <Route path="/jobs/:id/edit" element={<ClientOnly><PostJob /></ClientOnly>} />
+          <Route path="/calendar"  element={<ClientOnly><ClientFeature flag="calendar_creatives"><ClientCalendar /></ClientFeature></ClientOnly>} />
+          <Route path="/jobs"      element={<ClientFeature flag="custom_requests"><RoleJobs /></ClientFeature>} />
+          <Route path="/jobs/new"  element={<ClientOnly><ClientFeature flag="custom_requests"><PostJob /></ClientFeature></ClientOnly>} />
+          <Route path="/jobs/:id/edit" element={<ClientOnly><ClientFeature flag="custom_requests"><PostJob /></ClientFeature></ClientOnly>} />
           <Route path="/jobs/:id"  element={<RoleJobDetail />} />
-          <Route path="/wallet"    element={<RoleWallet />} />
+          <Route path="/wallet"    element={<ClientFeature flag="wallet_ui"><RoleWallet /></ClientFeature>} />
 
           {/* Client-only routes */}
-          <Route path="/addons"            element={<ClientOnly><Addons /></ClientOnly>} />
-          <Route path="/membership"        element={<ClientOnly><Membership /></ClientOnly>} />
+          <Route path="/addons"            element={<ClientOnly><ClientFeature flag="wallet_ui"><Addons /></ClientFeature></ClientOnly>} />
+          <Route path="/membership"        element={<ClientOnly><ClientFeature flag="wallet_ui"><Membership /></ClientFeature></ClientOnly>} />
           <Route path="/onboarding"        element={<ClientOnly><Onboarding /></ClientOnly>} />
-          <Route path="/freelancers"       element={<ClientOnly><Freelancers /></ClientOnly>} />
-          <Route path="/freelancers/:freelancerId" element={<ClientOnly><FreelancerProfile /></ClientOnly>} />
-          <Route path="/social"            element={<ClientOnly><Social /></ClientOnly>} />
-          <Route path="/ai"                element={<ClientOnly><MintAI /></ClientOnly>} />
+          <Route path="/freelancers"       element={<ClientOnly><ClientFeature flag="marketplace"><Freelancers /></ClientFeature></ClientOnly>} />
+          <Route path="/freelancers/:freelancerId" element={<ClientOnly><ClientFeature flag="marketplace"><FreelancerProfile /></ClientFeature></ClientOnly>} />
+          <Route path="/social"            element={<ClientOnly><ClientFeature flag="social_insights"><Social /></ClientFeature></ClientOnly>} />
+          <Route path="/ai"                element={<ClientOnly><ClientFeature flag="mint_ai"><MintAI /></ClientFeature></ClientOnly>} />
 
           {/* Freelancer-only routes */}
           <Route path="/profile-edit" element={<FreelancerOnly><MarketplaceProfile /></FreelancerOnly>} />
@@ -165,14 +205,16 @@ export default function App() {
 
           {/* Shared */}
           <Route path="/chat"     element={<PermissionIfAdmin permission="support.manage"><Chat /></PermissionIfAdmin>} />
-          <Route path="/mintbox" element={<ClientOnly><Mintbox /></ClientOnly>} />
+          <Route path="/mintbox" element={<ClientOnly><ClientFeature flag="mintbox"><Mintbox /></ClientFeature></ClientOnly>} />
           <Route path="/mintbox/jobs/:jobId" element={<Mintbox />} />
           <Route path="/notifications" element={<NotificationsInbox />} />
+          <Route path="/support" element={<PermissionIfAdmin permission="support.manage"><Support /></PermissionIfAdmin>} />
           <Route path="/disputes" element={<PermissionIfAdmin permission="support.manage"><Disputes /></PermissionIfAdmin>} />
           <Route path="/settings" element={<Settings />} />
 
           {/* Admin routes */}
           <Route path="/admin"            element={<AdminOnly><AdminDashboard /></AdminOnly>} />
+          <Route path="/admin/operations" element={<AdminOnly permission="ops.manage"><AdminOperations /></AdminOnly>} />
           <Route path="/admin/users"      element={<AdminOnly permission="users.manage"><AdminUsers /></AdminOnly>} />
           <Route path="/admin/approvals"  element={<AdminOnly permission="deals.approve"><AdminNegotiations /></AdminOnly>} />
           <Route path="/admin/pricing"    element={<AdminOnly permission="pricing.manage"><AdminPricing /></AdminOnly>} />

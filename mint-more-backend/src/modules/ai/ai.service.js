@@ -160,7 +160,6 @@ const deductCredits = async (userId, generationId, creditCost) => {
     const wallet = await getWalletByUserId(userId, dbClient, true);
     if (!wallet || parseFloat(wallet.balance) < cashSpend) {
       throw new AppError('Insufficient balance for this AI generation', 402);
-      logger.warn('Credit deduction skipped — insufficient balance', { userId, creditCost });
     }
 
     await recordTransaction(dbClient, {

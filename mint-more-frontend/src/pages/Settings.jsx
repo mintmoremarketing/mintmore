@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { useAuthStore } from '../store/auth'
@@ -7,6 +7,7 @@ import Icon from '../components/ui/Icon'
 import { SkeletonCard } from '../components/ui/Skeleton'
 import { useSearchParams } from 'react-router-dom'
 import VerificationPanel from '../components/settings/VerificationPanel'
+import { socialApi } from '../api/social'
 
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -36,8 +37,15 @@ export default function Settings() {
     queryKey: ['my-profile'],
     queryFn: () => api.get('/profile/me').then(r => r.data.data),
   })
+  const { data: accountsData } = useQuery({
+    queryKey: ['social-accounts'],
+    queryFn: () => socialApi.getAccounts().then(r => r.data.data),
+    enabled: user?.role === 'client',
+  })
 
-  const profile = profileData?.profile || profileData?.user || profileData || {}
+  const profile = useMemo(() => profileData?.profile || profileData?.user || profileData || {}, [profileData])
+  const socialAccounts = useMemo(() => accountsData?.accounts || [], [accountsData?.accounts])
+  const connectedSocialAccounts = socialAccounts.filter(account => account.is_active)
 
   useEffect(() => {
     if (profile.full_name)      setFullName(profile.full_name)
@@ -47,7 +55,16 @@ export default function Settings() {
     if (profile.address_city)   setCity(profile.address_city || '')
     if (profile.address_state)  setState(profile.address_state || '')
     if (profile.avatar_url)     setAvatarPreview(profile.avatar_url)
-  }, [profile.id])
+  }, [
+    profile.id,
+    profile.full_name,
+    profile.phone,
+    profile.bio,
+    profile.whatsapp_number,
+    profile.address_city,
+    profile.address_state,
+    profile.avatar_url,
+  ])
 
   // Save profile
   const { mutate: saveProfile, isPending: savingProfile } = useMutation({
@@ -134,6 +151,7 @@ export default function Settings() {
   const sections = [
     ['profile', 'user', 'Profile'],
     ['account', 'settings', 'Account info'],
+    ...(user?.role === 'client' ? [['setup', 'check', 'Setup']] : []),
     ['security', 'lock', 'Password & security'],
     ...(user?.role !== 'admin' ? [['verification', 'shield', 'Verification']] : []),
   ]
@@ -178,7 +196,7 @@ export default function Settings() {
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 4 }}>{profile.full_name}</div>
             <div style={{ fontSize: 12.5, color: 'var(--ink-500)', textTransform: 'capitalize', marginBottom: 12 }}>
-              {profile.role} · {profile.email}
+              {profile.role} - {profile.email}
             </div>
             <div className="row" style={{ gap: 8 }}>
               <label style={{ cursor: 'pointer' }}>
@@ -194,7 +212,7 @@ export default function Settings() {
                   onClick={() => uploadAvatar()}
                   disabled={uploadingAvatar}
                 >
-                  {uploadingAvatar ? 'Uploading…' : 'Save photo'}
+                  {uploadingAvatar ? 'Uploading...' : 'Save photo'}
                 </button>
               )}
             </div>
@@ -221,7 +239,7 @@ export default function Settings() {
             <div className="field">
               <label className="field-label">Bio</label>
               <textarea className="textarea" rows={3} value={bio} onChange={e => setBio(e.target.value)}
-                placeholder="Tell others about yourself…" />
+                placeholder="Tell others about yourself..." />
             </div>
           )}
 
@@ -249,7 +267,7 @@ export default function Settings() {
         </div>
         <div style={{ marginTop: 20 }}>
           <button className="btn primary" onClick={() => saveProfile()} disabled={savingProfile}>
-            {savingProfile ? 'Saving…' : 'Save changes'}
+            {savingProfile ? 'Saving...' : 'Save changes'}
           </button>
         </div>
       </div>}
@@ -287,7 +305,7 @@ export default function Settings() {
             onClick={handlePasswordSubmit}
             disabled={changingPw || !currentPw || !newPw || !confirmPw}
           >
-            {changingPw ? 'Changing…' : 'Change password'}
+            {changingPw ? 'Changing...' : 'Change password'}
           </button>
         </div>
       </div>}
@@ -315,8 +333,38 @@ export default function Settings() {
           <div style={{ height: 1, background: 'var(--hairline)' }} />
           <div className="row between">
             <span style={{ color: 'var(--ink-500)' }}>Member since</span>
-            <span>{profile.created_at ? new Date(profile.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</span>
+            <span>{profile.created_at ? new Date(profile.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</span>
           </div>
+          <div style={{ height: 1, background: 'var(--hairline)' }} />
+          <div className="row between">
+            <span style={{ color: 'var(--ink-500)' }}>Verification</span>
+            <span className={`badge ${profile.kyc_status === 'verified' ? 'mint' : 'neutral'}`}>
+              {profile.kyc_status || 'not started'}
+            </span>
+          </div>
+          {profile.role === 'client' && (
+            <>
+              <div style={{ height: 1, background: 'var(--hairline)' }} />
+              <div className="row between">
+                <span style={{ color: 'var(--ink-500)' }}>Business</span>
+                <span>{profile.business_name || profile.business_type || 'Not added yet'}</span>
+              </div>
+              <div style={{ height: 1, background: 'var(--hairline)' }} />
+              <div className="row between">
+                <span style={{ color: 'var(--ink-500)' }}>Connected social accounts</span>
+                <span>{connectedSocialAccounts.length}</span>
+              </div>
+              {connectedSocialAccounts.length > 0 && (
+                <div className="row wrap" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                  {connectedSocialAccounts.map(account => (
+                    <span key={account.id} className="badge neutral" style={{ textTransform: 'capitalize' }}>
+                      {account.platform}: {account.page_name || account.platform_name || account.platform_username}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
           {profile.role === 'freelancer' && (
             <>
               <div style={{ height: 1, background: 'var(--hairline)' }} />
@@ -327,6 +375,56 @@ export default function Settings() {
             </>
           )}
         </div>
+      </div>}
+      {section === 'setup' && user?.role === 'client' && <div className="stack" style={{ gap: 14 }}>
+        <div className="card reveal" style={{ padding: 24 }}>
+          <div className="h-eyebrow" style={{ marginBottom: 8 }}>Business setup</div>
+          <h2 style={{ margin: 0 }}>Finish the pieces that improve your calendar and insights</h2>
+          <p className="muted" style={{ margin: '8px 0 0' }}>Each step improves recommendations, reporting, and production handoff.</p>
+        </div>
+        {[
+          {
+            title: 'Business profile',
+            body: profile.business_name ? `${profile.business_name} is saved.` : 'Add business name, type, city, and customer profile.',
+            done: Boolean(profile.business_name || profile.business_type),
+            action: () => setSearchParams({ section: 'profile' }),
+          },
+          {
+            title: 'Social accounts',
+            body: connectedSocialAccounts.length ? `${connectedSocialAccounts.length} account${connectedSocialAccounts.length === 1 ? '' : 's'} connected.` : 'Connect Facebook, Instagram, or YouTube for analytics.',
+            done: connectedSocialAccounts.length > 0,
+            action: () => window.location.assign('/social'),
+          },
+          {
+            title: 'Verification',
+            body: profile.kyc_status === 'verified' ? 'Your account is verified.' : 'Complete verification before paid work expands.',
+            done: profile.kyc_status === 'verified',
+            action: () => setSearchParams({ section: 'verification' }),
+          },
+        ].map((item, index) => (
+          <button
+            key={item.title}
+            className="card"
+            onClick={item.action}
+            style={{ padding: 18, textAlign: 'left', display: 'grid', gridTemplateColumns: '44px 1fr auto', gap: 14, alignItems: 'center', cursor: 'pointer' }}
+          >
+            <span style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              display: 'grid',
+              placeItems: 'center',
+              background: item.done ? 'var(--mint-50)' : 'var(--paper-tint)',
+              color: item.done ? 'var(--mint-700)' : 'var(--ink-500)',
+              fontWeight: 700,
+            }}>{item.done ? <Icon name="check" /> : index + 1}</span>
+            <span>
+              <strong style={{ display: 'block' }}>{item.title}</strong>
+              <span className="muted" style={{ display: 'block', marginTop: 3 }}>{item.body}</span>
+            </span>
+            <Icon name="chevronRight" />
+          </button>
+        ))}
       </div>}
       </div>
     </div>

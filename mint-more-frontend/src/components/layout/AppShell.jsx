@@ -15,6 +15,9 @@ import { ToastHost } from '../ui/Toast'
 import NotifPanel from '../shared/NotifPanel'
 import TopUpModal from '../shared/TopUpModal'
 import GuestBanner from '../shared/GuestBanner'
+import { useEntitlements } from '../../hooks/useEntitlements'
+
+const DEFAULT_FLAGS = { wallet_ui: false, marketplace: false, freelancer_portal: false, freelancer_matching: false, negotiation: false }
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
@@ -38,6 +41,10 @@ export default function AppShell() {
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const isMobile = useIsMobile()
+  const role = isGuest ? 'client' : user?.role
+  const { data: access } = useEntitlements()
+  const featureFlags = { ...DEFAULT_FLAGS, ...(access?.feature_flags || {}) }
+  const showWalletUi = role !== 'client' || featureFlags.wallet_ui !== false
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -53,7 +60,7 @@ export default function AppShell() {
   const { data: walletData } = useQuery({
     queryKey: ['wallet'],
     queryFn: () => walletApi.get().then(r => r.data.data),
-    enabled: (isAuthed || isGuest) && user?.role !== 'admin' && !isGuest,
+    enabled: showWalletUi && (isAuthed || isGuest) && user?.role !== 'admin' && !isGuest,
     refetchInterval: 60_000,
   })
   const walletBalance = walletData?.wallet?.balance ?? null
@@ -79,8 +86,6 @@ export default function AppShell() {
 
   if (!isAuthed && !isGuest) return <Navigate to="/login" replace />
 
-  const role = isGuest ? 'client' : user?.role
-
   return (
     <div className={`app${isMobile ? ' mobile' : ''}`}>
       {/* Desktop sidebar — hidden on mobile */}
@@ -91,10 +96,10 @@ export default function AppShell() {
         <Topbar
           isMobile={isMobile}
           onMenuClick={() => setDrawerOpen(true)}
-          walletBalance={role !== 'admin' && !isGuest ? walletBalance : undefined}
+          walletBalance={showWalletUi && role !== 'admin' && !isGuest ? walletBalance : undefined}
           mintCoinBalance={role === 'client' ? (isGuest ? 999 : mintCoinBalance) : undefined}
-          onWalletClick={() => setShowTopUp(true)}
-          onMintCoinClick={() => navigate(isGuest ? '/register' : '/membership')}
+          onWalletClick={() => showWalletUi && setShowTopUp(true)}
+          onMintCoinClick={() => navigate(isGuest ? '/register' : '/calendar')}
           onNotifClick={() => setShowNotif(!showNotif)}
           notifUnread={unreadCount > 0}
           unreadCount={unreadCount}
@@ -116,7 +121,7 @@ export default function AppShell() {
       )}
 
       {showNotif && !isGuest && <NotifPanel onClose={() => setShowNotif(false)} />}
-      {showTopUp && !isGuest && <TopUpModal onClose={() => setShowTopUp(false)} />}
+      {showTopUp && showWalletUi && !isGuest && <TopUpModal onClose={() => setShowTopUp(false)} />}
 
       <ToastHost toasts={toasts} />
     </div>

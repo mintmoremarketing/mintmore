@@ -12,15 +12,18 @@ export function useSSE() {
 	const addNotif = useUIStore((s) => s.addNotif)
 	const queryClient = useQueryClient()
 	const esRef = useRef(null)
+	const warnedRef = useRef(false)
 
 	useEffect(() => {
 		if (!isAuthed || !accessToken) return
 
+		warnedRef.current = false
 		const url = `${BASE}/notifications/stream?token=${encodeURIComponent(accessToken)}`
 		const es = new EventSource(url)
 		esRef.current = es
 
 		es.onopen = () => {
+			warnedRef.current = false
 			console.log('[SSE] Connected')
 		}
 
@@ -100,12 +103,15 @@ export function useSSE() {
 		}
 
 		es.onerror = () => {
-			console.warn('[SSE] Connection error - will retry')
+			if (!warnedRef.current) {
+				warnedRef.current = true
+				console.warn('[SSE] Connection error - will retry when the API is reachable')
+			}
 		}
 
 		return () => {
 			es.close()
 			esRef.current = null
 		}
-	}, [isAuthed, accessToken])
+	}, [isAuthed, accessToken, addNotif, pushToast, queryClient])
 }

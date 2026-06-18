@@ -98,6 +98,31 @@ const CONTROL_SCHEMAS = {
   },
 }
 
+const FEATURE_FLAG_GROUPS = [
+  {
+    title: 'Phase 1 client modules',
+    flags: [
+      ['calendar_creatives', 'Calendar creatives', 'Show monthly creative calendar to clients.'],
+      ['internal_ops', 'Internal ops', 'Route client work to Mint More operations.'],
+      ['custom_requests', 'Custom requests', 'Allow clients to request custom designs.'],
+      ['mintbox', 'Mintbox', 'Show project storage and delivery folders.'],
+      ['chat', 'Messages', 'Enable project chat and inbox routes.'],
+      ['social_insights', 'Social insights', 'Show connected accounts, analytics, and publishing.'],
+      ['mint_ai', 'Mint AI', 'Enable AI tools for clients.'],
+    ],
+  },
+  {
+    title: 'Hidden future marketplace modules',
+    flags: [
+      ['wallet_ui', 'Wallet UI', 'Show wallet and membership payment screens to clients.'],
+      ['marketplace', 'Marketplace', 'Show public freelancer browsing to clients.'],
+      ['freelancer_portal', 'Freelancer portal', 'Allow freelancer-facing product areas.'],
+      ['freelancer_matching', 'Freelancer matching', 'Run freelancer matching instead of internal ops.'],
+      ['negotiation', 'Negotiation', 'Enable client/freelancer negotiation flow.'],
+    ],
+  },
+]
+
 function Field({ field, value, onChange }) {
   const [key, label, unit] = field
   if (unit === 'toggle') {
@@ -191,6 +216,72 @@ function SettingEditor({ setting }) {
   )
 }
 
+function FeatureFlagsEditor({ setting }) {
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore(s => s.pushToast)
+  const [value, setValue] = useState(setting.value || {})
+  const save = useMutation({
+    mutationFn: () => commerceApi.updateSetting(setting.key, value),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commerce-settings'] })
+      queryClient.invalidateQueries({ queryKey: ['entitlements'] })
+      pushToast({ title: 'Feature flags saved', icon: 'check' })
+    },
+    onError: err => pushToast({ title: 'Could not save flags', body: err.response?.data?.message || err.message, tone: 'amber', icon: 'x' }),
+  })
+  const setFlag = (key, next) => setValue(current => ({ ...current, [key]: next }))
+
+  return (
+    <div className="card commerce-card commerce-card-wide">
+      <div className="commerce-card-head">
+        <div>
+          <strong>Feature flags</strong>
+          <div className="muted">Turn product modules on or off without changing code.</div>
+        </div>
+        <button className="btn primary sm" onClick={() => save.mutate()} disabled={save.isPending}>
+          <Icon name="check" size={12} /> Save flags
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+        {FEATURE_FLAG_GROUPS.map(group => (
+          <div key={group.title} style={{ border: '1px solid var(--hairline)', borderRadius: 14, padding: 14, background: 'var(--paper-tint)' }}>
+            <div className="h-eyebrow" style={{ marginBottom: 10 }}>{group.title}</div>
+            <div className="stack" style={{ gap: 8 }}>
+              {group.flags.map(([key, label, description]) => (
+                <label
+                  key={key}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    gap: 12,
+                    alignItems: 'center',
+                    padding: 12,
+                    border: '1px solid var(--hairline)',
+                    borderRadius: 10,
+                    background: value[key] ? 'var(--mint-50)' : 'var(--paper)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>
+                    <strong style={{ display: 'block', fontSize: 13.5 }}>{label}</strong>
+                    <small className="muted">{description}</small>
+                    <code style={{ display: 'block', marginTop: 5, fontSize: 11, color: 'var(--ink-500)' }}>{key}</code>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(value[key])}
+                    onChange={event => setFlag(key, event.target.checked)}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function AdminCommerce() {
   const { data, isLoading } = useQuery({
     queryKey: ['commerce-settings'],
@@ -207,6 +298,8 @@ export default function AdminCommerce() {
         <div className="commerce-grid">
           {(data?.settings || []).map(setting => setting.key === 'access_passes'
             ? <AccessPassEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
+            : setting.key === 'feature_flags'
+              ? <FeatureFlagsEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
             : CONTROL_SCHEMAS[setting.key] && <SettingEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
           )}
         </div>

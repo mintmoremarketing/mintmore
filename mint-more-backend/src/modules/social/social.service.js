@@ -10,6 +10,35 @@ const axios    = require('axios');
 const { getSetting } = require('../commerce/settings.service');
 
 const FB_API = 'https://graph.facebook.com/v19.0';
+const SOCIAL_PLATFORMS = ['facebook', 'instagram', 'youtube'];
+
+const normalizeTargetPlatforms = (value) => {
+  let platforms = value;
+
+  if (typeof platforms === 'string') {
+    const trimmed = platforms.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      platforms = trimmed
+        .slice(1, -1)
+        .split(',')
+        .map(item => item.trim().replace(/^"|"$/g, ''));
+    } else {
+      try {
+        platforms = JSON.parse(trimmed);
+      } catch {
+        platforms = trimmed.split(',').map(item => item.trim());
+      }
+    }
+  }
+
+  if (!Array.isArray(platforms)) platforms = [platforms];
+
+  return [...new Set(
+    platforms
+      .map(platform => String(platform || '').trim().toLowerCase())
+      .filter(platform => SOCIAL_PLATFORMS.includes(platform))
+  )];
+};
 
 // ── OAuth Flow ────────────────────────────────────────────────────────────────
 
@@ -338,6 +367,9 @@ const refreshTokenIfNeeded = async (account) => {
 // ── Post Management ───────────────────────────────────────────────────────────
 
 const createPost = async (userId, data) => {
+  const targetPlatforms = normalizeTargetPlatforms(data.target_platforms);
+  if (!targetPlatforms.length) throw new AppError('Choose at least one connected platform', 400);
+
   const result = await query(
     `INSERT INTO social_posts
        (user_id, title, caption, hashtags, mentions,
@@ -352,7 +384,7 @@ const createPost = async (userId, data) => {
       data.hashtags || [],
       data.mentions || [],
       data.content_type,
-      data.target_platforms,
+      targetPlatforms,
       data.publish_at || null,
       'draft',
       data.source_job_id || null,
@@ -459,8 +491,11 @@ const publishPost = async (postId, userId) => {
     throw new AppError(`Post cannot be published from status: ${post.status}`, 400);
   }
 
+  const targetPlatforms = normalizeTargetPlatforms(post.target_platforms);
+  if (!targetPlatforms.length) throw new AppError('Choose at least one platform before publishing', 400);
+
   // Create per-platform status rows
-  for (const platform of post.target_platforms) {
+  for (const platform of targetPlatforms) {
     // Find user's connected account for this platform
     const accountResult = await query(
       `SELECT id FROM social_accounts
@@ -470,13 +505,16 @@ const publishPost = async (postId, userId) => {
     );
 
     const account = accountResult.rows[0];
+    if (!account) {
+      throw new AppError(`Connect a ${platform} account before publishing there`, 400);
+    }
 
     await query(
       `INSERT INTO social_post_platforms
          (post_id, social_account_id, platform, status)
        VALUES ($1, $2, $3, 'pending')
        ON CONFLICT (post_id, platform) DO UPDATE SET status = 'pending'`,
-      [postId, account?.id || null, platform]
+      [postId, account.id, platform]
     );
   }
 

@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { aiApi } from '../../api/ai'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
-import { SkeletonCard } from '../../components/ui/Skeleton'
 
 const TOOLS = [
   { value: 'text',         icon: 'type',       label: 'Write content',   desc: 'Blog posts, ad copy, emails' },
@@ -165,13 +164,11 @@ function GenerationResult({ generation, onCopy }) {
 
 export default function MintAI() {
   const pushToast = useUIStore(s => s.pushToast)
-  const aiProgress = useUIStore(s => s.aiProgress)
 
   const [activeTool,   setActiveTool]   = useState('text')
-  const [selectedModel,setSelectedModel]= useState(null)
+  const [selectedModelId,setSelectedModelId]= useState(null)
   const [prompt,       setPrompt]       = useState('')
   const [showPicker,   setShowPicker]   = useState(false)
-  const [lastGenId,    setLastGenId]    = useState(null)
   const [pollingId,    setPollingId]    = useState(null)
   const [result,       setResult]       = useState(null)
   const [videoDuration,setVideoDuration]= useState(null)
@@ -195,19 +192,24 @@ useEffect(() => {
   return () => window.removeEventListener('resize', handleResize)
 }, [])
 
-  const { data: usageData } = useQuery({
-    queryKey: ['ai-usage'],
-    queryFn:  () => aiApi.getUsage().then(r => r.data.data),
-  })
-
   const { data: historyData } = useQuery({
     queryKey: ['ai-generations'],
     queryFn:  () => aiApi.getGenerations({ limit: 8 }).then(r => r.data.data),
   })
 
-  const models   = modelsData?.models || []
-  const usage    = usageData?.usage || {}
-  const history  = historyData?.generations || []
+  const models   = useMemo(() => modelsData?.models || [], [modelsData?.models])
+  const history  = useMemo(() => historyData?.generations || [], [historyData?.generations])
+  const compatibleModels = useMemo(() => models.filter(m =>
+    m.supported_tools?.includes(activeTool) &&
+    m.is_active &&
+    (activeTool !== 'video' || m.video_capabilities)
+  ), [activeTool, models])
+  const selectedModel = useMemo(() => (
+    compatibleModels.find(model => model.id === selectedModelId) ||
+    compatibleModels.find(model => model.tier === 'free') ||
+    compatibleModels[0] ||
+    null
+  ), [compatibleModels, selectedModelId])
   const videoCapabilities = selectedModel?.video_capabilities || {}
   const effectiveVideoDuration = videoCapabilities.supported_durations?.includes(videoDuration)
     ? videoDuration
@@ -218,19 +220,6 @@ useEffect(() => {
   const effectiveVideoResolution = videoCapabilities.supported_resolutions?.includes(videoResolution)
     ? videoResolution
     : videoCapabilities.supported_resolutions?.[0] || null
-
-  // Auto-select first compatible model when tool changes
-  useEffect(() => {
-    const compatible = models.filter(m =>
-      m.supported_tools?.includes(activeTool) &&
-      m.is_active &&
-      (activeTool !== 'video' || m.video_capabilities)
-    )
-    const selectedIsCompatible = compatible.some(model => model.id === selectedModel?.id)
-    if (!selectedIsCompatible) {
-      setSelectedModel(compatible.find(model => model.tier === 'free') || compatible[0] || null)
-    }
-  }, [activeTool, models, selectedModel?.id])
 
   // Poll for generation result
   useEffect(() => {
@@ -250,7 +239,7 @@ useEffect(() => {
       } catch { clearInterval(interval) }
     }, 2000)
     return () => clearInterval(interval)
-  }, [pollingId])
+  }, [pollingId, pushToast])
 
   const generateMutation = useMutation({
     mutationFn: () => aiApi.generate({
@@ -267,7 +256,6 @@ useEffect(() => {
     }),
     onSuccess: (res) => {
       const gen = res.data.data
-      setLastGenId(gen.generation_id || gen.id)
       setPollingId(gen.generation_id || gen.id)
       setResult({ status: 'queued' })
     },
@@ -275,18 +263,6 @@ useEffect(() => {
   })
 
   const currentTool = TOOLS.find(t => t.value === activeTool)
-  const rateMeta = usage.requests_remaining_this_hour ?? usage.rate_limit
-  const rateLimitRaw =
-    typeof rateMeta === 'object' && rateMeta !== null
-      ? (rateMeta.remaining ?? rateMeta.limit ?? rateMeta.used ?? 0)
-      : rateMeta
-  const totalRateRaw =
-    typeof usage.rate_limit === 'object' && usage.rate_limit !== null
-      ? (usage.rate_limit.limit ?? usage.rate_limit.remaining ?? 20)
-      : usage.rate_limit
-  const rateLimit = Number.isFinite(Number(rateLimitRaw)) ? Number(rateLimitRaw) : 0
-  const totalRate = Number.isFinite(Number(totalRateRaw)) ? Number(totalRateRaw) : 20
-
   return (
   <div className="stack-6">
 
@@ -449,7 +425,7 @@ useEffect(() => {
                 models={models}
                 selected={selectedModel}
                 onSelect={(m) => {
-                  setSelectedModel(m)
+                  setSelectedModelId(m.id)
                   setShowPicker(false)
                 }}
                 toolType={activeTool}

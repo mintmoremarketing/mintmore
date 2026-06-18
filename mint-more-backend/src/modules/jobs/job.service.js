@@ -2,6 +2,7 @@ const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
 const { enqueueOutboxEvent } = require('../events/outbox.service');
+const { getSetting } = require('../commerce/settings.service');
 
 // ── Lazy-load matching service to avoid circular dependency ───────────────────
 // Dependency chain: job.service → matching.service → negotiation.service
@@ -26,10 +27,20 @@ const redactManagedJobForClient = (job) => {
 // ── Internal helper ───────────────────────────────────────────────────────────
 
 const queueMatching = async (jobId, reason) => {
+  const flags = await getSetting('feature_flags', { freelancer_matching: false });
+  if (flags?.freelancer_matching === false) {
+    logger.info('[Jobs] Matching skipped by feature flag', { jobId, reason });
+    return null;
+  }
   // Fire-and-forget — never blocks the HTTP response.
   // Errors are caught and logged; they must not surface to the caller.
   await enqueueOutboxEvent('matching.run', { jobId, reason });
   logger.info(`[Jobs] Auto-matching queued (${reason})`, { jobId });
+};
+
+const getPublishedStatus = async () => {
+  const flags = await getSetting('feature_flags', { freelancer_matching: false });
+  return flags?.freelancer_matching === false ? 'pending_admin_approval' : 'open';
 };
 
 const normalizeBriefPricing = ({
@@ -40,10 +51,11 @@ const normalizeBriefPricing = ({
   metadata,
 }) => {
   const mode = pricing_mode === 'expert' ? 'expert' : 'budget';
+  const normalizedBudgetType = budget_type === 'expert' ? 'expert' : 'fixed';
 
   return {
     pricing_mode: mode,
-    budget_type: budget_type || 'quote',
+    budget_type: normalizedBudgetType,
     budget_amount: budget_amount === '' || budget_amount === undefined ? null : budget_amount,
     required_level: mode === 'expert' ? 'experienced' : null,
     metadata: {
@@ -79,6 +91,7 @@ const createJob = async (clientId, {
   deadline,
   metadata,
 }) => {
+  const publishStatus = await getPublishedStatus();
   const pricing = normalizeBriefPricing({
     pricing_mode,
     budget_type,
@@ -93,7 +106,7 @@ const createJob = async (clientId, {
         attachments, budget_type, budget_amount, currency,
         pricing_mode, required_level, required_skills,
         deadline, metadata, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'open')
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
      RETURNING *`,
     [
       clientId,
@@ -110,6 +123,7 @@ const createJob = async (clientId, {
       required_skills || [],
       deadline        || null,
       JSON.stringify(pricing.metadata),
+      publishStatus,
     ]
   );
 
@@ -117,7 +131,7 @@ const createJob = async (clientId, {
   logger.info('[Jobs] Job created', { jobId: job.id, clientId });
 
   // ── Auto-trigger matching ─────────────────────────────────────────────────
-  if (job.pricing_mode === 'budget') {
+  if (job.status === 'open' && job.pricing_mode === 'budget') {
     await queueMatching(job.id, 'job_created');
   } else {
     logger.info('[Jobs] Pro brief awaiting admin matching review', { jobId: job.id, clientId });
@@ -192,14 +206,15 @@ const createJobAsDraft = async (clientId, {
  * Client publishes a draft → status: 'open' → matching triggers automatically.
  */
 const publishJob = async (clientId, jobId) => {
+  const publishStatus = await getPublishedStatus();
   const result = await query(
     `UPDATE jobs
-     SET status = 'open'
+     SET status = $3
      WHERE id        = $1
        AND client_id = $2
        AND status    = 'draft'
      RETURNING *`,
-    [jobId, clientId]
+    [jobId, clientId, publishStatus]
   );
 
   if (!result.rows[0]) {
@@ -235,7 +250,7 @@ const publishJob = async (clientId, jobId) => {
   logger.info('[Jobs] Job published', { jobId: job.id, clientId });
 
   // ── Auto-trigger matching ─────────────────────────────────────────────────
-  if (job.pricing_mode === 'budget') {
+  if (job.status === 'open' && job.pricing_mode === 'budget') {
     await queueMatching(job.id, 'job_published');
   } else {
     logger.info('[Jobs] Pro brief awaiting admin matching review', { jobId: job.id, clientId });
@@ -252,6 +267,7 @@ const publishJob = async (clientId, jobId) => {
  */
 const updateJob = async (clientId, jobId, updates) => {
   const normalizedUpdates = { ...updates };
+  if (normalizedUpdates.deadline === '') normalizedUpdates.deadline = null;
   if (
     updates.pricing_mode !== undefined ||
     updates.budget_type !== undefined ||
@@ -308,6 +324,27 @@ const updateJob = async (clientId, jobId, updates) => {
 
   logger.info('[Jobs] Job updated', { jobId, clientId });
   return result.rows[0];
+};
+
+const deleteDraftJob = async (clientId, jobId) => {
+  const result = await query(
+    `DELETE FROM jobs
+     WHERE id = $1
+       AND client_id = $2
+       AND status = 'draft'
+     RETURNING id, title`,
+    [jobId, clientId]
+  );
+
+  if (!result.rows[0]) {
+    throw new AppError(
+      'Draft request not found or cannot be deleted',
+      404
+    );
+  }
+
+  logger.info('[Jobs] Draft deleted', { jobId, clientId });
+  return { deleted: true, job: result.rows[0] };
 };
 
 const pauseMatching = async (clientId, jobId) => {
@@ -664,6 +701,10 @@ const adminUpdateJobStatus = async (adminId, jobId, { status, admin_note }) => {
 };
 
 const approveProMatching = async (jobId, adminId) => {
+  const flags = await getSetting('feature_flags', { freelancer_matching: false });
+  if (flags?.freelancer_matching === false) {
+    throw new AppError('Freelancer matching is disabled by feature flag', 403);
+  }
   const result = await query(
     `UPDATE jobs
      SET pro_reviewed_by = $1, pro_reviewed_at = NOW()
@@ -681,6 +722,7 @@ module.exports = {
   createJobAsDraft,
   publishJob,
   updateJob,
+  deleteDraftJob,
   pauseMatching,
   cancelJob,
   listJobs,
