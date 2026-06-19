@@ -79,7 +79,7 @@ export default function Chat() {
 	const roomLabel = item => role === 'admin'
 		? `${item.client_name} / ${item.freelancer_name}`
 		: role === 'client'
-			? item.mm_channel_name || 'Mint More creative'
+			? item.mm_channel_name || 'CREATYV creative'
 			: item.client_name || 'Client'
 
 	return (

@@ -8,6 +8,7 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import StatusChip from '../../components/ui/StatusChip'
 import Avatar from '../../components/ui/Avatar'
+import DateBadge from '../../components/ui/DateBadge'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 
@@ -225,10 +226,10 @@ function MatchingPanel({ job }) {
                   border: '1px solid var(--hairline)',
                   borderRadius: 'var(--radius-md)',
                 }}>
-                  <Avatar name="Mint More" />
+                  <Avatar name="CREATYV" />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-950)' }}>
-                      Mint More creative
+                      CREATYV creative
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>
                       Verified for this brief
@@ -281,7 +282,7 @@ function ClientNegotiationPanel({ job }) {
 
   const neg = negotiationData?.negotiation || job.negotiation
   const economics = negotiationData?.economics
-  const freelancerName = 'Mint More creative'
+  const freelancerName = 'CREATYV creative'
 
   const counterMutation = useMutation({
     mutationFn: () =>
@@ -931,9 +932,9 @@ function InProgressPanel({ job, navigate }) {
 
       {job.has_active_creative && (
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, padding: '12px 14px', background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
-          <Avatar name="Mint More" />
+          <Avatar name="CREATYV" />
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-950)' }}>Mint More creative</div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-950)' }}>CREATYV creative</div>
             <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>Your assigned creative</div>
           </div>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--mint-500)' }} />
@@ -1145,7 +1146,7 @@ export default function JobDetail() {
               {job.deadline && (
                 <div className="row between" style={{ fontSize: 13 }}>
                   <span style={{ color: 'var(--ink-500)' }}>Deadline</span>
-                  <span>{new Date(job.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  <DateBadge value={job.deadline} />
                 </div>
               )}
 
@@ -1162,10 +1163,10 @@ export default function JobDetail() {
             <div className="card reveal" data-d="4" style={{ padding: 18 }}>
               <div className="h-eyebrow" style={{ marginBottom: 12 }}>Assigned creative</div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <Avatar name="Mint More" />
+                <Avatar name="CREATYV" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--ink-950)' }}>
-                    Mint More creative
+                    CREATYV creative
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>
                     Verified for this project

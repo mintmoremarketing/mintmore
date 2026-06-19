@@ -143,6 +143,11 @@ const env = {
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
   },
 
+  googleSheets: {
+    spreadsheetId: process.env.GOOGLE_SHEET_ID?.trim(),
+    serviceAccountJson: process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
+  },
+
   ai: {
     openrouterKey:        process.env.OPENROUTER_API_KEY,
     replicateToken:       process.env.REPLICATE_API_TOKEN,

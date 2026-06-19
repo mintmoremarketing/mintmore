@@ -36,7 +36,7 @@ export default function Sidebar({ role }) {
     <nav className="sidebar">
       {/* Logo */}
       <div className="sidebar-logo" onClick={() => navigate('/dashboard')}>
-        Mint<span style={{ color: 'var(--mint-500)', fontStyle: 'italic', fontWeight: 500 }}>more</span>
+        CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
       </div>
 
       {/* Main nav */}

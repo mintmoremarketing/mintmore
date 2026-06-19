@@ -215,8 +215,8 @@ const activatePayment = async (dbClient, payment, paymentId) => {
       type: 'system',
       title: payment.kind === 'access_pass' ? 'Access pass active' : 'Membership active',
       body: payment.kind === 'access_pass'
-        ? 'Your Mint More access pass is ready to use.'
-        : 'Your Mint More membership is active and your included benefits are ready.',
+        ? 'Your CREATYV access pass is ready to use.'
+        : 'Your CREATYV membership is active and your included benefits are ready.',
       entityType: 'membership_payment',
       entityId: payment.id,
       data: { kind: payment.kind, amount: payment.amount },

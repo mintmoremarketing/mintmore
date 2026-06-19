@@ -47,7 +47,7 @@ export default function Membership() {
       const checkoutOptions = {
         key: order.key_id,
         currency: order.currency,
-        name: 'Mint More',
+        name: 'CREATYV',
         description: payload.kind === 'access_pass' ? `${payload.days}-day access pass` : 'Business membership',
         theme: { color: '#10B981' },
         handler: async response => {
@@ -88,7 +88,7 @@ export default function Membership() {
     <div className="stack-6">
       <div>
         <div className="h-eyebrow">Membership</div>
-        <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>Mint More membership</h1>
+        <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>CREATYV membership</h1>
         <p className="muted">One membership for creative work, Mint AI, social publishing, and your brand library.</p>
       </div>
 
@@ -119,7 +119,7 @@ export default function Membership() {
           <div className="h-eyebrow">Mint Credits</div>
           <div className="mono" style={{ fontSize: 32, fontWeight: 600, marginTop: 12 }}>{rupee(creditData?.balance || 0)}</div>
           <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
-            Promotional credits pay Mint More platform services. They never fund freelancer earnings and cannot be withdrawn.
+            Promotional credits pay CREATYV platform services. They never fund freelancer earnings and cannot be withdrawn.
           </p>
         </div>
       </div>

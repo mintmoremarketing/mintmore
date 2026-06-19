@@ -9,7 +9,7 @@ const openRouterHeaders = () => ({
   Authorization: `Bearer ${env.ai.openrouterKey}`,
   'Content-Type': 'application/json',
   'HTTP-Referer': 'https://mintmoremarketing.com',
-  'X-Title': 'Mint More AI',
+  'X-Title': 'CREATYV AI',
 });
 
 const parseProviderJson = async (response, operation) => {
@@ -56,7 +56,7 @@ const generateText = async (openrouterId, prompt, params = {}, systemPromptOverr
   } = params;
 
   const systemPrompt = systemPromptOverride ||
-    'You are a helpful creative assistant for Mint More, an Indian creative services platform. Be concise, professional, and culturally relevant for Indian businesses.';
+    'You are a helpful creative assistant for CREATYV, an Indian creative services platform. Be concise, professional, and culturally relevant for Indian businesses.';
 
   const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
     method:  'POST',
@@ -64,7 +64,7 @@ const generateText = async (openrouterId, prompt, params = {}, systemPromptOverr
       Authorization:  `Bearer ${env.ai.openrouterKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': 'https://mintmoremarketing.com',
-      'X-Title':      'Mint More AI',
+      'X-Title':      'CREATYV AI',
     },
     body: JSON.stringify({
       model:       openrouterId,
@@ -120,7 +120,7 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
       Authorization:  `Bearer ${env.ai.openrouterKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': 'https://mintmoremarketing.com',
-      'X-Title':      'Mint More AI',
+      'X-Title':      'CREATYV AI',
     },
     body: JSON.stringify({
       model: openrouterId,

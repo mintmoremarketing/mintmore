@@ -1,6 +1,9 @@
 const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
+const axios = require('axios');
+const { google } = require('googleapis');
+const env = require('../../config/env');
 const { recordCreditTransaction, getCreditAccount } = require('../commerce/credits.service');
 const { getSetting } = require('../commerce/settings.service');
 const notificationService = require('../notifications/notification.service');
@@ -161,8 +164,8 @@ const createInternalJob = async (dbClient, clientId, {
     [
       clientId,
       categoryId,
-      String(title || 'Mint More creative request').trim(),
-      String(description || 'Internal Mint More creative request').trim(),
+      String(title || 'CREATYV creative request').trim(),
+      String(description || 'Internal CREATYV creative request').trim(),
       deadline || null,
       JSON.stringify({
         ...metadata,
@@ -208,10 +211,39 @@ const createTask = async (dbClient, {
   dueDate,
   coinCost,
   status = 'pending',
-  clientStatus = 'Queued with Mint More',
+  clientStatus = 'Queued with CREATYV',
   metadata = {},
 }) => {
   const folder = await ensureMintboxFolder(dbClient, job);
+  const sourceLockKey = `creative_task:${sourceType}:${sourceId}`;
+  await dbClient.query('SELECT pg_advisory_xact_lock(hashtext($1))', [sourceLockKey]);
+
+  const existing = await dbClient.query(
+    `SELECT *
+     FROM creative_tasks
+     WHERE source_type = $1
+       AND source_id = $2
+       AND status <> 'cancelled'
+     ORDER BY created_at ASC
+     LIMIT 1
+     FOR UPDATE`,
+    [sourceType, sourceId]
+  );
+  if (existing.rows[0]) {
+    const task = existing.rows[0];
+    if (!task.mintbox_folder_id && folder?.id) {
+      const updated = await dbClient.query(
+        `UPDATE creative_tasks
+         SET mintbox_folder_id = $1
+         WHERE id = $2
+         RETURNING *`,
+        [folder.id, task.id]
+      );
+      return updated.rows[0];
+    }
+    return task;
+  }
+
   const result = await dbClient.query(
     `INSERT INTO creative_tasks
        (source_type, source_id, client_id, job_id, title, description,
@@ -256,6 +288,96 @@ const spendMintCoins = async (dbClient, {
     description,
     metadata,
   });
+};
+
+const refundMintCoins = async (dbClient, {
+  clientId,
+  amount,
+  referenceId,
+  referenceType,
+  description,
+  metadata = {},
+}) => {
+  const parsed = Number(amount || 0);
+  if (parsed <= 0) return null;
+  return recordCreditTransaction(dbClient, {
+    userId: clientId,
+    type: 'reversal',
+    amount: parsed,
+    referenceId,
+    referenceType,
+    idempotencyKey: `${referenceType}:${referenceId}:mintcoin-refund`,
+    description,
+    metadata,
+    consumeLots: false,
+  });
+};
+
+const refundTaskMintCoins = async (dbClient, task, adminId, reason = 'Task cancelled') => {
+  const sourceTable = task.source_type === 'calendar_event'
+    ? {
+      table: 'client_event_selections',
+      referenceType: 'calendar_selection',
+      label: 'calendar selection',
+    }
+    : task.source_type === 'custom_request'
+      ? {
+        table: 'creative_requests',
+        referenceType: 'custom_request',
+        label: 'custom request',
+      }
+      : null;
+
+  if (!sourceTable) return null;
+
+  const sourceResult = await dbClient.query(
+    `SELECT source.*, tx.amount AS reserved_amount
+     FROM ${sourceTable.table} source
+     LEFT JOIN mint_credit_transactions tx ON tx.id = source.credit_tx_id
+     WHERE source.id = $1
+     FOR UPDATE OF source`,
+    [task.source_id]
+  );
+  const source = sourceResult.rows[0];
+  if (!source?.credit_tx_id) return null;
+
+  const reservedAmount = Math.abs(Number(source.reserved_amount || source.coin_cost || task.coin_cost || 0));
+  const refundTx = await refundMintCoins(dbClient, {
+    clientId: task.client_id,
+    amount: reservedAmount,
+    referenceId: source.id,
+    referenceType: sourceTable.referenceType,
+    description: `MintCoins returned for cancelled ${sourceTable.label}`,
+    metadata: {
+      task_id: task.id,
+      job_id: task.job_id,
+      cancelled_by: adminId,
+      reason,
+      original_credit_tx_id: source.credit_tx_id,
+    },
+  });
+
+  await dbClient.query(
+    `UPDATE ${sourceTable.table}
+     SET status = 'cancelled',
+         admin_note = COALESCE($1, admin_note),
+         metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+     WHERE id = $3
+       AND status NOT IN ('completed', 'cancelled')
+     RETURNING *`,
+    [
+      reason || null,
+      JSON.stringify({
+        cancelled_by: adminId,
+        cancelled_task_id: task.id,
+        refund_tx_id: refundTx?.id || null,
+        cancelled_at: new Date().toISOString(),
+      }),
+      source.id,
+    ]
+  );
+
+  return refundTx;
 };
 
 const listCalendar = async (clientId, { month = monthKeyFor() } = {}) => {
@@ -380,7 +502,7 @@ const selectEvent = async (clientId, eventId, { client_note = '' } = {}) => {
          SET job_id = $1, task_id = $2, credit_tx_id = $3
          WHERE id = $4
          RETURNING *`,
-        [job.id, task.id, creditTx?.id || null, selection.id]
+        [task.job_id || job.id, task.id, creditTx?.id || null, selection.id]
       );
     }
 
@@ -436,7 +558,7 @@ const createCustomRequest = async (clientId, payload = {}) => {
         job.metadata?.matching_disabled === true
       );
       if (!isDraft && !isInternalPending) {
-        throw new AppError('Only draft internal requests can be sent to Mint More ops', 409);
+        throw new AppError('Only draft internal requests can be sent to CREATYV ops', 409);
       }
 
       job = (await dbClient.query(
@@ -541,6 +663,7 @@ const listClientWork = async (clientId) => {
        FROM creative_tasks task
        LEFT JOIN users assignee ON assignee.id = task.assigned_to
        WHERE task.client_id = $1
+         AND task.status <> 'cancelled'
        ORDER BY task.created_at DESC`,
       [clientId]
     ),
@@ -646,7 +769,7 @@ const approveCalendarSelection = async (adminId, selectionId, payload = {}) => {
        RETURNING *`,
       [
         coinCost,
-        job.id,
+        task.job_id || job.id,
         task.id,
         creditTx?.id || null,
         payload.admin_note || null,
@@ -696,7 +819,7 @@ const rejectCalendarSelection = async (adminId, selectionId, payload = {}) => {
        AND selection.task_id IS NULL
      RETURNING selection.*, event.title, event.event_date`,
     [
-      payload.admin_note || 'Rejected by Mint More ops',
+      payload.admin_note || 'Rejected by CREATYV ops',
       JSON.stringify({ reviewed_by: adminId }),
       selectionId,
     ]
@@ -714,7 +837,7 @@ const rejectCalendarSelection = async (adminId, selectionId, payload = {}) => {
       title: result.rows[0].title,
       client_id: result.rows[0].client_id,
       event_id: result.rows[0].event_id,
-      reason: payload.admin_note || 'Rejected by Mint More ops',
+      reason: payload.admin_note || 'Rejected by CREATYV ops',
     },
   });
   return { selection: result.rows[0] };
@@ -727,6 +850,7 @@ const adminOverview = async () => {
        FROM creative_tasks task
        JOIN users client ON client.id = task.client_id
        LEFT JOIN users assignee ON assignee.id = task.assigned_to
+       WHERE task.status <> 'cancelled'
        ORDER BY task.created_at DESC
        LIMIT 100`
     ),
@@ -776,6 +900,8 @@ const listDesignerTasks = async (designerId) => {
   const result = await query(
     `SELECT task.*,
             client.full_name AS client_name,
+            client.business_name AS client_business_name,
+            client.business_type AS client_business_type,
             client.email AS client_email,
             folder.share_token AS folder_share_token
      FROM creative_tasks task
@@ -797,6 +923,192 @@ const listDesignerTasks = async (designerId) => {
     [designerId]
   );
   return { tasks: result.rows };
+};
+
+const getTaskSheetRows = async () => {
+  const result = await query(
+    `SELECT task.id, task.title, task.description, task.status, task.client_status,
+            task.source_type, task.work_slot, task.due_date, task.coin_cost,
+            task.created_at, task.updated_at,
+            client.full_name AS client_name,
+            client.business_name AS client_business_name,
+            client.business_type AS client_business_type,
+            designer.full_name AS designer_name
+     FROM creative_tasks task
+     JOIN users client ON client.id = task.client_id
+     LEFT JOIN users designer ON designer.id = task.assigned_to
+     WHERE task.status <> 'cancelled'
+     ORDER BY task.due_date NULLS LAST, task.created_at DESC`
+  );
+
+  return result.rows.map((task) => ({
+    id: task.id,
+    title: task.title,
+    client: task.client_business_name || task.client_name,
+    client_name: task.client_name,
+    business_type: task.client_business_type,
+    designer: task.designer_name || '',
+    status: task.status,
+    client_status: task.client_status,
+    source: task.source_type,
+    work_slot: task.work_slot || '',
+    due_date: task.due_date,
+    coin_cost: Number(task.coin_cost || 0),
+    created_at: task.created_at,
+    updated_at: task.updated_at,
+  }));
+};
+
+const parseGoogleServiceAccount = () => {
+  if (!env.googleSheets?.serviceAccountJson) return null;
+
+  try {
+    const credentials = JSON.parse(env.googleSheets.serviceAccountJson);
+    if (credentials.private_key) {
+      credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+    }
+    return credentials;
+  } catch (error) {
+    logger.error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON', { error: error.message });
+    throw new AppError('Google Sheets service account JSON is invalid', 500);
+  }
+};
+
+const syncTaskSheetDirect = async ({ rows, adminId, sheetName }) => {
+  const spreadsheetId = env.googleSheets?.spreadsheetId;
+  const credentials = parseGoogleServiceAccount();
+
+  if (!spreadsheetId || !credentials) return null;
+
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+  const sheets = google.sheets({ version: 'v4', auth });
+  const safeSheetName = sheetName || 'CREATYV tasks';
+
+  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
+  const hasSheet = spreadsheet.data.sheets?.some((sheet) => sheet.properties?.title === safeSheetName);
+  if (!hasSheet) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [{ addSheet: { properties: { title: safeSheetName } } }],
+      },
+    });
+  }
+
+  const values = [
+    [
+      'Task ID',
+      'Title',
+      'Client',
+      'Client Name',
+      'Business Type',
+      'Designer',
+      'Status',
+      'Client Status',
+      'Source',
+      'Work Slot',
+      'Due Date',
+      'MintCoins',
+      'Created At',
+      'Updated At',
+    ],
+    ...rows.map((row) => [
+      row.id,
+      row.title,
+      row.client,
+      row.client_name,
+      row.business_type,
+      row.designer,
+      row.status,
+      row.client_status,
+      row.source,
+      row.work_slot,
+      row.due_date ? new Date(row.due_date).toISOString().slice(0, 10) : '',
+      row.coin_cost,
+      row.created_at ? new Date(row.created_at).toISOString() : '',
+      row.updated_at ? new Date(row.updated_at).toISOString() : '',
+    ]),
+  ];
+
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId,
+    range: `'${safeSheetName}'!A:Z`,
+  });
+
+  const response = await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `'${safeSheetName}'!A1`,
+    valueInputOption: 'RAW',
+    requestBody: { values },
+  });
+
+  await writeAudit({
+    actorId: adminId,
+    actorRole: 'admin',
+    action: 'creative_tasks.sheet_synced',
+    entityType: 'creative_task',
+    entityId: 'sheet-sync',
+    metadata: {
+      provider: 'google_sheets',
+      spreadsheet_id: spreadsheetId,
+      sheet_name: safeSheetName,
+      rows: rows.length,
+      updated_cells: response.data.updatedCells || 0,
+    },
+  });
+
+  return {
+    configured: true,
+    provider: 'google_sheets',
+    rows_synced: rows.length,
+    updated_cells: response.data.updatedCells || 0,
+  };
+};
+
+const syncTaskSheet = async (adminId) => {
+  const rows = await getTaskSheetRows();
+  const setting = await getSetting('ops_google_sheets', { enabled: false, webhook_url: null, sheet_name: 'CREATYV tasks' });
+  const sheetName = setting?.sheet_name || 'CREATYV tasks';
+
+  const directSync = await syncTaskSheetDirect({ rows, adminId, sheetName });
+  if (directSync) return directSync;
+
+  if (!setting?.enabled || !setting?.webhook_url) {
+    return {
+      configured: false,
+      rows,
+      message: 'Google Sheets sync is not configured. Export CSV is still available.',
+    };
+  }
+
+  const response = await axios.post(setting.webhook_url, {
+    sheet_name: sheetName,
+    synced_by: adminId,
+    synced_at: new Date().toISOString(),
+    rows,
+  }, { timeout: 15000 });
+
+  await writeAudit({
+    actorId: adminId,
+    actorRole: 'admin',
+    action: 'creative_tasks.sheet_synced',
+    entityType: 'creative_task',
+    entityId: 'sheet-sync',
+    metadata: {
+      rows: rows.length,
+      sheet_name: sheetName,
+      status: response.status,
+    },
+  });
+
+  return {
+    configured: true,
+    rows_synced: rows.length,
+    provider_status: response.status,
+  };
 };
 
 const updateDesignerTask = async (designerId, taskId, payload = {}) => {
@@ -826,9 +1138,9 @@ const updateDesignerTask = async (designerId, taskId, payload = {}) => {
     [
       nextStatus,
       payload.client_status || (
-        nextStatus === 'in_progress' ? 'Mint More is designing this creative'
+        nextStatus === 'in_progress' ? 'CREATYV is designing this creative'
         : nextStatus === 'delivered' ? 'Delivered for review'
-        : nextStatus === 'blocked' ? 'Blocked - Mint More is reviewing'
+        : nextStatus === 'blocked' ? 'Blocked - CREATYV is reviewing'
         : before.client_status
       ),
       payload.internal_notes || null,
@@ -1041,77 +1353,117 @@ const archiveEvent = async (adminId, eventId) => {
 };
 
 const updateTask = async (adminId, taskId, payload = {}) => {
-  const beforeResult = await query('SELECT * FROM creative_tasks WHERE id = $1', [taskId]);
-  const before = beforeResult.rows[0];
-  if (!before) throw new AppError('Creative task not found', 404);
+  const dbClient = await getClient();
+  let committed = false;
+  try {
+    await dbClient.query('BEGIN');
 
-  const allowed = ['status', 'client_status', 'assigned_to', 'work_slot', 'due_date', 'internal_notes'];
-  const fields = [];
-  const values = [];
-  let idx = 1;
-  for (const key of allowed) {
-    if (payload[key] !== undefined) {
-      fields.push(`${key} = $${idx}`);
-      values.push(payload[key] || null);
+    const beforeResult = await dbClient.query(
+      'SELECT * FROM creative_tasks WHERE id = $1 FOR UPDATE',
+      [taskId]
+    );
+    const before = beforeResult.rows[0];
+    if (!before) throw new AppError('Creative task not found', 404);
+    if (before.status === 'completed' && payload.status === 'cancelled') {
+      throw new AppError('Completed tasks cannot be cancelled. Use a correction workflow instead.', 409);
+    }
+
+    const allowed = ['status', 'client_status', 'assigned_to', 'work_slot', 'due_date', 'internal_notes'];
+    const fields = [];
+    const values = [];
+    let idx = 1;
+    for (const key of allowed) {
+      if (payload[key] !== undefined) {
+        fields.push(`${key} = $${idx}`);
+        values.push(payload[key] || null);
+        idx += 1;
+      }
+    }
+    if (payload.assigned_to && payload.status === undefined && before.status === 'pending') {
+      fields.push(`status = $${idx}`);
+      values.push('assigned');
+      idx += 1;
+      fields.push(`client_status = $${idx}`);
+      values.push('Assigned to CREATYV design team');
       idx += 1;
     }
-  }
-  if (payload.assigned_to && payload.status === undefined && before.status === 'pending') {
-    fields.push(`status = $${idx}`);
-    values.push('assigned');
-    idx += 1;
-    fields.push(`client_status = $${idx}`);
-    values.push('Assigned to Mint More design team');
-    idx += 1;
-  }
-  if (!fields.length) throw new AppError('No valid task fields provided', 400);
-  if (payload.assigned_to) {
-    const designer = await query(
-      `SELECT id FROM users
-       WHERE id = $1 AND role = 'designer' AND is_active = true`,
-      [payload.assigned_to]
+    if (!fields.length) throw new AppError('No valid task fields provided', 400);
+    if (payload.assigned_to) {
+      const designer = await dbClient.query(
+        `SELECT id FROM users
+         WHERE id = $1 AND role = 'designer' AND is_active = true`,
+        [payload.assigned_to]
+      );
+      if (!designer.rows[0]) throw new AppError('Assigned user must be an active CREATYV designer', 400);
+    }
+    fields.push(`created_by_admin = COALESCE(created_by_admin, $${idx})`);
+    values.push(adminId);
+    values.push(taskId);
+    const result = await dbClient.query(
+      `UPDATE creative_tasks
+       SET ${fields.join(', ')}
+       WHERE id = $${idx + 1}
+       RETURNING *`,
+      values
     );
-    if (!designer.rows[0]) throw new AppError('Assigned user must be an active Mint More designer', 400);
-  }
-  fields.push(`created_by_admin = COALESCE(created_by_admin, $${idx})`);
-  values.push(adminId);
-  values.push(taskId);
-  const result = await query(
-    `UPDATE creative_tasks
-     SET ${fields.join(', ')}
-     WHERE id = $${idx + 1}
-     RETURNING *`,
-    values
-  );
-  const task = result.rows[0];
-  await writeAudit({
-    actorId: adminId,
-    actorRole: 'admin',
-    action: 'creative_task.updated',
-    entityType: 'creative_task',
-    entityId: taskId,
-    beforeState: before,
-    afterState: task,
-    metadata: {
-      title: task.title,
-      status: task.status,
-      assigned_to: task.assigned_to,
-      work_slot: task.work_slot,
-    },
-  });
-  if (payload.assigned_to) {
-    notificationService.createNotification({
-      userId: payload.assigned_to,
-      type: 'system',
-      title: 'New creative task assigned',
-      body: `${task.title} is now assigned to you.`,
+    const task = result.rows[0];
+    let refundTx = null;
+    if (payload.status === 'cancelled' && before.status !== 'cancelled') {
+      refundTx = await refundTaskMintCoins(
+        dbClient,
+        task,
+        adminId,
+        payload.internal_notes || payload.admin_note || 'Task cancelled'
+      );
+    }
+
+    await writeAudit({
+      actorId: adminId,
+      actorRole: 'admin',
+      action: 'creative_task.updated',
       entityType: 'creative_task',
-      entityId: task.id,
-      data: { task_id: task.id, job_id: task.job_id, source_type: task.source_type },
-      dedupeKey: `creative-task-assigned:${task.id}:${payload.assigned_to}`,
-    });
+      entityId: taskId,
+      beforeState: before,
+      afterState: task,
+      metadata: {
+        title: task.title,
+        status: task.status,
+        assigned_to: task.assigned_to,
+        work_slot: task.work_slot,
+        refund_tx_id: refundTx?.id || null,
+      },
+    }, dbClient);
+
+    await dbClient.query('COMMIT');
+    committed = true;
+
+    if (payload.assigned_to) {
+      try {
+        await notificationService.createNotification({
+          userId: payload.assigned_to,
+          type: 'system',
+          title: 'New creative task assigned',
+          body: `${task.title} is now assigned to you.`,
+          entityType: 'creative_task',
+          entityId: task.id,
+          data: { task_id: task.id, job_id: task.job_id, source_type: task.source_type },
+          dedupeKey: `creative-task-assigned:${task.id}:${payload.assigned_to}`,
+        });
+      } catch (notificationError) {
+        logger.error('Designer task assignment notification failed', {
+          taskId: task.id,
+          designerId: payload.assigned_to,
+          error: notificationError.message,
+        });
+      }
+    }
+    return task;
+  } catch (error) {
+    if (!committed) await dbClient.query('ROLLBACK');
+    throw error;
+  } finally {
+    dbClient.release();
   }
-  return task;
 };
 
 const approveCustomRequest = async (adminId, requestId, payload = {}) => {
@@ -1181,14 +1533,14 @@ const approveCustomRequest = async (adminId, requestId, payload = {}) => {
            job_id=$4, admin_note=$5
        WHERE id=$6
        RETURNING *`,
-      [coinCost, creditTx?.id || null, task.id, job.id, payload.admin_note || null, request.id]
+      [coinCost, creditTx?.id || null, task.id, task.job_id || job.id, payload.admin_note || null, request.id]
     );
     await dbClient.query(
       `UPDATE jobs
        SET status='pending_admin_approval',
            metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb
        WHERE id=$2`,
-      [JSON.stringify({ creative_task_id: task.id }), job.id]
+      [JSON.stringify({ creative_task_id: task.id }), task.job_id || job.id]
     );
 
     await writeAudit({
@@ -1217,6 +1569,97 @@ const approveCustomRequest = async (adminId, requestId, payload = {}) => {
   }
 };
 
+const rejectCustomRequest = async (adminId, requestId, payload = {}) => {
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+
+    const beforeResult = await dbClient.query(
+      `SELECT *
+       FROM creative_requests
+       WHERE id = $1
+       FOR UPDATE`,
+      [requestId]
+    );
+    const before = beforeResult.rows[0];
+    if (!before) throw new AppError('Custom request not found', 404);
+    if (before.task_id) {
+      throw new AppError('Request is already queued. Cancel the production task instead.', 409);
+    }
+    if (['rejected', 'cancelled'].includes(before.status)) {
+      await dbClient.query('COMMIT');
+      return { request: before, idempotent: true };
+    }
+    if (['delivered', 'completed'].includes(before.status)) {
+      throw new AppError('Delivered or completed requests cannot be rejected.', 409);
+    }
+
+    let refundTx = null;
+    if (before.credit_tx_id) {
+      const txResult = await dbClient.query(
+        'SELECT amount FROM mint_credit_transactions WHERE id = $1',
+        [before.credit_tx_id]
+      );
+      const reservedAmount = Math.abs(Number(txResult.rows[0]?.amount || before.coin_cost || 0));
+      refundTx = await refundMintCoins(dbClient, {
+        clientId: before.client_id,
+        amount: reservedAmount,
+        referenceId: before.id,
+        referenceType: 'custom_request',
+        description: 'MintCoins returned for rejected custom request',
+        metadata: {
+          rejected_by: adminId,
+          reason: payload.admin_note || payload.reason || 'Rejected by CREATYV ops',
+          original_credit_tx_id: before.credit_tx_id,
+        },
+      });
+    }
+
+    const result = await dbClient.query(
+      `UPDATE creative_requests
+       SET status = 'rejected',
+           admin_note = $1,
+           metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+       WHERE id = $3
+       RETURNING *`,
+      [
+        payload.admin_note || payload.reason || 'Rejected by CREATYV ops',
+        JSON.stringify({
+          rejected_by: adminId,
+          refund_tx_id: refundTx?.id || null,
+          rejected_at: new Date().toISOString(),
+        }),
+        before.id,
+      ]
+    );
+
+    await writeAudit({
+      actorId: adminId,
+      actorRole: 'admin',
+      action: 'creative_request.rejected',
+      entityType: 'creative_request',
+      entityId: before.id,
+      beforeState: before,
+      afterState: result.rows[0],
+      metadata: {
+        title: before.title,
+        client_id: before.client_id,
+        coin_cost: before.coin_cost,
+        refund_tx_id: refundTx?.id || null,
+        reason: payload.admin_note || payload.reason || 'Rejected by CREATYV ops',
+      },
+    }, dbClient);
+
+    await dbClient.query('COMMIT');
+    return { request: result.rows[0], refund: refundTx };
+  } catch (error) {
+    await dbClient.query('ROLLBACK');
+    throw error;
+  } finally {
+    dbClient.release();
+  }
+};
+
 module.exports = {
   listCalendar,
   selectEvent,
@@ -1225,11 +1668,13 @@ module.exports = {
   adminOverview,
   listDesignerTasks,
   updateDesignerTask,
+  syncTaskSheet,
   suggestCalendarEvents,
   upsertEvent,
   archiveEvent,
   updateTask,
   approveCustomRequest,
+  rejectCustomRequest,
   approveCalendarSelection,
   rejectCalendarSelection,
 };

@@ -320,7 +320,7 @@ function PurchaseConfirmModal({ plan, walletBalance, onConfirm, onClose, isPendi
 					}}
 				>
 					<Icon name="shield" size={11} />
-					Deducted instantly from your Mint More wallet. No refunds on add-on plans.
+					Deducted instantly from your CREATYV wallet. No refunds on add-on plans.
 				</div>
 			</div>
 		</Modal>

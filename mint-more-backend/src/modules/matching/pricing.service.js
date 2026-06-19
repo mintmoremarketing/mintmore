@@ -102,7 +102,7 @@ const getFreelancerPricingGuidance = async (
   );
 
   const messages = {
-    competitive: `✅ Your pricing is competitive. You are well within the ₹${Number(bandMin).toLocaleString('en-IN')} – ₹${Number(bandMax).toLocaleString('en-IN')} market range and may receive more job opportunities.`,
+    competitive: `Your pricing is competitive. You are well within the ₹${Number(bandMin).toLocaleString('en-IN')} – ₹${Number(bandMax).toLocaleString('en-IN')} market range and may receive more job opportunities.`,
     average:     `📊 Your pricing is within market range (₹${Number(bandMin).toLocaleString('en-IN')} – ₹${Number(bandMax).toLocaleString('en-IN')}). You are well-positioned.`,
     expensive:   `⚠️ Your price (₹${Number(priceMin).toLocaleString('en-IN')}) is above the typical ${freelancerLevel} range (max ₹${Number(bandMax).toLocaleString('en-IN')}). You may receive fewer job opportunities.`,
     overpriced:  `🚨 Your pricing is significantly above market rates. The typical max for ${freelancerLevel} is ₹${Number(bandMax).toLocaleString('en-IN')}. At this price you will rarely appear in matches.`,

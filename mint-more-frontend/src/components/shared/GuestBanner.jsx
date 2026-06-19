@@ -5,7 +5,7 @@ import Icon from '../ui/Icon'
 export default function GuestBanner() {
   const navigate = useNavigate()
   const user = useAuthStore(s => s.user)
-  const needsVerification = user && user.role !== 'admin' && (user.kyc_level || 0) < 1
+  const needsVerification = user && !['admin', 'designer'].includes(user.role) && (user.kyc_level || 0) < 1
 
   if (!needsVerification) return null
 

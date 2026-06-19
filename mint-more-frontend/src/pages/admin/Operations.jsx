@@ -5,6 +5,9 @@ import { api } from '../../api/client'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
+import DateBadge from '../../components/ui/DateBadge'
+import { StatusBadge, statusAccent } from '../../components/ui/StatusBadge'
+import StatusSelect from '../../components/ui/StatusSelect'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const monthKey = (date = today()) => String(date || today()).slice(0, 7)
@@ -39,7 +42,7 @@ const downloadCsv = (rows) => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `mintmore-production-tasks-${new Date().toISOString().slice(0, 10)}.csv`
+  link.download = `CREATYV-production-tasks-${new Date().toISOString().slice(0, 10)}.csv`
   link.click()
   URL.revokeObjectURL(url)
 }
@@ -179,6 +182,15 @@ export default function AdminOperations() {
     onError: err => pushToast({ title: 'Failed', body: err.response?.data?.message || 'Try again', tone: 'amber' }),
   })
 
+  const rejectRequest = useMutation({
+    mutationFn: ({ id, admin_note }) => creativeApi.rejectRequest(id, { admin_note }),
+    onSuccess: () => {
+      pushToast({ title: 'Request rejected' })
+      queryClient.invalidateQueries({ queryKey: ['admin-creative-overview'] })
+    },
+    onError: err => pushToast({ title: 'Failed', body: err.response?.data?.message || 'Try again', tone: 'amber' }),
+  })
+
   const approveSelection = useMutation({
     mutationFn: ({ id, coin_cost }) => creativeApi.approveSelection(id, { coin_cost }),
     onSuccess: (res) => {
@@ -219,11 +231,25 @@ export default function AdminOperations() {
     onError: err => pushToast({ title: 'Could not add designer', body: err.response?.data?.message || 'Try again', tone: 'amber' }),
   })
 
+  const syncSheet = useMutation({
+    mutationFn: () => creativeApi.syncTaskSheet(),
+    onSuccess: (res) => {
+      const payload = res.data?.data || {}
+      pushToast({
+        title: payload.configured ? 'Task sheet synced' : 'Google Sheets not configured',
+        body: payload.configured ? `${payload.rows_synced || 0} rows sent.` : 'Add ops_google_sheets webhook settings to enable live sync.',
+        tone: payload.configured ? 'default' : 'amber',
+      })
+    },
+    onError: err => pushToast({ title: 'Could not sync sheet', body: err.response?.data?.message || 'Try again', tone: 'amber' }),
+  })
+
   const tasks = data?.tasks || []
   const requests = data?.requests || []
   const selections = data?.selections || []
   const events = data?.events || []
   const designers = data?.designers || []
+  const workSlots = ['morning', 'evening', 'night']
 
   return (
     <div className="stack-6">
@@ -233,12 +259,17 @@ export default function AdminOperations() {
             <div className="h-eyebrow" style={{ marginBottom: 4 }}>Operations</div>
             <h1 className="h-display h-1" style={{ margin: 0 }}>Internal creative production</h1>
             <p className="muted" style={{ margin: '8px 0 0' }}>
-              Manage calendar creatives, custom requests, and Mint More team workload.
+              Manage calendar creatives, custom requests, and CREATYV team workload.
             </p>
           </div>
-          <button className="btn ghost" onClick={() => downloadCsv(tasks)} disabled={!tasks.length}>
-            <Icon name="download" /> Export task sheet
-          </button>
+          <div className="row wrap" style={{ gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn ghost" onClick={() => downloadCsv(tasks)} disabled={!tasks.length}>
+              <Icon name="download" /> Export CSV
+            </button>
+            <button className="btn primary" onClick={() => syncSheet.mutate()} disabled={syncSheet.isPending || !tasks.length}>
+              <Icon name="refresh" /> {syncSheet.isPending ? 'Syncing...' : 'Sync sheet'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -261,14 +292,14 @@ export default function AdminOperations() {
         <div className="row between" style={{ gap: 14, alignItems: 'flex-start' }}>
           <div>
             <div className="h-eyebrow">Design team</div>
-            <h3 style={{ margin: '4px 0 4px' }}>Add Mint More designer</h3>
+            <h3 style={{ margin: '4px 0 4px' }}>Add CREATYV designer</h3>
             <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
               Designers get their own login, see only assigned production tasks, and upload deliverables into client Mintbox folders.
             </p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '160px 210px 150px auto', gap: 8, alignItems: 'center' }}>
             <input className="input" value={designerForm.full_name} onChange={e => setDesignerForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Designer name" />
-            <input className="input" value={designerForm.email} onChange={e => setDesignerForm(f => ({ ...f, email: e.target.value }))} placeholder="email@mintmore..." />
+            <input className="input" value={designerForm.email} onChange={e => setDesignerForm(f => ({ ...f, email: e.target.value }))} placeholder="email@CREATYV..." />
             <input className="input" type="password" value={designerForm.password} onChange={e => setDesignerForm(f => ({ ...f, password: e.target.value }))} placeholder="Temp password" autoComplete="new-password" />
             <button
               className="btn primary"
@@ -358,8 +389,9 @@ export default function AdminOperations() {
                           <strong>{event.title}</strong>
                           <span className="badge neutral">{event.source?.replace(/_/g, ' ') || 'suggested'}</span>
                         </div>
-                        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                          {new Date(event.event_date).toLocaleDateString('en-IN')} - {event.description}
+                        <div className="row wrap" style={{ gap: 8, marginTop: 6 }}>
+                          <DateBadge value={event.event_date} />
+                          <span className="muted" style={{ fontSize: 12 }}>{event.description}</span>
                         </div>
                       </button>
                     )
@@ -372,7 +404,10 @@ export default function AdminOperations() {
                 <div className="row between">
                   <div>
                     <strong>{event.title}</strong>
-                    <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{new Date(event.event_date).toLocaleDateString('en-IN')} - {event.asset_type}</div>
+                    <div className="row wrap" style={{ gap: 8, marginTop: 6 }}>
+                      <DateBadge value={event.event_date} />
+                      <span className="tag-slate">{event.asset_type}</span>
+                    </div>
                   </div>
                   <div className="row" style={{ gap: 8 }}>
                     <span className="badge mint">{Number(event.coin_cost || 0)} coin</span>
@@ -409,9 +444,22 @@ export default function AdminOperations() {
                   <h3 style={{ margin: '4px 0' }}>{request.title}</h3>
                   <p className="muted" style={{ margin: 0 }}>{request.description || 'No extra details.'}</p>
                 </div>
-                <button className="btn primary" onClick={() => approveRequest.mutate({ id: request.id, coin_cost: request.coin_cost || 1 })}>
-                  <Icon name="check" /> Approve {Number(request.coin_cost || 1)} coin
-                </button>
+                <div className="row wrap" style={{ gap: 8, justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn ghost"
+                    disabled={rejectRequest.isPending || approveRequest.isPending}
+                    onClick={() => {
+                      const note = window.prompt('Why are we rejecting this request?', 'Not suitable for this month')
+                      if (note !== null) rejectRequest.mutate({ id: request.id, admin_note: note })
+                    }}
+                    style={{ color: '#be123c' }}
+                  >
+                    Reject
+                  </button>
+                  <button className="btn primary" disabled={approveRequest.isPending || rejectRequest.isPending} onClick={() => approveRequest.mutate({ id: request.id, coin_cost: request.coin_cost || 1 })}>
+                    <Icon name="check" /> Approve {Number(request.coin_cost || 1)} coin
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -421,26 +469,39 @@ export default function AdminOperations() {
       {tab === 'tasks' && (
         <div className="stack" style={{ gap: 10 }}>
           {isLoading ? <div className="card" style={{ padding: 20 }}>Loading tasks...</div> : tasks.length === 0 ? <div className="empty"><h3>No tasks yet</h3></div> : tasks.map(task => (
-            <div key={task.id} className="card" style={{ padding: 18 }}>
+            <div key={task.id} className="card task-card-shell" style={{ padding: 18, '--task-status-color': statusAccent(task.status) }}>
               <div className="row between" style={{ gap: 12, alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
                   <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
-                    <span className="badge neutral">{task.source_type?.replace(/_/g, ' ')}</span>
-                    <span className="badge mint">{task.status?.replace(/_/g, ' ')}</span>
-                    <span className="badge neutral">{task.client_name}</span>
+                    <span className="tag-slate">{task.source_type?.replace(/_/g, ' ')}</span>
+                    <StatusBadge status={task.status} />
+                    <span className="task-client-line"><strong>{task.client_name}</strong></span>
+                    <span className={task.work_slot ? 'badge neutral' : 'slot-missing'}>{task.work_slot || 'slot not set'}</span>
+                    <DateBadge value={task.due_date} fallback="no due date" />
                   </div>
                   <h3 style={{ margin: '0 0 6px' }}>{task.title}</h3>
                   <p className="muted" style={{ margin: 0 }}>{task.description || task.client_status}</p>
                 </div>
-                <div style={{ minWidth: 360 }}>
+                <div style={{ minWidth: 480 }}>
                   <div className="grid-2" style={{ gap: 8 }}>
                     <select className="input" value={task.assigned_to || ''} onChange={e => updateTask.mutate({ id: task.id, payload: { assigned_to: e.target.value || null } })}>
                       <option value="">Assign designer</option>
                       {designers.map(designer => <option key={designer.id} value={designer.id}>{designer.full_name}</option>)}
                     </select>
-                    <select className="input" value={task.status || 'pending'} onChange={e => updateTask.mutate({ id: task.id, payload: { status: e.target.value } })}>
-                      {['pending', 'assigned', 'in_progress', 'delivered', 'revision', 'completed', 'blocked', 'cancelled'].map(status => <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>)}
+                    <StatusSelect
+                      value={task.status || 'assigned'}
+                      onChange={status => updateTask.mutate({ id: task.id, payload: { status } })}
+                    />
+                    <select className="input" value={task.work_slot || ''} onChange={e => updateTask.mutate({ id: task.id, payload: { work_slot: e.target.value || null } })}>
+                      <option value="">Set work slot</option>
+                      {workSlots.map(slot => <option key={slot} value={slot}>{slot}</option>)}
                     </select>
+                    <input
+                      className="input"
+                      type="date"
+                      value={task.due_date ? String(task.due_date).slice(0, 10) : ''}
+                      onChange={e => updateTask.mutate({ id: task.id, payload: { due_date: e.target.value || null } })}
+                    />
                   </div>
                 </div>
               </div>
@@ -456,10 +517,19 @@ export default function AdminOperations() {
               <div className="row between">
                 <div>
                   <strong>{selection.title}</strong>
-                  <div className="muted" style={{ fontSize: 12 }}>{selection.client_name} - {new Date(selection.event_date).toLocaleDateString('en-IN')}</div>
+                  <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
+                    <span className="task-client-line"><strong>{selection.client_name}</strong></span>
+                    <DateBadge value={selection.event_date} />
+                  </div>
                 </div>
                 <div className="row" style={{ gap: 8 }}>
-                  <span className="badge neutral">{selection.status?.replace(/_/g, ' ')}</span>
+                  {selection.status === 'delivered'
+                    ? <StatusBadge status="delivered" />
+                    : selection.status === 'in_production'
+                      ? <StatusBadge status="in_progress">In production</StatusBadge>
+                      : selection.status === 'revision'
+                        ? <StatusBadge status="revision" />
+                        : <span className="badge neutral">{selection.status?.replace(/_/g, ' ')}</span>}
                   {selection.status === 'pending_review' && (
                     <>
                       <button

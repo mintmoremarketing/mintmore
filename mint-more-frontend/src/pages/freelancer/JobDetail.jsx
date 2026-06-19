@@ -9,6 +9,7 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import StatusChip from '../../components/ui/StatusChip'
 import Avatar from '../../components/ui/Avatar'
+import DateBadge from '../../components/ui/DateBadge'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 
@@ -184,13 +185,7 @@ export default function FreelancerJobDetail() {
 							{job.deadline && (
 								<div className="row between">
 									<span style={{ color: 'var(--ink-500)' }}>Deadline</span>
-									<span>
-										{new Date(job.deadline).toLocaleDateString('en-IN', {
-											day: 'numeric',
-											month: 'short',
-											year: 'numeric',
-										})}
-									</span>
+									<DateBadge value={job.deadline} />
 								</div>
 							)}
 							<div className="row between">

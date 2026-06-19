@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { useAuthStore } from '../store/auth'
@@ -25,6 +25,7 @@ export default function Settings() {
   const [state,     setState]     = useState('')
   const [avatarFile,setAvatarFile]= useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
+  const avatarInputRef = useRef(null)
 
   // Password fields
   const [currentPw, setCurrentPw] = useState('')
@@ -97,8 +98,10 @@ export default function Settings() {
       })
     },
     onSuccess: (res) => {
-      const url = res.data.data?.profile?.avatar_url || res.data.data?.avatar_url
+      const updatedProfile = res.data.data?.profile || res.data.data
+      const url = updatedProfile?.avatar_url || res.data.data?.avatar_url
       if (url) setAvatarPreview(url)
+      if (updatedProfile) setAuth({ ...user, ...updatedProfile }, accessToken, refreshToken)
       pushToast({ title: 'Avatar updated!', icon: 'check' })
       queryClient.invalidateQueries({ queryKey: ['my-profile'] })
       setAvatarFile(null)
@@ -153,7 +156,7 @@ export default function Settings() {
     ['account', 'settings', 'Account info'],
     ...(user?.role === 'client' ? [['setup', 'check', 'Setup']] : []),
     ['security', 'lock', 'Password & security'],
-    ...(user?.role !== 'admin' ? [['verification', 'shield', 'Verification']] : []),
+    ...(!['admin', 'designer'].includes(user?.role) ? [['verification', 'shield', 'Verification']] : []),
   ]
 
   return (
@@ -199,12 +202,21 @@ export default function Settings() {
               {profile.role} - {profile.email}
             </div>
             <div className="row" style={{ gap: 8 }}>
-              <label style={{ cursor: 'pointer' }}>
-                <button className="btn ghost" style={{ fontSize: 12, pointerEvents: 'none' }}>
-                  <Icon name="image" size={12} /> Choose photo
-                </button>
-                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
-              </label>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }}
+                onChange={handleAvatarChange}
+              />
+              <button
+                type="button"
+                className="btn ghost"
+                style={{ fontSize: 12 }}
+                onClick={() => avatarInputRef.current?.click()}
+              >
+                <Icon name="image" size={12} /> Choose photo
+              </button>
               {avatarFile && (
                 <button
                   className="btn primary"
@@ -273,7 +285,7 @@ export default function Settings() {
       </div>}
 
       {/* KYC status (clients + freelancers only) */}
-      {section === 'verification' && user?.role !== 'admin' && <VerificationPanel profile={profile} kyc={kyc} />}
+      {section === 'verification' && !['admin', 'designer'].includes(user?.role) && <VerificationPanel profile={profile} kyc={kyc} />}
 
       {/* Change password */}
       {section === 'security' && <div className="card reveal" style={{ padding: 24 }}>

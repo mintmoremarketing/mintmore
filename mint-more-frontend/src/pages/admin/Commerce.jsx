@@ -103,7 +103,7 @@ const FEATURE_FLAG_GROUPS = [
     title: 'Phase 1 client modules',
     flags: [
       ['calendar_creatives', 'Calendar creatives', 'Show monthly creative calendar to clients.'],
-      ['internal_ops', 'Internal ops', 'Route client work to Mint More operations.'],
+      ['internal_ops', 'Internal ops', 'Route client work to CREATYV operations.'],
       ['custom_requests', 'Custom requests', 'Allow clients to request custom designs.'],
       ['mintbox', 'Mintbox', 'Show project storage and delivery folders.'],
       ['chat', 'Messages', 'Enable project chat and inbox routes.'],

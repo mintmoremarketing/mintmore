@@ -12,8 +12,10 @@ export const creativeApi = {
   createEvent: (payload) => api.post('/creative/admin/events', payload),
   updateEvent: (eventId, payload) => api.patch(`/creative/admin/events/${eventId}`, payload),
   deleteEvent: (eventId) => api.delete(`/creative/admin/events/${eventId}`),
+  syncTaskSheet: () => api.post('/creative/admin/tasks/sync-sheet'),
   updateTask: (taskId, payload) => api.patch(`/creative/admin/tasks/${taskId}`, payload),
   approveRequest: (requestId, payload) => api.post(`/creative/admin/requests/${requestId}/approve`, payload),
+  rejectRequest: (requestId, payload) => api.post(`/creative/admin/requests/${requestId}/reject`, payload),
   approveSelection: (selectionId, payload) => api.post(`/creative/admin/selections/${selectionId}/approve`, payload),
   rejectSelection: (selectionId, payload) => api.post(`/creative/admin/selections/${selectionId}/reject`, payload),
 }

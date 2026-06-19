@@ -49,6 +49,13 @@ router.delete(
   controller.deleteEvent
 );
 
+router.post(
+  '/admin/tasks/sync-sheet',
+  authorize('admin'),
+  requirePermission('tasks.assign'),
+  controller.syncTaskSheet
+);
+
 router.patch(
   '/admin/tasks/:taskId',
   authorize('admin'),
@@ -61,6 +68,13 @@ router.post(
   authorize('admin'),
   requirePermission('tasks.review'),
   controller.approveRequest
+);
+
+router.post(
+  '/admin/requests/:requestId/reject',
+  authorize('admin'),
+  requirePermission('tasks.review'),
+  controller.rejectRequest
 );
 
 router.post(

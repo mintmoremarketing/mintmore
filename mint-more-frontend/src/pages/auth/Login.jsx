@@ -59,7 +59,7 @@ export default function Login() {
 			<aside className="auth-aside">
 				<div>
 					<div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>
-						Mint<span style={{ color: 'var(--mint-400)', fontStyle: 'italic', fontWeight: 500 }}>more</span>
+						CREAT<span style={{ color: 'var(--mint-400)', fontWeight: 650 }}>YV</span>
 					</div>
 					<div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
 						Creative services for Indian businesses
@@ -109,7 +109,7 @@ export default function Login() {
 								fontFamily: 'var(--font-display)', fontSize: 26,
 								fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 8
 							}}>
-								Mint<span style={{ color: 'var(--mint-500)', fontStyle: 'italic', fontWeight: 500 }}>more</span>
+								CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
 							</div>
 							<p style={{ 
 								color: 'var(--ink-500)', fontSize: 13.5, lineHeight: 1.5, 

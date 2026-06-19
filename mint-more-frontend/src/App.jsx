@@ -26,6 +26,7 @@ import NotificationsInbox from './pages/notifications/Inbox'
 import Mintbox           from './pages/shared/Mintbox'
 import Chat              from './pages/shared/Chat'
 import SharedFile        from './pages/public/SharedFile'
+import Landing           from './pages/public/Landing'
 import Membership        from './pages/client/Membership'
 import Onboarding        from './pages/client/Onboarding'
 import Disputes          from './pages/shared/Disputes'
@@ -154,7 +155,7 @@ function FreelancerOnly({ children }) {
 function RootRedirect() {
   const isAuthed = useAuthStore(s => s.isAuthed)
   const user = useAuthStore(s => s.user)
-  if (!isAuthed) return <Navigate to="/login" replace />
+  if (!isAuthed) return <Landing />
   if (user?.role === 'admin') return <Navigate to="/admin" replace />
   if (user?.role === 'designer') return <Navigate to="/dashboard" replace />
   return <Navigate to="/dashboard" replace />

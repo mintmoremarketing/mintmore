@@ -517,7 +517,18 @@ const completeUpload = async (uploadId, uploaderId, role) => {
     });
     if (role === 'freelancer' || role === 'designer') {
       const job = await query('SELECT title, client_id FROM jobs WHERE id = $1', [session.job_id]);
-      notificationService.createNotification({
+      if (role === 'designer') {
+        await query(
+          `UPDATE creative_tasks
+           SET status = 'delivered',
+               client_status = 'Delivered for review'
+           WHERE job_id = $1
+             AND assigned_to = $2
+             AND status NOT IN ('completed', 'cancelled')`,
+          [session.job_id, uploaderId]
+        );
+      }
+      await notificationService.createNotification({
         userId: job.rows[0].client_id,
         type: deliveredRevision ? 'revision_delivered' : 'work_delivered',
         title: deliveredRevision ? `Revision ${deliveredRevision.round_number} delivered` : 'New work delivered',
@@ -525,6 +536,7 @@ const completeUpload = async (uploadId, uploaderId, role) => {
         entityType: 'job',
         entityId: session.job_id,
         data: { job_id: session.job_id, revision_round: deliveredRevision?.round_number || null },
+        dedupeKey: `mintbox-delivered:${inserted.rows[0].id}:${job.rows[0].client_id}`,
       });
       publishProjectActivity(
         session.job_id,

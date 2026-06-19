@@ -14,8 +14,8 @@ const selectEvent = async (req, res, next) => {
     return sendSuccess(res, {
       data,
       message: data.selection?.status === 'pending_review'
-        ? 'Selection saved for Mint More review.'
-        : 'Creative selected and queued with Mint More.',
+        ? 'Selection saved for CREATYV review.'
+        : 'Creative selected and queued with CREATYV.',
       statusCode: 201,
     });
   } catch (error) { next(error); }
@@ -26,7 +26,7 @@ const createRequest = async (req, res, next) => {
     const data = await service.createCustomRequest(req.user.sub, req.body);
     return sendSuccess(res, {
       data,
-      message: 'Custom request sent to Mint More for review.',
+      message: 'Custom request sent to CREATYV for review.',
       statusCode: 201,
     });
   } catch (error) { next(error); }
@@ -57,6 +57,13 @@ const updateDesignerTask = async (req, res, next) => {
   try {
     const task = await service.updateDesignerTask(req.user.sub, req.params.taskId, req.body);
     return sendSuccess(res, { data: { task }, message: 'Task updated.' });
+  } catch (error) { next(error); }
+};
+
+const syncTaskSheet = async (req, res, next) => {
+  try {
+    const data = await service.syncTaskSheet(req.user.sub);
+    return sendSuccess(res, { data, message: data.configured ? 'Task sheet synced.' : data.message });
   } catch (error) { next(error); }
 };
 
@@ -111,6 +118,13 @@ const approveRequest = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const rejectRequest = async (req, res, next) => {
+  try {
+    const data = await service.rejectCustomRequest(req.user.sub, req.params.requestId, req.body);
+    return sendSuccess(res, { data, message: 'Request rejected.' });
+  } catch (error) { next(error); }
+};
+
 const approveSelection = async (req, res, next) => {
   try {
     const data = await service.approveCalendarSelection(req.user.sub, req.params.selectionId, req.body);
@@ -138,12 +152,14 @@ module.exports = {
   adminOverview,
   designerTasks,
   updateDesignerTask,
+  syncTaskSheet,
   suggestEvents,
   createEvent,
   updateEvent,
   deleteEvent,
   updateTask,
   approveRequest,
+  rejectRequest,
   approveSelection,
   rejectSelection,
 };

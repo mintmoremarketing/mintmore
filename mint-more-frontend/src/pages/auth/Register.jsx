@@ -67,7 +67,7 @@ export default function Register() {
             <aside className="auth-aside">
                 <div>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>
-                        Mint<span style={{ color: 'var(--mint-400)', fontStyle: 'italic', fontWeight: 500 }}>more</span>
+                        CREAT<span style={{ color: 'var(--mint-400)', fontWeight: 650 }}>YV</span>
                     </div>
                 </div>
                 <div>
@@ -92,7 +92,7 @@ export default function Register() {
                         fontWeight: 600, letterSpacing: '-0.02em',
                         marginBottom: 28, textAlign: 'center',
                       }}>
-                        Mint<span style={{ color: 'var(--mint-500)', fontStyle: 'italic', fontWeight: 500 }}>more</span>
+                        CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
                       </div>
                     )}
                     {/* ----------------------------- */}

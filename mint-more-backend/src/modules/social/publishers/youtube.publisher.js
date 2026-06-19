@@ -43,7 +43,7 @@ const publishToYouTube = async (account, post, media) => {
     });
 
     const privacyStatus = post.metadata?.youtube_privacy || 'public';
-    const title         = post.metadata?.youtube_title || post.title || post.caption?.slice(0, 100) || 'Mint More Video';
+    const title         = post.metadata?.youtube_title || post.title || post.caption?.slice(0, 100) || 'CREATYV Video';
     const description   = buildYouTubeDescription(post);
     const tags          = post.hashtags?.map((h) => h.replace('#', '')) || [];
 

@@ -7,6 +7,7 @@ import { creativeApi } from '../../api/creative'
 import { mintboxApi } from '../../api/mintbox'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
+import DateBadge from '../../components/ui/DateBadge'
 import { rupee } from '../../utils/format'
 import { BRIEF_GUIDE_OPTIONS, CREATIVE_SKILLS } from '../../data/creativeOptions'
 
@@ -16,8 +17,8 @@ const getMarketRange = res => res.data?.data?.range ?? res.data?.data?.data?.ran
 const formatRange = range => range?.min && range?.max ? `${rupee(range.min)} - ${rupee(range.max)}` : 'Market range pending'
 
 const poolOptions = [
-  { value: 'budget', icon: 'rupee', title: 'Budget creatives', subtitle: 'Great value for clear, lighter briefs.', note: 'Mint More ops will review and queue this internally.' },
-  { value: 'expert', icon: 'sparkles', title: 'Pro creatives', subtitle: 'Premium support for complex or high-impact work.', note: 'Mint More ops will review scope and priority.' },
+  { value: 'budget', icon: 'rupee', title: 'Budget creatives', subtitle: 'Great value for clear, lighter briefs.', note: 'CREATYV ops will review and queue this internally.' },
+  { value: 'expert', icon: 'sparkles', title: 'Pro creatives', subtitle: 'Premium support for complex or high-impact work.', note: 'CREATYV ops will review scope and priority.' },
 ]
 
 function Question({ eyebrow, title, subtitle, children }) {
@@ -301,7 +302,7 @@ export default function PostJob() {
       })
     },
     onSuccess: () => {
-      pushToast({ title: 'Request sent to Mint More', body: 'The ops team will review the scope and MintCoin cost before production.' })
+      pushToast({ title: 'Request sent to CREATYV', body: 'The ops team will review the scope and MintCoin cost before production.' })
       navigate('/jobs')
     },
     onError: error => pushToast({ title: isEditMode ? 'Failed to update' : 'Failed to post', body: error.response?.data?.message || 'Try again', tone: 'amber' }),
@@ -427,7 +428,7 @@ export default function PostJob() {
 
         {step === 8 && <Question eyebrow="A little more context" title="Anything else the creative should know?" subtitle="Add required wording, a reference link, important details, or leave this blank."><textarea className="textarea" rows={7} value={data.description} onChange={event => update('description', event.target.value)} placeholder="For example: the launch is on 24 October, the logo must stay visible, and the tone should feel warm rather than sales-heavy." autoFocus /></Question>}
 
-        {step === 9 && <Question eyebrow="Creative signals" title="Which skills seem relevant?" subtitle="Choose what feels right. Mint More uses this to route the request internally."><ChoiceTiles options={CREATIVE_SKILLS} selected={data.required_skills} onToggle={value => update('required_skills', data.required_skills.includes(value) ? data.required_skills.filter(item => item !== value) : [...data.required_skills, value])} /></Question>}
+        {step === 9 && <Question eyebrow="Creative signals" title="Which skills seem relevant?" subtitle="Choose what feels right. CREATYV uses this to route the request internally."><ChoiceTiles options={CREATIVE_SKILLS} selected={data.required_skills} onToggle={value => update('required_skills', data.required_skills.includes(value) ? data.required_skills.filter(item => item !== value) : [...data.required_skills, value])} /></Question>}
 
         {step === 10 && <Question eyebrow="References" title="Do you have anything useful to share?" subtitle="Optional. Drop everything in one place and Mintbox will organise it automatically.">
           <>
@@ -440,14 +441,14 @@ export default function PostJob() {
           </>
         </Question>}
 
-        {step === 11 && <Question eyebrow="Mint More production" title="What level of support fits this request?" subtitle="This helps Mint More review scope and choose the right internal creative direction."><ChoiceTiles options={poolOptions} selected={[data.pricing_mode]} onToggle={value => selectAndAdvance('pricing_mode', value)} renderOption={option => { const range = option.value === 'expert' ? expertRange : budgetRange; return <><Icon name={option.icon} size={18} /><strong style={{ display: 'block', marginTop: 10, fontSize: 15 }}>{option.title}</strong><span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 12.5 }}>{option.subtitle}</span><span style={{ display: 'block', marginTop: 10, fontSize: 12.5, fontWeight: 600 }}>Typical effort range: {formatRange(range)}</span></> }} /></Question>}
+        {step === 11 && <Question eyebrow="CREATYV production" title="What level of support fits this request?" subtitle="This helps CREATYV review scope and choose the right internal creative direction."><ChoiceTiles options={poolOptions} selected={[data.pricing_mode]} onToggle={value => selectAndAdvance('pricing_mode', value)} renderOption={option => { const range = option.value === 'expert' ? expertRange : budgetRange; return <><Icon name={option.icon} size={18} /><strong style={{ display: 'block', marginTop: 10, fontSize: 15 }}>{option.title}</strong><span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 12.5 }}>{option.subtitle}</span><span style={{ display: 'block', marginTop: 10, fontSize: 12.5, fontWeight: 600 }}>Typical effort range: {formatRange(range)}</span></> }} /></Question>}
 
-        {step === 12 && <Question eyebrow="Timeline" title="When do you need the work?" subtitle="Choose a realistic final delivery date. Mint More ops will confirm timing after review."><input className="input" type="date" min={minimumDeadline} value={data.deadline} onChange={event => update('deadline', event.target.value)} autoFocus style={{ maxWidth: 380, minHeight: 58, fontSize: 16 }} /></Question>}
+        {step === 12 && <Question eyebrow="Timeline" title="When do you need the work?" subtitle="Choose a realistic final delivery date. CREATYV ops will confirm timing after review."><input className="input" type="date" min={minimumDeadline} value={data.deadline} onChange={event => update('deadline', event.target.value)} autoFocus style={{ maxWidth: 380, minHeight: 58, fontSize: 16 }} /></Question>}
 
-        {step === 13 && <Question eyebrow="Ready for Mint More review" title={data.title} subtitle="Review the essentials. You can go back to change anything before sending this request.">
+        {step === 13 && <Question eyebrow="Ready for CREATYV review" title={data.title} subtitle="Review the essentials. You can go back to change anything before sending this request.">
           <div className="grid-2" style={{ gap: 12 }}>
             <div style={{ padding: 16, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}><div className="h-eyebrow">What you need</div><p style={{ lineHeight: 1.55 }}>{briefDescription}</p><div className="row wrap" style={{ gap: 6 }}>{data.required_skills.map(skill => <span key={skill} className="badge neutral">{skill}</span>)}</div></div>
-            <div style={{ padding: 16, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}><div className="h-eyebrow">At a glance</div><div className="stack" style={{ gap: 10, marginTop: 12 }}><div className="row between"><span className="muted">Creative pool</span><strong>{selectedPool?.title}</strong></div><div className="row between"><span className="muted">Typical range</span><strong>{formatRange(selectedRange)}</strong></div><div className="row between"><span className="muted">Deadline</span><strong>{data.deadline && new Date(data.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></div><div className="row between"><span className="muted">References</span><strong>{briefFiles.length}</strong></div></div></div>
+            <div style={{ padding: 16, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}><div className="h-eyebrow">At a glance</div><div className="stack" style={{ gap: 10, marginTop: 12 }}><div className="row between"><span className="muted">Creative pool</span><strong>{selectedPool?.title}</strong></div><div className="row between"><span className="muted">Typical range</span><strong>{formatRange(selectedRange)}</strong></div><div className="row between"><span className="muted">Deadline</span><DateBadge value={data.deadline} /></div><div className="row between"><span className="muted">References</span><strong>{briefFiles.length}</strong></div></div></div>
           </div>
         </Question>}
       </div>

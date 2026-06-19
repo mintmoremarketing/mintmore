@@ -53,7 +53,7 @@ const notifyNegotiationInitiated = async ({ job, freelancer, proposed_price }) =
     userId:     job.client_id,
     type:       'negotiation_initiated',
     title:      'New offer received',
-    body:       `A Mint More creative sent an offer for "${job.title}" at ${money(proposed_price)}.`,
+    body:       `A CREATYV creative sent an offer for "${job.title}" at ${money(proposed_price)}.`,
     entityType: 'job',
     entityId:   job.id,
     data: {
@@ -72,7 +72,7 @@ const notifyNegotiationCountered = async ({
   proposed_price,
   maskSender = false,
 }) => {
-  const visibleSenderName = maskSender ? 'A Mint More creative' : senderName;
+  const visibleSenderName = maskSender ? 'A CREATYV creative' : senderName;
   await notificationService.createNotification({
     userId:     recipientUserId,
     type:       'negotiation_countered',
@@ -102,7 +102,7 @@ const notifyNegotiationAccepted = async ({
       userId:     freelancerUserId,
       type:       'negotiation_accepted',
       title:      'Deal awaiting review',
-      body:       `The deal for "${job.title}" was agreed at ${money(agreed_price)}. Mintmore will review it shortly.`,
+      body:       `The deal for "${job.title}" was agreed at ${money(agreed_price)}. CREATYV will review it shortly.`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, agreed_price, accepted_by },
@@ -111,7 +111,7 @@ const notifyNegotiationAccepted = async ({
       userId:     clientUserId,
       type:       'negotiation_accepted',
       title:      'Deal awaiting review',
-      body:       `The deal for "${job.title}" was agreed at ${money(agreed_price)}. Mintmore will review it shortly.`,
+      body:       `The deal for "${job.title}" was agreed at ${money(agreed_price)}. CREATYV will review it shortly.`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title, agreed_price, accepted_by },
@@ -241,7 +241,7 @@ const notifyAssignmentAccepted = async ({ job, freelancerName, clientUserId }) =
       userId:     clientUserId,
       type:       'assignment_accepted',
       title:      'Work has started',
-      body:       `Your Mint More creative accepted the assignment for "${job.title}".`,
+      body:       `Your CREATYV creative accepted the assignment for "${job.title}".`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title },
@@ -273,7 +273,7 @@ const notifyAssignmentDeclined = async ({
       userId:     clientUserId,
       type:       'assignment_declined',
       title:      'Assignment declined',
-      body:       `The creative assigned to "${job.title}" is no longer available. Mint More is reviewing the project.`,
+      body:       `The creative assigned to "${job.title}" is no longer available. CREATYV is reviewing the project.`,
       entityType: 'job',
       entityId:   job.id,
       data:       { job_id: job.id, job_title: job.title },

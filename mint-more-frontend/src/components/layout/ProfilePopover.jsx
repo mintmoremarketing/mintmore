@@ -25,7 +25,11 @@ export default function ProfilePopover({ onClose }) {
     <div className="profile-popover" ref={ref}>
       <div className="profile-popover-summary">
         <div className="avatar">
-          {(user?.full_name || 'U').split(' ').map(part => part[0]).slice(0, 2).join('')}
+          {user?.avatar_url ? (
+            <img src={user.avatar_url} alt="" />
+          ) : (
+            (user?.full_name || 'U').split(' ').map(part => part[0]).slice(0, 2).join('')
+          )}
         </div>
         <div>
           <strong>{user?.full_name}</strong>
@@ -36,7 +40,7 @@ export default function ProfilePopover({ onClose }) {
       <div className="profile-popover-menu">
         <button onClick={() => go('/settings?section=profile')}><Icon name="user" /><span>Edit profile</span><Icon name="chevronRight" /></button>
         <button onClick={() => go('/settings?section=account')}><Icon name="settings" /><span>Account settings</span><Icon name="chevronRight" /></button>
-        {user?.role !== 'admin' && <button onClick={() => go('/settings?section=verification')}><Icon name="shield" /><span>Verification</span><Icon name="chevronRight" /></button>}
+        {!['admin', 'designer'].includes(user?.role) && <button onClick={() => go('/settings?section=verification')}><Icon name="shield" /><span>Verification</span><Icon name="chevronRight" /></button>}
       </div>
       <button className="profile-signout" onClick={() => { logout(); onClose() }}><Icon name="arrowRight" /> Sign out</button>
     </div>

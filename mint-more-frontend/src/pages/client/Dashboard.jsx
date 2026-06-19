@@ -8,6 +8,7 @@ import { mintboxApi } from '../../api/mintbox'
 import { socialApi } from '../../api/social'
 import { api } from '../../api/client'
 import Icon from '../../components/ui/Icon'
+import { StatusBadge, statusAccent } from '../../components/ui/StatusBadge'
 
 const GB = 1024 * 1024 * 1024
 
@@ -56,7 +57,7 @@ function MiniCalendar({ events = [], tasks = [], onOpenCalendar }) {
   }
 
   return (
-    <div className="card" style={{ padding: 18 }}>
+    <div className="card mini-calendar-card">
       <div className="row between" style={{ marginBottom: 14 }}>
         <div>
           <div className="h-eyebrow">This month</div>
@@ -64,10 +65,10 @@ function MiniCalendar({ events = [], tasks = [], onOpenCalendar }) {
         </div>
         <button className="btn ghost sm" onClick={onOpenCalendar}>Open</button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, fontSize: 11, color: 'var(--ink-500)', marginBottom: 8 }}>
+      <div className="mini-calendar-weekdays">
         {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => <div key={`${day}-${idx}`} style={{ textAlign: 'center' }}>{day}</div>)}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+      <div className="mini-calendar-grid">
         {cells.map(cell => {
           const dayEvents = cell.dayEvents || []
           const dayTasks = cell.dayTasks || []
@@ -76,20 +77,17 @@ function MiniCalendar({ events = [], tasks = [], onOpenCalendar }) {
             ...dayTasks.map(task => ({ title: task.title, meta: task.client_status || task.status, tone: 'task' })),
           ]
           return (
-          <div
+          <button
             key={cell.key}
             title={describeCell(cell)}
-            style={{
-              aspectRatio: '1',
-              borderRadius: 8,
-              border: cell.blank ? '1px solid transparent' : '1px solid var(--hairline)',
-              background: cell.blank ? 'transparent' : sameDay(cell.date, now) ? 'var(--mint-50)' : 'var(--paper)',
-              display: 'grid',
-              placeItems: 'center',
-              position: 'relative',
-              fontSize: 12,
-              fontWeight: !cell.blank && sameDay(cell.date, now) ? 700 : 500,
-              color: cell.blank ? 'transparent' : 'var(--ink-900)',
+            type="button"
+            className={`mini-calendar-cell${cell.blank ? ' blank' : ''}${!cell.blank && sameDay(cell.date, now) ? ' today' : ''}${details.length ? ' has-items' : ''}`}
+            disabled={cell.blank}
+            onContextMenu={(event) => {
+              if (!cell.blank && details.length) {
+                event.preventDefault()
+                onOpenCalendar()
+              }
             }}
           >
             {!cell.blank && cell.date.getDate()}
@@ -136,7 +134,7 @@ function MiniCalendar({ events = [], tasks = [], onOpenCalendar }) {
                 </div>
               </div>
             )}
-          </div>
+          </button>
           )
         })}
       </div>
@@ -245,22 +243,22 @@ export default function ClientDashboard() {
         </h1>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(320px, .7fr)', gap: 18, alignItems: 'stretch' }}>
-        <div className="card-ink reveal" style={{ position: 'relative', overflow: 'hidden', minHeight: 330 }}>
+      <div className="dashboard-hero-grid">
+        <div className="card-ink reveal dashboard-hero-card">
           <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 86% 18%, rgba(16,185,129,.22), transparent 46%)' }} />
-          <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 220px', gap: 20, alignItems: 'center', height: '100%' }}>
+          <div className="dashboard-hero-inner">
             <div>
               <div className="row between" style={{ marginBottom: 18 }}>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,.64)', textTransform: 'uppercase', letterSpacing: .04 }}>Mint More calendar</span>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,.64)', textTransform: 'uppercase', letterSpacing: .04 }}>CREATYV calendar</span>
                 <span className="badge mint" style={{ background: 'rgba(16,185,129,.18)', border: '1px solid rgba(16,185,129,.3)', color: 'var(--mint-200)' }}>
                   <span className="bdot" /> Internal creative team
                 </span>
               </div>
-              <div style={{ fontSize: 34, fontWeight: 650, letterSpacing: '-0.02em' }}>
+              <div className="dashboard-hero-title">
                 {todayTasks.length ? `${todayTasks.length} creative${todayTasks.length === 1 ? '' : 's'} due today` : 'Your creative calendar is clear today'}
               </div>
               <p style={{ color: 'rgba(255,255,255,.68)', margin: '8px 0 0', maxWidth: 520 }}>
-                Track what Mint More is creating, what is due next, and which calendar moments are already handled.
+                Track what CREATYV is creating, what is due next, and which calendar moments are already handled.
               </p>
               <div className="row wrap" style={{ marginTop: 22, gap: 8 }}>
                 <button className="btn mint" onClick={() => navigate('/calendar')}>
@@ -271,7 +269,7 @@ export default function ClientDashboard() {
                 </button>
               </div>
             </div>
-            <div style={{ display: 'grid', gap: 10 }}>
+            <div className="dashboard-hero-metrics">
               {[
                 ['In progress', inProgress.length],
                 ['Done', done.length],
@@ -294,7 +292,7 @@ export default function ClientDashboard() {
           <div className="row between" style={{ gap: 16 }}>
             <div style={{ flex: 1 }}>
               <div className="h-eyebrow" style={{ marginBottom: 5 }}>Setup</div>
-              <div style={{ fontSize: 16, fontWeight: 650 }}>Make Mint More work around your business</div>
+              <div style={{ fontSize: 16, fontWeight: 650 }}>Make CREATYV work around your business</div>
               <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{setupDone} of {setupItems.length} steps complete</div>
               <div style={{ height: 6, background: 'var(--hairline)', borderRadius: 3, overflow: 'hidden', marginTop: 10 }}>
                 <div style={{ width: `${(setupDone / setupItems.length) * 100}%`, height: '100%', background: 'var(--mint-500)' }} />
@@ -307,7 +305,7 @@ export default function ClientDashboard() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: 18, alignItems: 'start' }}>
+      <div className="dashboard-main-grid">
         <section className="stack" style={{ gap: 12 }}>
           <div className="row between">
             <h2 className="h-display h-3" style={{ margin: 0 }}>In production</h2>
@@ -317,18 +315,25 @@ export default function ClientDashboard() {
             <div className="empty">
               <div className="empty-glyph"><Icon name="calendar" size={22} /></div>
               <h3>No creatives queued yet</h3>
-              <p>Pick calendar events or send a custom request to Mint More.</p>
+              <p>Pick calendar events or send a custom request to CREATYV.</p>
               <button className="btn primary" onClick={() => navigate('/calendar')}><Icon name="plus" /> Choose creatives</button>
             </div>
           ) : (
             [...inProgress, ...activeRequests].slice(0, 6).map(item => (
-              <button key={`${item.id}-${item.title}`} className="job-card" style={{ padding: 16 }} onClick={() => navigate('/jobs')}>
+              <button
+                key={`${item.id}-${item.title}`}
+                className="job-card task-card-shell"
+                style={{ padding: 16, '--task-status-color': statusAccent(item.status) }}
+                onClick={() => navigate('/jobs')}
+              >
                 <div className="row between">
                   <span className="badge neutral">{item.source_type ? 'Production task' : 'Custom request'}</span>
-                  <span className="badge mint">{item.client_status || item.status?.replace(/_/g, ' ')}</span>
+                  {['assigned', 'in_progress', 'delivered', 'revision', 'blocked'].includes(item.status)
+                    ? <StatusBadge status={item.status} />
+                    : <span className="badge neutral">{item.client_status || item.status?.replace(/_/g, ' ')}</span>}
                 </div>
                 <div className="title" style={{ marginTop: 8 }}>{item.title}</div>
-                <div className="description">{item.description || 'Mint More is reviewing this item.'}</div>
+                <div className="description">{item.description || 'CREATYV is reviewing this item.'}</div>
               </button>
             ))
           )}

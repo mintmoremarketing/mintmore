@@ -78,7 +78,7 @@ export default function Onboarding() {
     <div className="stack-6" style={{ maxWidth: 860 }}>
       <div>
         <div className="h-eyebrow">Getting started</div>
-        <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>Tell Mint More about your business</h1>
+        <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>Tell CREATYV about your business</h1>
         <p className="muted">This context improves briefs, AI output, matching, and onboarding support. You can update it later.</p>
       </div>
 

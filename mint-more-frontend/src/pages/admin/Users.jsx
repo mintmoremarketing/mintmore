@@ -175,7 +175,7 @@ function MintCoinAdjustModal({ user, onClose }) {
           <input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="Required audit note" />
         </div>
         <div className="muted" style={{ fontSize: 12, lineHeight: 1.5 }}>
-          MintCoins can pay only for Mint More platform services. They cannot fund freelancer earnings or be withdrawn.
+          MintCoins can pay only for CREATYV platform services. They cannot fund freelancer earnings or be withdrawn.
         </div>
       </div>
     </Modal>

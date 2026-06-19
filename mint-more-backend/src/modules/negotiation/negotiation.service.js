@@ -4,7 +4,6 @@ const { calculateManagedDeal } = require('../commerce/economics.service');
 const logger   = require('../../utils/logger');
 const triggers = require('../notifications/notification.triggers');
 const { holdEscrow, getWalletByUserId } = require('../wallet/wallet.service');
-const { createChatRoom } = require('../chat/chat.service');
 const { writeAudit } = require('../audit/audit.service');
 const { enqueueOutboxEvent } = require('../events/outbox.service');
 
@@ -107,7 +106,7 @@ const ensureClientCanFundOffer = async (dbClient, clientId, amount, job) => {
   const balance = Number(wallet.balance);
   if (balance < required) {
     throw new AppError(
-      `Add funds to your wallet before making this offer. Required including Mint More service: INR ${formatAmount(required)}, Available: INR ${formatAmount(balance)}`,
+      `Add funds to your wallet before making this offer. Required including CREATYV service: INR ${formatAmount(required)}, Available: INR ${formatAmount(balance)}`,
       400
     );
   }
@@ -1036,70 +1035,6 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
     );
 
     await dbClient.query('COMMIT');
-    // Hold escrow from client wallet — non-blocking, post-commit
-    setImmediate(async () => {
-      try {
-        await holdEscrow({
-          jobId:        jobId,
-          clientId:     negotiation.client_id,
-          freelancerId: negotiation.freelancer_id,
-          amount:       parseFloat(negotiation.agreed_price),
-        });
-        logger.info('Escrow held after deal approval', {
-          jobId, amount: negotiation.agreed_price,
-        });
-      } catch (escrowErr) {
-        logger.error('Escrow hold failed — client may have insufficient balance', {
-          jobId, error: escrowErr.message,
-        });
-        // Future: send admin notification that escrow failed
-      }
-    });
-    // Create chat room for client ↔ freelancer communication
-    setImmediate(async () => {
-      try {
-        // Find client's WhatsApp number + best MM channel for this job's category
-        const [clientResult, jobCatResult] = await Promise.all([
-          query('SELECT whatsapp_number FROM users WHERE id = $1', [negotiation.client_id]),
-          query(
-            `SELECT wn.waba_phone_id
-             FROM whatsapp_numbers wn
-             JOIN categories c ON c.id = wn.category_id
-             JOIN jobs j ON j.category_id = c.id
-             WHERE j.id = $1 AND wn.is_active = true
-             LIMIT 1`,
-            [jobId]
-          ),
-        ]);
-
-        await createChatRoom({
-          jobId,
-          clientId:      negotiation.client_id,
-          freelancerId:  negotiation.freelancer_id,
-          clientWaNumber: clientResult.rows[0]?.whatsapp_number || null,
-          mmWaNumberId:   jobCatResult.rows[0]?.waba_phone_id || null,
-        });
-      } catch (err) {
-        logger.error('Chat room creation failed after deal approval', {
-          jobId, error: err.message,
-        });
-      }
-    });
-    setImmediate(async () => {
-      try {
-        await triggers.notifyDealApproved({
-          job,
-          freelancerUserId: negotiation.freelancer_id,
-          clientUserId:     negotiation.client_id,
-          agreedPrice:      negotiation.agreed_price,
-        });
-        await triggers.notifyAssignmentCreated({
-          job,
-          freelancerUserId: negotiation.freelancer_id,
-          agreedPrice:      negotiation.agreed_price,
-        });
-      } catch (err) { logger.error('Notification trigger failed: adminApproveDeal', { error: err.message }); }
-    });
 
     logger.info('[Negotiation] Admin approved deal — assignment created', {
       jobId,

@@ -51,7 +51,7 @@ export default function TopUpModal({ onClose }) {
 			key: order.key_id,
 			amount: order.amount_paise,
 			currency: 'INR',
-			name: 'Mint More',
+			name: 'CREATYV',
 			description: 'Wallet top-up',
 			order_id: order.order_id,
 			theme: { color: '#10B981' },

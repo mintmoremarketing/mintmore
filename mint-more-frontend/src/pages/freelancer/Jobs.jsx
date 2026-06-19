@@ -5,6 +5,8 @@ import { api } from '../../api/client'
 import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
 import StatusChip from '../../components/ui/StatusChip'
+import DateBadge from '../../components/ui/DateBadge'
+import { statusAccent } from '../../components/ui/StatusBadge'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 
@@ -74,8 +76,8 @@ export default function FreelancerJobs() {
 					filtered.map((j) => (
 						<button
 							key={j.id}
-							className="job-card"
-							style={{ padding: 16 }}
+							className="job-card task-card-shell"
+							style={{ padding: 16, '--task-status-color': statusAccent(j.status) }}
 							onClick={() => navigate(`/jobs/${j.id}`)}
 						>
 							<div className="row between">
@@ -104,12 +106,7 @@ export default function FreelancerJobs() {
 										{j.budget_amount ? rupee(j.budget_amount) : 'Open pricing'}
 									</span>
 								</span>
-								{j.deadline && (
-									<span>
-										<Icon name="calendar" size={11} />{' '}
-										{new Date(j.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-									</span>
-								)}
+								{j.deadline && <DateBadge value={j.deadline} />}
 								<span style={{ textTransform: 'capitalize' }}>{j.required_level || 'Any level'}</span>
 							</div>
 

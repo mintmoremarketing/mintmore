@@ -31,7 +31,7 @@ function NewTicketModal({ onClose }) {
   return (
     <Modal
       title="Raise a support ticket"
-      subtitle="Mint More support will reply in this thread."
+      subtitle="CREATYV support will reply in this thread."
       onClose={onClose}
       footer={<>
         <button className="btn ghost" onClick={onClose}>Cancel</button>
@@ -97,7 +97,7 @@ export default function Support() {
         <div>
           <div className="h-eyebrow">Support</div>
           <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>Tickets</h1>
-          <p className="muted">Ask Mint More support for help without opening a payment dispute.</p>
+          <p className="muted">Ask CREATYV support for help without opening a payment dispute.</p>
         </div>
         {role !== 'admin' && <button className="btn primary" onClick={() => setShowNew(true)}><Icon name="plus" /> Raise ticket</button>}
       </div>

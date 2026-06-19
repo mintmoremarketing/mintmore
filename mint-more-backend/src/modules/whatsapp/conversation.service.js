@@ -23,32 +23,32 @@ const SERVICE_MENU = {
   '6': { label: 'Creative Shoot',     slug: 'photography' },
 };
 
-const WELCOME_MESSAGE = `👋 Welcome to *Mint More*!
+const WELCOME_MESSAGE = `Welcome to *CREATYV*.
 
-We connect you with top creative freelancers.
+We help your business get creative work planned, produced, and delivered by our team.
 
 *What do you need help with?*
 
-1️⃣ Video Editing
-2️⃣ Graphic Design
-3️⃣ Content Writing
-4️⃣ Social Media Management
-5️⃣ Reels Editing
-6️⃣ Creative Shoot / Photography
+1. Video Editing
+2. Graphic Design
+3. Content Writing
+4. Social Media Management
+5. Reels Editing
+6. Creative Shoot / Photography
 
 Reply with a *number* (1–6) to get started.`;
 
 const INVALID_MENU_REPLY = `Please reply with a number from *1 to 6* to select a service.
 
-1️⃣ Video Editing
-2️⃣ Graphic Design
-3️⃣ Content Writing
-4️⃣ Social Media Management
-5️⃣ Reels Editing
-6️⃣ Creative Shoot / Photography`;
+1. Video Editing
+2. Graphic Design
+3. Content Writing
+4. Social Media Management
+5. Reels Editing
+6. Creative Shoot / Photography`;
 
 const BRIEF_PROMPT = (serviceName) =>
-  `Great choice! 🎯 You selected *${serviceName}*.
+  `Great choice. You selected *${serviceName}*.
 
 Please describe your project in a few lines:
 - What do you need done?
@@ -59,7 +59,7 @@ Please describe your project in a few lines:
 Just type it out naturally — our team will review it.`;
 
 const TRANSFER_MESSAGE = (categoryName, waLink) =>
-  `✅ Got it! We're matching you with our *${categoryName}* team.
+  `Got it. We're matching you with our *${categoryName}* team.
 
 Continue your project conversation here:
 👉 ${waLink}
@@ -321,7 +321,7 @@ const handleMainMessage = async ({
         await sendTextMessage(
           toPhoneNumberId,
           fromNumber,
-          `✅ Thank you! We've received your brief and will connect you with the right person shortly. Please allow up to 2 hours during business hours.`
+          `Thank you. We've received your brief and will connect you with the right person shortly. Please allow up to 2 hours during business hours.`
         );
         break;
       }
@@ -470,8 +470,8 @@ const handleCategoryMessage = async ({
           toPhoneNumberId,
           fromNumber,
           action === 'approve'
-            ? 'Delivery approved. Open Mint More to request another revision or complete the project.'
-            : 'Revision feedback submitted to your Mint More creative.'
+            ? 'Delivery approved. Open CREATYV to request another revision or complete the project.'
+            : 'Revision feedback submitted to your CREATYV creative.'
         );
         break;
       }
@@ -602,7 +602,7 @@ const activateFromHandoff = async ({
   await sendTextMessage(
     toPhoneNumberId,
     fromNumber,
-    `✅ *You're connected to ${mmNumber.display_name}!*
+    `*You're connected to ${mmNumber.display_name}.*
 
 Our team has received your brief and is preparing your draft.
 
@@ -622,7 +622,7 @@ You'll receive a link here to review the brief, complete verification, and publi
       await sendTextMessage(
         toPhoneNumberId,
         fromNumber,
-        `Your Mint More brief is ready. Review and publish it here: ${env.social.frontendUrl}/jobs/${jobId}/edit`
+        `Your CREATYV brief is ready. Review and publish it here: ${env.social.frontendUrl}/jobs/${jobId}/edit`
       );
     } catch (err) {
       logger.error('Auto job creation from WhatsApp failed', { error: err.message });

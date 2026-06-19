@@ -22,8 +22,11 @@ export const STATUS_META = {
 	locked: { label: 'Locked', tone: 'amber' },
 	negotiating: { label: 'Negotiating', tone: 'amber' },
 	pending_admin_approval: { label: 'Pending approval', tone: 'amber' },
-	assigned: { label: 'Assigned', tone: 'mint' },
-	in_progress: { label: 'In progress', tone: 'mint' },
+	assigned: { label: 'Assigned', tone: 'assigned' },
+	in_progress: { label: 'In progress', tone: 'in-progress' },
+	delivered: { label: 'Delivered', tone: 'delivered' },
+	revision: { label: 'Revision', tone: 'revision' },
+	blocked: { label: 'Blocked', tone: 'blocked' },
 	completed: { label: 'Completed', tone: 'sky' },
 	cancelled: { label: 'Cancelled', tone: 'rose' },
 }

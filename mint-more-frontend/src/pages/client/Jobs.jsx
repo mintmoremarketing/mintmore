@@ -6,15 +6,16 @@ import { jobsApi } from '../../api/jobs'
 import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
 import { SkeletonCard } from '../../components/ui/Skeleton'
+import DateBadge from '../../components/ui/DateBadge'
+import { StatusBadge, statusAccent, statusLabel } from '../../components/ui/StatusBadge'
 import { useUIStore } from '../../store/ui'
 
 const badgeTone = (status = '') => {
-  if (['completed', 'delivered'].includes(status)) return 'mint'
+  if (status === 'delivered') return 'mint'
+  if (status === 'completed') return 'sky'
   if (['pending_review', 'pending_ops_review', 'approved'].includes(status)) return 'amber'
   return 'neutral'
 }
-
-const labelStatus = (status = '') => status.replace(/_/g, ' ')
 
 export default function Jobs() {
   const navigate = useNavigate()
@@ -65,7 +66,7 @@ export default function Jobs() {
       id: task.id,
       type: 'task',
       title: task.title,
-      description: task.client_status || task.description || 'Mint More production task.',
+      description: task.client_status || task.description || 'CREATYV production task.',
       status: task.status,
       date: task.due_date || task.created_at,
       coin_cost: task.coin_cost,
@@ -76,7 +77,7 @@ export default function Jobs() {
         id: request.id,
         type: 'custom',
         title: request.title,
-        description: request.description || 'Custom request sent to Mint More.',
+        description: request.description || 'Custom request sent to CREATYV.',
         status: request.status,
         date: request.created_at,
         coin_cost: request.coin_cost,
@@ -125,7 +126,7 @@ export default function Jobs() {
           <div className="h-eyebrow" style={{ marginBottom: 4 }}>Requests</div>
           <h1 className="h-display h-1" style={{ margin: 0 }}>My creatives</h1>
           <p className="muted" style={{ margin: '8px 0 0' }}>
-            Calendar picks and custom design requests handled by Mint More.
+            Calendar picks and custom design requests handled by CREATYV.
           </p>
         </div>
         <button className="btn primary" onClick={() => navigate('/jobs/new')}>
@@ -152,7 +153,7 @@ export default function Jobs() {
           <div className="empty">
             <div className="empty-glyph"><Icon name="briefcase" size={22} /></div>
             <h3>No requests yet</h3>
-            <p>Choose from the calendar or send a custom design request to Mint More.</p>
+            <p>Choose from the calendar or send a custom design request to CREATYV.</p>
             <div className="row wrap" style={{ justifyContent: 'center', gap: 8 }}>
               <button className="btn primary" onClick={() => navigate('/calendar')}>
                 <Icon name="calendar" /> Open calendar
@@ -166,8 +167,8 @@ export default function Jobs() {
           filtered.map((item) => (
             <div
               key={`${item.type}-${item.id}`}
-              className="job-card"
-              style={{ padding: 16 }}
+              className="job-card task-card-shell"
+              style={{ padding: 16, '--task-status-color': statusAccent(item.status) }}
               role="button"
               tabIndex={0}
               onClick={() => navigate(item.type === 'draft' ? `/jobs/${item.id}/edit` : '/mintbox')}
@@ -181,7 +182,9 @@ export default function Jobs() {
               <div className="row between">
                 <div className="row" style={{ gap: 10 }}>
                   <span className="badge neutral">{item.type === 'calendar' ? 'Calendar' : item.type === 'task' ? 'Production' : item.type === 'draft' ? 'Draft' : 'Custom'}</span>
-                  <span className={`badge ${badgeTone(item.status)}`}>{labelStatus(item.status)}</span>
+                  {['assigned', 'in_progress', 'delivered', 'revision', 'blocked'].includes(item.status)
+                    ? <StatusBadge status={item.status} />
+                    : <span className={`badge ${badgeTone(item.status)}`}>{statusLabel(item.status)}</span>}
                 </div>
                 {item.type === 'draft' ? (
                   <span
@@ -210,7 +213,7 @@ export default function Jobs() {
               <div className="title" style={{ marginTop: 8 }}>{item.title}</div>
               <div className="description">{item.description}</div>
               <div className="row" style={{ marginTop: 12, gap: 18, fontSize: 11.5, color: 'var(--ink-500)' }}>
-                <span><Icon name="calendar" size={11} /> &nbsp;{item.date ? new Date(item.date).toLocaleDateString('en-IN') : 'TBD'}</span>
+                <DateBadge value={item.date} />
                 <span className="mono" style={{ color: 'var(--ink-900)', fontWeight: 500 }}>
                   {item.type === 'draft' ? 'Resume request' : `${Number(item.coin_cost || 0)} MintCoin${Number(item.coin_cost || 0) === 1 ? '' : 's'}`}
                 </span>

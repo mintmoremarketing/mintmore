@@ -203,9 +203,9 @@ export default function NotificationsInbox() {
 					<h1 className="h-display h-1" style={{ margin: 0 }}>Notifications</h1>
 					<p className="muted" style={{ marginTop: 6 }}>
 						{counts.unread > 0 ? (
-							<>You have <strong style={{ color: 'var(--ink-900)' }}>{counts.unread} unread</strong> · live sync via Mintmore</>
+							<>You have <strong style={{ color: 'var(--ink-900)' }}>{counts.unread} unread</strong> · live sync via CREATYV</>
 						) : (
-							<>You're all caught up · live sync via Mintmore</>
+							<>You're all caught up · live sync via CREATYV</>
 						)}
 					</p>
 				</div>

@@ -67,11 +67,11 @@ const getRoomById = async (roomId, requesterId, requesterRole) => {
     }
   }
 
-  // Mask freelancer identity from client — client always sees "Mint More"
+  // Mask freelancer identity from client — client always sees the managed CREATYV channel.
   if (requesterRole === 'client') {
     delete room.freelancer_id;
     delete room.freelancer_display_name;
-    room.other_party_name = room.mm_channel_name || 'Mint More';
+    room.other_party_name = room.mm_channel_name || 'CREATYV';
   }
 
   return room;
@@ -141,9 +141,9 @@ const getMessages = async (roomId, requesterId, requesterRole, { page = 1, limit
          WHEN $3 = 'admin'      THEN u.full_name
          WHEN m.sender_role = 'client'     THEN u.full_name
          WHEN m.sender_role = 'freelancer' AND $3 = 'freelancer' THEN u.full_name
-         WHEN m.sender_role = 'freelancer' AND $3 = 'client'     THEN 'Mint More'
-         WHEN m.sender_role = 'system'                           THEN 'Mint More'
-         ELSE 'Mint More'
+         WHEN m.sender_role = 'freelancer' AND $3 = 'client'     THEN 'CREATYV'
+         WHEN m.sender_role = 'system'                           THEN 'CREATYV'
+         ELSE 'CREATYV'
        END AS sender_name
      FROM messages m
      LEFT JOIN users u ON u.id = m.sender_id
@@ -200,7 +200,7 @@ const getMessages = async (roomId, requesterId, requesterRole, { page = 1, limit
 /**
  * Send a message from the web app.
  * If the sender is the freelancer and the room has a client WA number,
- * the message is also bridged to WhatsApp (anonymously as "Mint More").
+ * the message is also bridged to WhatsApp through the managed CREATYV channel.
  */
 const sendMessage = async (roomId, senderId, senderRole, { content, attachment_url, attachment_type }) => {
   if (senderRole === 'admin') throw new AppError('Admins can view chats but cannot send participant messages', 403);
@@ -263,7 +263,7 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
   // Publish to Redis for web SSE
   await publishMessageToRoom(roomId, message, senderRole);
 
-  // WhatsApp bridge — freelancer messages go to client's WhatsApp (as Mint More)
+  // WhatsApp bridge — freelancer messages go to the client's WhatsApp through CREATYV.
   if (
     senderRole === 'freelancer' &&
     room.client_wa_number &&
