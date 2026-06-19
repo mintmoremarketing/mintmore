@@ -54,7 +54,7 @@ export default function TopUpModal({ onClose }) {
 			name: 'CREATYV',
 			description: 'Wallet top-up',
 			order_id: order.order_id,
-			theme: { color: '#10B981' },
+			theme: { color: '#f77f00' },
 			handler: async (response) => {
 				try {
 					await walletApi.verifyPayment({

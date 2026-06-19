@@ -49,7 +49,7 @@ export default function Membership() {
         currency: order.currency,
         name: 'CREATYV',
         description: payload.kind === 'access_pass' ? `${payload.days}-day access pass` : 'Business membership',
-        theme: { color: '#10B981' },
+        theme: { color: '#f77f00' },
         handler: async response => {
           try {
             await commerceApi.verify(response)

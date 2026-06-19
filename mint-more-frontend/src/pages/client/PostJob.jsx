@@ -50,7 +50,7 @@ function ChoiceTiles({ options, selected = [], onToggle, renderOption }) {
               border: `1.5px solid ${active ? 'var(--mint-500)' : 'var(--hairline)'}`,
               background: active ? 'var(--mint-50)' : 'var(--paper)',
               borderRadius: 'var(--radius-md)', cursor: 'pointer',
-              boxShadow: active ? '0 0 0 3px rgba(16,185,129,.08)' : 'none',
+              boxShadow: active ? '0 0 0 3px rgba(247,127,0,.08)' : 'none',
             }}
           >
             <span style={{

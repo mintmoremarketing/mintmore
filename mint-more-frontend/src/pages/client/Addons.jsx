@@ -150,9 +150,9 @@ function PlanCard({ plan, isActive, activeAddon, onBuy, isPurchasing }) {
 					<div
 						style={{
 							padding: '10px 14px',
-							background: 'rgba(16,185,129,0.08)',
+							background: 'rgba(247,127,0,0.08)',
 							borderRadius: 'var(--radius-md)',
-							border: '1px solid rgba(16,185,129,0.25)',
+							border: '1px solid rgba(247,127,0,0.25)',
 							marginBottom: 10,
 						}}
 					>

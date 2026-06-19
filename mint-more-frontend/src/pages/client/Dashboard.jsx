@@ -245,12 +245,12 @@ export default function ClientDashboard() {
 
       <div className="dashboard-hero-grid">
         <div className="card-ink reveal dashboard-hero-card">
-          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 86% 18%, rgba(16,185,129,.22), transparent 46%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 86% 18%, rgba(247,127,0,.22), transparent 46%)' }} />
           <div className="dashboard-hero-inner">
             <div>
               <div className="row between" style={{ marginBottom: 18 }}>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,.64)', textTransform: 'uppercase', letterSpacing: .04 }}>CREATYV calendar</span>
-                <span className="badge mint" style={{ background: 'rgba(16,185,129,.18)', border: '1px solid rgba(16,185,129,.3)', color: 'var(--mint-200)' }}>
+                <span className="badge mint" style={{ background: 'rgba(247,127,0,.18)', border: '1px solid rgba(247,127,0,.3)', color: 'var(--mint-200)' }}>
                   <span className="bdot" /> Internal creative team
                 </span>
               </div>

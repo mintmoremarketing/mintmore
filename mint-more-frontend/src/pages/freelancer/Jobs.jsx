@@ -115,9 +115,9 @@ export default function FreelancerJobs() {
 									style={{
 										marginTop: 12,
 										padding: '8px 12px',
-										background: 'rgba(16,185,129,0.08)',
+										background: 'rgba(247,127,0,0.08)',
 										borderRadius: 'var(--radius-md)',
-										border: '1px solid rgba(16,185,129,0.2)',
+										border: '1px solid rgba(247,127,0,0.2)',
 										fontSize: 12.5,
 										color: 'var(--mint-700)',
 										fontWeight: 500,

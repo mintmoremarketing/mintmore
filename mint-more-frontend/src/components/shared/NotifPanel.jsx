@@ -222,7 +222,7 @@ export default function NotifPanel({ onClose }) {
 									borderRight: 0,
 									background: n.is_read
 										? 'transparent'
-										: 'rgba(16,185,129,0.04)',
+										: 'rgba(247,127,0,0.04)',
 									cursor: getTarget(n) ? 'pointer' : 'default',
 									transition: 'background 0.1s',
 									fontFamily: 'inherit',

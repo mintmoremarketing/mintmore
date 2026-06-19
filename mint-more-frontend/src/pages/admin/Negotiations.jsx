@@ -117,8 +117,8 @@ export default function AdminNegotiations() {
 
                 <div style={{
                   display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14,
-                  padding: '14px 16px', background: 'rgba(16,185,129,0.05)',
-                  borderRadius: 'var(--radius-md)', border: '1px solid rgba(16,185,129,0.2)',
+                  padding: '14px 16px', background: 'rgba(247,127,0,0.05)',
+                  borderRadius: 'var(--radius-md)', border: '1px solid rgba(247,127,0,0.2)',
                   marginBottom: 18,
                 }}>
                   {[

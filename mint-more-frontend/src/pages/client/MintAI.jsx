@@ -23,7 +23,7 @@ const TRAFFIC_COLORS = {
 }
 
 const TIER_META = {
-  free:     { label: 'FREE',     bg: 'rgba(16,185,129,0.1)',  color: 'var(--mint-700)' },
+  free:     { label: 'FREE',     bg: 'rgba(247,127,0,0.1)',  color: 'var(--mint-700)' },
   standard: { label: 'Standard', bg: 'rgba(99,102,241,0.1)',  color: '#6366F1' },
   premium:  { label: 'Premium',  bg: 'rgba(217,119,6,0.1)',   color: 'var(--amber)' },
 }

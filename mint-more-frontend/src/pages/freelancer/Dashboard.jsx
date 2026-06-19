@@ -59,7 +59,7 @@ export default function FreelancerDashboard() {
 							position: 'absolute',
 							inset: 0,
 							background:
-								'radial-gradient(circle at 90% 50%, rgba(16,185,129,0.2), transparent 60%)',
+								'radial-gradient(circle at 90% 50%, rgba(247,127,0,0.2), transparent 60%)',
 						}}
 					/>
 					<div style={{ position: 'relative', display: 'flex', gap: 14, alignItems: 'center' }}>
@@ -68,7 +68,7 @@ export default function FreelancerDashboard() {
 								width: 44,
 								height: 44,
 								borderRadius: '50%',
-								background: 'rgba(16,185,129,0.2)',
+								background: 'rgba(247,127,0,0.2)',
 								color: 'var(--mint-300)',
 								display: 'flex',
 								alignItems: 'center',

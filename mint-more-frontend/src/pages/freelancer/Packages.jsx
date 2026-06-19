@@ -52,7 +52,7 @@ function PackageEditor({ type, pkg, onSave, onDelete, isPending }) {
   }
 
   const TIER_COLORS = { basic: 'var(--ink-400)', standard: 'var(--mint-600)', premium: '#8B5CF6' }
-  const TIER_BG    = { basic: 'var(--paper-tint)', standard: 'rgba(16,185,129,0.08)', premium: 'rgba(139,92,246,0.08)' }
+  const TIER_BG    = { basic: 'var(--paper-tint)', standard: 'rgba(247,127,0,0.08)', premium: 'rgba(139,92,246,0.08)' }
 
   return (
     <div style={{

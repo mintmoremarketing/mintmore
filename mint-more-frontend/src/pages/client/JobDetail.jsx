@@ -192,7 +192,7 @@ function MatchingPanel({ job }) {
           width: 44, height: 44, borderRadius: '50%',
           background: 'var(--mint-500)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: 'white', boxShadow: '0 0 0 6px rgba(16,185,129,0.15)',
+          color: 'white', boxShadow: '0 0 0 6px rgba(247,127,0,0.15)',
         }}>
           <Icon name="radar" size={18} />
         </div>
@@ -851,9 +851,9 @@ function NegotiationPanel({ job }) {
         <div
           style={{
             padding: 14,
-            background: 'rgba(16,185,129,0.08)',
+            background: 'rgba(247,127,0,0.08)',
             borderRadius: 'var(--radius-md)',
-            border: '1px solid rgba(16,185,129,0.25)',
+            border: '1px solid rgba(247,127,0,0.25)',
           }}
         >
           <div

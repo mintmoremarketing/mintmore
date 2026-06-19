@@ -56,6 +56,34 @@ const ensureStorageBucket = async (bucket, options = {}) => {
   return bucketChecks.get(bucket);
 };
 
+const uploadBucketOptions = (bucket) => {
+  if (bucket === 'avatars') {
+    return {
+      public: true,
+      fileSizeLimit: env.upload.maxFileSizeMb * 1024 * 1024,
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    };
+  }
+
+  if (bucket === 'kyc-docs') {
+    return {
+      public: false,
+      fileSizeLimit: env.upload.maxFileSizeMb * 1024 * 1024,
+      allowedMimeTypes: env.upload.allowedFileTypes,
+    };
+  }
+
+  if (bucket === 'job-attachments') {
+    return {
+      public: true,
+      fileSizeLimit: env.upload.mintboxMaxFileSizeMb * 1024 * 1024,
+      allowedMimeTypes: [...env.upload.mintboxAllowedFileTypes, 'application/octet-stream'],
+    };
+  }
+
+  return {};
+};
+
 /**
  * Upload a file buffer to Supabase Storage.
  *
@@ -66,6 +94,8 @@ const ensureStorageBucket = async (bucket, options = {}) => {
  * @returns {string}          - Public URL of the uploaded file
  */
 const uploadFile = async (bucket, filePath, buffer, mimeType) => {
+  await ensureStorageBucket(bucket, uploadBucketOptions(bucket));
+
   const { data, error } = await supabase.storage
     .from(bucket)
     .upload(filePath, buffer, {

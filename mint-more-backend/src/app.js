@@ -40,6 +40,7 @@ const commerceRouter     = require('./modules/commerce/commerce.routes');
 const disputeRouter      = require('./modules/disputes/dispute.routes');
 const creativeRouter     = require('./modules/creative/creative.routes');
 const supportRouter      = require('./modules/support/support.routes');
+const publicRouter       = require('./modules/public/public.routes');
 
 // Initialise SSE subscriber (does not require main Redis client)
 initSSESubscriber();
@@ -83,6 +84,7 @@ app.head('/', (_req, res) => res.sendStatus(200));
 app.use(`/api/${env.apiVersion}/health`,        healthRouter);
 app.use(`/api/${env.apiVersion}`, globalRateLimiter);
 
+app.use(`/api/${env.apiVersion}/public`,        publicRouter);
 app.use(`/api/${env.apiVersion}/auth`,          authRouter);
 app.use(`/api/${env.apiVersion}/profile`,       profileRouter);
 app.use(`/api/${env.apiVersion}/kyc`,           kycRouter);

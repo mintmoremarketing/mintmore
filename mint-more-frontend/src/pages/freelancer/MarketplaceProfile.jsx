@@ -103,8 +103,8 @@ export default function MarketplaceProfile() {
       {/* Visibility toggle — most important */}
       <div className="card reveal" style={{
         padding: 20,
-        border: visible ? '1.5px solid rgba(16,185,129,0.4)' : '1px solid var(--hairline)',
-        background: visible ? 'rgba(16,185,129,0.04)' : 'var(--paper)',
+        border: visible ? '1.5px solid rgba(247,127,0,0.4)' : '1px solid var(--hairline)',
+        background: visible ? 'rgba(247,127,0,0.04)' : 'var(--paper)',
       }}>
         <div className="row between">
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>

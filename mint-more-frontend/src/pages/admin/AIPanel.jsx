@@ -16,7 +16,7 @@ const TRAFFIC_META = {
 }
 
 const TIER_COLORS = {
-  free:     { bg: 'rgba(16,185,129,0.1)',  color: 'var(--mint-700)' },
+  free:     { bg: 'rgba(247,127,0,0.1)',  color: 'var(--mint-700)' },
   standard: { bg: 'rgba(99,102,241,0.1)',  color: '#6366F1' },
   premium:  { bg: 'rgba(217,119,6,0.1)',   color: 'var(--amber)' },
 }
@@ -283,8 +283,8 @@ function OpenRouterBrowser({ existingIds, onAdd }) {
                 <div key={m.id} style={{
                   display: 'flex', gap: 12, alignItems: 'center',
                   padding: '10px 12px',
-                  background: isAdded ? 'rgba(16,185,129,0.04)' : 'var(--paper-tint)',
-                  border: `1px solid ${isAdded ? 'rgba(16,185,129,0.2)' : 'var(--hairline)'}`,
+                  background: isAdded ? 'rgba(247,127,0,0.04)' : 'var(--paper-tint)',
+                  border: `1px solid ${isAdded ? 'rgba(247,127,0,0.2)' : 'var(--hairline)'}`,
                   borderRadius: 'var(--radius-md)',
                   opacity: isAdded ? 0.7 : 1,
                 }}>
@@ -300,7 +300,7 @@ function OpenRouterBrowser({ existingIds, onAdd }) {
                     </div>
                   </div>
                   {isAdded ? (
-                    <span style={{ fontSize: 11.5, color: 'var(--mint-700)', fontWeight: 500, padding: '3px 8px', background: 'rgba(16,185,129,0.1)', borderRadius: 20 }}>
+                    <span style={{ fontSize: 11.5, color: 'var(--mint-700)', fontWeight: 500, padding: '3px 8px', background: 'rgba(247,127,0,0.1)', borderRadius: 20 }}>
                       Added ✓
                     </span>
                   ) : (

@@ -90,8 +90,8 @@ function WalletAdjustModal({ user, onClose }) {
         {amount && parseFloat(amount) !== 0 && (
           <div style={{
             padding: 12, borderRadius: 'var(--radius-md)',
-            background: isDebit ? 'rgba(225,29,72,0.06)' : 'rgba(16,185,129,0.08)',
-            border: `1px solid ${isDebit ? 'rgba(225,29,72,0.2)' : 'rgba(16,185,129,0.25)'}`,
+            background: isDebit ? 'rgba(225,29,72,0.06)' : 'rgba(247,127,0,0.08)',
+            border: `1px solid ${isDebit ? 'rgba(225,29,72,0.2)' : 'rgba(247,127,0,0.25)'}`,
             fontSize: 13, fontWeight: 500,
             color: isDebit ? 'var(--rose)' : 'var(--mint-700)',
           }}>

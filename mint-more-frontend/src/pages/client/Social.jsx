@@ -424,8 +424,8 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
                   style={{
                     display: 'flex', gap: 12, alignItems: 'center',
                     padding: '12px 14px',
-                    background: selected ? 'rgba(16,185,129,0.06)' : 'var(--paper-tint)',
-                    border: `1.5px solid ${selected ? 'rgba(16,185,129,0.4)' : 'var(--hairline)'}`,
+                    background: selected ? 'rgba(247,127,0,0.06)' : 'var(--paper-tint)',
+                    border: `1.5px solid ${selected ? 'rgba(247,127,0,0.4)' : 'var(--hairline)'}`,
                     borderRadius: 'var(--radius-md)', cursor: 'pointer',
                     transition: 'all 0.12s',
                   }}

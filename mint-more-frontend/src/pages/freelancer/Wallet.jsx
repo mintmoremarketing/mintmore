@@ -237,7 +237,7 @@ export default function FreelancerWallet() {
 					style={{
 						position: 'absolute',
 						inset: 0,
-						background: 'radial-gradient(circle at 90% 10%, rgba(16,185,129,0.18), transparent 50%)',
+						background: 'radial-gradient(circle at 90% 10%, rgba(247,127,0,0.18), transparent 50%)',
 					}}
 				/>
 				<div style={{ position: 'relative' }}>

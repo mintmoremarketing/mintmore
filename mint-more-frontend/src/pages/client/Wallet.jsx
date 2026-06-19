@@ -37,11 +37,11 @@ export default function Wallet() {
 			</div>
 
 			<div className="card-ink" style={{ position: 'relative', overflow: 'hidden', padding: 26 }}>
-				<div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 90% 10%, rgba(16,185,129,0.18), transparent 50%)' }} />
+				<div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 90% 10%, rgba(247,127,0,0.18), transparent 50%)' }} />
 				<div style={{ position: 'relative' }}>
 					<div className="row between" style={{ marginBottom: 14 }}>
 						<span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: 0.04 }}>Total balance</span>
-						<span className="badge mint" style={{ background: 'rgba(16,185,129,0.18)', border: '1px solid rgba(16,185,129,0.3)', color: 'var(--mint-200)' }}>
+						<span className="badge mint" style={{ background: 'rgba(247,127,0,0.18)', border: '1px solid rgba(247,127,0,0.3)', color: 'var(--mint-200)' }}>
 							<Icon name="shield" size={11} /> &nbsp;Escrow-secured
 						</span>
 					</div>

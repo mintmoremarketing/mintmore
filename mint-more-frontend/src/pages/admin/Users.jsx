@@ -81,8 +81,8 @@ function WalletAdjustModal({ user, onClose }) {
         </div>
         {amount && (
           <div style={{
-            padding: 12, background: parseFloat(amount) >= 0 ? 'rgba(16,185,129,0.08)' : 'rgba(225,29,72,0.06)',
-            borderRadius: 'var(--radius-md)', border: `1px solid ${parseFloat(amount) >= 0 ? 'rgba(16,185,129,0.25)' : 'rgba(225,29,72,0.2)'}`,
+            padding: 12, background: parseFloat(amount) >= 0 ? 'rgba(247,127,0,0.08)' : 'rgba(225,29,72,0.06)',
+            borderRadius: 'var(--radius-md)', border: `1px solid ${parseFloat(amount) >= 0 ? 'rgba(247,127,0,0.25)' : 'rgba(225,29,72,0.2)'}`,
             fontSize: 13, fontWeight: 500,
             color: parseFloat(amount) >= 0 ? 'var(--mint-700)' : 'var(--rose)',
           }}>
@@ -469,7 +469,7 @@ function UserDetailModal({ userId, onClose }) {
         )}
 
         {user.role === 'client' && (
-          <div style={{ padding: 14, background: 'rgba(16,185,129,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16,185,129,0.2)' }}>
+          <div style={{ padding: 14, background: 'rgba(247,127,0,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(247,127,0,0.2)' }}>
             <div className="row between" style={{ marginBottom: 8 }}>
               <div className="h-eyebrow">MintCoins</div>
               {canAdjustMintCoins && (

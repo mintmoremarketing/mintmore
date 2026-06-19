@@ -284,9 +284,9 @@ function InitiatePanel({ job, user, queryClient, pushToast }) {
 				<div
 					style={{
 						padding: 14,
-						background: 'rgba(16,185,129,0.06)',
+						background: 'rgba(247,127,0,0.06)',
 						borderRadius: 'var(--radius-md)',
-						border: '1px solid rgba(16,185,129,0.2)',
+						border: '1px solid rgba(247,127,0,0.2)',
 						marginBottom: 16,
 					}}
 				>
@@ -641,7 +641,7 @@ function FreelancerNegotiatePanel({ job, queryClient, pushToast }) {
 			)}
 
 			{neg.status === 'agreed' && (
-				<div style={{ padding: 14, background: 'rgba(16,185,129,0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16,185,129,0.25)' }}>
+				<div style={{ padding: 14, background: 'rgba(247,127,0,0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(247,127,0,0.25)' }}>
 					<div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--mint-700)' }}>
 						Deal agreed - waiting for admin approval
 					</div>
@@ -680,9 +680,9 @@ function AssignmentPanel({ job, queryClient, pushToast, navigate }) {
 			<div
 				style={{
 					padding: 16,
-					background: 'rgba(16,185,129,0.08)',
+					background: 'rgba(247,127,0,0.08)',
 					borderRadius: 'var(--radius-md)',
-					border: '1px solid rgba(16,185,129,0.25)',
+					border: '1px solid rgba(247,127,0,0.25)',
 					marginBottom: 18,
 				}}
 			>
