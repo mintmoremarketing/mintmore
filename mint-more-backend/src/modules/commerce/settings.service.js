@@ -60,6 +60,20 @@ const setSetting = async (key, value, admin, requestMeta = {}) => {
       throw new AppError('Trial duration and MintCoin expiry must be at least 1 day', 400);
     }
   }
+  if (key === 'public_qna') {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new AppError('public_qna must be an object', 400);
+    }
+    const stringFields = ['contact_email', 'contact_phone', 'public_brief', 'guardrails'];
+    for (const field of stringFields) {
+      if (typeof value[field] !== 'string' || !value[field].trim()) {
+        throw new AppError(`${field} is required`, 400);
+      }
+      if (value[field].length > (field === 'public_brief' || field === 'guardrails' ? 3000 : 180)) {
+        throw new AppError(`${field} is too long`, 400);
+      }
+    }
+  }
   const before = await getSetting(key);
   const result = await query(
     `INSERT INTO platform_settings (key, value, updated_by)

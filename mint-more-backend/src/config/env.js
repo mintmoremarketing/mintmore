@@ -156,8 +156,8 @@ const env = {
     maxRequestsPerHour:   parseInt(process.env.AI_MAX_REQUESTS_PER_HOUR || '20', 10),
   },
 
-  isDev:  process.env.NODE_ENV === 'development',
-  isProd: process.env.NODE_ENV === 'production',
+  isDev:  (process.env.NODE_ENV || 'development') === 'development',
+  isProd: (process.env.NODE_ENV || 'development') === 'production',
 };
 
 const requiredAlways = [

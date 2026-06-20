@@ -66,9 +66,9 @@ export default function Register() {
         {/* ----------------------------- */}
             <aside className="auth-aside">
                 <div>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>
-                        CREAT<span style={{ color: 'var(--mint-400)', fontWeight: 650 }}>YV</span>
-                    </div>
+                    <Link to="/" className="auth-brand-link" aria-label="Back to CREATYV landing page">
+                        CREAT<span>YV</span>
+                    </Link>
                 </div>
                 <div>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 500, lineHeight: 1.15, letterSpacing: '-0.02em', color: 'white' }}>
@@ -87,12 +87,10 @@ export default function Register() {
                     {/* --- RECENTLY CHANGED PART --- */}
                     {/* Mobile-only logo */}
                     {isMobile && (
-                      <div style={{
-                        fontFamily: 'var(--font-display)', fontSize: 22,
-                        fontWeight: 600, letterSpacing: '-0.02em',
-                        marginBottom: 28, textAlign: 'center',
-                      }}>
-                        CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
+                      <div style={{ marginBottom: 28, textAlign: 'center' }}>
+                        <Link to="/" className="auth-brand-link light" aria-label="Back to CREATYV landing page">
+                          CREAT<span>YV</span>
+                        </Link>
                       </div>
                     )}
                     {/* ----------------------------- */}
@@ -172,6 +170,11 @@ export default function Register() {
                         Already with us?{' '}
                         <Link to="/login" style={{ color: 'var(--ink-950)', fontWeight: 500, textDecoration: 'underline' }}>
                             Sign in
+                        </Link>
+                    </div>
+                    <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--ink-500)', textAlign: 'center' }}>
+                        <Link to="/" style={{ color: 'var(--ink-700)', fontWeight: 500, textDecoration: 'underline' }}>
+                            Back to landing page
                         </Link>
                     </div>
                 </form>

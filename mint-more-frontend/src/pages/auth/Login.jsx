@@ -58,9 +58,9 @@ export default function Login() {
 		{/* ----------------------------- */}
 			<aside className="auth-aside">
 				<div>
-					<div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>
-						CREAT<span style={{ color: 'var(--mint-400)', fontWeight: 650 }}>YV</span>
-					</div>
+					<Link to="/" className="auth-brand-link" aria-label="Back to CREATYV landing page">
+						CREAT<span>YV</span>
+					</Link>
 					<div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
 						Creative services for Indian businesses
 					</div>
@@ -83,10 +83,10 @@ export default function Login() {
 						}}
 					>
 						Post a brief.{' '}
-						<span style={{ color: 'var(--mint-400)', fontStyle: 'italic' }}>We find the right creative.</span>
+						<span style={{ color: 'var(--mint-400)', fontStyle: 'italic' }}>CREATYV handles the work.</span>
 					</div>
 					<p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13.5, lineHeight: 1.6, maxWidth: 380, marginTop: 14 }}>
-						Matched video, photography, social and branding talent - vetted, with escrow protection.
+						Plan monthly creatives, send custom requests, and review every delivery in one workspace.
 					</p>
 				</div>
 				<div style={{ display: 'flex', gap: 14, alignItems: 'center', color: 'rgba(255,255,255,0.45)', fontSize: 11.5 }}>
@@ -105,17 +105,14 @@ export default function Login() {
 					{/* Expanded mobile-only branding */}
 					{isMobile && (
 						<div style={{ textAlign: 'center', marginBottom: 32 }}>
-							<div style={{
-								fontFamily: 'var(--font-display)', fontSize: 26,
-								fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 8
-							}}>
-								CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
-							</div>
+							<Link to="/" className="auth-brand-link light" aria-label="Back to CREATYV landing page">
+								CREAT<span>YV</span>
+							</Link>
 							<p style={{ 
 								color: 'var(--ink-500)', fontSize: 13.5, lineHeight: 1.5, 
-								maxWidth: 280, margin: '0 auto' 
+								maxWidth: 280, margin: '8px auto 0' 
 							}}>
-								Creative services for Indian businesses. We find the right talent for you.
+								Creative services for Indian businesses. Plan, request, review, and publish.
 							</p>
 							<div style={{
 								display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center',
@@ -197,6 +194,11 @@ export default function Login() {
 						New here?{' '}
 						<Link to="/register" style={{ color: 'var(--ink-950)', fontWeight: 500, textDecoration: 'underline' }}>
 							Create an account
+						</Link>
+					</div>
+					<div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--ink-500)', textAlign: 'center' }}>
+						<Link to="/" style={{ color: 'var(--ink-700)', fontWeight: 500, textDecoration: 'underline' }}>
+							Back to landing page
 						</Link>
 					</div>
 				</form>

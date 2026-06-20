@@ -2,6 +2,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const compression = require('compression');
+const path = require('path');
 
 const env = require('./config/env');
 const requestLogger = require('./middleware/requestLogger');
@@ -79,6 +80,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(compression());
 app.use(requestLogger);
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 app.get('/', (_req, res) => res.status(200).json({ service: 'mint-more-api', status: 'ok' }));
 app.head('/', (_req, res) => res.sendStatus(200));
 app.use(`/api/${env.apiVersion}/health`,        healthRouter);

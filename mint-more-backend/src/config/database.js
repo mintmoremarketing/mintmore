@@ -25,15 +25,32 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000, // slightly longer for pooler
 });
 
+const attachClientErrorHandler = (client, source = 'unknown') => {
+  if (!client || client.__mintMoreErrorHandlerAttached) return client;
+  client.__mintMoreErrorHandlerAttached = true;
+  client.on('error', (err) => {
+    logger.error('PostgreSQL client connection error', {
+      source,
+      error: err.message,
+      code: err.code,
+    });
+  });
+  return client;
+};
+
+pool.on('connect', (client) => {
+  attachClientErrorHandler(client, 'pool');
+});
+
 pool.on('error', (err) => {
-  logger.error('Unexpected PostgreSQL pool error', { error: err.message });
+  logger.error('Unexpected PostgreSQL pool error', { error: err.message, code: err.code });
 });
 
 /**
  * Verify DB connectivity on startup.
  */
 const connectDB = async () => {
-  const client = await pool.connect();
+  const client = attachClientErrorHandler(await pool.connect(), 'startup');
   try {
     const result = await client.query('SELECT NOW() AS now');
     logger.info(`✅ PostgreSQL (Supabase Pooler) connected — server time: ${result.rows[0].now}`);
@@ -64,6 +81,6 @@ const query = async (text, params) => {
 /**
  * Use for transactions — caller manages BEGIN / COMMIT / ROLLBACK.
  */
-const getClient = () => pool.connect();
+const getClient = async () => attachClientErrorHandler(await pool.connect(), 'transaction');
 
 module.exports = { connectDB, query, getClient, pool };

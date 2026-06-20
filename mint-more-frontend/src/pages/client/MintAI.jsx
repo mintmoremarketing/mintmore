@@ -85,6 +85,90 @@ function ModelPicker({ models, selected, onSelect, toolType }) {
   )
 }
 
+function renderMarkdownInline(text, keyPrefix) {
+  const parts = []
+  const pattern = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g
+  let lastIndex = 0
+  let match
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+
+    const value = match[0]
+    if (value.startsWith('**')) {
+      parts.push(<strong key={`${keyPrefix}-strong-${match.index}`}>{value.slice(2, -2)}</strong>)
+    } else {
+      const linkMatch = value.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+      parts.push(
+        <a key={`${keyPrefix}-link-${match.index}`} href={linkMatch?.[2]} target="_blank" rel="noreferrer">
+          {linkMatch?.[1] || value}
+        </a>,
+      )
+    }
+
+    lastIndex = pattern.lastIndex
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return parts
+}
+
+function MarkdownResult({ text }) {
+  const normalized = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\s+\*\s+(?=(\*\*)?[A-Za-z0-9₹])/g, '\n* ')
+    .replace(/\s+-\s+(?=(\*\*)?[A-Za-z0-9₹])/g, '\n- ')
+    .trim()
+
+  const blocks = []
+  let listItems = []
+
+  const flushList = key => {
+    if (listItems.length) {
+      blocks.push(
+        <ul key={`list-${key}`}>
+          {listItems.map((item, index) => (
+            <li key={`item-${key}-${index}`}>{renderMarkdownInline(item, `item-${key}-${index}`)}</li>
+          ))}
+        </ul>,
+      )
+      listItems = []
+    }
+  }
+
+  normalized.split('\n').forEach((rawLine, index) => {
+    const line = rawLine.trim()
+    if (!line) {
+      flushList(index)
+      return
+    }
+
+    const bullet = line.match(/^[-*]\s+(.+)$/)
+    if (bullet) {
+      listItems.push(bullet[1])
+      return
+    }
+
+    const numbered = line.match(/^\d+\.\s+(.+)$/)
+    if (numbered) {
+      listItems.push(numbered[1])
+      return
+    }
+
+    flushList(index)
+    blocks.push(<p key={`p-${index}`}>{renderMarkdownInline(line, `p-${index}`)}</p>)
+  })
+
+  flushList('end')
+
+  return <div className="ai-markdown-result">{blocks}</div>
+}
+
 function GenerationResult({ generation, onCopy }) {
   if (!generation) return null
   const { status, result_text, result_url, error_message } = generation
@@ -144,9 +228,9 @@ function GenerationResult({ generation, onCopy }) {
           padding: 18, background: 'var(--paper-tint)',
           borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)',
           fontSize: 14, lineHeight: 1.75, color: 'var(--ink-800)',
-          whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto',
+          maxHeight: 400, overflow: 'auto',
         }}>
-          {result_text}
+          <MarkdownResult text={result_text} />
         </div>
         <button
           className="btn ghost"

@@ -1,9 +1,31 @@
 const { query } = require('../../config/database');
 const { uploadFile } = require('../../config/supabase');
+const env = require('../../config/env');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const fs = require('fs/promises');
+
+const AVATAR_MIME_EXTENSIONS = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
+
+const getAvatarExtension = (file) => {
+  if (AVATAR_MIME_EXTENSIONS[file.mimetype]) {
+    return AVATAR_MIME_EXTENSIONS[file.mimetype];
+  }
+  return path.extname(file.originalname || '').toLowerCase() || '.jpg';
+};
+
+const saveAvatarLocally = async (userId, file, filename) => {
+  const uploadRoot = path.join(__dirname, '..', '..', '..', 'uploads', 'avatars', userId);
+  await fs.mkdir(uploadRoot, { recursive: true });
+  await fs.writeFile(path.join(uploadRoot, filename), file.buffer);
+  return `http://localhost:${env.port}/uploads/avatars/${userId}/${filename}`;
+};
 
 /**
  * Full profile fields returned to the user.
@@ -86,15 +108,37 @@ const updateProfile = async (userId, updates) => {
  * Upload avatar to Supabase Storage and update user record.
  */
 const updateAvatar = async (userId, file) => {
-  const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-  const filePath = `${userId}/avatar-${uuidv4()}${ext}`;
+  if (!file || !file.buffer) {
+    throw new AppError('Avatar file is required', 400);
+  }
 
-  const publicUrl = await uploadFile(
-    'avatars',
-    filePath,
-    file.buffer,
-    file.mimetype
-  );
+  if (!AVATAR_MIME_EXTENSIONS[file.mimetype]) {
+    throw new AppError('Avatar must be a JPG, PNG, or WebP image', 400);
+  }
+
+  const filename = `avatar-${uuidv4()}${getAvatarExtension(file)}`;
+  const filePath = `${userId}/${filename}`;
+
+  let publicUrl;
+
+  try {
+    publicUrl = await uploadFile(
+      'avatars',
+      filePath,
+      file.buffer,
+      file.mimetype
+    );
+  } catch (error) {
+    if (!env.isDev) {
+      throw error;
+    }
+
+    logger.warn('Supabase avatar upload failed; using local dev avatar storage', {
+      userId,
+      error: error.message,
+    });
+    publicUrl = await saveAvatarLocally(userId, file, filename);
+  }
 
   const result = await query(
     `UPDATE users SET avatar_url = $1 WHERE id = $2

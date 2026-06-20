@@ -123,6 +123,45 @@ const FEATURE_FLAG_GROUPS = [
   },
 ]
 
+const COMMERCE_TABS = [
+  {
+    id: 'membership',
+    label: 'Membership',
+    description: 'Subscriptions, first-time access, MintCoins, and access passes.',
+    keys: ['membership.monthly', 'membership.trial', 'access_passes'],
+  },
+  {
+    id: 'work',
+    label: 'Work pricing',
+    description: 'Managed-work margins, freelancer commission, matching, and revision rules.',
+    keys: ['managed_margins', 'freelancer_commission', 'matching', 'revisions'],
+  },
+  {
+    id: 'payouts',
+    label: 'Payouts',
+    description: 'Freelancer payout and transfer fee controls.',
+    keys: ['payouts'],
+  },
+  {
+    id: 'ai',
+    label: 'AI',
+    description: 'Member AI quotas and public Mint AI landing-page knowledge.',
+    keys: ['ai.quotas', 'public_qna'],
+  },
+  {
+    id: 'social',
+    label: 'Social',
+    description: 'Social benchmark defaults and analytics controls.',
+    keys: ['social_benchmarks'],
+  },
+  {
+    id: 'features',
+    label: 'Feature flags',
+    description: 'Turn visible product modules on or off safely.',
+    keys: ['feature_flags'],
+  },
+]
+
 function Field({ field, value, onChange }) {
   const [key, label, unit] = field
   if (unit === 'toggle') {
@@ -282,11 +321,95 @@ function FeatureFlagsEditor({ setting }) {
   )
 }
 
+function PublicQnaEditor({ setting }) {
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore(s => s.pushToast)
+  const [value, setValue] = useState(setting.value || {})
+  const save = useMutation({
+    mutationFn: () => commerceApi.updateSetting(setting.key, value),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commerce-settings'] })
+      pushToast({ title: 'Public Mint AI brief saved', icon: 'check' })
+    },
+    onError: err => pushToast({ title: 'Could not save Q&A brief', body: err.response?.data?.message || err.message, tone: 'amber', icon: 'x' }),
+  })
+  const update = (key, next) => setValue(current => ({ ...current, [key]: next }))
+
+  return (
+    <div className="card commerce-card commerce-card-wide">
+      <div className="commerce-card-head">
+        <div>
+          <strong>Public Mint AI Q&A</strong>
+          <div className="muted">Control what the landing-page assistant can say to visitors.</div>
+        </div>
+        <button className="btn primary sm" onClick={() => save.mutate()} disabled={save.isPending}>
+          <Icon name="check" size={12} /> Save Q&A
+        </button>
+      </div>
+      <div className="commerce-fields" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+        <div className="field">
+          <label className="field-label">Contact email</label>
+          <input className="input" value={value.contact_email || ''} onChange={event => update('contact_email', event.target.value)} />
+        </div>
+        <div className="field">
+          <label className="field-label">Contact phone</label>
+          <input className="input" value={value.contact_phone || ''} onChange={event => update('contact_phone', event.target.value)} />
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label className="field-label">Public assistant brief</label>
+          <textarea
+            className="input"
+            rows={7}
+            value={value.public_brief || ''}
+            onChange={event => update('public_brief', event.target.value)}
+            style={{ minHeight: 150, resize: 'vertical', lineHeight: 1.5 }}
+          />
+          <small className="muted">Only write client-safe facts. Do not include internal architecture, feature flag details, keys, or private operations notes.</small>
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label className="field-label">Guardrails</label>
+          <textarea
+            className="input"
+            rows={6}
+            value={value.guardrails || ''}
+            onChange={event => update('guardrails', event.target.value)}
+            style={{ minHeight: 130, resize: 'vertical', lineHeight: 1.5 }}
+          />
+          <small className="muted">These rules tell Mint AI what to avoid and when to send people to the team.</small>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function renderCommerceSetting(setting) {
+  if (!setting) return null
+  if (setting.key === 'access_passes') {
+    return <AccessPassEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
+  }
+  if (setting.key === 'feature_flags') {
+    return <FeatureFlagsEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
+  }
+  if (setting.key === 'public_qna') {
+    return <PublicQnaEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
+  }
+  if (CONTROL_SCHEMAS[setting.key]) {
+    return <SettingEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
+  }
+  return null
+}
+
 export default function AdminCommerce() {
+  const [activeTab, setActiveTab] = useState(COMMERCE_TABS[0].id)
   const { data, isLoading } = useQuery({
     queryKey: ['commerce-settings'],
     queryFn: () => commerceApi.adminSettings().then(res => res.data.data),
   })
+  const settings = data?.settings || []
+  const settingsByKey = Object.fromEntries(settings.map(setting => [setting.key, setting]))
+  const currentTab = COMMERCE_TABS.find(tab => tab.id === activeTab) || COMMERCE_TABS[0]
+  const tabSettings = currentTab.keys.map(key => settingsByKey[key]).filter(Boolean)
+
   return (
     <div className="stack-6">
       <div>
@@ -294,14 +417,27 @@ export default function AdminCommerce() {
         <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>Commercial controls</h1>
         <p className="muted">Manage pricing and platform rules without touching application code.</p>
       </div>
+      <div className="tabs" style={{ display: 'flex', flexWrap: 'wrap', width: 'fit-content' }}>
+        {COMMERCE_TABS.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`tab${activeTab === tab.id ? ' active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <div className="card" style={{ padding: 16 }}>
+        <div className="h-eyebrow">{currentTab.label}</div>
+        <p className="muted" style={{ margin: '5px 0 0' }}>{currentTab.description}</p>
+      </div>
       {isLoading ? <div className="muted">Loading controls...</div> : (
         <div className="commerce-grid">
-          {(data?.settings || []).map(setting => setting.key === 'access_passes'
-            ? <AccessPassEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
-            : setting.key === 'feature_flags'
-              ? <FeatureFlagsEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
-            : CONTROL_SCHEMAS[setting.key] && <SettingEditor key={`${setting.key}:${setting.updated_at}`} setting={setting} />
-          )}
+          {tabSettings.length
+            ? tabSettings.map(renderCommerceSetting)
+            : <div className="card commerce-card commerce-card-wide"><p className="muted">No controls found for this section yet.</p></div>}
         </div>
       )}
     </div>
