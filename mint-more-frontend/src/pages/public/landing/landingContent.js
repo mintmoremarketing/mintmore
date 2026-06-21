@@ -111,6 +111,7 @@ export const rollingCards = [
   ['Find every monthly moment', 'See festivals, offers, launches, and business occasions before the month starts.', 'orange'],
   ['Keep every collaboration organised', 'Requests, files, comments, and approvals stay attached from start to finish.', 'purple'],
   ['Review, store, and publish', 'Approved work lands in Mintbox and can move into your connected social channels.', 'sand'],
+  ["It's time to upgrade to CREATYV", 'Try the creative operating system for your monthly content workflow.', 'cta'],
 ]
 
 export const featureTiles = [

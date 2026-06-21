@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import ScrollStack, { ScrollStackItem } from '../../../components/landing/ScrollStack'
 import {
   bentoCards,
   integrations,
@@ -54,6 +55,46 @@ function SwipeMarkers({ items, activeId, onSelect }) {
   )
 }
 
+function StoryCarousel() {
+  const [activeStory, setActiveStory] = useState(0)
+  const previousStory = () => setActiveStory(index => (index - 1 + stories.length) % stories.length)
+  const nextStory = () => setActiveStory(index => (index + 1) % stories.length)
+
+  return (
+    <>
+      <div className="landing-story-controls">
+        <button type="button" aria-label="Previous story" onClick={previousStory}>←</button>
+        <button type="button" aria-label="Next story" onClick={nextStory}>→</button>
+      </div>
+      <div className="landing-story-viewport" aria-label="Success stories">
+        <div
+          className="landing-story-track"
+          style={{ '--story-index': activeStory }}
+        >
+          {stories.map(([title, body, person], index) => (
+            <article className={`landing-story-card story-${index}`} key={title}>
+              <span>{title}</span>
+              <p>{body}</p>
+              <strong>{person}</strong>
+            </article>
+          ))}
+        </div>
+      </div>
+      <div className="landing-swipe-markers story-markers" aria-label="Story slides">
+        {stories.map(([title], index) => (
+          <button
+            key={title}
+            type="button"
+            className={index === activeStory ? 'is-active' : ''}
+            aria-label={`Show ${title} story`}
+            onClick={() => setActiveStory(index)}
+          />
+        ))}
+      </div>
+    </>
+  )
+}
+
 export function ProofStrip() {
   return (
     <section className="landing-proof">
@@ -68,6 +109,8 @@ export function ProofStrip() {
 export function WorkflowSection() {
   const [activeId, setActiveId] = useState(workflowSlides[0].id)
   const activeIndex = Math.max(0, workflowSlides.findIndex(item => item.id === activeId))
+  const [desktopTab, setDesktopTab] = useState(tabFeatures[0].id)
+  const desktopFeature = tabFeatures.find(item => item.id === desktopTab) || tabFeatures[0]
 
   return (
     <section className="landing-workflow landing-animate" id="how-it-works">
@@ -76,7 +119,46 @@ export function WorkflowSection() {
         <h2>Your whole creative program, finally connected in one workflow.</h2>
       </div>
 
-      <div className="landing-swipe-shell">
+      <div className="landing-desktop-tabs" aria-label="CREATYV workflow tabs">
+        <div className="landing-tab-switcher">
+          {tabFeatures.map(feature => (
+            <button
+              key={feature.id}
+              type="button"
+              className={feature.id === desktopTab ? 'is-active' : ''}
+              onClick={() => setDesktopTab(feature.id)}
+            >
+              {feature.label}
+            </button>
+          ))}
+        </div>
+        <article className={`landing-tab-panel ${desktopFeature.tone}`}>
+          <div className="landing-tab-copy">
+            <span>{desktopFeature.label}</span>
+            <h3>{desktopFeature.title}</h3>
+            <p>{desktopFeature.body}</p>
+            <ul>
+              {desktopFeature.points.map(point => <li key={point}>{point}</li>)}
+            </ul>
+          </div>
+          <div className="landing-tab-visual" aria-hidden="true">
+            <div className="landing-tab-board">
+              <div className="landing-tab-board-head">
+                <strong>{desktopFeature.label}</strong>
+                <span>Live workspace</span>
+              </div>
+              {desktopFeature.points.map((point, index) => (
+                <div key={point} className={index === 0 ? 'is-active' : ''}>
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <strong>{point}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div className="landing-swipe-shell landing-mobile-swipe">
         <div className="landing-swipe-track" style={{ '--active-index': activeIndex }}>
           {workflowSlides.map(slide => (
             <article className={`landing-swipe-card ${slide.tone}`} key={slide.id}>
@@ -92,7 +174,9 @@ export function WorkflowSection() {
         </div>
       </div>
 
-      <SwipeMarkers items={workflowSlides} activeId={activeId} onSelect={setActiveId} />
+      <div className="landing-mobile-swipe">
+        <SwipeMarkers items={workflowSlides} activeId={activeId} onSelect={setActiveId} />
+      </div>
     </section>
   )
 }
@@ -169,31 +253,47 @@ export function CreatorsSection() {
 
       <section className="landing-stories landing-animate" id="stories">
         <div className="landing-centered-head">
-          <p>Success stories</p>
+          <p>Testimonials</p>
           <h2>From teams who used to do a lot of unnecessary manual work.</h2>
         </div>
-        <div className="landing-story-track" aria-label="Success stories">
-          {stories.map(([title, body, person], index) => (
-            <article className={`landing-story-card story-${index}`} key={title}>
-              <span>{title}</span>
-              <p>{body}</p>
-              <strong>{person}</strong>
-            </article>
-          ))}
-        </div>
-        <div className="landing-swipe-markers story-markers" aria-hidden="true">
-          {stories.map(([title], index) => <i key={title} className={index === 0 ? 'is-active' : ''} />)}
-        </div>
+        <StoryCarousel />
       </section>
 
       <section className="landing-scroll-stack" aria-label="CREATYV workflow stack">
-        {rollingCards.map(([title, body, tone], index) => (
-          <article className={`landing-stack-card ${tone}`} key={title} style={{ '--stack-index': index }}>
-            <span>{String(index + 1).padStart(2, '0')}</span>
-            <h3>{title}</h3>
-            <p>{body}</p>
-          </article>
-        ))}
+        <div className="landing-stack-intro">
+          <p>See the workflow</p>
+          <h2>One screen hands the work to the next.</h2>
+        </div>
+        <ScrollStack
+          className="landing-stack-pin"
+          itemDistance={28}
+          itemScale={0}
+          itemStackDistance={14}
+          stackPosition="8%"
+          scaleEndPosition="8%"
+          baseScale={1}
+          blurAmount={0}
+          useWindowScroll
+        >
+          {rollingCards.map(([title, body, tone], index) => (
+            <ScrollStackItem key={title} itemClassName={`landing-stack-card ${tone}`}>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <h3>{title}</h3>
+              {tone === 'cta' ? (
+                <div className="landing-stack-cta">
+                  <p>{body}</p>
+                  <div>
+                    <Link to="/register">Try for free</Link>
+                    <a href="mailto:agency@mintmoremarketing.com">Contact us</a>
+                  </div>
+                  <small>Start with your calendar, requests, Mintbox, and publishing workflow.</small>
+                </div>
+              ) : (
+                <p>{body}</p>
+              )}
+            </ScrollStackItem>
+          ))}
+        </ScrollStack>
       </section>
     </>
   )

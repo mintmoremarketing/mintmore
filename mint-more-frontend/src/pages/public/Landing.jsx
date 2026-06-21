@@ -121,33 +121,63 @@ export default function Landing() {
       <AskAnythingWidget visible={showAsk && !footerVisible} />
 
       <footer className="landing-footer" ref={footerRef}>
-        <div className="landing-footer-brand">
-          <strong>CREATYV</strong>
-          <span>Creative work, managed by Mint More.</span>
-        </div>
-        <div className="landing-footer-grid">
-          <div>
-            <h4>Platform</h4>
-            <a href="#platform" onClick={scrollToSection}>Hero</a>
-            <a href="#how-it-works" onClick={scrollToSection}>How it works</a>
-            <a href="#features" onClick={scrollToSection}>Features</a>
+        <div className="landing-footer-directory">
+          <div className="landing-footer-locations">
+            <div>
+              <h4>Mumbai, IN</h4>
+              <span>Office details coming soon</span>
+              <span>India</span>
+            </div>
+            <div>
+              <h4>Kolkata, IN</h4>
+              <span>Office details coming soon</span>
+              <span>India</span>
+            </div>
           </div>
           <div>
-            <h4>Workspace</h4>
+            <h4>Company</h4>
+            <span>About</span>
+            <span>Careers</span>
+            <span>Our data</span>
+            <span>Partners</span>
+          </div>
+          <div>
+            <h4>Features</h4>
             <span>Calendar</span>
             <span>Mintbox</span>
             <span>Mint AI</span>
+            <span>Publishing</span>
           </div>
           <div>
-            <h4>Contact</h4>
-            <a href="mailto:agency@mintmoremarketing.com">agency@mintmoremarketing.com</a>
+            <h4>More tools</h4>
+            <span>Content planner</span>
+            <span>Creative briefs</span>
+            <span>Social insights</span>
+            <span>Storage add-ons</span>
+          </div>
+          <div>
+            <h4>Support</h4>
+            <span>Help center</span>
+            <span>Ask a question</span>
+            <a href="mailto:agency@mintmoremarketing.com">Contact team</a>
             <a href="tel:+918092282114">8092282114</a>
           </div>
           <div>
-            <h4>Legal</h4>
-            <a href="#privacy">Privacy</a>
-            <a href="#terms">Terms</a>
+            <h4>Follow us</h4>
+            <span>Instagram</span>
+            <span>YouTube</span>
+            <span>LinkedIn</span>
           </div>
+          <div>
+            <h4>Trust</h4>
+            <span>Privacy</span>
+            <span>Terms</span>
+            <span>Security</span>
+          </div>
+        </div>
+        <div className="landing-footer-grid">
+          <strong>CREATYV</strong>
+          <span>Creative work, managed by Mint More.</span>
         </div>
         <div className="landing-footer-bottom">
           <span>(c) 2026 Mint More Marketing</span>
