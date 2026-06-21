@@ -5771,7 +5771,7 @@ kbd {
 }
 
 .landing-stack-card.cta {
-  box-shadow: 0 18px 70px rgba(217, 72, 146, .2);
+  box-shadow: none;
 }
 
 .landing-stack-card.cta h3 {
@@ -5901,6 +5901,7 @@ kbd {
 
 .landing-stack-card.cta {
   min-height: var(--landing-card-min);
+  box-shadow: none;
 }
 
 .landing-footer {
