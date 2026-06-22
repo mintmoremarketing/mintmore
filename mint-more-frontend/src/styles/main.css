@@ -11,6 +11,22 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Creatyv Baskvill";
+  src: local("Baskerville Old Face"), url("file:///C:/WINDOWS/Fonts/BASKVILL.TTF") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Creatyv Hero";
+  src: local("Microsoft YaHei Light"), url("file:///C:/WINDOWS/Fonts/msyhl.ttc") format("truetype-collection");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --mint-50: #fff7ed;
   --mint-100: #ffedd5;
@@ -3024,6 +3040,108 @@ kbd {
 .landing-image-reveal.is-revealed::after {
   opacity: 1;
 }
+
+.landing-hero-center-copy {
+  position: absolute;
+  z-index: 4;
+  left: 47.6%;
+  top: clamp(210px, 30svh, 360px);
+  width: min(1120px, 86vw);
+  pointer-events: none;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  color: #15120f;
+  mix-blend-mode: normal;
+}
+
+.landing-hero-phrase-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: clamp(46px, 4.4vw, 76px);
+  overflow: hidden;
+}
+
+.landing-hero-phrase-action {
+  display: inline-grid;
+  justify-items: center;
+  color: inherit;
+  text-decoration: none;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.landing-hero-phrase-action:focus-visible {
+  outline: 0;
+}
+
+.landing-hero-phrase {
+  display: inline-block;
+  margin: 0;
+  font-family: "Creatyv Hero", "Microsoft YaHei Light", "Microsoft YaHei", Arial, sans-serif;
+  font-size: clamp(28px, 3.45vw, 66px);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -.07em;
+  white-space: nowrap;
+}
+
+.landing-hero-cta-hint {
+  display: inline-block;
+  margin-top: 9px;
+  color: rgba(21, 18, 15, .52);
+  font-family: var(--font-landing-sans);
+  font-size: clamp(11px, .72vw, 14px);
+  font-weight: 700;
+  letter-spacing: .08em;
+  opacity: 0;
+  text-transform: uppercase;
+  transform: translateY(-4px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.landing-hero-phrase-action:is(:hover, :focus-visible) .landing-hero-cta-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.landing-hero-char {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(36px);
+  animation: landingHeroCharLoop 5.8s cubic-bezier(.2, .8, .2, 1) infinite both;
+  animation-delay: var(--char-delay);
+  will-change: transform, opacity;
+}
+
+@keyframes landingHeroCharLoop {
+  0% {
+    opacity: 0;
+    transform: translateY(36px);
+  }
+
+  14%,
+  68% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  82%,
+  100% {
+    opacity: 0;
+    transform: translateY(-22px);
+  }
+}
+
+.landing-image-reveal.is-revealed .landing-hero-center-copy {
+  color: #15120f;
+}
+
+@media (min-width: 1500px) {
+  .landing-hero-center-copy {
+    top: clamp(240px, 28svh, 420px);
+  }
+}
 .landing-proof,
 .landing-stats,
 .landing-section,
@@ -5838,6 +5956,10 @@ kbd {
 }
 
 @media (max-width: 640px) {
+  .landing-hero-center-copy {
+    display: none;
+  }
+
   .landing-stories {
     width: 100%;
     min-height: auto;
