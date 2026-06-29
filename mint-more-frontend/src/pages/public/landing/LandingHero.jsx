@@ -23,8 +23,8 @@ export default function LandingHero({ spotlight, onMoveSpotlight, onSetSpotlight
           onFocus={() => onSetSpotlight({ x: 50, y: 50, active: true })}
           onBlur={() => onSetSpotlight(prev => ({ ...prev, active: false }))}
         >
-          <img className="landing-image-bottom" src="/landing/creative-rock-reveal.jpg" alt="Creative team producing work on rocky hills" />
-          <img className="landing-image-top" src="/landing/creative-rock-mask.png" alt="Black rocky landscape mask" />
+          <img className="landing-image-bottom" src="/landing/creative-rock-reveal.webp" alt="Creative team producing work on rocky hills" />
+          <img className="landing-image-top" src="/landing/creative-rock-mask.webp" alt="Black rocky landscape mask" />
           <div className="landing-hero-center-copy" aria-live="polite">
             <Link
               to="/register"
