@@ -21,7 +21,7 @@ const getAvatarExtension = (file) => {
 };
 
 const saveAvatarLocally = async (userId, file, filename) => {
-  const uploadRoot = path.join(__dirname, '..', '..', '..', 'uploads', 'avatars', userId);
+  const uploadRoot = path.join(process.cwd(), 'uploads', 'avatars', userId);
   await fs.mkdir(uploadRoot, { recursive: true });
   await fs.writeFile(path.join(uploadRoot, filename), file.buffer);
   return `http://localhost:${env.port}/uploads/avatars/${userId}/${filename}`;

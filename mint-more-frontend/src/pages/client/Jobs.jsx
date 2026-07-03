@@ -7,7 +7,8 @@ import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 import DateBadge from '../../components/ui/DateBadge'
-import { StatusBadge, statusAccent, statusLabel } from '../../components/ui/StatusBadge'
+import { StatusBadge } from '../../components/ui/StatusBadge'
+import { statusAccent, statusLabel } from '../../components/ui/statusMeta'
 import { useUIStore } from '../../store/ui'
 
 const badgeTone = (status = '') => {
@@ -16,6 +17,8 @@ const badgeTone = (status = '') => {
   if (['pending_review', 'pending_ops_review', 'approved'].includes(status)) return 'amber'
   return 'neutral'
 }
+
+const CLIENT_CANCELLABLE_STATUSES = ['draft', 'pending', 'assigned', 'blocked', 'approved', 'pending_review', 'pending_ops_review']
 
 export default function Jobs() {
   const navigate = useNavigate()
@@ -45,6 +48,28 @@ export default function Jobs() {
       })
     },
   })
+  const cancelCreative = useMutation({
+    mutationFn: (item) => {
+      if (item.type === 'custom') return creativeApi.cancelRequest(item.id)
+      if (item.type === 'calendar') return creativeApi.cancelSelection(item.id)
+      if (item.source_type === 'custom_request') return creativeApi.cancelRequest(item.source_id)
+      if (item.source_type === 'calendar_event') return creativeApi.cancelSelection(item.source_id)
+      throw new Error('This creative cannot be cancelled from here.')
+    },
+    onSuccess: () => {
+      pushToast({ title: 'Creative cancelled', body: 'Any reserved MintCoins were returned when applicable.', icon: 'check' })
+      queryClient.invalidateQueries({ queryKey: ['creative-work'] })
+      queryClient.invalidateQueries({ queryKey: ['creative-calendar'] })
+      queryClient.invalidateQueries({ queryKey: ['mintbox'] })
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not cancel creative',
+        body: error?.response?.data?.message || error?.message || 'Please contact support if production has already started.',
+        tone: 'danger',
+      })
+    },
+  })
 
   const items = useMemo(() => {
     const rawTasks = data?.tasks || []
@@ -61,10 +86,14 @@ export default function Jobs() {
         status: 'draft',
         date: job.updated_at || job.created_at,
         coin_cost: null,
+        job_id: job.id,
       }))
     const tasks = rawTasks.map(task => ({
       id: task.id,
       type: 'task',
+      source_type: task.source_type,
+      source_id: task.source_id,
+      job_id: task.job_id,
       title: task.title,
       description: task.client_status || task.description || 'CREATYV production task.',
       status: task.status,
@@ -81,6 +110,7 @@ export default function Jobs() {
         status: request.status,
         date: request.created_at,
         coin_cost: request.coin_cost,
+        job_id: request.job_id,
       }))
     const selections = (data?.selections || [])
       .filter(selection => !selection.task_id && !taskSourceIds.has(`calendar_event-${selection.id}`))
@@ -92,6 +122,7 @@ export default function Jobs() {
         status: selection.task_status || selection.status,
         date: selection.event_date || selection.created_at,
         coin_cost: selection.coin_cost,
+        job_id: selection.job_id,
       }))
     const seen = new Set()
     return [...drafts, ...tasks, ...requests, ...selections]
@@ -165,17 +196,27 @@ export default function Jobs() {
           </div>
         ) : (
           filtered.map((item) => (
+            (() => {
+              const canCancel = item.type !== 'draft' && CLIENT_CANCELLABLE_STATUSES.includes(item.status) && (
+                item.type === 'custom' ||
+                item.type === 'calendar' ||
+                ['custom_request', 'calendar_event'].includes(item.source_type)
+              )
+              const targetPath = item.type === 'draft'
+                ? `/jobs/${item.id}/edit`
+                : item.job_id ? `/mintbox/jobs/${item.job_id}` : '/mintbox'
+              return (
             <div
               key={`${item.type}-${item.id}`}
               className="job-card task-card-shell"
               style={{ padding: 16, '--task-status-color': statusAccent(item.status) }}
               role="button"
               tabIndex={0}
-              onClick={() => navigate(item.type === 'draft' ? `/jobs/${item.id}/edit` : '/mintbox')}
+              onClick={() => navigate(targetPath)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault()
-                  navigate(item.type === 'draft' ? `/jobs/${item.id}/edit` : '/mintbox')
+                  navigate(targetPath)
                 }
               }}
             >
@@ -186,6 +227,27 @@ export default function Jobs() {
                     ? <StatusBadge status={item.status} />
                     : <span className={`badge ${badgeTone(item.status)}`}>{statusLabel(item.status)}</span>}
                 </div>
+                {item.type !== 'draft' && item.job_id && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="btn ghost sm"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      navigate(`/messages?job=${item.job_id}`)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        navigate(`/messages?job=${item.job_id}`)
+                      }
+                    }}
+                  >
+                    <Icon name="chat" size={12} /> Messages
+                  </span>
+                )}
                 {item.type === 'draft' ? (
                   <span
                     role="button"
@@ -206,6 +268,26 @@ export default function Jobs() {
                   >
                     <Icon name="trash" size={12} /> Delete
                   </span>
+                ) : canCancel ? (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="btn ghost sm"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      if (window.confirm('Cancel this creative? This removes it from your active work and returns reserved MintCoins when applicable.')) cancelCreative.mutate(item)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        if (window.confirm('Cancel this creative?')) cancelCreative.mutate(item)
+                      }
+                    }}
+                  >
+                    <Icon name="trash" size={12} /> Cancel
+                  </span>
                 ) : (
                   <Icon name="chevronRight" size={14} className="muted" />
                 )}
@@ -219,6 +301,8 @@ export default function Jobs() {
                 </span>
               </div>
             </div>
+              )
+            })()
           ))
         )}
       </div>

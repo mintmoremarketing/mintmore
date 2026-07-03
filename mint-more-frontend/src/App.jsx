@@ -184,6 +184,7 @@ export default function App() {
           <Route path="/dashboard" element={<RoleDashboard />} />
           <Route path="/calendar"  element={<ClientOnly><ClientFeature flag="calendar_creatives"><ClientCalendar /></ClientFeature></ClientOnly>} />
           <Route path="/jobs"      element={<ClientFeature flag="custom_requests"><RoleJobs /></ClientFeature>} />
+          <Route path="/requests"  element={<ClientOnly><ClientFeature flag="custom_requests"><Jobs /></ClientFeature></ClientOnly>} />
           <Route path="/jobs/new"  element={<ClientOnly><ClientFeature flag="custom_requests"><PostJob /></ClientFeature></ClientOnly>} />
           <Route path="/jobs/:id/edit" element={<ClientOnly><ClientFeature flag="custom_requests"><PostJob /></ClientFeature></ClientOnly>} />
           <Route path="/jobs/:id"  element={<RoleJobDetail />} />
@@ -196,6 +197,7 @@ export default function App() {
           <Route path="/freelancers"       element={<ClientOnly><ClientFeature flag="marketplace"><Freelancers /></ClientFeature></ClientOnly>} />
           <Route path="/freelancers/:freelancerId" element={<ClientOnly><ClientFeature flag="marketplace"><FreelancerProfile /></ClientFeature></ClientOnly>} />
           <Route path="/social"            element={<ClientOnly><ClientFeature flag="social_insights"><Social /></ClientFeature></ClientOnly>} />
+          <Route path="/insights"          element={<ClientOnly><ClientFeature flag="social_insights"><Social /></ClientFeature></ClientOnly>} />
           <Route path="/ai"                element={<ClientOnly><ClientFeature flag="mint_ai"><MintAI /></ClientFeature></ClientOnly>} />
 
           {/* Freelancer-only routes */}
@@ -206,6 +208,7 @@ export default function App() {
 
           {/* Shared */}
           <Route path="/chat"     element={<PermissionIfAdmin permission="support.manage"><Chat /></PermissionIfAdmin>} />
+          <Route path="/messages" element={<PermissionIfAdmin permission="support.manage"><Chat /></PermissionIfAdmin>} />
           <Route path="/mintbox" element={<ClientOnly><ClientFeature flag="mintbox"><Mintbox /></ClientFeature></ClientOnly>} />
           <Route path="/mintbox/jobs/:jobId" element={<Mintbox />} />
           <Route path="/notifications" element={<NotificationsInbox />} />

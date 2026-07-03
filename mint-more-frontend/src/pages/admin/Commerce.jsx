@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { commerceApi } from '../../api/commerce'
+import { api } from '../../api/client'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 
@@ -159,6 +160,12 @@ const COMMERCE_TABS = [
     label: 'Feature flags',
     description: 'Turn visible product modules on or off safely.',
     keys: ['feature_flags'],
+  },
+  {
+    id: 'danger',
+    label: 'Danger zone',
+    description: 'Clean operational/demo data before a fresh launch. Admin users and platform settings are preserved.',
+    keys: [],
   },
 ]
 
@@ -382,6 +389,50 @@ function PublicQnaEditor({ setting }) {
   )
 }
 
+function DangerZone() {
+  const pushToast = useUIStore(s => s.pushToast)
+  const [phrase, setPhrase] = useState('')
+  const reset = useMutation({
+    mutationFn: () => api.post('/admin/system/reset', { confirm_phrase: phrase }),
+    onSuccess: (res) => {
+      pushToast({
+        title: 'Clean start complete',
+        body: `${res.data?.data?.deleted_users || 0} non-admin users removed. Operational tables were cleared.`,
+        icon: 'check',
+      })
+      setPhrase('')
+    },
+    onError: err => pushToast({ title: 'Reset failed', body: err.response?.data?.message || err.message, tone: 'danger', icon: 'x' }),
+  })
+  return (
+    <div className="card commerce-card commerce-card-wide" style={{ borderColor: 'rgba(239,68,68,.35)', background: 'rgba(254,242,242,.75)' }}>
+      <div className="commerce-card-head">
+        <div>
+          <strong>Clean start reset</strong>
+          <div className="muted">Deletes operational data, demo clients, designers, creatives, chats, Mintbox rows, social posts, wallets, notifications, and support tickets. Admin users and saved platform settings remain.</div>
+        </div>
+        <span className="badge danger">Danger</span>
+      </div>
+      <div className="stack" style={{ gap: 12 }}>
+        <div className="field">
+          <label className="field-label">Type RESET CREATYV to enable</label>
+          <input className="input mono" value={phrase} onChange={event => setPhrase(event.target.value)} placeholder="RESET CREATYV" />
+        </div>
+        <button
+          className="btn"
+          style={{ background: 'var(--rose)', color: '#fff', width: 'fit-content' }}
+          disabled={phrase !== 'RESET CREATYV' || reset.isPending}
+          onClick={() => {
+            if (window.confirm('This will permanently remove operational/demo data. Continue?')) reset.mutate()
+          }}
+        >
+          <Icon name="trash" size={13} /> Reset operational data
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function renderCommerceSetting(setting) {
   if (!setting) return null
   if (setting.key === 'access_passes') {
@@ -408,7 +459,7 @@ export default function AdminCommerce() {
   const settings = data?.settings || []
   const settingsByKey = Object.fromEntries(settings.map(setting => [setting.key, setting]))
   const currentTab = COMMERCE_TABS.find(tab => tab.id === activeTab) || COMMERCE_TABS[0]
-  const tabSettings = currentTab.keys.map(key => settingsByKey[key]).filter(Boolean)
+  const tabSettings = (currentTab.keys || []).map(key => settingsByKey[key]).filter(Boolean)
 
   return (
     <div className="stack-6">
@@ -435,7 +486,9 @@ export default function AdminCommerce() {
       </div>
       {isLoading ? <div className="muted">Loading controls...</div> : (
         <div className="commerce-grid">
-          {tabSettings.length
+          {activeTab === 'danger'
+            ? <DangerZone />
+            : tabSettings.length
             ? tabSettings.map(renderCommerceSetting)
             : <div className="card commerce-card commerce-card-wide"><p className="muted">No controls found for this section yet.</p></div>}
         </div>

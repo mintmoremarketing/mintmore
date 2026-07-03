@@ -6,7 +6,7 @@ import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
 import StatusChip from '../../components/ui/StatusChip'
 import DateBadge from '../../components/ui/DateBadge'
-import { statusAccent } from '../../components/ui/StatusBadge'
+import { statusAccent } from '../../components/ui/statusMeta'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 

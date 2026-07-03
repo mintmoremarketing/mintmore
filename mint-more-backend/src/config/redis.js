@@ -6,18 +6,16 @@ let redisClient = null;
 
 const connectRedis = () => {
   return new Promise((resolve, reject) => {
+    let startupTimer;
+    let resolved = false;
     const client = new Redis(env.redis.url, {
       maxRetriesPerRequest: null,
       enableReadyCheck: true,
-      // Exponential back-off on reconnect
       retryStrategy: (times) => {
-        if (times > 10) {
-          logger.error('Redis: max reconnect attempts reached');
-          return null; // stop retrying
+        if (times === 1 || times % 20 === 0) {
+          logger.warn(`Redis: reconnecting (attempt ${times})`);
         }
-        const delay = Math.min(times * 100, 3000);
-        logger.warn(`Redis: reconnecting in ${delay}ms (attempt ${times})`);
-        return delay;
+        return Math.min(times * 250, 5000);
       },
     });
 
@@ -27,7 +25,11 @@ const connectRedis = () => {
 
     client.on('ready', () => {
       redisClient = client;
-      resolve(client);
+      if (!resolved) {
+        resolved = true;
+        if (startupTimer) clearTimeout(startupTimer);
+        resolve(client);
+      }
     });
 
     client.on('error', (err) => {
@@ -40,8 +42,9 @@ const connectRedis = () => {
     });
 
     // If it doesn't connect within 10s, reject (startup guard)
-    setTimeout(() => {
-      if (!redisClient) {
+    startupTimer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
         reject(new Error('Redis connection timed out after 10s'));
       }
     }, 10000);

@@ -98,6 +98,16 @@ const deleteUserData = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const resetOperationalData = async (req, res, next) => {
+  try {
+    const result = await adminService.resetOperationalData(req.user.sub, req.body || {});
+    return sendSuccess(res, {
+      data: result,
+      message: 'Operational data reset complete',
+    });
+  } catch (err) { next(err); }
+};
+
 const setFreelancerLevel = async (req, res, next) => {
   try {
     validateSetFreelancerLevel(req.body);
@@ -208,6 +218,7 @@ module.exports = {
   createDesignerUser,
   setAdminPermissions,
   deleteUserData,
+  resetOperationalData,
   setFreelancerLevel,
   getCategories,
   createCategory,

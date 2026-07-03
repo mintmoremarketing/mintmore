@@ -40,6 +40,10 @@ const normalizeTargetPlatforms = (value) => {
   )];
 };
 
+const normalizePostRow = (post) => post
+  ? { ...post, target_platforms: normalizeTargetPlatforms(post.target_platforms) }
+  : post;
+
 // ── OAuth Flow ────────────────────────────────────────────────────────────────
 
 /**
@@ -392,7 +396,7 @@ const createPost = async (userId, data) => {
     ]
   );
 
-  return result.rows[0];
+  return normalizePostRow(result.rows[0]);
 };
 
 const addMediaToPost = async (postId, userId, mediaItems) => {
@@ -768,7 +772,7 @@ const getMyPosts = async (userId, { page = 1, limit = 20, status, platform } = {
   );
 
   return {
-    posts: result.rows,
+    posts: result.rows.map(normalizePostRow),
     pagination: {
       page, limit,
       total: parseInt(countResult.rows[0].count, 10),
@@ -815,7 +819,7 @@ const getPostById = async (postId, userId, role) => {
     throw new AppError('Post not found', 404);
   }
 
-  return post;
+  return normalizePostRow(post);
 };
 
 // ── Analytics ─────────────────────────────────────────────────────────────────

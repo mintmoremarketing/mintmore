@@ -96,12 +96,12 @@ DB_PASSWORD=your_database_password
 DB_SSL=true
 
 # ── REDIS ────────────────────────────────────────────
-REDIS_URL=redis://localhost:6379
+REDIS_URL=redis://127.0.0.1:6379
 
 # ── SECURITY ─────────────────────────────────────────
 CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX=100
+RATE_LIMIT_MAX=1000
 
 # ── LOGGING ──────────────────────────────────────────
 LOG_LEVEL=debug

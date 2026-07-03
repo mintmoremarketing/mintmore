@@ -378,6 +378,158 @@ const deleteUserData = async (targetUserId, adminId, { confirm_email } = {}) => 
   }
 };
 
+const resetOperationalData = async (adminId, { confirm_phrase } = {}) => {
+  if (confirm_phrase !== 'RESET CREATYV') {
+    throw new AppError('Type RESET CREATYV exactly to confirm the clean start reset', 400);
+  }
+
+  const resetTables = [
+    'audit_logs',
+    'chat_rooms',
+    'client_addons',
+    'client_event_selections',
+    'client_memberships',
+    'commerce_payments',
+    'creative_calendar_events',
+    'creative_requests',
+    'creative_tasks',
+    'event_outbox',
+    'job_assignments',
+    'job_matches',
+    'job_proposals',
+    'jobs',
+    'messages',
+    'mint_credit_accounts',
+    'mint_credit_lots',
+    'mint_credit_transactions',
+    'mintbox_category_shares',
+    'mintbox_files',
+    'mintbox_folders',
+    'mintbox_revision_feedback',
+    'mintbox_revision_rounds',
+    'mintbox_upload_sessions',
+    'notifications',
+    'payment_orders',
+    'reviews',
+    'social_accounts',
+    'social_post_media',
+    'social_posts',
+    'support_tickets',
+    'user_presence',
+    'wallet_transactions',
+    'wallets',
+  ];
+
+  const dbClient = await getClient();
+  let auditPayload = null;
+  let resetResult = null;
+  try {
+    await dbClient.query('BEGIN');
+
+    const existingTables = await dbClient.query(
+      `SELECT tablename
+       FROM pg_tables
+       WHERE schemaname = 'public'
+         AND tablename = ANY($1::text[])`,
+      [resetTables]
+    );
+    const tableRefs = existingTables.rows.map((row) => `public.${quoteIdent(row.tablename)}`);
+    if (tableRefs.length) {
+      await dbClient.query(`TRUNCATE TABLE ${tableRefs.join(', ')} RESTART IDENTITY CASCADE`);
+    }
+
+    const refs = await getUserForeignKeyReferences(dbClient);
+    const nonAdminUsers = await dbClient.query(
+      `SELECT id, email, role
+       FROM users
+       WHERE role <> 'admin'`
+    );
+    const userIds = nonAdminUsers.rows.map((user) => user.id);
+    const touched = [];
+
+    if (userIds.length) {
+      for (const ref of refs.filter(row => !row.attnotnull && row.table_name !== 'users')) {
+        const result = await dbClient.query(
+          `UPDATE ${qualifiedTable(ref)}
+           SET ${quoteIdent(ref.column_name)} = NULL
+           WHERE ${quoteIdent(ref.column_name)} = ANY($1::uuid[])`,
+          [userIds]
+        );
+        if (result.rowCount) touched.push({ table: `${ref.schema_name}.${ref.table_name}`, action: 'nullified', rows: result.rowCount });
+      }
+
+      for (let pass = 0; pass < 5; pass += 1) {
+        let changed = false;
+        for (const ref of refs.filter(row => row.attnotnull && row.table_name !== 'users')) {
+          const result = await dbClient.query(
+            `DELETE FROM ${qualifiedTable(ref)}
+             WHERE ${quoteIdent(ref.column_name)} = ANY($1::uuid[])`,
+            [userIds]
+          );
+          if (result.rowCount) {
+            changed = true;
+            touched.push({ table: `${ref.schema_name}.${ref.table_name}`, action: 'deleted', rows: result.rowCount });
+          }
+        }
+        if (!changed) break;
+      }
+    }
+
+    const deletedUsers = await dbClient.query(
+      `DELETE FROM users
+       WHERE role <> 'admin'
+       RETURNING id, email, role`,
+    );
+
+    await dbClient.query(
+      `INSERT INTO user_presence (user_id)
+       SELECT id FROM users
+       ON CONFLICT (user_id) DO NOTHING`
+    );
+
+    auditPayload = {
+      actorId: adminId,
+      actorRole: 'admin',
+      action: 'system.clean_start_reset',
+      entityType: 'system',
+      entityId: adminId,
+      afterState: {
+        truncated_tables: existingTables.rows.map((row) => row.tablename),
+        deleted_users: deletedUsers.rows,
+        touched,
+      },
+    };
+
+    await dbClient.query('COMMIT');
+    resetResult = {
+      deleted_users: deletedUsers.rowCount,
+      truncated_tables: existingTables.rows.map((row) => row.tablename),
+      touched,
+    };
+    logger.warn('Operational data reset by admin', {
+      adminId,
+      deletedUsers: deletedUsers.rowCount,
+      truncatedTables: existingTables.rowCount,
+    });
+  } catch (error) {
+    await dbClient.query('ROLLBACK');
+    throw error;
+  } finally {
+    dbClient.release();
+  }
+
+  try {
+    await writeAudit(auditPayload);
+  } catch (error) {
+    logger.error('Failed to write clean start reset audit record', {
+      adminId,
+      error: error.message,
+    });
+  }
+
+  return resetResult;
+};
+
 const setFreelancerLevel = async (targetUserId, adminId, { level }) => {
   const userResult = await query(
     'SELECT role FROM users WHERE id = $1',
@@ -638,6 +790,7 @@ module.exports = {
   createDesignerUser,
   setAdminPermissions,
   deleteUserData,
+  resetOperationalData,
   setFreelancerLevel,
   getCategories,
   createCategory,

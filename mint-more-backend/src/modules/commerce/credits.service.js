@@ -36,56 +36,69 @@ const recordCreditTransaction = async (dbClient, {
   metadata = {},
   consumeLots = true,
 }) => {
-  if (idempotencyKey) {
-    const existing = await dbClient.query(
-      'SELECT * FROM mint_credit_transactions WHERE idempotency_key = $1',
-      [idempotencyKey]
-    );
-    if (existing.rows[0]) return existing.rows[0];
+  const lockKey = idempotencyKey ? `mint-credit:${idempotencyKey}` : null;
+  let locked = false;
+  if (lockKey) {
+    await dbClient.query('SELECT pg_advisory_lock(hashtext($1))', [lockKey]);
+    locked = true;
   }
-  const account = await getCreditAccount(userId, dbClient, true);
-  const balanceAfter = Number(account.balance) + Number(amount);
-  if (balanceAfter < 0) throw new AppError('Insufficient Mint Credits', 400);
-  await dbClient.query('UPDATE mint_credit_accounts SET balance = $1 WHERE id = $2', [balanceAfter, account.id]);
-  const result = await dbClient.query(
-    `INSERT INTO mint_credit_transactions
-       (account_id,user_id,type,amount,balance_after,expires_at,reference_id,
-        reference_type,idempotency_key,description,metadata)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-     RETURNING *`,
-    [
-      account.id, userId, type, amount, balanceAfter, expiresAt, referenceId,
-      referenceType, idempotencyKey, description, JSON.stringify(metadata),
-    ]
-  );
-  const transaction = result.rows[0];
-  if (Number(amount) > 0 && type !== 'reversal') {
-    await dbClient.query(
-      `INSERT INTO mint_credit_lots (user_id,grant_tx_id,granted_amount,remaining_amount,expires_at)
-       VALUES ($1,$2,$3,$3,$4) ON CONFLICT (grant_tx_id) DO NOTHING`,
-      [userId, transaction.id, amount, expiresAt]
-    );
-  }
-  if (Number(amount) < 0 && consumeLots) {
-    let remaining = Math.abs(Number(amount));
-    const lots = await dbClient.query(
-      `SELECT * FROM mint_credit_lots
-       WHERE user_id=$1 AND remaining_amount > 0 AND expired_at IS NULL
-         AND (expires_at IS NULL OR expires_at > NOW())
-       ORDER BY expires_at ASC NULLS LAST, created_at ASC FOR UPDATE`,
-      [userId]
-    );
-    for (const lot of lots.rows) {
-      if (remaining <= 0) break;
-      const used = Math.min(Number(lot.remaining_amount), remaining);
-      await dbClient.query(
-        'UPDATE mint_credit_lots SET remaining_amount = remaining_amount - $1 WHERE id = $2',
-        [used, lot.id]
+
+  try {
+    if (idempotencyKey) {
+      const existing = await dbClient.query(
+        'SELECT * FROM mint_credit_transactions WHERE idempotency_key = $1',
+        [idempotencyKey]
       );
-      remaining -= used;
+      if (existing.rows[0]) return existing.rows[0];
+    }
+    const account = await getCreditAccount(userId, dbClient, true);
+    const balanceAfter = Number(account.balance) + Number(amount);
+    if (balanceAfter < 0) throw new AppError('Insufficient Mint Credits', 400);
+    await dbClient.query('UPDATE mint_credit_accounts SET balance = $1 WHERE id = $2', [balanceAfter, account.id]);
+    const result = await dbClient.query(
+      `INSERT INTO mint_credit_transactions
+         (account_id,user_id,type,amount,balance_after,expires_at,reference_id,
+          reference_type,idempotency_key,description,metadata)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       RETURNING *`,
+      [
+        account.id, userId, type, amount, balanceAfter, expiresAt, referenceId,
+        referenceType, idempotencyKey, description, JSON.stringify(metadata),
+      ]
+    );
+    const transaction = result.rows[0];
+    if (Number(amount) > 0 && type !== 'reversal') {
+      await dbClient.query(
+        `INSERT INTO mint_credit_lots (user_id,grant_tx_id,granted_amount,remaining_amount,expires_at)
+         VALUES ($1,$2,$3,$3,$4) ON CONFLICT (grant_tx_id) DO NOTHING`,
+        [userId, transaction.id, amount, expiresAt]
+      );
+    }
+    if (Number(amount) < 0 && consumeLots) {
+      let remaining = Math.abs(Number(amount));
+      const lots = await dbClient.query(
+        `SELECT * FROM mint_credit_lots
+         WHERE user_id=$1 AND remaining_amount > 0 AND expired_at IS NULL
+           AND (expires_at IS NULL OR expires_at > NOW())
+         ORDER BY expires_at ASC NULLS LAST, created_at ASC FOR UPDATE`,
+        [userId]
+      );
+      for (const lot of lots.rows) {
+        if (remaining <= 0) break;
+        const used = Math.min(Number(lot.remaining_amount), remaining);
+        await dbClient.query(
+          'UPDATE mint_credit_lots SET remaining_amount = remaining_amount - $1 WHERE id = $2',
+          [used, lot.id]
+        );
+        remaining -= used;
+      }
+    }
+    return transaction;
+  } finally {
+    if (locked) {
+      await dbClient.query('SELECT pg_advisory_unlock(hashtext($1))', [lockKey]);
     }
   }
-  return transaction;
 };
 
 const expireCreditsForUser = async (userId) => {

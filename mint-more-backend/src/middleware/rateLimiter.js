@@ -3,13 +3,15 @@ const env = require('../config/env');
 const { sendError } = require('../utils/apiResponse');
 
 /**
- * Global rate limiter — applied to all /api routes.
- * Phase 2 will add tighter per-route limiters for auth endpoints.
+ * Global rate limiter applied to all API routes.
+ * Keep this broad limiter generous for the SPA shell; tighter per-route
+ * limiters belong on auth, AI, payment, and upload endpoints.
  */
 const globalRateLimiter = rateLimit({
   windowMs: env.security.rateLimitWindowMs, // default: 15 minutes
-  max: env.security.rateLimitMax,           // default: 100 requests / window
-  standardHeaders: true,   // Return rate limit info in `RateLimit-*` headers
+  max: env.security.rateLimitMax, // default: 1000 requests / window
+  skip: (req) => req.method === 'OPTIONS',
+  standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
     return sendError(res, {

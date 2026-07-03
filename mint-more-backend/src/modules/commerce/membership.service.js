@@ -16,8 +16,13 @@ const razorpay = env.payments.mockCheckout
 const assertRazorpayConfigured = () => {
   const keyId = env.razorpay.keyId || '';
   const keySecret = env.razorpay.keySecret || '';
-  const placeholder = /your_|placeholder|example|xxx/i;
-  if (!/^rzp_(test|live)_/.test(keyId) || keySecret.length < 20 || placeholder.test(keyId) || placeholder.test(keySecret)) {
+  const mostlyPlaceholder = (value) => /^[x_\-\s]+$/i.test(value) || /^(test|live)?_?key_?(id|secret)?$/i.test(value);
+  if (
+    !/^rzp_(test|live)_/.test(keyId) ||
+    keySecret.length < 20 ||
+    mostlyPlaceholder(keyId.replace(/^rzp_(test|live)_/i, '')) ||
+    mostlyPlaceholder(keySecret)
+  ) {
     throw new AppError('Payment checkout is temporarily unavailable because Razorpay is not configured. Please contact support.', 503);
   }
 };

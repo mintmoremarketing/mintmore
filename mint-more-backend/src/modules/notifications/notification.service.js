@@ -107,16 +107,24 @@ const createBulkNotifications = async (notifications) => {
       params
     );
 
-    // Publish each to Redis
-    const redis = getRedis();
-    await Promise.allSettled(
-      result.rows.map((notification) =>
-        redis.publish(
-          SSE_CHANNEL,
-          JSON.stringify({ userId: notification.user_id, notification })
+    // Publish each to Redis. Live delivery is best-effort; persisted
+    // notifications must still count as created if Redis is unavailable.
+    try {
+      const redis = getRedis();
+      await Promise.allSettled(
+        result.rows.map((notification) =>
+          redis.publish(
+            SSE_CHANNEL,
+            JSON.stringify({ userId: notification.user_id, notification })
+          )
         )
-      )
-    );
+      );
+    } catch (redisErr) {
+      logger.warn('Redis publish failed for bulk notifications', {
+        count: result.rows.length,
+        error: redisErr.message,
+      });
+    }
 
     return result.rows;
   } catch (err) {

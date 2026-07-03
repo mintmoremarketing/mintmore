@@ -72,9 +72,15 @@ export default function AskAnythingWidget({ visible }) {
   const [loading, setLoading] = useState(false)
   const [typing, setTyping] = useState(false)
   const messagesRef = useRef(null)
+  const messageIdRef = useRef(0)
   const [messages, setMessages] = useState([
     { id: 'intro', role: 'assistant', text: 'Ask me about CREATYV, MintCoins, custom design requests, Mintbox, or how to contact the team.' },
   ])
+
+  const nextMessageId = prefix => {
+    messageIdRef.current += 1
+    return `${prefix}-${messageIdRef.current}`
+  }
 
   useEffect(() => {
     if (!open || !messagesRef.current) return
@@ -86,13 +92,12 @@ export default function AskAnythingWidget({ visible }) {
     const chunks = splitAnswer(answer)
 
     for (const chunk of chunks) {
-      const id = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`
+      const id = nextMessageId('assistant')
       setMessages(prev => [...prev, { id, role: 'assistant', text: '' }])
 
       const words = chunk.split(/\s+/).filter(Boolean)
-      let nextText = ''
-      for (const word of words) {
-        nextText = nextText ? `${nextText} ${word}` : word
+      for (let index = 0; index < words.length; index += 1) {
+        const nextText = words.slice(0, index + 1).join(' ')
         setMessages(prev => prev.map(message => (
           message.id === id ? { ...message, text: nextText } : message
         )))
@@ -114,7 +119,7 @@ export default function AskAnythingWidget({ visible }) {
     setOpen(true)
     setShowSuggestions(false)
     setQuestion('')
-    setMessages(prev => [...prev, { id: `user-${Date.now()}`, role: 'user', text: cleaned }])
+    setMessages(prev => [...prev, { id: nextMessageId('user'), role: 'user', text: cleaned }])
     setLoading(true)
 
     try {

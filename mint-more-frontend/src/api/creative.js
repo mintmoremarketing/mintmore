@@ -5,6 +5,8 @@ export const creativeApi = {
   selectEvent: (eventId, payload = {}) => api.post(`/creative/calendar/${eventId}/select`, payload),
   work: () => api.get('/creative/work'),
   createRequest: (payload) => api.post('/creative/requests', payload),
+  cancelRequest: (requestId, payload = {}) => api.delete(`/creative/requests/${requestId}`, { data: payload }),
+  cancelSelection: (selectionId, payload = {}) => api.delete(`/creative/selections/${selectionId}`, { data: payload }),
   designerTasks: () => api.get('/creative/designer/tasks'),
   updateDesignerTask: (taskId, payload) => api.patch(`/creative/designer/tasks/${taskId}`, payload),
   adminOverview: () => api.get('/creative/admin/overview'),

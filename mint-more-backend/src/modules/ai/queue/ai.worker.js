@@ -41,6 +41,10 @@ const startAIWorker = () => {
     });
   });
 
+  aiWorker.on('error', (err) => {
+    logger.error('AI worker connection error', { error: err.message });
+  });
+
   logger.info('AI worker started');
   return aiWorker;
 };

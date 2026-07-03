@@ -15,12 +15,25 @@ const CHAT_CHANNEL  = (roomId)  => `chat:${roomId}`;
  * Create a chat room when a job is assigned.
  * Called from negotiation.service.js after adminApproveDeal.
  */
-const createChatRoom = async ({ jobId, clientId, freelancerId, clientWaNumber = null, mmWaNumberId = null }) => {
+const createChatRoom = async ({ jobId, clientId, freelancerId, designerId, clientWaNumber = null, mmWaNumberId = null }) => {
+  const creativeParticipantId = freelancerId || designerId;
+  if (!creativeParticipantId) throw new AppError('A designer or freelancer is required for project chat', 400);
   const existing = await query(
     'SELECT * FROM chat_rooms WHERE job_id = $1',
     [jobId]
   );
   if (existing.rows[0]) {
+    if (existing.rows[0].freelancer_id !== creativeParticipantId) {
+      const updated = await query(
+        `UPDATE chat_rooms
+         SET freelancer_id = $2, is_active = true
+         WHERE job_id = $1
+         RETURNING *`,
+        [jobId, creativeParticipantId]
+      );
+      await query(`UPDATE wa_sessions SET state = 'active_job_chat' WHERE job_id = $1`, [jobId]);
+      return updated.rows[0];
+    }
     await query(`UPDATE wa_sessions SET state = 'active_job_chat' WHERE job_id = $1`, [jobId]);
     return existing.rows[0];
   }
@@ -30,10 +43,10 @@ const createChatRoom = async ({ jobId, clientId, freelancerId, clientWaNumber = 
        (job_id, client_id, freelancer_id, client_wa_number, mm_wa_number_id)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [jobId, clientId, freelancerId, clientWaNumber, mmWaNumberId]
+    [jobId, clientId, creativeParticipantId, clientWaNumber, mmWaNumberId]
   );
 
-  logger.info('Chat room created', { jobId, clientId, freelancerId });
+  logger.info('Chat room created', { jobId, clientId, creativeParticipantId });
   await query(`UPDATE wa_sessions SET state = 'active_job_chat' WHERE job_id = $1`, [jobId]);
   return result.rows[0];
 };
@@ -85,7 +98,9 @@ const getMyRooms = async (userId, role) => {
     ? '($1::uuid IS NOT NULL)'
     : role === 'client'
       ? 'cr.client_id = $1'
-      : 'cr.freelancer_id = $1';
+      : ['freelancer', 'designer'].includes(role)
+        ? 'cr.freelancer_id = $1'
+        : 'false';
 
   const result = await query(
     `SELECT
@@ -140,7 +155,7 @@ const getMessages = async (roomId, requesterId, requesterRole, { page = 1, limit
        CASE
          WHEN $3 = 'admin'      THEN u.full_name
          WHEN m.sender_role = 'client'     THEN u.full_name
-         WHEN m.sender_role = 'freelancer' AND $3 = 'freelancer' THEN u.full_name
+         WHEN m.sender_role = 'freelancer' AND $3 IN ('freelancer', 'designer') THEN u.full_name
          WHEN m.sender_role = 'freelancer' AND $3 = 'client'     THEN 'CREATYV'
          WHEN m.sender_role = 'system'                           THEN 'CREATYV'
          ELSE 'CREATYV'
@@ -167,7 +182,7 @@ const getMessages = async (roomId, requesterId, requesterRole, { page = 1, limit
            RETURNING id`,
           [roomId]
         );
-      } else if (requesterRole === 'freelancer') {
+      } else if (['freelancer', 'designer'].includes(requesterRole)) {
         readResult = await query(
           `UPDATE messages
            SET read_by_freelancer = true, read_at_freelancer = NOW()
@@ -229,6 +244,7 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
       throw new AppError('You are not a participant in this room', 403);
     }
   }
+  const persistedSenderRole = senderRole === 'designer' ? 'freelancer' : senderRole;
 
   // Insert message
   const msgResult = await query(
@@ -241,12 +257,12 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
     [
       roomId,
       senderId,
-      senderRole,
+      persistedSenderRole,
       content || '',
       attachment_url || null,
       attachment_type || null,
-      senderRole === 'client',      // client messages are auto-read by client
-      senderRole === 'freelancer',  // freelancer messages auto-read by freelancer
+      persistedSenderRole === 'client',
+      persistedSenderRole === 'freelancer',
     ]
   );
   const message = msgResult.rows[0];
@@ -261,11 +277,11 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
   );
 
   // Publish to Redis for web SSE
-  await publishMessageToRoom(roomId, message, senderRole);
+  await publishMessageToRoom(roomId, message, persistedSenderRole);
 
   // WhatsApp bridge — freelancer messages go to the client's WhatsApp through CREATYV.
   if (
-    senderRole === 'freelancer' &&
+    persistedSenderRole === 'freelancer' &&
     room.client_wa_number &&
     room.mm_wa_number_id
   ) {

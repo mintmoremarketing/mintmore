@@ -31,6 +31,20 @@ const RATE_LIMIT_KEY      = (userId) => `ai:ratelimit:${userId}`;
 const AI_PROGRESS_CHANNEL = 'mint_more:ai_progress';
 const userPrice = (model) => Number(model?.user_price_per_1k_tokens ?? model?.cost_per_1k_tokens ?? 0);
 
+const requireNonEmptyTextResult = (result, openrouterId) => {
+  const text = typeof result?.text === 'string' ? result.text.trim() : '';
+  if (!text) {
+    throw new Error(`AI model ${openrouterId} returned an empty response`);
+  }
+  return {
+    ...result,
+    text,
+    tokens_input:  Number(result?.tokens_input || 0),
+    tokens_output: Number(result?.tokens_output || 0),
+    duration_ms:   Number(result?.duration_ms || 0),
+  };
+};
+
 // ── Tool Prompts ──────────────────────────────────────────────────────────────
 
 const buildPrompt = (toolType, userPrompt, params = {}, modelSystemPrompts = {}) => {
@@ -75,7 +89,22 @@ const buildPrompt = (toolType, userPrompt, params = {}, modelSystemPrompts = {})
 // ── Rate Limit ────────────────────────────────────────────────────────────────
 
 const checkRateLimit = async (userId) => {
-  const redis = getRedis();
+  let redis;
+  try {
+    redis = getRedis();
+  } catch (err) {
+    if (env.node_env === 'production') throw err;
+    logger.warn('AI rate limit skipped because Redis is unavailable in development', {
+      userId,
+      error: err.message,
+    });
+    return {
+      count: 0,
+      limit: env.ai.maxRequestsPerHour,
+      remaining: env.ai.maxRequestsPerHour,
+    };
+  }
+
   const key   = RATE_LIMIT_KEY(userId);
   const count = await redis.incr(key);
   if (count === 1) await redis.expire(key, 3600);
@@ -270,7 +299,18 @@ const createGeneration = async (userId, {
   );
 
   const generation  = result.rows[0];
-  const queueJobId  = await enqueueGeneration(generation.id);
+  let queueJobId;
+  try {
+    queueJobId = await enqueueGeneration(generation.id);
+  } catch (err) {
+    await query(
+      `UPDATE ai_generations
+       SET status = 'failed', error_message = $1, completed_at = NOW()
+       WHERE id = $2`,
+      ['AI queue is unavailable. Check Redis/worker configuration.', generation.id]
+    );
+    throw new AppError('AI queue is unavailable. Check Redis/worker configuration.', 503);
+  }
 
   await query(
     'UPDATE ai_generations SET queue_job_id = $1 WHERE id = $2',
@@ -447,6 +487,8 @@ const processGeneration = async (generationId) => {
           throw primaryErr;
         }
       }
+
+      result = requireNonEmptyTextResult(result, openrouterId);
 
       const totalTokens = result.tokens_input + result.tokens_output;
       const creditCost  = usedFailover ? 0 :

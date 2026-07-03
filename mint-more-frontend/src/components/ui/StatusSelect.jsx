@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { StatusBadge, TASK_STATUS_OPTIONS, statusLabel } from './StatusBadge'
+import { StatusBadge } from './StatusBadge'
+import { TASK_STATUS_OPTIONS, statusLabel } from './statusMeta'
 import Icon from './Icon'
 
 export default function StatusSelect({ value, onChange, disabled = false, options = TASK_STATUS_OPTIONS }) {

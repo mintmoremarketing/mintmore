@@ -112,6 +112,7 @@ export default function Mintbox() {
 	const revisions = data?.revisions
 	const categoryShares = data?.category_shares || []
 	const shareUrl = folder?.share_token && !folder?.share_revoked_at ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
+	const canDeleteMintboxContent = Boolean(folder?.job_id) && ['client', 'admin'].includes(role) && !token && !categoryToken
 
 	useEffect(() => {
 		if (!folder?.job_id || !['client', 'freelancer', 'designer', 'admin'].includes(role)) return
@@ -310,6 +311,34 @@ export default function Mintbox() {
 			queryClient.invalidateQueries({ queryKey })
 		},
 		onError: err => pushToast({ title: 'Could not create link', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+	})
+	const deleteFileMutation = useMutation({
+		mutationFn: (fileId) => mintboxApi.deleteFile(fileId),
+		onSuccess: () => {
+			pushToast({ title: 'File deleted', icon: 'trash' })
+			queryClient.invalidateQueries({ queryKey })
+			queryClient.invalidateQueries({ queryKey: ['mintbox'] })
+		},
+		onError: err => pushToast({ title: 'Could not delete file', body: err.response?.data?.message || 'Try again', tone: 'danger', icon: 'x' }),
+	})
+	const deleteCategoryMutation = useMutation({
+		mutationFn: (category) => mintboxApi.deleteCategory(folder.job_id, category),
+		onSuccess: () => {
+			pushToast({ title: 'Folder deleted', icon: 'trash' })
+			queryClient.invalidateQueries({ queryKey })
+			queryClient.invalidateQueries({ queryKey: ['mintbox'] })
+		},
+		onError: err => pushToast({ title: 'Could not delete folder', body: err.response?.data?.message || 'Try again', tone: 'danger', icon: 'x' }),
+	})
+	const deleteProjectMutation = useMutation({
+		mutationFn: () => mintboxApi.deleteProject(folder.job_id),
+		onSuccess: () => {
+			pushToast({ title: 'Project files deleted', icon: 'trash' })
+			queryClient.invalidateQueries({ queryKey })
+			queryClient.invalidateQueries({ queryKey: ['mintbox'] })
+			navigate('/mintbox')
+		},
+		onError: err => pushToast({ title: 'Could not delete project', body: err.response?.data?.message || 'Try again', tone: 'danger', icon: 'x' }),
 	})
 
 	const copyShare = async () => {
@@ -615,6 +644,16 @@ export default function Mintbox() {
 					{role === 'client' && <button className="icon-btn" onClick={() => revokeShareMutation.mutate({ scope: 'folder', id: folder.id })} title="Revoke folder share link"><Icon name="x" size={12} /></button>}
 					</>}
 					{role === 'client' && !shareUrl && <button className="btn ghost" onClick={() => rotateShareMutation.mutate({ scope: 'folder', id: folder.id })}><Icon name="refresh" size={13} /> Create folder link</button>}
+					{canDeleteMintboxContent && (
+						<button
+							className="btn ghost"
+							onClick={() => {
+								if (window.confirm('Delete all files in this project Mintbox? This removes them from the project view and revokes share links.')) deleteProjectMutation.mutate()
+							}}
+						>
+							<Icon name="trash" size={13} /> Delete project files
+						</button>
+					)}
 				</div>
 			</div>
 
@@ -641,6 +680,7 @@ export default function Mintbox() {
 									{categoryShares.find(item => item.category === category)?.share_url && <button className="icon-btn" onClick={() => copyCategoryShare(category)} title="Copy folder share link"><Icon name="copy" size={11} /></button>}
 									{role === 'client' && categoryShares.find(item => item.category === category)?.share_url && <button className="icon-btn" onClick={() => revokeShareMutation.mutate({ scope: 'category', id: categoryShares.find(item => item.category === category).id })} title="Revoke folder share link"><Icon name="x" size={11} /></button>}
 									{role === 'client' && categoryShares.find(item => item.category === category)?.id && !categoryShares.find(item => item.category === category)?.share_url && <button className="icon-btn" onClick={() => rotateShareMutation.mutate({ scope: 'category', id: categoryShares.find(item => item.category === category).id })} title="Create new folder share link"><Icon name="refresh" size={11} /></button>}
+									{canDeleteMintboxContent && <button className="icon-btn" onClick={() => { if (window.confirm(`Delete the ${categoryMeta[category]?.label || category} folder and all files inside it?`)) deleteCategoryMutation.mutate(category) }} title="Delete folder"><Icon name="trash" size={11} /></button>}
 								</div>
 							</div>
 							<div className="stack" style={{ gap: 5 }}>
@@ -651,6 +691,7 @@ export default function Mintbox() {
 											{file.share_url && <button className="icon-btn" onClick={() => copyFileShare(file)} title="Copy file share link"><Icon name="copy" size={11} /></button>}
 											{role === 'client' && file.share_url && <button className="icon-btn" onClick={() => revokeShareMutation.mutate({ scope: 'file', id: file.id })} title="Revoke file share link"><Icon name="x" size={11} /></button>}
 											{role === 'client' && !file.share_url && <button className="icon-btn" onClick={() => rotateShareMutation.mutate({ scope: 'file', id: file.id })} title="Create new file share link"><Icon name="refresh" size={11} /></button>}
+											{canDeleteMintboxContent && <button className="icon-btn" onClick={() => { if (window.confirm(`Delete ${file.original_name}?`)) deleteFileMutation.mutate(file.id) }} title="Delete file"><Icon name="trash" size={11} /></button>}
 										</div>
 									</div>
 								))}
@@ -854,7 +895,14 @@ export default function Mintbox() {
 									<span className={`badge ${file.status === 'approved' ? 'mint' : file.status === 'revision_requested' ? 'amber' : 'neutral'}`}>
 										<span className="bdot" /> {statusLabel[file.status] || file.status}
 									</span>
-									<span className="muted" style={{ fontSize: 11.5 }}>{timeAgo(file.created_at)}{item.mine ? ` - ${seen ? 'Seen' : 'Delivered'}` : ''}</span>
+									<div className="row" style={{ gap: 6 }}>
+										<span className="muted" style={{ fontSize: 11.5 }}>{timeAgo(file.created_at)}{item.mine ? ` - ${seen ? 'Seen' : 'Delivered'}` : ''}</span>
+										{canDeleteMintboxContent && (
+											<button className="icon-btn" onClick={() => { if (window.confirm(`Delete ${file.original_name}?`)) deleteFileMutation.mutate(file.id) }} title="Delete file">
+												<Icon name="trash" size={11} />
+											</button>
+										)}
+									</div>
 								</div>
 
 								{role === 'client' && file.purpose !== 'brief' && file.status !== 'approved' && (
@@ -930,9 +978,16 @@ export default function Mintbox() {
 										{file.client_note && <div style={{ fontSize: 12.5, color: 'var(--amber)', marginTop: 8 }}>Client note: {file.client_note}</div>}
 									</div>
 								</div>
-								<span className={`badge ${file.status === 'approved' ? 'mint' : file.status === 'revision_requested' ? 'amber' : 'neutral'}`}>
-									<span className="bdot" /> {statusLabel[file.status] || file.status}
-								</span>
+								<div className="row" style={{ gap: 6 }}>
+									<span className={`badge ${file.status === 'approved' ? 'mint' : file.status === 'revision_requested' ? 'amber' : 'neutral'}`}>
+										<span className="bdot" /> {statusLabel[file.status] || file.status}
+									</span>
+									{canDeleteMintboxContent && (
+										<button className="icon-btn" onClick={() => { if (window.confirm(`Delete ${file.original_name}?`)) deleteFileMutation.mutate(file.id) }} title="Delete file">
+											<Icon name="trash" size={11} />
+										</button>
+									)}
+								</div>
 							</div>
 
 							{role === 'client' && file.status !== 'approved' && (

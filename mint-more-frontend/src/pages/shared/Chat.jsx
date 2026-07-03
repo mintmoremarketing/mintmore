@@ -146,7 +146,7 @@ export default function Chat() {
 							{messagesLoading ? <div className="muted">Loading messages...</div> : messages.length === 0 ? (
 								<div className="empty" style={{ border: 0, margin: 'auto' }}><h3>Start the conversation</h3><p>Messages stay attached to this project.</p></div>
 							) : messages.map(message => {
-								const mine = message.sender_role === role
+								const mine = message.sender_role === role || (role === 'designer' && message.sender_role === 'freelancer')
 								const system = message.sender_role === 'system'
 								const read = role === 'client' ? message.read_by_freelancer : message.read_by_client
 								return (

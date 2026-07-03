@@ -6,7 +6,8 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
 import DateBadge from '../../components/ui/DateBadge'
-import { StatusBadge, statusAccent } from '../../components/ui/StatusBadge'
+import { StatusBadge } from '../../components/ui/StatusBadge'
+import { statusAccent } from '../../components/ui/statusMeta'
 import StatusSelect from '../../components/ui/StatusSelect'
 
 const today = () => new Date().toISOString().slice(0, 10)

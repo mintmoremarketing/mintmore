@@ -30,8 +30,26 @@ const normalizeStorageBucket = (rawBucket) => {
   return bucket;
 };
 
+const nodeEnv = process.env.NODE_ENV || 'development';
+const isProd = nodeEnv === 'production';
+const looksLikeRazorpayKey = (keyId) => /^rzp_(test|live)_/.test(String(keyId || '').trim());
+const hasUsableRazorpayCredentials = () => {
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim();
+  const placeholder = /your_|placeholder|example|xxx/i;
+  return (
+    looksLikeRazorpayKey(keyId) &&
+    String(keySecret || '').length >= 20 &&
+    String(webhookSecret || '').length >= 10 &&
+    !placeholder.test(`${keyId} ${keySecret} ${webhookSecret}`)
+  );
+};
+const mockCheckout = process.env.PAYMENT_MOCK_CHECKOUT === 'true' ||
+  (!isProd && !hasUsableRazorpayCredentials());
+
 const env = {
-  node_env: process.env.NODE_ENV || 'development',
+  node_env: nodeEnv,
   port: parseInt(process.env.PORT, 10) || 5000,
   apiVersion: process.env.API_VERSION || 'v1',
 
@@ -64,7 +82,7 @@ const env = {
       ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
       : ['http://localhost:3000'],
     rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 900000,
-    rateLimitMax:      parseInt(process.env.RATE_LIMIT_MAX, 10) || 100,
+    rateLimitMax:      parseInt(process.env.RATE_LIMIT_MAX, 10) || 1000,
   },
 
   supabase: {
@@ -80,7 +98,7 @@ const env = {
   },
 
   payments: {
-    mockCheckout: process.env.PAYMENT_MOCK_CHECKOUT === 'true',
+    mockCheckout,
   },
 
   upload: {
@@ -156,8 +174,8 @@ const env = {
     maxRequestsPerHour:   parseInt(process.env.AI_MAX_REQUESTS_PER_HOUR || '20', 10),
   },
 
-  isDev:  (process.env.NODE_ENV || 'development') === 'development',
-  isProd: (process.env.NODE_ENV || 'development') === 'production',
+  isDev:  nodeEnv === 'development',
+  isProd,
 };
 
 const requiredAlways = [

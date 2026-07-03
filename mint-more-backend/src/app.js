@@ -8,7 +8,6 @@ const env = require('./config/env');
 const requestLogger = require('./middleware/requestLogger');
 const { globalRateLimiter } = require('./middleware/rateLimiter');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
-const { initSSESubscriber } = require('./middleware/sse');
 const { rawBody } = require('./middleware/rawBody');
 
 const healthRouter       = require('./modules/health/health.routes');
@@ -43,10 +42,8 @@ const creativeRouter     = require('./modules/creative/creative.routes');
 const supportRouter      = require('./modules/support/support.routes');
 const publicRouter       = require('./modules/public/public.routes');
 
-// Initialise SSE subscriber (does not require main Redis client)
-initSSESubscriber();
-
 const app = express();
+app.set('etag', false);
 
 if (env.node_env === 'production') {
   app.set('trust proxy', 1);
@@ -54,9 +51,23 @@ if (env.node_env === 'production') {
 
 app.use(helmet());
 
+const isAllowedCorsOrigin = (origin) => {
+  if (!origin) return true;
+  if (env.security.corsOrigins.includes(origin)) return true;
+
+  try {
+    const { hostname, protocol } = new URL(origin);
+    const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(hostname);
+    if (isLoopback && ['http:', 'https:'].includes(protocol)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || env.security.corsOrigins.includes(origin)) {
+    if (isAllowedCorsOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new Error(`CORS: origin ${origin} is not allowed`));
@@ -79,8 +90,12 @@ app.post(`/api/${env.apiVersion}/social/webhook/facebook`, rawBody, fbWebhook);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(compression());
+app.use(`/api/${env.apiVersion}`, (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 app.use(requestLogger);
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.get('/', (_req, res) => res.status(200).json({ service: 'mint-more-api', status: 'ok' }));
 app.head('/', (_req, res) => res.sendStatus(200));
 app.use(`/api/${env.apiVersion}/health`,        healthRouter);

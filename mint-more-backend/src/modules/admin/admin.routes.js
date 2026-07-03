@@ -12,6 +12,7 @@ router.use(authenticate, authorize('admin'));
 router.get('/dashboard', controller.getDashboardStats);
 router.get('/operations/outbox', requirePermission('audit.read'), controller.getOutboxEvents);
 router.post('/operations/outbox/:eventId/retry', requirePermission('operations.manage'), controller.retryOutbox);
+router.post('/system/reset', requirePermission('admins.manage'), controller.resetOperationalData);
 
 // ── User Management ───────────────────────────────────────────────────────────
 router.get('/users',                    requirePermission('users.manage'), controller.getUsers);

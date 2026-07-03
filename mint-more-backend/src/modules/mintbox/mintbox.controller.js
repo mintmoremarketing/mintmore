@@ -71,8 +71,15 @@ const streamPublicFile = async (req, res, next) => {
     res.setHeader('Content-Length', String(file.size_bytes));
     res.setHeader('Content-Disposition', `${req.query.download === '1' ? 'attachment' : 'inline'}; filename="${encodeURIComponent(file.original_name)}"`);
     const { Readable } = require('stream');
-    Readable.fromWeb(upstream.body).pipe(res);
-  } catch (err) { next(err); }
+    const { pipeline } = require('stream/promises');
+    await pipeline(Readable.fromWeb(upstream.body), res);
+  } catch (err) {
+    if (res.headersSent) {
+      res.destroy(err);
+      return;
+    }
+    next(err);
+  }
 };
 
 const revokeShare = async (req, res, next) => {
@@ -156,6 +163,40 @@ const reviewFile = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const deleteFile = async (req, res, next) => {
+  try {
+    const result = await mintboxService.deleteFile(
+      req.params.fileId,
+      req.user.sub,
+      req.user.role
+    );
+    return sendSuccess(res, { data: result, message: 'File deleted from Mintbox.' });
+  } catch (err) { next(err); }
+};
+
+const deleteCategory = async (req, res, next) => {
+  try {
+    const result = await mintboxService.deleteCategory(
+      req.params.jobId,
+      req.params.category,
+      req.user.sub,
+      req.user.role
+    );
+    return sendSuccess(res, { data: result, message: 'Folder deleted from Mintbox.' });
+  } catch (err) { next(err); }
+};
+
+const deleteProject = async (req, res, next) => {
+  try {
+    const result = await mintboxService.deleteProject(
+      req.params.jobId,
+      req.user.sub,
+      req.user.role
+    );
+    return sendSuccess(res, { data: result, message: 'Project files deleted from Mintbox.' });
+  } catch (err) { next(err); }
+};
+
 const completeProject = async (req, res, next) => {
   try {
     const result = await mintboxService.completeProject(
@@ -186,5 +227,8 @@ module.exports = {
   completeUpload,
   cancelUpload,
   reviewFile,
+  deleteFile,
+  deleteCategory,
+  deleteProject,
   completeProject,
 };

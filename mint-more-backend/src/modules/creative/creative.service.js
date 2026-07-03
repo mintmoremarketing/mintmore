@@ -8,6 +8,7 @@ const { recordCreditTransaction, getCreditAccount } = require('../commerce/credi
 const { getSetting } = require('../commerce/settings.service');
 const notificationService = require('../notifications/notification.service');
 const { writeAudit } = require('../audit/audit.service');
+const chatService = require('../chat/chat.service');
 
 const DEFAULT_CALENDAR_SETTINGS = {
   monthly_mintcoins: 10,
@@ -68,6 +69,26 @@ const fallbackOccasions = (monthKey) => {
     tags: ['seasonal', 'marketing'],
     source: 'mintmore_suggested',
   }));
+};
+
+const inferFileExtension = (name = '') => {
+  const match = String(name || '').toLowerCase().match(/(\.[a-z0-9]+)$/);
+  return match ? match[1] : '';
+};
+
+const validateBriefAttachments = (attachments = []) => {
+  if (!Array.isArray(attachments)) return [];
+  return attachments.map((attachment) => {
+    const name = String(attachment?.name || attachment?.original_name || '').trim();
+    const type = String(attachment?.type || attachment?.mime_type || 'application/octet-stream').trim();
+    const extension = inferFileExtension(name);
+    const allowedByType = env.upload.mintboxAllowedFileTypes.includes(type);
+    const allowedByExtension = env.upload.mintboxAllowedExtensions.includes(extension);
+    if (!allowedByType && !allowedByExtension) {
+      throw new AppError(`File type is not allowed: ${type || extension || 'unknown file type'}`, 415);
+    }
+    return attachment;
+  });
 };
 
 const fetchGoogleHolidaySuggestions = async (monthKey) => {
@@ -528,6 +549,7 @@ const createCustomRequest = async (clientId, payload = {}) => {
     };
 
     const title = String(payload.title || payload.job?.title || 'Custom design request').trim();
+    const attachments = validateBriefAttachments(payload.attachments || []);
     if (title.length < 3) throw new AppError('A request title is required', 400);
 
     let job = null;
@@ -597,7 +619,7 @@ const createCustomRequest = async (clientId, payload = {}) => {
         title,
         payload.description || job.description || null,
         payload.deadline || job.deadline || null,
-        JSON.stringify(payload.attachments || []),
+        JSON.stringify(attachments),
         Number(settings.default_coin_cost || 1),
         JSON.stringify({
           ...(payload.metadata || {}),
@@ -627,6 +649,124 @@ const createCustomRequest = async (clientId, payload = {}) => {
     await dbClient.query('COMMIT');
     logger.info('[Creative] Custom request created', { clientId, requestId: request.id, jobId: job.id });
     return { request, job: { ...job, status: 'pending_admin_approval' } };
+  } catch (error) {
+    await dbClient.query('ROLLBACK');
+    throw error;
+  } finally {
+    dbClient.release();
+  }
+};
+
+const cancelClientWorkItem = async (clientId, sourceType, sourceId, reason = 'Cancelled by client') => {
+  if (!['custom_request', 'calendar_event'].includes(sourceType)) {
+    throw new AppError('Unsupported creative item type', 400);
+  }
+
+  const table = sourceType === 'custom_request' ? 'creative_requests' : 'client_event_selections';
+  const referenceType = sourceType === 'custom_request' ? 'custom_request' : 'calendar_selection';
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+
+    const sourceResult = await dbClient.query(
+      `SELECT source.*, tx.amount AS reserved_amount
+       FROM ${table} source
+       LEFT JOIN mint_credit_transactions tx ON tx.id = source.credit_tx_id
+       WHERE source.id = $1 AND source.client_id = $2
+       FOR UPDATE OF source`,
+      [sourceId, clientId]
+    );
+    const source = sourceResult.rows[0];
+    if (!source) throw new AppError('Creative request not found', 404);
+    if (['completed', 'cancelled', 'rejected'].includes(source.status)) {
+      throw new AppError('This creative is already closed', 409);
+    }
+
+    const taskResult = await dbClient.query(
+      `SELECT * FROM creative_tasks
+       WHERE source_type = $1 AND source_id = $2 AND status <> 'cancelled'
+       ORDER BY created_at ASC
+       LIMIT 1
+       FOR UPDATE`,
+      [sourceType, sourceId]
+    );
+    const task = taskResult.rows[0];
+    if (task && !['pending', 'assigned', 'blocked'].includes(task.status)) {
+      throw new AppError('CREATYV has already started this creative. Please raise a support ticket to cancel it.', 409);
+    }
+
+    let refundTx = null;
+    if (source.credit_tx_id) {
+      refundTx = await refundMintCoins(dbClient, {
+        clientId,
+        amount: Math.abs(Number(source.reserved_amount || source.coin_cost || task?.coin_cost || 0)),
+        referenceId: source.id,
+        referenceType,
+        description: 'MintCoins returned for cancelled creative',
+        metadata: {
+          cancelled_by: clientId,
+          task_id: task?.id || null,
+          job_id: source.job_id || task?.job_id || null,
+          reason,
+          original_credit_tx_id: source.credit_tx_id,
+        },
+      });
+    }
+
+    const updatedSource = await dbClient.query(
+      `UPDATE ${table}
+       SET status = 'cancelled',
+           admin_note = COALESCE(admin_note, $1),
+           metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+       WHERE id = $3
+       RETURNING *`,
+      [
+        reason,
+        JSON.stringify({ cancelled_by_client_at: new Date().toISOString(), refund_tx_id: refundTx?.id || null }),
+        source.id,
+      ]
+    );
+
+    let updatedTask = null;
+    if (task) {
+      updatedTask = (await dbClient.query(
+        `UPDATE creative_tasks
+         SET status = 'cancelled',
+             client_status = 'Cancelled by client',
+             internal_notes = COALESCE(internal_notes, $1)
+         WHERE id = $2
+         RETURNING *`,
+        [reason, task.id]
+      )).rows[0];
+    }
+
+    if (source.job_id || task?.job_id) {
+      await dbClient.query(
+        `UPDATE jobs
+         SET status = 'cancelled',
+             metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb
+         WHERE id = $2`,
+        [JSON.stringify({ cancelled_by_client_at: new Date().toISOString(), cancellation_reason: reason }), source.job_id || task.job_id]
+      );
+    }
+
+    await writeAudit({
+      actorId: clientId,
+      actorRole: 'client',
+      action: `${referenceType}.cancelled_by_client`,
+      entityType: table,
+      entityId: source.id,
+      beforeState: source,
+      afterState: updatedSource.rows[0],
+      metadata: {
+        task_id: task?.id || null,
+        refund_tx_id: refundTx?.id || null,
+        reason,
+      },
+    }, dbClient);
+
+    await dbClient.query('COMMIT');
+    return { item: updatedSource.rows[0], task: updatedTask, refund: refundTx };
   } catch (error) {
     await dbClient.query('ROLLBACK');
     throw error;
@@ -1164,7 +1304,50 @@ const updateDesignerTask = async (designerId, taskId, payload = {}) => {
     },
   });
 
-  return result.rows[0];
+  const task = result.rows[0];
+  const clientNotificationByStatus = {
+    delivered: {
+      title: 'Creative delivered',
+      body: `${task.title} is ready for your review.`,
+    },
+    blocked: {
+      title: 'Creative needs attention',
+      body: `${task.title} needs a quick review from the CREATYV team.`,
+    },
+    revision: {
+      title: 'Revision in progress',
+      body: `${task.title} has moved into revision.`,
+    },
+  };
+  const clientNotification = clientNotificationByStatus[nextStatus];
+  if (clientNotification && before.status !== nextStatus) {
+    try {
+      await notificationService.createNotification({
+        userId: task.client_id,
+        type: 'system',
+        title: clientNotification.title,
+        body: clientNotification.body,
+        entityType: 'creative_task',
+        entityId: task.id,
+        data: {
+          task_id: task.id,
+          job_id: task.job_id,
+          source_type: task.source_type,
+          status: task.status,
+        },
+        dedupeKey: `creative-task-status:${task.id}:${before.status}:${nextStatus}`,
+      });
+    } catch (notificationError) {
+      logger.error('Client creative task notification failed', {
+        taskId: task.id,
+        clientId: task.client_id,
+        status: nextStatus,
+        error: notificationError.message,
+      });
+    }
+  }
+
+  return task;
 };
 
 const suggestCalendarEvents = async ({ month = monthKeyFor() } = {}) => {
@@ -1353,6 +1536,10 @@ const archiveEvent = async (adminId, eventId) => {
 };
 
 const updateTask = async (adminId, taskId, payload = {}) => {
+  const normalizedPayload = {
+    ...payload,
+    assigned_to: payload.assigned_to ?? payload.assigned_designer_id,
+  };
   const dbClient = await getClient();
   let committed = false;
   try {
@@ -1364,7 +1551,7 @@ const updateTask = async (adminId, taskId, payload = {}) => {
     );
     const before = beforeResult.rows[0];
     if (!before) throw new AppError('Creative task not found', 404);
-    if (before.status === 'completed' && payload.status === 'cancelled') {
+    if (before.status === 'completed' && normalizedPayload.status === 'cancelled') {
       throw new AppError('Completed tasks cannot be cancelled. Use a correction workflow instead.', 409);
     }
 
@@ -1373,13 +1560,13 @@ const updateTask = async (adminId, taskId, payload = {}) => {
     const values = [];
     let idx = 1;
     for (const key of allowed) {
-      if (payload[key] !== undefined) {
+      if (normalizedPayload[key] !== undefined) {
         fields.push(`${key} = $${idx}`);
-        values.push(payload[key] || null);
+        values.push(normalizedPayload[key] || null);
         idx += 1;
       }
     }
-    if (payload.assigned_to && payload.status === undefined && before.status === 'pending') {
+    if (normalizedPayload.assigned_to && normalizedPayload.status === undefined && before.status === 'pending') {
       fields.push(`status = $${idx}`);
       values.push('assigned');
       idx += 1;
@@ -1388,11 +1575,11 @@ const updateTask = async (adminId, taskId, payload = {}) => {
       idx += 1;
     }
     if (!fields.length) throw new AppError('No valid task fields provided', 400);
-    if (payload.assigned_to) {
+    if (normalizedPayload.assigned_to) {
       const designer = await dbClient.query(
         `SELECT id FROM users
          WHERE id = $1 AND role = 'designer' AND is_active = true`,
-        [payload.assigned_to]
+        [normalizedPayload.assigned_to]
       );
       if (!designer.rows[0]) throw new AppError('Assigned user must be an active CREATYV designer', 400);
     }
@@ -1408,12 +1595,12 @@ const updateTask = async (adminId, taskId, payload = {}) => {
     );
     const task = result.rows[0];
     let refundTx = null;
-    if (payload.status === 'cancelled' && before.status !== 'cancelled') {
+    if (normalizedPayload.status === 'cancelled' && before.status !== 'cancelled') {
       refundTx = await refundTaskMintCoins(
         dbClient,
         task,
         adminId,
-        payload.internal_notes || payload.admin_note || 'Task cancelled'
+        normalizedPayload.internal_notes || normalizedPayload.admin_note || 'Task cancelled'
       );
     }
 
@@ -1437,22 +1624,39 @@ const updateTask = async (adminId, taskId, payload = {}) => {
     await dbClient.query('COMMIT');
     committed = true;
 
-    if (payload.assigned_to) {
+    if (normalizedPayload.assigned_to) {
+      if (task.job_id) {
+        try {
+          await chatService.createChatRoom({
+            jobId: task.job_id,
+            clientId: task.client_id,
+            designerId: normalizedPayload.assigned_to,
+          });
+          await chatService.appendSystemMessageByJob(task.job_id, `${task.title} is now assigned to the CREATYV design team.`);
+        } catch (chatError) {
+          logger.error('Project chat creation failed for assigned designer', {
+            taskId: task.id,
+            jobId: task.job_id,
+            designerId: normalizedPayload.assigned_to,
+            error: chatError.message,
+          });
+        }
+      }
       try {
         await notificationService.createNotification({
-          userId: payload.assigned_to,
+          userId: normalizedPayload.assigned_to,
           type: 'system',
           title: 'New creative task assigned',
           body: `${task.title} is now assigned to you.`,
           entityType: 'creative_task',
           entityId: task.id,
           data: { task_id: task.id, job_id: task.job_id, source_type: task.source_type },
-          dedupeKey: `creative-task-assigned:${task.id}:${payload.assigned_to}`,
+          dedupeKey: `creative-task-assigned:${task.id}:${normalizedPayload.assigned_to}`,
         });
       } catch (notificationError) {
         logger.error('Designer task assignment notification failed', {
           taskId: task.id,
-          designerId: payload.assigned_to,
+          designerId: normalizedPayload.assigned_to,
           error: notificationError.message,
         });
       }
@@ -1471,11 +1675,11 @@ const approveCustomRequest = async (adminId, requestId, payload = {}) => {
   try {
     await dbClient.query('BEGIN');
     const result = await dbClient.query(
-      `SELECT request.*, job.title AS job_title, job.description AS job_description, job.deadline AS job_deadline
-       FROM creative_requests request
-       LEFT JOIN jobs job ON job.id = request.job_id
-       WHERE request.id = $1
-       FOR UPDATE`,
+      `SELECT cr.*, job.title AS job_title, job.description AS job_description, job.deadline AS job_deadline
+       FROM creative_requests cr
+       LEFT JOIN jobs job ON job.id = cr.job_id
+       WHERE cr.id = $1
+       FOR UPDATE OF cr`,
       [requestId]
     );
     const request = result.rows[0];
@@ -1668,6 +1872,7 @@ module.exports = {
   adminOverview,
   listDesignerTasks,
   updateDesignerTask,
+  cancelClientWorkItem,
   syncTaskSheet,
   suggestCalendarEvents,
   upsertEvent,

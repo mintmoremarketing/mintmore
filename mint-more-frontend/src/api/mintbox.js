@@ -12,6 +12,9 @@ export const mintboxApi = {
 	completeUpload: (uploadId) => api.post(`/mintbox/uploads/${uploadId}/complete`),
 	cancelUpload: (uploadId) => api.delete(`/mintbox/uploads/${uploadId}`),
 	reviewFile: (fileId, data) => api.patch(`/mintbox/files/${fileId}/review`, data),
+	deleteFile: (fileId) => api.delete(`/mintbox/files/${fileId}`),
+	deleteCategory: (jobId, category) => api.delete(`/mintbox/jobs/${jobId}/categories/${encodeURIComponent(category)}`),
+	deleteProject: (jobId) => api.delete(`/mintbox/jobs/${jobId}`),
 	revokeShare: (scope, id) => api.patch(`/mintbox/shares/${scope}/${id}/revoke`),
 	rotateShare: (scope, id) => api.patch(`/mintbox/shares/${scope}/${id}/rotate`),
 }

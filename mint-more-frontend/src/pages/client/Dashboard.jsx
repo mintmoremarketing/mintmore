@@ -8,7 +8,8 @@ import { mintboxApi } from '../../api/mintbox'
 import { socialApi } from '../../api/social'
 import { api } from '../../api/client'
 import Icon from '../../components/ui/Icon'
-import { StatusBadge, statusAccent } from '../../components/ui/StatusBadge'
+import { StatusBadge } from '../../components/ui/StatusBadge'
+import { statusAccent } from '../../components/ui/statusMeta'
 
 const GB = 1024 * 1024 * 1024
 

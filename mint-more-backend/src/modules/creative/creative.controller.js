@@ -39,6 +39,30 @@ const myWork = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const cancelRequest = async (req, res, next) => {
+  try {
+    const data = await service.cancelClientWorkItem(
+      req.user.sub,
+      'custom_request',
+      req.params.requestId,
+      req.body?.reason || 'Cancelled by client'
+    );
+    return sendSuccess(res, { data, message: 'Creative request cancelled.' });
+  } catch (error) { next(error); }
+};
+
+const cancelSelection = async (req, res, next) => {
+  try {
+    const data = await service.cancelClientWorkItem(
+      req.user.sub,
+      'calendar_event',
+      req.params.selectionId,
+      req.body?.reason || 'Cancelled by client'
+    );
+    return sendSuccess(res, { data, message: 'Calendar creative cancelled.' });
+  } catch (error) { next(error); }
+};
+
 const adminOverview = async (_req, res, next) => {
   try {
     const data = await service.adminOverview();
@@ -149,6 +173,8 @@ module.exports = {
   selectEvent,
   createRequest,
   myWork,
+  cancelRequest,
+  cancelSelection,
   adminOverview,
   designerTasks,
   updateDesignerTask,

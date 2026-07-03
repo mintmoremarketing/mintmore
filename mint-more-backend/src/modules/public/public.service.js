@@ -32,14 +32,19 @@ const UNSAFE_QUESTION_PATTERNS = [
   /<\s*script\b/i,
   /\b(select|insert|update|delete|drop|union|exec|powershell|cmd\.exe|curl|wget)\b/i,
 ];
+const stripControlChars = (value) => Array.from(value)
+  .map(char => {
+    const code = char.charCodeAt(0);
+    return code <= 31 || code === 127 ? ' ' : char;
+  })
+  .join('');
 
 const normaliseSettings = (value) => ({
   ...DEFAULT_QNA_SETTINGS,
   ...(value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
 });
 
-const safeSentence = (value) => String(value || '')
-  .replace(/[\u0000-\u001F\u007F]/g, ' ')
+const safeSentence = (value) => stripControlChars(String(value || ''))
   .replace(/[<>`{}[\]\\]/g, '')
   .replace(/\s+/g, ' ')
   .trim();

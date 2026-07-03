@@ -10,6 +10,8 @@ router.get('/calendar', authorize('client'), controller.calendar);
 router.post('/calendar/:eventId/select', authorize('client'), controller.selectEvent);
 router.get('/work', authorize('client'), controller.myWork);
 router.post('/requests', authorize('client'), controller.createRequest);
+router.delete('/requests/:requestId', authorize('client'), controller.cancelRequest);
+router.delete('/selections/:selectionId', authorize('client'), controller.cancelSelection);
 
 router.get('/designer/tasks', authorize('designer'), controller.designerTasks);
 router.patch('/designer/tasks/:taskId', authorize('designer'), controller.updateDesignerTask);

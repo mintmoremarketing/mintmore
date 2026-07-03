@@ -690,6 +690,149 @@ const rotateShare = async (scope, id, requesterId, role) => {
   return { ...result.rows[0], share_url: `${prefixes[scope]}${result.rows[0].share_token}` };
 };
 
+const assertClientDeleteAccess = (job, requesterId, role) => {
+  if (role !== 'client' && role !== 'admin') {
+    throw new AppError('Only clients can delete Mintbox content', 403);
+  }
+  if (role === 'client' && job.client_id !== requesterId) {
+    throw new AppError('Mintbox folder not found', 404);
+  }
+};
+
+const deleteFile = async (fileId, requesterId, role) => {
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+
+    const fileResult = await dbClient.query(
+      `SELECT file.*, folder.client_id, folder.job_id
+       FROM mintbox_files file
+       JOIN mintbox_folders folder ON folder.id = file.folder_id
+       WHERE file.id = $1
+       FOR UPDATE`,
+      [fileId]
+    );
+    const file = fileResult.rows[0];
+    if (!file || file.deleted_by_client_at) throw new AppError('File not found', 404);
+
+    const job = await getJobForAccess(file.job_id, requesterId, role, dbClient);
+    assertClientDeleteAccess(job, requesterId, role);
+
+    await dbClient.query(
+      `UPDATE mintbox_files
+       SET deleted_by_client_at = NOW(),
+           share_revoked_at = NOW()
+       WHERE id = $1`,
+      [fileId]
+    );
+    await dbClient.query(
+      `UPDATE mintbox_folders
+       SET storage_used = GREATEST(0, storage_used - $2::BIGINT)
+       WHERE id = $1`,
+      [file.folder_id, Number(file.size_bytes || 0)]
+    );
+
+    await dbClient.query('COMMIT');
+    return { file_id: fileId, deleted: true, freed_bytes: Number(file.size_bytes || 0) };
+  } catch (error) {
+    await dbClient.query('ROLLBACK');
+    throw error;
+  } finally {
+    dbClient.release();
+  }
+};
+
+const deleteCategory = async (jobId, category, requesterId, role) => {
+  const normalizedCategory = String(category || '').trim();
+  if (!normalizedCategory) throw new AppError('Category is required', 400);
+
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+
+    const job = await getJobForAccess(jobId, requesterId, role, dbClient);
+    assertClientDeleteAccess(job, requesterId, role);
+    const folder = await ensureFolder(job, dbClient);
+
+    const files = await dbClient.query(
+      `UPDATE mintbox_files
+       SET deleted_by_client_at = NOW(),
+           share_revoked_at = NOW()
+       WHERE folder_id = $1
+         AND deleted_by_client_at IS NULL
+         AND CASE WHEN purpose = 'brief' THEN 'brief' ELSE file_category END = $2
+       RETURNING size_bytes`,
+      [folder.id, normalizedCategory]
+    );
+    const freedBytes = files.rows.reduce((sum, file) => sum + Number(file.size_bytes || 0), 0);
+
+    await dbClient.query(
+      `UPDATE mintbox_folders
+       SET storage_used = GREATEST(0, storage_used - $2::BIGINT)
+       WHERE id = $1`,
+      [folder.id, freedBytes]
+    );
+    await dbClient.query(
+      `UPDATE mintbox_category_shares
+       SET share_revoked_at = NOW()
+       WHERE folder_id = $1 AND category = $2`,
+      [folder.id, normalizedCategory]
+    );
+
+    await dbClient.query('COMMIT');
+    return { category: normalizedCategory, deleted_files: files.rowCount, freed_bytes: freedBytes };
+  } catch (error) {
+    await dbClient.query('ROLLBACK');
+    throw error;
+  } finally {
+    dbClient.release();
+  }
+};
+
+const deleteProject = async (jobId, requesterId, role) => {
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+
+    const job = await getJobForAccess(jobId, requesterId, role, dbClient);
+    assertClientDeleteAccess(job, requesterId, role);
+    const folder = await ensureFolder(job, dbClient);
+
+    const files = await dbClient.query(
+      `UPDATE mintbox_files
+       SET deleted_by_client_at = NOW(),
+           share_revoked_at = NOW()
+       WHERE folder_id = $1
+         AND deleted_by_client_at IS NULL
+       RETURNING size_bytes`,
+      [folder.id]
+    );
+    const freedBytes = files.rows.reduce((sum, file) => sum + Number(file.size_bytes || 0), 0);
+
+    await dbClient.query(
+      `UPDATE mintbox_folders
+       SET storage_used = 0,
+           share_revoked_at = NOW()
+       WHERE id = $1`,
+      [folder.id]
+    );
+    await dbClient.query(
+      `UPDATE mintbox_category_shares
+       SET share_revoked_at = NOW()
+       WHERE folder_id = $1`,
+      [folder.id]
+    );
+
+    await dbClient.query('COMMIT');
+    return { job_id: jobId, deleted_files: files.rowCount, freed_bytes: freedBytes };
+  } catch (error) {
+    await dbClient.query('ROLLBACK');
+    throw error;
+  } finally {
+    dbClient.release();
+  }
+};
+
 const markSeen = async (jobId, requesterId, role) => {
   const job = await getJobForAccess(jobId, requesterId, role);
   if (!['client', 'freelancer'].includes(role)) return { updated: 0 };
@@ -989,6 +1132,9 @@ module.exports = {
   completeUpload,
   cancelUpload,
   reviewFile,
+  deleteFile,
+  deleteCategory,
+  deleteProject,
   markSeen,
   completeProject,
 };

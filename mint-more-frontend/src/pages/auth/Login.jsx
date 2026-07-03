@@ -141,8 +141,9 @@ export default function Login() {
 					)}
 
 					<div className="field" style={{ marginBottom: 12 }}>
-						<label className="field-label">Email</label>
+						<label className="field-label" htmlFor="login-email">Email</label>
 						<input
+							id="login-email"
 							className="input"
 							type="email"
 							value={email}
@@ -155,10 +156,11 @@ export default function Login() {
 
 					<div className="field" style={{ marginBottom: 6 }}>
 						<div className="row between">
-							<label className="field-label">Password</label>
+							<label className="field-label" htmlFor="login-password">Password</label>
 						</div>
 						<div style={{ position: 'relative' }}>
 							<input
+								id="login-password"
 								className="input"
 								type={showPw ? 'text' : 'password'}
 								value={password}

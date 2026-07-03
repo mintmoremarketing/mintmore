@@ -15,6 +15,23 @@ const TOTAL_STEPS = 13
 const asChoices = value => Array.isArray(value) ? value : value ? [value] : []
 const getMarketRange = res => res.data?.data?.range ?? res.data?.data?.data?.range ?? res.data?.range ?? null
 const formatRange = range => range?.min && range?.max ? `${rupee(range.min)} - ${rupee(range.max)}` : 'Market range pending'
+const ALLOWED_BRIEF_EXTENSIONS = [
+  '.jpg', '.jpeg', '.png', '.webp', '.gif', '.tif', '.tiff', '.svg',
+  '.pdf', '.zip', '.rar', '.7z', '.psd', '.ai', '.eps',
+  '.mp4', '.mov', '.webm', '.mp3', '.wav',
+  '.otf', '.ttf', '.woff', '.woff2',
+  '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt', '.csv',
+]
+const BLOCKED_BRIEF_EXTENSIONS = ['.apk', '.exe', '.msi', '.bat', '.cmd', '.com', '.sh', '.dmg', '.pkg']
+const briefExtension = file => {
+  const name = String(file?.name || '')
+  const dotIndex = name.lastIndexOf('.')
+  return dotIndex >= 0 ? name.slice(dotIndex).toLowerCase() : ''
+}
+const isAllowedBriefFile = file => {
+  const extension = briefExtension(file)
+  return extension && ALLOWED_BRIEF_EXTENSIONS.includes(extension) && !BLOCKED_BRIEF_EXTENSIONS.includes(extension)
+}
 
 const poolOptions = [
   { value: 'budget', icon: 'rupee', title: 'Budget creatives', subtitle: 'Great value for clear, lighter briefs.', note: 'CREATYV ops will review and queue this internally.' },
@@ -197,6 +214,7 @@ export default function PostJob() {
 
   const uploadBriefFiles = useCallback(async (jobId, files) => {
     for (const file of files) {
+      if (!isAllowedBriefFile(file)) continue
       const fileKey = `${file.name}-${file.size}-${file.lastModified}`
       if (uploadedFileKeysRef.current.has(fileKey)) continue
       const prepared = await mintboxApi.prepareUpload(jobId, { name: file.name, size: file.size, type: file.type || 'application/octet-stream', purpose: 'brief' })
@@ -323,10 +341,19 @@ export default function PostJob() {
   }
   const addBriefFiles = fileList => {
     const incoming = Array.from(fileList || [])
-    if (incoming.length) setSaveState('saving')
+    const accepted = incoming.filter(isAllowedBriefFile)
+    const rejected = incoming.filter(file => !isAllowedBriefFile(file))
+    if (rejected.length) {
+      pushToast({
+        title: 'Unsupported file type',
+        body: 'Upload images, videos, audio, documents, archives, design files, fonts, or CSV/TXT files. App installers like APK/EXE are blocked.',
+        tone: 'amber',
+      })
+    }
+    if (accepted.length) setSaveState('saving')
     setBriefFiles(current => {
       const known = new Set(current.map(file => `${file.name}-${file.size}-${file.lastModified}`))
-      return [...current, ...incoming.filter(file => !known.has(`${file.name}-${file.size}-${file.lastModified}`))]
+      return [...current, ...accepted.filter(file => !known.has(`${file.name}-${file.size}-${file.lastModified}`))]
     })
   }
 
@@ -432,7 +459,7 @@ export default function PostJob() {
 
         {step === 10 && <Question eyebrow="References" title="Do you have anything useful to share?" subtitle="Optional. Drop everything in one place and Mintbox will organise it automatically.">
           <>
-            <input ref={briefFileRef} type="file" multiple style={{ display: 'none' }} onChange={event => { addBriefFiles(event.target.files); event.target.value = '' }} />
+            <input ref={briefFileRef} type="file" multiple accept={ALLOWED_BRIEF_EXTENSIONS.join(',')} style={{ display: 'none' }} onChange={event => { addBriefFiles(event.target.files); event.target.value = '' }} />
             <div onClick={() => briefFileRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); addBriefFiles(event.dataTransfer.files) }} style={{ minHeight: 190, border: '1.5px dashed var(--mint-500)', background: 'var(--mint-50)', borderRadius: 'var(--radius-md)', display: 'grid', placeItems: 'center', cursor: 'pointer', textAlign: 'center', padding: 24 }}>
               <div><Icon name="upload" size={24} /><strong style={{ display: 'block', marginTop: 10 }}>Drop files here or choose files</strong><span className="muted" style={{ display: 'block', marginTop: 5, fontSize: 12.5 }}>Images, videos, audio, documents and packages</span></div>
             </div>

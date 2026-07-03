@@ -1,5 +1,6 @@
 const { verifyAccessToken } = require('../utils/jwt');
 const { getRedis } = require('../config/redis');
+const env = require('../config/env');
 const AppError = require('../utils/AppError');
 
 /**
@@ -23,11 +24,18 @@ const authenticate = async (req, res, next) => {
     // 2. Verify token
     const decoded = verifyAccessToken(token);
 
-    // 3. Check blacklist (Redis)
-    const redis = getRedis();
-    const isBlacklisted = await redis.get(`blacklist:${token}`);
-    if (isBlacklisted) {
-      throw new AppError('Token has been revoked. Please log in again.', 401);
+    // 3. Check blacklist (Redis). Local development can run without Redis so
+    // smoke tests still work; production must keep the revocation check strict.
+    try {
+      const redis = getRedis();
+      const isBlacklisted = await redis.get(`blacklist:${token}`);
+      if (isBlacklisted) {
+        throw new AppError('Token has been revoked. Please log in again.', 401);
+      }
+    } catch (redisErr) {
+      if (!env.isDev || redisErr instanceof AppError) {
+        throw redisErr;
+      }
     }
 
     // 4. Attach to request

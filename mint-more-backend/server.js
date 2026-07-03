@@ -5,6 +5,7 @@ const env = require('./src/config/env');
 const logger = require('./src/utils/logger');
 const { connectDB } = require('./src/config/database');
 const { connectRedis } = require('./src/config/redis');
+const { initSSESubscriber } = require('./src/middleware/sse');
 const { startPublishWorker } = require('./src/modules/social/queue/publish.worker');
 const { startAIWorker } = require('./src/modules/ai/queue/ai.worker');
 const { startFulfillmentWorker } = require('./src/modules/fulfillment/queue/fulfillment.worker');
@@ -24,13 +25,25 @@ const bootstrap = async () => {
     await connectDB();
 
     logger.info('🔄 Connecting to Redis...');
-    await connectRedis();
+    let redisReady = false;
+    try {
+      await connectRedis();
+      initSSESubscriber();
+      redisReady = true;
+    } catch (redisErr) {
+      if (env.node_env === 'production') throw redisErr;
+      logger.warn('Redis unavailable - starting local API without live events or background workers', {
+        error: redisErr.message,
+      });
+    }
 
-    // Start Redis-dependent background workers after Redis is ready
-    startPublishWorker();
-    startAIWorker();
-    await startFulfillmentWorker();
-    await startOutboxWorker();
+    if (redisReady) {
+      // Start Redis-dependent background workers after Redis is ready
+      startPublishWorker();
+      startAIWorker();
+      await startFulfillmentWorker();
+      await startOutboxWorker();
+    }
 
     server = app.listen(env.port, () => {
       logger.info(`🚀 Mint More API running`);
