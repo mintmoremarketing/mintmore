@@ -65,10 +65,26 @@ const getPublicFile = async (req, res, next) => {
 const streamPublicFile = async (req, res, next) => {
   try {
     const { file, signedUrl } = await mintboxService.getPublicFileStream(req.params.token);
-    const upstream = await fetch(signedUrl);
+    const range = req.headers.range;
+    const upstream = await fetch(signedUrl, {
+      headers: range ? { Range: range } : undefined,
+    });
     if (!upstream.ok || !upstream.body) throw new Error('Storage download failed');
+
+    const contentLength = upstream.headers.get('content-length') || String(file.size_bytes);
+    const contentRange = upstream.headers.get('content-range');
+
+    if (upstream.status === 206) {
+      res.status(206);
+      if (contentRange) res.setHeader('Content-Range', contentRange);
+    }
+
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
-    res.setHeader('Content-Length', String(file.size_bytes));
+    res.setHeader('Content-Length', contentLength);
     res.setHeader('Content-Disposition', `${req.query.download === '1' ? 'attachment' : 'inline'}; filename="${encodeURIComponent(file.original_name)}"`);
     const { Readable } = require('stream');
     const { pipeline } = require('stream/promises');
