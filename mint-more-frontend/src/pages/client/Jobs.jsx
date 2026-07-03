@@ -286,7 +286,7 @@ export default function Jobs() {
                       }
                     }}
                   >
-                    <Icon name="trash" size={12} /> Cancel
+                    <Icon name="x" size={12} /> Cancel
                   </span>
                 ) : (
                   <Icon name="chevronRight" size={14} className="muted" />

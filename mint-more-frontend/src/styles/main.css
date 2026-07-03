@@ -13,7 +13,7 @@
 
 @font-face {
   font-family: "Creatyv Baskvill";
-  src: local("Baskerville Old Face"), url("file:///C:/WINDOWS/Fonts/BASKVILL.TTF") format("truetype");
+  src: local("Baskerville Old Face"), local("Baskerville");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -21,7 +21,7 @@
 
 @font-face {
   font-family: "Creatyv Hero";
-  src: local("Microsoft YaHei Light"), url("file:///C:/WINDOWS/Fonts/msyhl.ttc") format("truetype-collection");
+  src: local("Microsoft YaHei Light"), local("Microsoft YaHei UI Light"), local("Microsoft YaHei");
   font-weight: 300;
   font-style: normal;
   font-display: swap;

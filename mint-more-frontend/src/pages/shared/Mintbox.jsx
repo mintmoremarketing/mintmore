@@ -29,6 +29,7 @@ const statusLabel = {
 }
 
 const showLegacyFileGrid = import.meta.env.VITE_SHOW_LEGACY_MINTBOX_GRID === 'true'
+const showStorageAddons = import.meta.env.VITE_SHOW_CLIENT_STORAGE_ADDONS === 'true'
 
 const inferredMimeTypes = {
 	psd: 'application/vnd.adobe.photoshop',
@@ -124,18 +125,20 @@ export default function Mintbox() {
 	const { data: plansData } = useQuery({
 		queryKey: ['addon-plans'],
 		queryFn: () => addonsApi.plans().then(r => r.data?.data),
-		enabled: role === 'client',
+		enabled: showStorageAddons && role === 'client',
 	})
 
 	const { data: walletData } = useQuery({
 		queryKey: ['wallet'],
 		queryFn: () => walletApi.get().then(r => r.data?.data),
-		enabled: role === 'client',
+		enabled: showStorageAddons && role === 'client',
 	})
 
-	const storagePlans = (plansData?.plans || []).filter(plan =>
-		Number(plan.storage_gb || 0) > 0 || plan.features?.includes('mintbox_storage')
-	)
+	const storagePlans = showStorageAddons
+		? (plansData?.plans || []).filter(plan =>
+			Number(plan.storage_gb || 0) > 0 || plan.features?.includes('mintbox_storage')
+		)
+		: []
 	const walletBalance = Number(walletData?.wallet?.balance ?? 0)
 
 	const startUpload = async (file) => {
