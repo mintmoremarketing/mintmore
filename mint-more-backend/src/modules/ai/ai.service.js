@@ -54,13 +54,13 @@ const buildPrompt = (toolType, userPrompt, params = {}, modelSystemPrompts = {})
   const builtPrompts = {
     text: {
       system: customSystemPrompt ||
-        'You are a professional content writer for Indian businesses. Write clear, engaging, SEO-friendly content.',
-      user: `Write content based on this request:\n${userPrompt}\n\nTone: ${params.tone || 'professional'}\nLength: ${params.length || '300-500 words'}\n${params.keywords ? `Keywords to include: ${params.keywords}` : ''}\n\nWrite directly without preamble.`,
+        'You are a practical creative assistant for Indian businesses. Follow the requested format exactly. If the user asks for a caption, headline, tagline, or short copy, keep it short instead of writing an article.',
+      user: `Create the requested content:\n${userPrompt}\n\nTone: ${params.tone || 'clear and useful'}\nLength: ${params.length || 'as short as the request naturally needs'}\n${params.keywords ? `Keywords to include: ${params.keywords}` : ''}\n\nWrite directly without preamble. Do not add unrelated marketing theory.`,
     },
     caption: {
       system: customSystemPrompt ||
-        'You are a social media expert for Indian brands. Write captions that drive engagement.',
-      user: `Create social media caption for:\n${userPrompt}\n\nPlatform: ${params.platform || 'Instagram'}\nTone: ${params.tone || 'engaging'}\nHashtags: ${params.hashtag_count || 10}\n\nFormat:\n[Caption text]\n\n[Hashtags]`,
+        'You are a social media caption writer for Indian brands. Captions must be crisp, usable, and specific. Never write an essay.',
+      user: `Create captions for:\n${userPrompt}\n\nPlatform: ${params.platform || 'Instagram'}\nTone: ${params.tone || 'natural and engaging'}\nHashtags: ${params.hashtag_count || 5}\n\nFormat:\n1. [caption under 25 words]\n2. [caption under 25 words]\n3. [caption under 25 words]\n\nHashtags: [5 relevant hashtags]\n\nIf the post context is missing, ask one short follow-up question after the options.`,
     },
     video_script: {
       system: customSystemPrompt ||

@@ -1454,14 +1454,17 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   flex-direction: column;
   justify-content: space-between;
   gap: 26px;
-  padding-bottom: 8px;
+  padding: 20px;
+  margin: -24px;
+  background: #101010;
+  color: rgba(255, 255, 255, 0.9);
 }
 .mint-ai-stage {
   flex: 1;
   display: grid;
-  align-content: center;
+  align-content: start;
   gap: 30px;
-  padding: clamp(28px, 6vh, 82px) 0 150px;
+  padding: clamp(28px, 6vh, 76px) 0 150px;
 }
 .mint-ai-hero {
   width: min(780px, 100%);
@@ -1506,10 +1509,10 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   line-height: 1.7;
 }
 .mint-ai-thread {
-  width: min(980px, 100%);
+  width: min(1100px, 100%);
   margin: 0 auto;
   display: grid;
-  gap: 16px;
+  gap: 28px;
 }
 .mint-ai-message {
   border-radius: 26px;
@@ -1519,16 +1522,20 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 .mint-ai-message.user {
   justify-self: end;
   max-width: min(680px, 82%);
-  background: var(--ink-950);
+  background: #1e1e1e;
   color: white;
-  border-bottom-right-radius: 8px;
+  border-radius: 999px;
+  padding: 18px 26px;
+  font-weight: 650;
 }
 .mint-ai-message.assistant {
   justify-self: start;
   width: min(880px, 100%);
-  background: white;
-  border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-soft);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.9);
+  padding: 0;
 }
 .mint-ai-message-head {
   display: flex;
@@ -1541,7 +1548,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   display: block;
 }
 .mint-ai-message-head small {
-  color: var(--ink-500);
+  color: rgba(255, 255, 255, 0.52);
   font-size: 12px;
   margin-top: 1px;
 }
@@ -1567,10 +1574,11 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 }
 .mint-ai-history-grid button {
   min-height: 94px;
-  padding: 14px;
-  border: 1px solid var(--hairline);
-  border-radius: 18px;
-  background: white;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.055);
+  color: white;
   text-align: left;
   cursor: pointer;
   transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
@@ -1587,7 +1595,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 }
 .mint-ai-history-grid span {
   display: block;
-  color: var(--ink-500);
+  color: rgba(255, 255, 255, 0.58);
   font-size: 12.5px;
   line-height: 1.45;
 }
@@ -1795,6 +1803,59 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid var(--hairline);
   box-shadow: var(--shadow-soft);
+}
+.mint-ai-thinking {
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 16px 0;
+}
+.mint-ai-thinking > div:not(.typing-dots) {
+  display: none;
+}
+.mint-ai-thinking .typing-dots span {
+  background: rgba(255, 255, 255, 0.82);
+}
+.mint-ai-result {
+  position: relative;
+  max-width: 920px;
+}
+.mint-ai-result-text {
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  font-size: clamp(18px, 1.55vw, 23px) !important;
+  line-height: 1.6 !important;
+}
+.mint-ai-result-text .ai-markdown-result {
+  gap: 18px;
+}
+.mint-ai-result-text .ai-markdown-result strong {
+  color: white;
+}
+.mint-ai-result-text .ai-markdown-result a {
+  color: var(--mint-500);
+}
+.mint-ai-result-text .ai-markdown-result ul {
+  gap: 12px;
+  padding-left: 28px;
+}
+.mint-ai-copy-button {
+  margin-top: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.82);
+  border-radius: 999px;
+  padding: 9px 13px;
+  cursor: pointer;
 }
 .mint-ai-chip-group span {
   padding: 0 6px;

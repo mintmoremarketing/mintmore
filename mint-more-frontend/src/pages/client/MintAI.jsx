@@ -172,6 +172,17 @@ function ModelMenu({ models, selected, onSelect }) {
   )
 }
 
+function resolveToolType(prompt, activeTool) {
+  const value = prompt.toLowerCase()
+  if (activeTool === 'text' && /\b(caption|captions|instagram caption|post caption|social caption)\b/.test(value)) {
+    return 'caption'
+  }
+  if (activeTool === 'text' && /\b(script|reel script|video script|shorts script)\b/.test(value)) {
+    return 'video_script'
+  }
+  return activeTool
+}
+
 function renderMarkdownInline(text, keyPrefix) {
   const parts = []
   const pattern = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g
@@ -262,8 +273,8 @@ function GenerationResult({ generation, onCopy }) {
 
   if (status === 'queued' || status === 'processing') {
     return (
-      <div style={{ padding: 28, textAlign: 'center' }}>
-        <div className="typing-dots" style={{ justifyContent: 'center', marginBottom: 14 }}>
+      <div className="mint-ai-thinking">
+        <div className="typing-dots">
           <span /><span /><span />
         </div>
         <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink-950)' }}>
@@ -310,8 +321,8 @@ function GenerationResult({ generation, onCopy }) {
 
   if (result_text) {
     return (
-      <div style={{ position: 'relative' }}>
-        <div style={{
+      <div className="mint-ai-result">
+        <div className="mint-ai-result-text" style={{
           padding: 18, background: 'var(--paper-tint)',
           borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)',
           fontSize: 14, lineHeight: 1.75, color: 'var(--ink-800)',
@@ -320,8 +331,7 @@ function GenerationResult({ generation, onCopy }) {
           <MarkdownResult text={result_text} />
         </div>
         <button
-          className="btn ghost"
-          style={{ position: 'absolute', top: 10, right: 10, fontSize: 12 }}
+          className="mint-ai-copy-button"
           onClick={() => { navigator.clipboard.writeText(result_text); onCopy() }}
         >
           <Icon name="copy" size={12} /> Copy
@@ -339,6 +349,8 @@ export default function MintAI() {
   const [activeTool,   setActiveTool]   = useState('text')
   const [selectedModelId,setSelectedModelId]= useState(null)
   const [prompt,       setPrompt]       = useState('')
+  const [submittedPrompt,setSubmittedPrompt]= useState('')
+  const [submittedTool, setSubmittedTool] = useState('text')
   const [showToolMenu, setShowToolMenu] = useState(false)
   const [showModelMenu,setShowModelMenu]= useState(false)
   const [pollingId,    setPollingId]    = useState(null)
@@ -414,11 +426,11 @@ useEffect(() => {
   }, [pollingId, pushToast])
 
   const generateMutation = useMutation({
-    mutationFn: () => aiApi.generate({
-      model_id:   selectedModel?.id,
-      tool_type:  activeTool,
-      prompt,
-      parameters: activeTool === 'video'
+    mutationFn: ({ requestPrompt, requestTool, requestModel }) => aiApi.generate({
+      model_id:   requestModel?.id,
+      tool_type:  requestTool,
+      prompt:     requestPrompt,
+      parameters: requestTool === 'video'
         ? {
             duration: effectiveVideoDuration,
             aspect_ratio: effectiveVideoAspect,
@@ -431,50 +443,70 @@ useEffect(() => {
       setPollingId(gen.generation_id || gen.id)
       setResult({ status: 'queued' })
     },
-    onError: err => pushToast({ title: 'Failed to start generation', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
+    onError: err => {
+      setResult({
+        status: 'failed',
+        error_message: err.response?.data?.message || 'Failed to start generation.',
+      })
+      pushToast({ title: 'Failed to start generation', body: err.response?.data?.message, tone: 'amber', icon: 'x' })
+    },
   })
 
+  const requestTool = resolveToolType(prompt, activeTool)
+  const requestModel = selectedModel?.supported_tools?.includes(requestTool)
+    ? selectedModel
+    : models.find(model =>
+        model.supported_tools?.includes(requestTool) &&
+        model.is_active &&
+        (requestTool !== 'video' || model.video_capabilities)
+      ) || selectedModel
   const currentTool = TOOLS.find(t => t.value === activeTool)
-  const canGenerate =
+  const visibleTool = TOOLS.find(t => t.value === submittedTool) || currentTool
+  const canGenerate = Boolean(
     !generateMutation.isPending &&
-    selectedModel &&
-    selectedModel.supported_tools?.includes(activeTool) &&
-    (activeTool !== 'video' || selectedModel.video_capabilities) &&
+    requestModel &&
+    requestModel.supported_tools?.includes(requestTool) &&
+    (requestTool !== 'video' || requestModel.video_capabilities) &&
     prompt.trim() &&
     !pollingId
+  )
+
+  const submitPrompt = () => {
+    if (!canGenerate) return
+    const cleanPrompt = prompt.trim()
+    setSubmittedPrompt(cleanPrompt)
+    setSubmittedTool(requestTool)
+    setPrompt('')
+    setResult({ status: 'queued' })
+    setShowToolMenu(false)
+    setShowModelMenu(false)
+    generateMutation.mutate({
+      requestPrompt: cleanPrompt,
+      requestTool,
+      requestModel,
+    })
+  }
 
   const handleSubmit = e => {
     e.preventDefault()
-    if (!canGenerate) return
-    setShowToolMenu(false)
-    setShowModelMenu(false)
-    generateMutation.mutate()
+    submitPrompt()
   }
 
   return (
     <div className="mint-ai-shell">
       <section className="mint-ai-stage">
-        <div className="mint-ai-hero">
-          <div className="mint-ai-orb"><Icon name="sparkles" size={22} /></div>
-          <div className="h-eyebrow">Mint AI</div>
-          <h1>What should we make today?</h1>
-          <p>
-            Draft captions, scripts, campaign ideas, visuals, and videos for your CREATYV workspace.
-          </p>
-        </div>
-
         <div className="mint-ai-thread">
           {result && (
             <>
               <div className="mint-ai-message user">
-                <span>{prompt || 'Show this generation'}</span>
+                <span>{submittedPrompt || 'Show this generation'}</span>
               </div>
               <div className="mint-ai-message assistant">
                 <div className="mint-ai-message-head">
                   <span className="mint-ai-avatar"><Icon name="sparkles" size={15} /></span>
                   <div>
                     <strong>Mint AI</strong>
-                    <small>{currentTool?.label}</small>
+                    <small>{visibleTool?.label}</small>
                   </div>
                 </div>
                 <GenerationResult
@@ -490,7 +522,15 @@ useEffect(() => {
               <div className="mint-ai-section-label">Recent generations</div>
               <div className="mint-ai-history-grid">
                 {history.slice(0, isMobile ? 3 : 4).map(gen => (
-                  <button key={gen.id} type="button" onClick={() => setResult(gen)}>
+                  <button
+                    key={gen.id}
+                    type="button"
+                    onClick={() => {
+                      setSubmittedPrompt(gen.prompt || '')
+                      setSubmittedTool(gen.tool_type || 'text')
+                      setResult(gen)
+                    }}
+                  >
                     <strong>{gen.tool_type?.replace('_', ' ')}</strong>
                     <span>{gen.prompt?.slice(0, 74)}{gen.prompt?.length > 74 ? '...' : ''}</span>
                   </button>
@@ -567,6 +607,12 @@ useEffect(() => {
             rows={1}
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                submitPrompt()
+              }
+            }}
             placeholder={`Ask Mint AI to ${currentTool?.label?.toLowerCase() || 'help'}...`}
             onFocus={() => setShowToolMenu(false)}
           />
