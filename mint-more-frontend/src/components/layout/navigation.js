@@ -49,3 +49,38 @@ export const ADMIN_NAV = [
   { route: '/admin/ai', icon: 'sparkles', label: 'Mint AI', permission: 'pricing.manage' },
   { route: '/admin/audit', icon: 'shield', label: 'Audit records', permission: 'audit.read' },
 ]
+
+export const DEFAULT_FEATURE_FLAGS = {
+  wallet_ui: false,
+  marketplace: false,
+  freelancer_portal: false,
+  freelancer_matching: false,
+  negotiation: false,
+}
+
+export function navForRole(role) {
+  if (role === 'admin') return ADMIN_NAV
+  if (role === 'designer') return DESIGNER_NAV
+  if (role === 'freelancer') return FREELANCER_NAV
+  return CLIENT_NAV
+}
+
+export function filterNavItems({ role, isGuest, access, items = navForRole(role) }) {
+  if (isGuest) return items.filter(item => item.route === '/dashboard')
+
+  if (role === 'admin') {
+    const permissions = access?.admin_permissions || []
+    const adminAccessLoaded = Boolean(access)
+
+    return items.filter(item => (
+      !item.permission ||
+      !adminAccessLoaded ||
+      access?.is_super_admin ||
+      permissions.includes('*') ||
+      permissions.includes(item.permission)
+    ))
+  }
+
+  const flags = { ...DEFAULT_FEATURE_FLAGS, ...(access?.feature_flags || {}) }
+  return items.filter(item => !item.flag || flags[item.flag] !== false)
+}

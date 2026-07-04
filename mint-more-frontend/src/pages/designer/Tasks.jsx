@@ -12,6 +12,41 @@ const statusOptions = ['assigned', 'in_progress', 'delivered', 'revision', 'bloc
 
 const sourceLabel = (task) => task.source_type === 'calendar_event' ? 'Calendar creative' : 'Custom request'
 const companyLabel = (task) => task.client_business_name || task.client_name || 'Client'
+const buildTasksCsv = (rows) => {
+  const headers = ['Title', 'Client', 'Status', 'Client status', 'Work slot', 'Due date', 'Source', 'Brief', 'Created at']
+  const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
+  return [
+    headers.join(','),
+    ...rows.map(task => [
+      task.title,
+      companyLabel(task),
+      task.status,
+      task.client_status,
+      task.work_slot,
+      task.due_date,
+      sourceLabel(task),
+      task.description,
+      task.created_at,
+    ].map(escape).join(',')),
+  ].join('\n')
+}
+
+const openCsv = (rows) => {
+  const blob = new Blob([buildTasksCsv(rows)], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank', 'noopener,noreferrer')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+const downloadCsv = (rows) => {
+  const blob = new Blob([buildTasksCsv(rows)], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `CREATYV-my-tasks-${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
 
 function TaskCard({ task, onStatus }) {
   const navigate = useNavigate()
@@ -91,11 +126,23 @@ export default function DesignerTasks() {
   return (
     <div className="stack-6">
       <div className="reveal">
-        <div className="h-eyebrow">CREATYV design team</div>
-        <h1 className="h-display h-1" style={{ margin: '4px 0 0' }}>My production tasks</h1>
-        <p className="muted" style={{ margin: '8px 0 0' }}>
-          See what needs to be made, update progress, and upload finished work into each client Mintbox.
-        </p>
+        <div className="row between" style={{ gap: 14, alignItems: 'flex-start' }}>
+          <div>
+            <div className="h-eyebrow">CREATYV design team</div>
+            <h1 className="h-display h-1" style={{ margin: '4px 0 0' }}>My production tasks</h1>
+            <p className="muted" style={{ margin: '8px 0 0' }}>
+              See what needs to be made, update progress, and upload finished work into each client Mintbox.
+            </p>
+          </div>
+          <div className="row wrap" style={{ gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn ghost" onClick={() => openCsv(tasks)} disabled={!tasks.length}>
+              <Icon name="eye" /> Open CSV
+            </button>
+            <button className="btn ghost" onClick={() => downloadCsv(tasks)} disabled={!tasks.length}>
+              <Icon name="download" /> Export CSV
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="designer-task-stats">

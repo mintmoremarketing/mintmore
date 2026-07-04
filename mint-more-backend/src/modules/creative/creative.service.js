@@ -289,6 +289,38 @@ const createTask = async (dbClient, {
   return result.rows[0];
 };
 
+const notifyAdminsAboutCustomRequest = async ({ request, job }) => {
+  try {
+    const admins = await query(
+      `SELECT id
+       FROM users
+       WHERE role = 'admin'
+         AND is_active = true`
+    );
+
+    await notificationService.createBulkNotifications(admins.rows.map(admin => ({
+      userId: admin.id,
+      type: 'system',
+      title: 'New custom request',
+      body: `${request.title} is waiting for CREATYV review.`,
+      entityType: 'creative_request',
+      entityId: request.id,
+      data: {
+        request_id: request.id,
+        job_id: job?.id || request.job_id,
+        client_id: request.client_id,
+        route: '/admin/operations',
+        tab: 'requests',
+      },
+    })));
+  } catch (notificationError) {
+    logger.error('Admin custom request notification failed', {
+      requestId: request?.id,
+      error: notificationError.message,
+    });
+  }
+};
+
 const spendMintCoins = async (dbClient, {
   clientId,
   amount,
@@ -648,7 +680,9 @@ const createCustomRequest = async (clientId, payload = {}) => {
 
     await dbClient.query('COMMIT');
     logger.info('[Creative] Custom request created', { clientId, requestId: request.id, jobId: job.id });
-    return { request, job: { ...job, status: 'pending_admin_approval' } };
+    const updatedJob = { ...job, status: 'pending_admin_approval' };
+    await notifyAdminsAboutCustomRequest({ request, job: updatedJob });
+    return { request, job: updatedJob };
   } catch (error) {
     await dbClient.query('ROLLBACK');
     throw error;
@@ -784,6 +818,7 @@ const listClientWork = async (clientId) => {
        FROM creative_requests request
        LEFT JOIN jobs job ON job.id = request.job_id
        WHERE request.client_id = $1
+         AND request.task_id IS NULL
        ORDER BY request.created_at DESC`,
       [clientId]
     ),
@@ -998,7 +1033,8 @@ const adminOverview = async () => {
       `SELECT request.*, client.full_name AS client_name, client.email AS client_email
        FROM creative_requests request
        JOIN users client ON client.id = request.client_id
-       WHERE request.status IN ('pending_ops_review','approved','in_production')
+       WHERE request.status = 'pending_ops_review'
+         AND request.task_id IS NULL
        ORDER BY request.created_at DESC
        LIMIT 100`
     ),

@@ -101,7 +101,15 @@ function AdminOnly({ children, permission }) {
 function AdminPermissionGate({ children, permission }) {
   const { data: access, isLoading } = useEntitlements()
   if (!permission) return children
-  if (isLoading) return null
+  if (isLoading || !access) {
+    return (
+      <div className="page">
+        <div className="card">
+          <p className="muted">Loading admin access...</p>
+        </div>
+      </div>
+    )
+  }
   const permissions = access?.admin_permissions || []
   if (!access?.is_super_admin && !permissions.includes('*') && !permissions.includes(permission)) {
     return <Navigate to="/admin" replace />

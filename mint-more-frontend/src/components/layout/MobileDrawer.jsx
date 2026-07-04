@@ -1,10 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../ui/Icon'
-import { ADMIN_NAV, CLIENT_NAV, FREELANCER_NAV, DESIGNER_NAV } from './navigation'
+import { filterNavItems, navForRole } from './navigation'
 import { useEntitlements } from '../../hooks/useEntitlements'
-
-const DEFAULT_FLAGS = { wallet_ui: false, marketplace: false, freelancer_portal: false, freelancer_matching: false, negotiation: false }
 
 export default function MobileDrawer({ role, onClose }) {
   const navigate  = useNavigate()
@@ -12,20 +10,9 @@ export default function MobileDrawer({ role, onClose }) {
   const { user, logout, isGuest } = useAuthStore()
   const { data: access } = useEntitlements()
 
-  const allItems = role === 'admin'
-    ? ADMIN_NAV
-    : role === 'designer'
-    ? DESIGNER_NAV
-    : role === 'freelancer'
-    ? FREELANCER_NAV
-    : CLIENT_NAV
-  const permissions = access?.admin_permissions || []
-  const flags = { ...DEFAULT_FLAGS, ...(access?.feature_flags || {}) }
-  const items = isGuest
-    ? allItems.filter(item => item.route === '/dashboard')
-    : role === 'admin'
-    ? allItems.filter(item => !item.permission || access?.is_super_admin || permissions.includes('*') || permissions.includes(item.permission))
-    : allItems.filter(item => !item.flag || flags[item.flag] !== false)
+  const allItems = navForRole(role)
+  const items = filterNavItems({ role, isGuest, access, items: allItems })
+  const homeRoute = role === 'admin' ? '/admin' : '/dashboard'
 
   function go(route) {
     navigate(route)
@@ -37,7 +24,7 @@ export default function MobileDrawer({ role, onClose }) {
       <div className="mobile-drawer" onClick={e => e.stopPropagation()}>
         <nav className="sidebar">
           {/* Logo */}
-          <div className="sidebar-logo" onClick={() => go('/dashboard')}>
+          <div className="sidebar-logo" onClick={() => go(homeRoute)}>
             CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
           </div>
 

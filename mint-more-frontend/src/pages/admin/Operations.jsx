@@ -22,10 +22,10 @@ function Field({ label, children }) {
   )
 }
 
-const downloadCsv = (rows) => {
+const buildTasksCsv = (rows) => {
   const headers = ['Title', 'Client', 'Status', 'Client status', 'Designer', 'Work slot', 'Due date', 'Source', 'Created at']
   const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
-  const csv = [
+  return [
     headers.join(','),
     ...rows.map(task => [
       task.title,
@@ -39,7 +39,17 @@ const downloadCsv = (rows) => {
       task.created_at,
     ].map(escape).join(',')),
   ].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+}
+
+const openCsv = (rows) => {
+  const blob = new Blob([buildTasksCsv(rows)], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank', 'noopener,noreferrer')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+const downloadCsv = (rows) => {
+  const blob = new Blob([buildTasksCsv(rows)], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
@@ -264,6 +274,9 @@ export default function AdminOperations() {
             </p>
           </div>
           <div className="row wrap" style={{ gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn ghost" onClick={() => openCsv(tasks)} disabled={!tasks.length}>
+              <Icon name="eye" /> Open CSV
+            </button>
             <button className="btn ghost" onClick={() => downloadCsv(tasks)} disabled={!tasks.length}>
               <Icon name="download" /> Export CSV
             </button>

@@ -8,6 +8,22 @@ import Avatar from '../../components/ui/Avatar'
 import Icon from '../../components/ui/Icon'
 import { timeAgo } from '../../utils/format'
 
+const fileNameFromUrl = (url = '') => {
+	try {
+		const clean = String(url).split('?')[0]
+		return decodeURIComponent(clean.split('/').filter(Boolean).pop() || 'Mintbox file')
+	} catch {
+		return 'Mintbox file'
+	}
+}
+
+const deliveryAction = (message) => {
+	if (!message.attachment_url) return null
+	if (message.sender_role === 'client') return 'shared a reference'
+	if (message.sender_role === 'designer' || message.sender_role === 'freelancer') return 'shared a delivery'
+	return 'shared a file'
+}
+
 export default function Chat() {
 	const role = useAuthStore(s => s.user?.role)
 	const pushToast = useUIStore(s => s.pushToast)
@@ -142,13 +158,58 @@ export default function Chat() {
 							</div>
 						</header>
 
-						<div ref={streamRef} className="chat-stream" style={{ flex: 1, maxHeight: 'none', borderRadius: 0, minHeight: 420 }}>
+						<div ref={streamRef} className="chat-stream" style={{ flex: 1, maxHeight: 'none', borderRadius: 0, minHeight: 420, padding: 18 }}>
+							<div className="card" style={{ padding: 18, marginBottom: 16, background: 'var(--paper)' }}>
+								<div className="row between" style={{ gap: 12, alignItems: 'flex-start' }}>
+									<div>
+										<div className="h-eyebrow">Messages & deliveries</div>
+										<p className="muted" style={{ margin: '6px 0 0' }}>Project files and revision feedback stay together in one conversation.</p>
+									</div>
+									<span className="badge neutral">{messages.length} messages</span>
+								</div>
+							</div>
 							{messagesLoading ? <div className="muted">Loading messages...</div> : messages.length === 0 ? (
 								<div className="empty" style={{ border: 0, margin: 'auto' }}><h3>Start the conversation</h3><p>Messages stay attached to this project.</p></div>
 							) : messages.map(message => {
 								const mine = message.sender_role === role || (role === 'designer' && message.sender_role === 'freelancer')
 								const system = message.sender_role === 'system'
 								const read = role === 'client' ? message.read_by_freelancer : message.read_by_client
+								const fileAction = deliveryAction(message)
+								const fileName = fileNameFromUrl(message.attachment_url)
+								if (fileAction) {
+									return (
+										<div key={message.id} className={`bubble-row ${mine ? 'me' : 'them'}`}>
+											<div
+												className="card"
+												style={{
+													width: 'min(760px, 88%)',
+													padding: 20,
+													borderRadius: 18,
+													background: mine ? 'var(--mint-50)' : 'var(--paper)',
+													borderColor: mine ? 'var(--mint-200)' : 'var(--hairline)',
+												}}
+											>
+												<div className="row" style={{ gap: 10, alignItems: 'center', marginBottom: 10 }}>
+													<Avatar name={message.sender_name || roomLabel(selectedRoom || {})} size="sm" />
+													<strong>{mine ? 'You' : message.sender_name}</strong>
+													<span className="muted">{fileAction}</span>
+												</div>
+												<a href={message.attachment_url} target="_blank" rel="noreferrer" className="row" style={{ gap: 12, alignItems: 'center', color: 'inherit', textDecoration: 'none' }}>
+													<span className="icon-btn" style={{ pointerEvents: 'none' }}><Icon name="file" size={16} /></span>
+													<span style={{ minWidth: 0 }}>
+														<strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName}</strong>
+														<span className="muted" style={{ fontSize: 12 }}>Open file</span>
+													</span>
+												</a>
+												{message.content && <p style={{ margin: '12px 0 0', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.content}</p>}
+												<div className="row between" style={{ marginTop: 14 }}>
+													<span className="badge neutral">Submitted</span>
+													<span className="muted" style={{ fontSize: 12 }}>{timeAgo(message.created_at)}{mine ? ` · ${read ? 'Seen' : 'Sent'}` : ''}</span>
+												</div>
+											</div>
+										</div>
+									)
+								}
 								return (
 									<div key={message.id} className={`bubble-row ${system ? 'system' : mine ? 'me' : 'them'}`}>
 										<div className="bubble">

@@ -2755,6 +2755,49 @@ kbd {
   grid-template-columns: repeat(2, 1fr) !important;
 }
 
+/* Admin mobile: preserve scanability instead of crushing desktop tables into the viewport. */
+.app.mobile .page .row.between {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.app.mobile .page .tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.app.mobile .page .tab {
+  white-space: nowrap;
+}
+.app.mobile .page .card-flat {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.app.mobile .page table {
+  min-width: 680px;
+}
+.app.mobile .page th,
+.app.mobile .page td {
+  white-space: nowrap;
+}
+.app.mobile .page .input-with-prefix {
+  width: 100%;
+}
+.app.mobile .page .input-with-prefix .input {
+  width: 100%;
+}
+.app.mobile .page .btn {
+  white-space: nowrap;
+}
+.app.mobile.real-device .page table {
+  min-width: 720px;
+}
+.app.mobile.real-device .mobile-drawer {
+  width: min(320px, 88vw);
+}
+.app.mobile.real-device .mobile-drawer .sidebar {
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+}
+
 /* ── Reduced motion ─────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
