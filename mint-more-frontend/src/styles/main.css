@@ -1464,7 +1464,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   display: grid;
   align-content: start;
   gap: 30px;
-  padding: clamp(28px, 6vh, 76px) 0 150px;
+  padding: clamp(28px, 6vh, 76px) 0 250px;
 }
 .mint-ai-hero {
   width: min(780px, 100%);
@@ -1600,11 +1600,16 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   line-height: 1.45;
 }
 .mint-ai-composer-wrap {
-  position: sticky;
+  position: fixed;
+  left: calc(50% + 120px);
+  transform: translateX(-50%);
   bottom: 22px;
-  z-index: 20;
+  z-index: 80;
   width: min(980px, calc(100vw - 34px));
   margin: 0 auto;
+}
+.app.mobile .mint-ai-composer-wrap {
+  left: 50%;
 }
 .mint-ai-composer {
   position: relative;
@@ -1707,6 +1712,12 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   max-height: min(520px, 64vh);
   overflow: auto;
 }
+.mint-ai-mintbox-menu {
+  left: 106px;
+  width: min(470px, calc(100vw - 34px));
+  max-height: min(520px, 62vh);
+  overflow: auto;
+}
 .mint-ai-menu-label {
   color: rgba(255, 255, 255, 0.48);
   padding: 8px 10px 10px;
@@ -1728,6 +1739,29 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   background: rgba(255, 255, 255, 0.08);
 }
 .mint-ai-menu-row.active {
+  background: rgba(247, 127, 0, 0.16);
+}
+.mint-ai-mintbox-list {
+  display: grid;
+  gap: 6px;
+}
+.mint-ai-mintbox-list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: white;
+  text-align: left;
+  cursor: pointer;
+}
+.mint-ai-mintbox-list button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.mint-ai-mintbox-list button.active {
   background: rgba(247, 127, 0, 0.16);
 }
 .mint-ai-menu-icon {
@@ -1857,6 +1891,140 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   padding: 9px 13px;
   cursor: pointer;
 }
+.mint-ai-post-actions {
+  margin-top: 16px;
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+.mint-ai-schedule-panel {
+  width: min(540px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.055);
+}
+.mint-ai-platform-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 8px;
+}
+.mint-ai-platform-grid button {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  text-align: left;
+  cursor: pointer;
+  text-transform: capitalize;
+}
+.mint-ai-platform-grid button.active {
+  border-color: rgba(247, 127, 0, 0.8);
+  background: rgba(247, 127, 0, 0.18);
+}
+.mint-ai-platform-grid small {
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 11.5px;
+  text-transform: none;
+}
+.mint-ai-schedule-date {
+  display: grid;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 12px;
+  font-weight: 700;
+}
+.mint-ai-schedule-date input {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  padding: 11px 12px;
+  background: #171717;
+  color: white;
+  color-scheme: dark;
+}
+.mint-ai-schedule-submit {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--mint-500);
+  color: var(--ink-950);
+  font-weight: 800;
+  cursor: pointer;
+}
+.mint-ai-schedule-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.mint-ai-context-tray {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(30, 30, 30, 0.94);
+  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.2);
+}
+.mint-ai-context-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.mint-ai-context-chip {
+  max-width: 230px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mint-ai-context-chip button {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.68);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.mint-ai-media-note {
+  width: 100%;
+  min-height: 40px;
+  max-height: 84px;
+  margin-bottom: 8px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  outline: 0;
+  resize: vertical;
+  background: rgba(30, 30, 30, 0.92);
+  color: white;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.mint-ai-media-note::placeholder {
+  color: rgba(255, 255, 255, 0.44);
+}
 .mint-ai-chip-group span {
   padding: 0 6px;
   font-size: 11.5px;
@@ -1934,10 +2102,32 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
     font-size: 12px;
   }
   .mint-ai-tool-menu,
-  .mint-ai-model-menu {
+  .mint-ai-model-menu,
+  .mint-ai-mintbox-menu {
     left: 0;
     right: auto;
     width: calc(100vw - 20px);
+  }
+  .mint-ai-context-tray {
+    max-height: 92px;
+    overflow: auto;
+  }
+  .mint-ai-context-files {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 1px;
+  }
+  .mint-ai-context-chip {
+    flex: 0 0 auto;
+    max-width: 210px;
+  }
+  .mint-ai-media-note {
+    min-height: 38px;
+    max-height: 72px;
+    font-size: 12.5px;
+  }
+  .mint-ai-platform-grid {
+    grid-template-columns: 1fr;
   }
   .mint-ai-popover {
     border-radius: 22px;

@@ -1,6 +1,7 @@
-import { useMemo, useState, useEffect } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useMemo, useState, useEffect, useRef } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { aiApi } from '../../api/ai'
+import { socialApi } from '../../api/social'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 
@@ -183,6 +184,56 @@ function resolveToolType(prompt, activeTool) {
   return activeTool
 }
 
+function mediaKindFromMime(type = '') {
+  if (type.startsWith('video/')) return 'video'
+  if (type.startsWith('image/')) return 'image'
+  if (type.startsWith('audio/')) return 'audio'
+  return 'file'
+}
+
+function stripAiText(text = '') {
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function buildMediaContext({ prompt, localFiles, mintboxFiles, mediaNote }) {
+  const selected = [
+    ...localFiles.map(file => ({
+      name: file.name,
+      type: file.type || 'unknown',
+      size: file.size,
+      source: 'uploaded in this chat',
+    })),
+    ...mintboxFiles.map(file => ({
+      name: file.original_name,
+      type: file.mime_type || 'unknown',
+      size: file.size_bytes,
+      source: `Mintbox${file.job_title ? ` - ${file.job_title}` : ''}`,
+      url: file.media_url,
+    })),
+  ]
+
+  if (!selected.length && !mediaNote.trim()) return prompt
+
+  const fileLines = selected.map((file, index) => {
+    const size = file.size ? `, ${Math.round(Number(file.size) / 1024)} KB` : ''
+    const url = file.url ? `, reference URL: ${file.url}` : ''
+    return `${index + 1}. ${file.name} (${file.type}${size}) from ${file.source}${url}`
+  })
+
+  return `${prompt}
+
+Media context for this request:
+${fileLines.length ? fileLines.join('\n') : 'No files selected.'}
+${mediaNote.trim() ? `User note about the media: ${mediaNote.trim()}` : ''}
+
+Use the media context when writing. If the visual details are not clear from the file name or note, ask one short follow-up question instead of inventing details.`
+}
+
 function renderMarkdownInline(text, keyPrefix) {
   const parts = []
   const pattern = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g
@@ -345,12 +396,21 @@ function GenerationResult({ generation, onCopy }) {
 
 export default function MintAI() {
   const pushToast = useUIStore(s => s.pushToast)
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef(null)
 
   const [activeTool,   setActiveTool]   = useState('text')
   const [selectedModelId,setSelectedModelId]= useState(null)
   const [prompt,       setPrompt]       = useState('')
   const [submittedPrompt,setSubmittedPrompt]= useState('')
   const [submittedTool, setSubmittedTool] = useState('text')
+  const [localFiles, setLocalFiles] = useState([])
+  const [mintboxFiles, setMintboxFiles] = useState([])
+  const [mediaNote, setMediaNote] = useState('')
+  const [showMintboxPicker, setShowMintboxPicker] = useState(false)
+  const [showSchedulePanel, setShowSchedulePanel] = useState(false)
+  const [scheduleDate, setScheduleDate] = useState('')
+  const [selectedPlatforms, setSelectedPlatforms] = useState([])
   const [showToolMenu, setShowToolMenu] = useState(false)
   const [showModelMenu,setShowModelMenu]= useState(false)
   const [pollingId,    setPollingId]    = useState(null)
@@ -381,8 +441,25 @@ useEffect(() => {
     queryFn:  () => aiApi.getGenerations({ limit: 8 }).then(r => r.data.data),
   })
 
+  const { data: accountsData } = useQuery({
+    queryKey: ['social-accounts'],
+    queryFn: () => socialApi.getAccounts().then(r => r.data.data),
+  })
+
+  const { data: mediaLibraryData } = useQuery({
+    queryKey: ['social-media-library'],
+    queryFn: () => socialApi.getMediaLibrary().then(r => r.data.data),
+  })
+
   const models   = useMemo(() => modelsData?.models || [], [modelsData?.models])
   const history  = useMemo(() => historyData?.generations || [], [historyData?.generations])
+  const socialAccounts = useMemo(() => accountsData?.accounts || [], [accountsData?.accounts])
+  const connectedAccounts = useMemo(() => socialAccounts.filter(account => account.is_active), [socialAccounts])
+  const mintboxMediaLibrary = useMemo(() => mediaLibraryData?.media || [], [mediaLibraryData?.media])
+  const allMedia = useMemo(() => [
+    ...localFiles.map(file => ({ id: `local-${file.name}-${file.size}-${file.lastModified}`, name: file.name, type: file.type || 'unknown', source: 'Upload', kind: mediaKindFromMime(file.type), file })),
+    ...mintboxFiles.map(file => ({ id: `mintbox-${file.id}`, name: file.original_name, type: file.mime_type || 'unknown', source: file.job_title || 'Mintbox', kind: file.media_type || mediaKindFromMime(file.mime_type), file })),
+  ], [localFiles, mintboxFiles])
   const compatibleModels = useMemo(() => models.filter(m =>
     m.supported_tools?.includes(activeTool) &&
     m.is_active &&
@@ -452,6 +529,57 @@ useEffect(() => {
     },
   })
 
+  const scheduleMutation = useMutation({
+    mutationFn: async () => {
+      const caption = stripAiText(result?.result_text || '')
+      const publishableMedia = allMedia.filter(item => ['image', 'video'].includes(item.kind))
+      const firstMedia = publishableMedia[0]
+      const contentType = firstMedia?.kind === 'video' ? 'video' : firstMedia?.kind === 'image' ? 'image' : 'text'
+      const postRes = await socialApi.createPost({
+        caption,
+        hashtags: [],
+        content_type: contentType,
+        target_platforms: selectedPlatforms,
+        publish_at: scheduleDate || undefined,
+        metadata: {
+          source: 'mint_ai',
+          ai_generation_id: result?.id || result?.generation_id || null,
+          media_note: mediaNote || null,
+        },
+      })
+      const post = postRes.data.data.post
+
+      for (const item of publishableMedia) {
+        if (item.file instanceof File) {
+          const fd = new FormData()
+          fd.append('media', item.file)
+          fd.append('media_type', item.kind === 'video' ? 'video' : 'image')
+          await socialApi.addMedia(post.id, fd)
+        } else if (item.file?.media_url) {
+          await socialApi.addMedia(post.id, {
+            media_items: [{
+              media_url: item.file.media_url,
+              media_type: item.file.media_type || item.kind,
+              mime_type: item.file.mime_type,
+              file_size_bytes: item.file.size_bytes,
+            }],
+          })
+        }
+      }
+
+      await socialApi.publishPost(post.id)
+      return post
+    },
+    onSuccess: () => {
+      pushToast({ title: scheduleDate ? 'Post scheduled' : 'Post sent to publishing', icon: 'check' })
+      queryClient.invalidateQueries({ queryKey: ['social-posts'] })
+      setShowSchedulePanel(false)
+      setScheduleDate('')
+      setSelectedPlatforms([])
+    },
+    onError: err => pushToast({ title: 'Could not schedule post', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
+  })
+
   const requestTool = resolveToolType(prompt, activeTool)
   const requestModel = selectedModel?.supported_tools?.includes(requestTool)
     ? selectedModel
@@ -470,18 +598,55 @@ useEffect(() => {
     prompt.trim() &&
     !pollingId
   )
+  const canSchedule = Boolean(
+    result?.status === 'completed' &&
+    result?.result_text &&
+    selectedPlatforms.length > 0 &&
+    !scheduleMutation.isPending
+  )
+
+  const togglePlatform = platform => {
+    setSelectedPlatforms(prev =>
+      prev.includes(platform) ? prev.filter(item => item !== platform) : [...prev, platform]
+    )
+  }
+
+  const addLocalFiles = fileList => {
+    const files = Array.from(fileList || [])
+    const supported = files.filter(file =>
+      file.type.startsWith('image/') ||
+      file.type.startsWith('video/') ||
+      file.type.startsWith('audio/') ||
+      file.type === 'application/pdf' ||
+      file.type.startsWith('text/')
+    )
+    if (supported.length !== files.length) {
+      pushToast({ title: 'Some files were skipped', body: 'Use images, video, audio, PDF or text files as AI context.', tone: 'amber', icon: 'x' })
+    }
+    setLocalFiles(prev => [...prev, ...supported])
+  }
+
+  const toggleMintboxFile = file => {
+    setMintboxFiles(prev =>
+      prev.some(item => item.id === file.id)
+        ? prev.filter(item => item.id !== file.id)
+        : [...prev, file]
+    )
+  }
 
   const submitPrompt = () => {
     if (!canGenerate) return
     const cleanPrompt = prompt.trim()
+    const promptWithContext = buildMediaContext({ prompt: cleanPrompt, localFiles, mintboxFiles, mediaNote })
     setSubmittedPrompt(cleanPrompt)
     setSubmittedTool(requestTool)
     setPrompt('')
     setResult({ status: 'queued' })
     setShowToolMenu(false)
     setShowModelMenu(false)
+    setShowMintboxPicker(false)
     generateMutation.mutate({
-      requestPrompt: cleanPrompt,
+      requestPrompt: promptWithContext,
       requestTool,
       requestModel,
     })
@@ -513,6 +678,55 @@ useEffect(() => {
                   generation={result}
                   onCopy={() => pushToast({ title: 'Copied to clipboard', icon: 'copy' })}
                 />
+                {result?.status === 'completed' && result?.result_text && (
+                  <div className="mint-ai-post-actions">
+                    <button
+                      type="button"
+                      className="mint-ai-copy-button"
+                      onClick={() => setShowSchedulePanel(value => !value)}
+                    >
+                      <Icon name="calendar" size={13} /> Schedule as post
+                    </button>
+                    {showSchedulePanel && (
+                      <div className="mint-ai-schedule-panel">
+                        <div className="mint-ai-menu-label">Send to social</div>
+                        <div className="mint-ai-platform-grid">
+                          {connectedAccounts.map(account => (
+                            <button
+                              key={account.id}
+                              type="button"
+                              className={selectedPlatforms.includes(account.platform) ? 'active' : ''}
+                              onClick={() => togglePlatform(account.platform)}
+                            >
+                              <span>{account.platform}</span>
+                              <small>{account.account_name || account.external_username || 'Connected'}</small>
+                            </button>
+                          ))}
+                          {connectedAccounts.length === 0 && (
+                            <div className="mint-ai-empty-menu">Connect Facebook, Instagram, or YouTube from Insights first.</div>
+                          )}
+                        </div>
+                        <label className="mint-ai-schedule-date">
+                          <span>Schedule time</span>
+                          <input
+                            type="datetime-local"
+                            value={scheduleDate}
+                            onChange={event => setScheduleDate(event.target.value)}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="mint-ai-schedule-submit"
+                          disabled={!canSchedule || connectedAccounts.length === 0}
+                          onClick={() => scheduleMutation.mutate()}
+                        >
+                          <Icon name="send" size={14} />
+                          {scheduleMutation.isPending ? 'Scheduling...' : scheduleDate ? 'Schedule post' : 'Publish now'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -542,6 +756,18 @@ useEffect(() => {
       </section>
 
       <form className="mint-ai-composer-wrap" onSubmit={handleSubmit}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,video/*,audio/*,.pdf,.txt,.csv"
+          style={{ display: 'none' }}
+          onChange={event => {
+            addLocalFiles(event.target.files)
+            event.target.value = ''
+          }}
+        />
+
         {showToolMenu && (
           <ToolMenu
             activeTool={activeTool}
@@ -563,6 +789,35 @@ useEffect(() => {
               setShowModelMenu(false)
             }}
           />
+        )}
+
+        {showMintboxPicker && (
+          <div className="mint-ai-popover mint-ai-mintbox-menu">
+            <div className="mint-ai-menu-label">Use media from Mintbox</div>
+            <div className="mint-ai-mintbox-list">
+              {mintboxMediaLibrary.map(file => {
+                const selected = mintboxFiles.some(item => item.id === file.id)
+                return (
+                  <button
+                    key={file.id}
+                    type="button"
+                    className={selected ? 'active' : ''}
+                    onClick={() => toggleMintboxFile(file)}
+                  >
+                    <span className="mint-ai-menu-icon"><Icon name={file.media_type === 'video' ? 'video' : 'image'} size={15} /></span>
+                    <span className="mint-ai-menu-copy">
+                      <span>{file.original_name}</span>
+                      <small>{file.job_title || 'Mintbox'} - {file.mime_type}</small>
+                    </span>
+                    {selected && <Icon name="check" size={15} />}
+                  </button>
+                )
+              })}
+              {mintboxMediaLibrary.length === 0 && (
+                <div className="mint-ai-empty-menu">No image or video files in Mintbox yet.</div>
+              )}
+            </div>
+          </div>
         )}
 
         {activeTool === 'video' && selectedModel?.video_capabilities && (
@@ -589,6 +844,36 @@ useEffect(() => {
           </div>
         )}
 
+        {(allMedia.length > 0 || mediaNote) && (
+          <div className="mint-ai-context-tray">
+            <div className="mint-ai-context-files">
+              {allMedia.map(item => (
+                <span key={item.id} className="mint-ai-context-chip">
+                  <Icon name={item.kind === 'video' ? 'video' : item.kind === 'image' ? 'image' : 'paperclip'} size={12} />
+                  {item.name}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (item.file instanceof File) setLocalFiles(files => files.filter(file => `local-${file.name}-${file.size}-${file.lastModified}` !== item.id))
+                      else setMintboxFiles(files => files.filter(file => `mintbox-${file.id}` !== item.id))
+                    }}
+                  >
+                    <Icon name="x" size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <textarea
+          className="mint-ai-media-note"
+          rows={1}
+          value={mediaNote}
+          onChange={event => setMediaNote(event.target.value)}
+          placeholder="Optional: describe what is in the media so Mint AI has better context..."
+        />
+
         <div className="mint-ai-composer">
           <button
             type="button"
@@ -597,9 +882,32 @@ useEffect(() => {
             onClick={() => {
               setShowToolMenu(value => !value)
               setShowModelMenu(false)
+              setShowMintboxPicker(false)
             }}
           >
             <Icon name={showToolMenu ? 'x' : 'plus'} size={22} />
+          </button>
+
+          <button
+            type="button"
+            className="mint-ai-round-button muted"
+            aria-label="Upload media for context"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Icon name="upload" size={19} />
+          </button>
+
+          <button
+            type="button"
+            className="mint-ai-round-button muted"
+            aria-label="Pick media from Mintbox"
+            onClick={() => {
+              setShowMintboxPicker(value => !value)
+              setShowToolMenu(false)
+              setShowModelMenu(false)
+            }}
+          >
+            <Icon name="layers" size={19} />
           </button>
 
           <textarea
@@ -614,7 +922,11 @@ useEffect(() => {
               }
             }}
             placeholder={`Ask Mint AI to ${currentTool?.label?.toLowerCase() || 'help'}...`}
-            onFocus={() => setShowToolMenu(false)}
+            onFocus={() => {
+              setShowToolMenu(false)
+              setShowModelMenu(false)
+              setShowMintboxPicker(false)
+            }}
           />
 
           <button
@@ -623,6 +935,7 @@ useEffect(() => {
             onClick={() => {
               setShowModelMenu(value => !value)
               setShowToolMenu(false)
+              setShowMintboxPicker(false)
             }}
           >
             <span>{modelShortName(selectedModel)}</span>
@@ -641,3 +954,4 @@ useEffect(() => {
     </div>
   )
 }
+
