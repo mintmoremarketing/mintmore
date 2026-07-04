@@ -1448,6 +1448,450 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   margin-bottom: 2px;
 }
 
+.mint-ai-shell {
+  min-height: calc(100vh - 132px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 26px;
+  padding-bottom: 8px;
+}
+.mint-ai-stage {
+  flex: 1;
+  display: grid;
+  align-content: center;
+  gap: 30px;
+  padding: clamp(28px, 6vh, 82px) 0 150px;
+}
+.mint-ai-hero {
+  width: min(780px, 100%);
+  margin: 0 auto;
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+.mint-ai-orb,
+.mint-ai-avatar {
+  display: inline-grid;
+  place-items: center;
+  background: var(--mint-500);
+  color: var(--ink-950);
+  box-shadow: 0 16px 40px rgba(247, 127, 0, 0.22);
+}
+.mint-ai-orb {
+  width: 58px;
+  height: 58px;
+  border-radius: 22px;
+}
+.mint-ai-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.mint-ai-hero h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(34px, 6vw, 76px);
+  line-height: 0.96;
+  letter-spacing: -0.055em;
+  color: var(--ink-950);
+}
+.mint-ai-hero p {
+  margin: 0;
+  max-width: 620px;
+  color: var(--ink-500);
+  font-size: clamp(15px, 1.3vw, 18px);
+  line-height: 1.7;
+}
+.mint-ai-thread {
+  width: min(980px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+.mint-ai-message {
+  border-radius: 26px;
+  padding: 18px;
+  line-height: 1.65;
+}
+.mint-ai-message.user {
+  justify-self: end;
+  max-width: min(680px, 82%);
+  background: var(--ink-950);
+  color: white;
+  border-bottom-right-radius: 8px;
+}
+.mint-ai-message.assistant {
+  justify-self: start;
+  width: min(880px, 100%);
+  background: white;
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-soft);
+}
+.mint-ai-message-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.mint-ai-message-head strong,
+.mint-ai-message-head small {
+  display: block;
+}
+.mint-ai-message-head small {
+  color: var(--ink-500);
+  font-size: 12px;
+  margin-top: 1px;
+}
+.mint-ai-history-strip {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+}
+.mint-ai-section-label,
+.mint-ai-menu-label {
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+.mint-ai-section-label {
+  color: var(--ink-500);
+}
+.mint-ai-history-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.mint-ai-history-grid button {
+  min-height: 94px;
+  padding: 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  background: white;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.mint-ai-history-grid button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(247, 127, 0, 0.35);
+  box-shadow: var(--shadow-soft);
+}
+.mint-ai-history-grid strong {
+  display: block;
+  text-transform: capitalize;
+  margin-bottom: 6px;
+}
+.mint-ai-history-grid span {
+  display: block;
+  color: var(--ink-500);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.mint-ai-composer-wrap {
+  position: sticky;
+  bottom: 22px;
+  z-index: 20;
+  width: min(980px, calc(100vw - 34px));
+  margin: 0 auto;
+}
+.mint-ai-composer {
+  position: relative;
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: #1e1e1e;
+  color: white;
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.24);
+}
+.mint-ai-input {
+  flex: 1;
+  min-width: 80px;
+  max-height: 126px;
+  min-height: 28px;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: white;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 10px 2px;
+}
+.mint-ai-input::placeholder {
+  color: rgba(255, 255, 255, 0.58);
+}
+.mint-ai-round-button,
+.mint-ai-send-button,
+.mint-ai-model-pill {
+  border: 0;
+  color: white;
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease, opacity 150ms ease;
+}
+.mint-ai-round-button,
+.mint-ai-send-button {
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.mint-ai-round-button {
+  background: rgba(255, 255, 255, 0.08);
+}
+.mint-ai-round-button.muted {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+}
+.mint-ai-send-button {
+  background: var(--mint-500);
+  color: var(--ink-950);
+}
+.mint-ai-send-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.mint-ai-round-button:hover,
+.mint-ai-send-button:not(:disabled):hover,
+.mint-ai-model-pill:hover {
+  transform: translateY(-1px);
+}
+.mint-ai-model-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 190px;
+  padding: 12px 15px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  white-space: nowrap;
+}
+.mint-ai-model-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mint-ai-popover {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  padding: 12px;
+  border-radius: 26px;
+  background: #202020;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.32);
+}
+.mint-ai-tool-menu {
+  left: 0;
+  width: min(390px, calc(100vw - 34px));
+}
+.mint-ai-model-menu {
+  right: 62px;
+  width: min(430px, calc(100vw - 34px));
+  max-height: min(520px, 64vh);
+  overflow: auto;
+}
+.mint-ai-menu-label {
+  color: rgba(255, 255, 255, 0.48);
+  padding: 8px 10px 10px;
+}
+.mint-ai-menu-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: white;
+  text-align: left;
+  cursor: pointer;
+}
+.mint-ai-menu-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.mint-ai-menu-row.active {
+  background: rgba(247, 127, 0, 0.16);
+}
+.mint-ai-menu-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
+}
+.mint-ai-menu-copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+.mint-ai-menu-copy span {
+  font-weight: 650;
+}
+.mint-ai-menu-copy small,
+.mint-ai-thinking-row small {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 12.5px;
+}
+.mint-ai-model-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.mint-ai-tier-pill {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.mint-ai-empty-menu {
+  padding: 18px 12px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+}
+.mint-ai-menu-divider {
+  height: 1px;
+  margin: 10px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.mint-ai-thinking-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  color: white;
+}
+.mint-ai-thinking-row span {
+  display: grid;
+  gap: 2px;
+}
+.mint-ai-video-chips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.mint-ai-chip-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-soft);
+}
+.mint-ai-chip-group span {
+  padding: 0 6px;
+  font-size: 11.5px;
+  color: var(--ink-500);
+  font-weight: 700;
+}
+.mint-ai-chip-group button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 700;
+}
+.mint-ai-chip-group button.active {
+  background: var(--ink-950);
+  color: white;
+}
+
+@media (max-width: 760px) {
+  .mint-ai-shell {
+    min-height: calc(100vh - 96px);
+    gap: 18px;
+  }
+  .mint-ai-stage {
+    align-content: start;
+    padding: 20px 0 126px;
+  }
+  .mint-ai-orb {
+    width: 48px;
+    height: 48px;
+    border-radius: 18px;
+  }
+  .mint-ai-hero h1 {
+    font-size: clamp(32px, 12vw, 48px);
+  }
+  .mint-ai-hero p {
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .mint-ai-history-grid {
+    grid-template-columns: 1fr;
+  }
+  .mint-ai-message {
+    border-radius: 22px;
+    padding: 14px;
+  }
+  .mint-ai-message.user {
+    max-width: 92%;
+  }
+  .mint-ai-composer-wrap {
+    bottom: 78px;
+    width: calc(100vw - 20px);
+  }
+  .mint-ai-composer {
+    min-height: 62px;
+    border-radius: 28px;
+    align-items: flex-end;
+    gap: 6px;
+    padding: 8px;
+  }
+  .mint-ai-input {
+    min-height: 42px;
+    font-size: 15px;
+    padding-top: 11px;
+  }
+  .mint-ai-round-button,
+  .mint-ai-send-button {
+    width: 42px;
+    height: 42px;
+  }
+  .mint-ai-model-pill {
+    max-width: 96px;
+    padding: 11px 10px;
+    font-size: 12px;
+  }
+  .mint-ai-tool-menu,
+  .mint-ai-model-menu {
+    left: 0;
+    right: auto;
+    width: calc(100vw - 20px);
+  }
+  .mint-ai-popover {
+    border-radius: 22px;
+  }
+  .mint-ai-video-chips {
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+  }
+  .mint-ai-chip-group {
+    flex: 0 0 auto;
+  }
+}
+
 .ai-markdown-result {
   display: grid;
   gap: 10px;

@@ -85,6 +85,93 @@ function ModelPicker({ models, selected, onSelect, toolType }) {
   )
 }
 
+function modelSubtitle(model) {
+  if (!model) return 'Auto-selected for this request'
+  if (model.tier === 'free') return 'Fast everyday help'
+  if (model.tier === 'premium') return 'Highest quality output'
+  return model.provider_name || 'All-round creative help'
+}
+
+function modelShortName(model) {
+  if (!model) return 'Auto'
+  return model.name
+    ?.replace(/^openrouter\s*/i, '')
+    ?.replace(/^google\s*/i, '')
+    ?.replace(/^openai\s*/i, '')
+    ?.split(/[/:]/)
+    ?.pop()
+    ?.replace(/-/g, ' ')
+    ?.slice(0, 18) || 'Model'
+}
+
+function ToolMenu({ activeTool, onSelect }) {
+  return (
+    <div className="mint-ai-popover mint-ai-tool-menu">
+      <div className="mint-ai-menu-label">Create with Mint AI</div>
+      {TOOLS.map(tool => (
+        <button
+          key={tool.value}
+          type="button"
+          className={`mint-ai-menu-row ${activeTool === tool.value ? 'active' : ''}`}
+          onClick={() => onSelect(tool.value)}
+        >
+          <span className="mint-ai-menu-icon"><Icon name={tool.icon} size={17} /></span>
+          <span className="mint-ai-menu-copy">
+            <span>{tool.label}</span>
+            <small>{tool.desc}</small>
+          </span>
+          {activeTool === tool.value && <Icon name="check" size={16} />}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ModelMenu({ models, selected, onSelect }) {
+  return (
+    <div className="mint-ai-popover mint-ai-model-menu">
+      <div className="mint-ai-menu-label">Choose model</div>
+      {models.map(model => {
+        const tier = TIER_META[model.tier] || TIER_META.free
+        const traffic = model.traffic_status || 'idle'
+        const isSelected = selected?.id === model.id
+        return (
+          <button
+            key={model.id}
+            type="button"
+            className={`mint-ai-menu-row ${isSelected ? 'active' : ''}`}
+            onClick={() => onSelect(model)}
+          >
+            <span
+              className="mint-ai-model-dot"
+              style={{ background: TRAFFIC_COLORS[traffic] || 'var(--ink-400)' }}
+            />
+            <span className="mint-ai-menu-copy">
+              <span>{model.name}</span>
+              <small>{modelSubtitle(model)}</small>
+            </span>
+            <span className="mint-ai-tier-pill" style={{ background: tier.bg, color: tier.color }}>
+              {tier.label}
+            </span>
+            {isSelected && <Icon name="check" size={16} />}
+          </button>
+        )
+      })}
+      {models.length === 0 && (
+        <div className="mint-ai-empty-menu">No compatible models are active for this tool.</div>
+      )}
+      <div className="mint-ai-menu-divider" />
+      <div className="mint-ai-thinking-row">
+        <span>
+          <strong>Thinking level</strong>
+          <small>Standard</small>
+        </span>
+        <Icon name="chevronRight" size={16} />
+      </div>
+    </div>
+  )
+}
+
 function renderMarkdownInline(text, keyPrefix) {
   const parts = []
   const pattern = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g
@@ -252,7 +339,8 @@ export default function MintAI() {
   const [activeTool,   setActiveTool]   = useState('text')
   const [selectedModelId,setSelectedModelId]= useState(null)
   const [prompt,       setPrompt]       = useState('')
-  const [showPicker,   setShowPicker]   = useState(false)
+  const [showToolMenu, setShowToolMenu] = useState(false)
+  const [showModelMenu,setShowModelMenu]= useState(false)
   const [pollingId,    setPollingId]    = useState(null)
   const [result,       setResult]       = useState(null)
   const [videoDuration,setVideoDuration]= useState(null)
@@ -347,317 +435,163 @@ useEffect(() => {
   })
 
   const currentTool = TOOLS.find(t => t.value === activeTool)
+  const canGenerate =
+    !generateMutation.isPending &&
+    selectedModel &&
+    selectedModel.supported_tools?.includes(activeTool) &&
+    (activeTool !== 'video' || selectedModel.video_capabilities) &&
+    prompt.trim() &&
+    !pollingId
+
+  const handleSubmit = e => {
+    e.preventDefault()
+    if (!canGenerate) return
+    setShowToolMenu(false)
+    setShowModelMenu(false)
+    generateMutation.mutate()
+  }
+
   return (
-  <div className="stack-6">
+    <div className="mint-ai-shell">
+      <section className="mint-ai-stage">
+        <div className="mint-ai-hero">
+          <div className="mint-ai-orb"><Icon name="sparkles" size={22} /></div>
+          <div className="h-eyebrow">Mint AI</div>
+          <h1>What should we make today?</h1>
+          <p>
+            Draft captions, scripts, campaign ideas, visuals, and videos for your CREATYV workspace.
+          </p>
+        </div>
 
-    {/* Hero */}
-    <div
-      className="card reveal"
-      style={{
-        padding: isMobile ? 20 : 32,
-      }}
-    >
-      <div className="h-eyebrow">Mint AI</div>
-
-      <h1
-        className="h-display h-1"
-        style={{
-          marginTop: 8,
-          marginBottom: 8
-        }}
-      >
-        Generate content
-      </h1>
-
-      <div style={{ color: 'var(--ink-500)' }}>
-        Create text, captions, scripts, images and videos using AI.
-      </div>
-    </div>
-
-    {/* Tools */}
-    <div
-      className="card reveal"
-      style={{
-        padding: 14
-      }}
-    >
-      <div className="h-eyebrow" style={{ marginBottom: 10 }}>
-        Tool type
-      </div>
-
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: isMobile ? 'row' : 'column',
-          overflowX: isMobile ? 'auto' : 'visible',
-          gap: 8
-        }}
-      >
-        {TOOLS.map(tool => (
-          <button
-            key={tool.value}
-            onClick={() => {
-              setActiveTool(tool.value)
-              setResult(null)
-              setPrompt('')
-            }}
-            style={{
-              minWidth: isMobile ? 180 : 'auto',
-              display: 'flex',
-              gap: 10,
-              alignItems: 'center',
-              padding: '12px',
-              textAlign: 'left',
-              background:
-                activeTool === tool.value
-                  ? 'var(--ink-950)'
-                  : 'transparent',
-              color:
-                activeTool === tool.value
-                  ? 'white'
-                  : 'var(--ink-700)',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              cursor: 'pointer'
-            }}
-          >
-            <Icon name={tool.icon} size={14} />
-
-            <div>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500
-                }}
-              >
-                {tool.label}
+        <div className="mint-ai-thread">
+          {result && (
+            <>
+              <div className="mint-ai-message user">
+                <span>{prompt || 'Show this generation'}</span>
               </div>
-
-              <div
-                style={{
-                  fontSize: 11,
-                  opacity: .7
-                }}
-              >
-                {tool.desc}
+              <div className="mint-ai-message assistant">
+                <div className="mint-ai-message-head">
+                  <span className="mint-ai-avatar"><Icon name="sparkles" size={15} /></span>
+                  <div>
+                    <strong>Mint AI</strong>
+                    <small>{currentTool?.label}</small>
+                  </div>
+                </div>
+                <GenerationResult
+                  generation={result}
+                  onCopy={() => pushToast({ title: 'Copied to clipboard', icon: 'copy' })}
+                />
               </div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
+            </>
+          )}
 
-    {/* Main content */}
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns:
-          isMobile
-            ? '1fr'
-            : '1fr 280px',
-        gap: 18
-      }}
-    >
-
-      {/* Left */}
-      <div className="stack" style={{ gap: 14 }}>
-
-        {/* Model */}
-        <div
-          className="card"
-          style={{ padding: 14 }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: isMobile ? 'flex-start' : 'center',
-              flexDirection: isMobile ? 'column' : 'row',
-              gap: 10
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: 'var(--ink-500)'
-                }}
-              >
-                Active model
+          {!result && history.length > 0 && (
+            <div className="mint-ai-history-strip">
+              <div className="mint-ai-section-label">Recent generations</div>
+              <div className="mint-ai-history-grid">
+                {history.slice(0, isMobile ? 3 : 4).map(gen => (
+                  <button key={gen.id} type="button" onClick={() => setResult(gen)}>
+                    <strong>{gen.tool_type?.replace('_', ' ')}</strong>
+                    <span>{gen.prompt?.slice(0, 74)}{gen.prompt?.length > 74 ? '...' : ''}</span>
+                  </button>
+                ))}
               </div>
-
-              <div
-                style={{
-                  fontWeight: 600
-                }}
-              >
-                {selectedModel?.name || 'No model selected'}
-              </div>
-            </div>
-
-            <button
-              className="btn ghost"
-              onClick={() => setShowPicker(!showPicker)}
-            >
-              Change model
-            </button>
-          </div>
-
-          {showPicker && (
-            <div style={{ marginTop: 14 }}>
-              <ModelPicker
-                models={models}
-                selected={selectedModel}
-                onSelect={(m) => {
-                  setSelectedModelId(m.id)
-                  setShowPicker(false)
-                }}
-                toolType={activeTool}
-              />
             </div>
           )}
         </div>
+      </section>
+
+      <form className="mint-ai-composer-wrap" onSubmit={handleSubmit}>
+        {showToolMenu && (
+          <ToolMenu
+            activeTool={activeTool}
+            onSelect={(tool) => {
+              setActiveTool(tool)
+              setResult(null)
+              setPrompt('')
+              setShowToolMenu(false)
+            }}
+          />
+        )}
+
+        {showModelMenu && (
+          <ModelMenu
+            models={compatibleModels}
+            selected={selectedModel}
+            onSelect={(model) => {
+              setSelectedModelId(model.id)
+              setShowModelMenu(false)
+            }}
+          />
+        )}
 
         {activeTool === 'video' && selectedModel?.video_capabilities && (
-          <div className="card" style={{ padding: 16 }}>
-            <div className="h-eyebrow" style={{ marginBottom: 14 }}>Video settings</div>
+          <div className="mint-ai-video-chips">
             {[
               ['Duration', selectedModel.video_capabilities.supported_durations, effectiveVideoDuration, setVideoDuration, value => `${value}s`],
-              ['Aspect ratio', selectedModel.video_capabilities.supported_aspect_ratios, effectiveVideoAspect, setVideoAspect, value => value],
-              ['Resolution', selectedModel.video_capabilities.supported_resolutions, effectiveVideoResolution, setVideoResolution, value => value],
+              ['Aspect', selectedModel.video_capabilities.supported_aspect_ratios, effectiveVideoAspect, setVideoAspect, value => value],
+              ['Quality', selectedModel.video_capabilities.supported_resolutions, effectiveVideoResolution, setVideoResolution, value => value],
             ].map(([label, options, selected, onSelect, format]) => options?.length > 0 && (
-              <div key={label} style={{ marginBottom: 14 }}>
-                <div className="field-label" style={{ marginBottom: 8 }}>{label}</div>
-                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                  {options.map(option => (
-                    <button
-                      key={option}
-                      type="button"
-                      className={`btn ${selected === option ? 'primary' : 'ghost'}`}
-                      onClick={() => onSelect(option)}
-                    >
-                      {format(option)}
-                    </button>
-                  ))}
-                </div>
+              <div key={label} className="mint-ai-chip-group">
+                <span>{label}</span>
+                {options.map(option => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={selected === option ? 'active' : ''}
+                    onClick={() => onSelect(option)}
+                  >
+                    {format(option)}
+                  </button>
+                ))}
               </div>
             ))}
           </div>
         )}
 
-        {/* Prompt */}
-        <div className="field">
-          <label className="field-label">
-            {currentTool?.label}
-          </label>
+        <div className="mint-ai-composer">
+          <button
+            type="button"
+            className="mint-ai-round-button"
+            aria-label="Open AI tools"
+            onClick={() => {
+              setShowToolMenu(value => !value)
+              setShowModelMenu(false)
+            }}
+          >
+            <Icon name={showToolMenu ? 'x' : 'plus'} size={22} />
+          </button>
 
           <textarea
-            className="textarea"
-            rows={isMobile ? 10 : 6}
+            className="mint-ai-input"
+            rows={1}
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
-            placeholder="Describe your content..."
+            placeholder={`Ask Mint AI to ${currentTool?.label?.toLowerCase() || 'help'}...`}
+            onFocus={() => setShowToolMenu(false)}
           />
-        </div>
 
-        {/* Generate */}
-        <button
-          className="btn primary block lg"
-          onClick={() => generateMutation.mutate()}
-          disabled={
-            generateMutation.isPending ||
-            !selectedModel ||
-            !selectedModel.supported_tools?.includes(activeTool) ||
-            (activeTool === 'video' && !selectedModel.video_capabilities) ||
-            !prompt.trim() ||
-            pollingId
-          }
-        >
-          <Icon name="sparkles" />
-          Generate
-        </button>
-
-        {/* Result */}
-        {result && (
-          <div
-            className="card"
-            style={{ padding: 20 }}
+          <button
+            type="button"
+            className="mint-ai-model-pill"
+            onClick={() => {
+              setShowModelMenu(value => !value)
+              setShowToolMenu(false)
+            }}
           >
-            <div
-              className="h-eyebrow"
-              style={{ marginBottom: 14 }}
-            >
-              Result
-            </div>
+            <span>{modelShortName(selectedModel)}</span>
+            <Icon name="chevronDown" size={16} />
+          </button>
 
-            <GenerationResult
-              generation={result}
-              onCopy={() =>
-                pushToast({
-                  title: 'Copied to clipboard',
-                  icon: 'copy'
-                })
-              }
-            />
-          </div>
-        )}
-      </div>
+          <button type="button" className="mint-ai-round-button muted" aria-label="Voice input coming soon">
+            <Icon name="microphone" size={20} />
+          </button>
 
-      {/* Right */}
-      <div>
-
-        <div
-          className="card"
-          style={{ padding: 16 }}
-        >
-          <div
-            className="h-eyebrow"
-            style={{ marginBottom: 12 }}
-          >
-            Recent generations
-          </div>
-
-          <div className="stack" style={{ gap: 8 }}>
-            {history.map(gen => (
-              <button
-                key={gen.id}
-                onClick={() => setResult(gen)}
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '10px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--hairline)',
-                  background: 'var(--paper-tint)',
-                  cursor: 'pointer'
-                }}
-              >
-                <div
-                  style={{
-                    fontWeight: 500,
-                    textTransform: 'capitalize'
-                  }}
-                >
-                  {gen.tool_type?.replace('_', ' ')}
-                </div>
-
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: 'var(--ink-500)',
-                    marginTop: 4
-                  }}
-                >
-                  {gen.prompt?.slice(0, 50)}...
-                </div>
-              </button>
-            ))}
-          </div>
+          <button type="submit" className="mint-ai-send-button" disabled={!canGenerate} aria-label="Generate">
+            <Icon name={pollingId ? 'sparkles' : 'send'} size={18} />
+          </button>
         </div>
-
-      </div>
-
+      </form>
     </div>
-  </div>
-)
+  )
 }
