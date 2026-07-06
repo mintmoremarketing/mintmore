@@ -98,6 +98,7 @@ app.use(requestLogger);
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.get('/', (_req, res) => res.status(200).json({ service: 'mint-more-api', status: 'ok' }));
 app.head('/', (_req, res) => res.sendStatus(200));
+app.use('/health', healthRouter);
 app.use(`/api/${env.apiVersion}/health`,        healthRouter);
 app.use(`/api/${env.apiVersion}`, globalRateLimiter);
 

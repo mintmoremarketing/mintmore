@@ -28,4 +28,11 @@ const startOutboxWorker = async () => {
   return worker;
 };
 
-module.exports = { startOutboxWorker };
+const closeOutboxWorker = async () => {
+  if (!worker) return;
+  const activeWorker = worker;
+  worker = null;
+  await activeWorker.close();
+};
+
+module.exports = { startOutboxWorker, closeOutboxWorker };

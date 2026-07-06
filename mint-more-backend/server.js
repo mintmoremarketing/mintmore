@@ -3,15 +3,20 @@ require('dotenv').config();
 const app = require('./src/app');
 const env = require('./src/config/env');
 const logger = require('./src/utils/logger');
-const { connectDB } = require('./src/config/database');
-const { connectRedis } = require('./src/config/redis');
-const { initSSESubscriber } = require('./src/middleware/sse');
-const { startPublishWorker } = require('./src/modules/social/queue/publish.worker');
-const { startAIWorker } = require('./src/modules/ai/queue/ai.worker');
-const { startFulfillmentWorker } = require('./src/modules/fulfillment/queue/fulfillment.worker');
-const { startOutboxWorker } = require('./src/modules/events/queue/outbox.worker');
+const { connectDB, pool } = require('./src/config/database');
+const { connectRedis, closeRedis } = require('./src/config/redis');
+const { initSSESubscriber, closeSSESubscriber } = require('./src/middleware/sse');
+const { startPublishWorker, closePublishWorker } = require('./src/modules/social/queue/publish.worker');
+const { startAIWorker, closeAIWorker } = require('./src/modules/ai/queue/ai.worker');
+const { startFulfillmentWorker, closeFulfillmentWorker } = require('./src/modules/fulfillment/queue/fulfillment.worker');
+const { startOutboxWorker, closeOutboxWorker } = require('./src/modules/events/queue/outbox.worker');
+const { closePublishQueue } = require('./src/modules/social/queue/publish.queue');
+const { closeAIQueue } = require('./src/modules/ai/queue/ai.queue');
+const { closeFulfillmentQueue } = require('./src/modules/fulfillment/queue/fulfillment.queue');
+const { closeOutboxQueue } = require('./src/modules/events/queue/outbox.queue');
 
 let server;
+let shuttingDown = false;
 
 /**
  * Boot sequence:
@@ -59,7 +64,7 @@ const bootstrap = async () => {
 };
 
 // ── Graceful shutdown ─────────────────────────────────
-const shutdown = (signal) => {
+const _legacyShutdown = (signal) => {
   logger.warn(`${signal} received — shutting down gracefully`);
   if (server) {
     server.close(() => {
@@ -76,13 +81,59 @@ const shutdown = (signal) => {
   }
 };
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+const closeHttpServer = () => new Promise((resolve, reject) => {
+  if (!server) return resolve();
+  server.close((err) => (err ? reject(err) : resolve()));
+});
+
+const safeClose = async (label, closeFn) => {
+  try {
+    await closeFn();
+    logger.info(`${label} closed`);
+  } catch (err) {
+    logger.error(`${label} close failed`, { error: err.message });
+  }
+};
+
+const gracefulShutdown = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.warn(`${signal} received - shutting down gracefully`);
+
+  const forceTimer = setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 30000);
+  forceTimer.unref();
+
+  await safeClose('HTTP server', closeHttpServer);
+  await Promise.all([
+    safeClose('Social publish worker', closePublishWorker),
+    safeClose('AI worker', closeAIWorker),
+    safeClose('Fulfillment worker', closeFulfillmentWorker),
+    safeClose('Outbox worker', closeOutboxWorker),
+  ]);
+  await Promise.all([
+    safeClose('Social publish queue', closePublishQueue),
+    safeClose('AI queue', closeAIQueue),
+    safeClose('Fulfillment queue', closeFulfillmentQueue),
+    safeClose('Outbox queue', closeOutboxQueue),
+  ]);
+  await safeClose('SSE subscriber', closeSSESubscriber);
+  await safeClose('Redis', closeRedis);
+  await safeClose('PostgreSQL pool', () => pool.end());
+
+  clearTimeout(forceTimer);
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Catch unhandled promise rejections (never let them silently fail)
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled Promise Rejection', { reason });
-  shutdown('unhandledRejection');
+  gracefulShutdown('unhandledRejection');
 });
 
 bootstrap();

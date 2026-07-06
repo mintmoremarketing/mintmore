@@ -86,6 +86,16 @@ const reviewSubmission = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const getAdminDocumentUrl = async (req, res, next) => {
+  try {
+    const document = await kycService.getAdminDocumentUrl(
+      req.params.submissionId,
+      req.params.field
+    );
+    return sendSuccess(res, { data: { document } });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   submitBasic,
   submitIdentity,
@@ -93,4 +103,5 @@ module.exports = {
   getMyKycStatus,
   getPendingSubmissions,
   reviewSubmission,
+  getAdminDocumentUrl,
 };

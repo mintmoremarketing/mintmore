@@ -1,3 +1,21 @@
+-- MANUAL-ONLY TESTING GRANT.
+--
+-- Do not place this file in src/db/migrations.
+-- It grants every existing client account 30 days of active access and is
+-- intended only for controlled testing resets.
+--
+-- To run intentionally, execute this file manually after setting:
+--   SET app.confirm_test_access_grant = 'I_UNDERSTAND_THIS_GRANTS_TEST_ACCESS';
+--
+DO $$
+BEGIN
+  IF current_setting('app.confirm_test_access_grant', true) IS DISTINCT FROM
+     'I_UNDERSTAND_THIS_GRANTS_TEST_ACCESS' THEN
+    RAISE EXCEPTION
+      'Refusing to run manual test-access grant. Set app.confirm_test_access_grant explicitly to continue.';
+  END IF;
+END $$;
+
 -- One-time testing grant for every client account that exists when this runs.
 -- Idempotent: the metadata marker prevents repeated runs from extending access.
 INSERT INTO memberships (

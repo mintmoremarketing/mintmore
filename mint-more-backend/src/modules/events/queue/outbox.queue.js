@@ -28,5 +28,11 @@ const scheduleOutboxDispatcher = async () =>
     }
   );
 
-module.exports = { getOutboxQueue, scheduleOutboxDispatcher };
+const closeOutboxQueue = async () => {
+  if (!outboxQueue) return;
+  const queue = outboxQueue;
+  outboxQueue = null;
+  await queue.close();
+};
 
+module.exports = { getOutboxQueue, scheduleOutboxDispatcher, closeOutboxQueue };

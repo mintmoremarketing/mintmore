@@ -48,6 +48,17 @@ const hasUsableRazorpayCredentials = () => {
 const mockCheckout = process.env.PAYMENT_MOCK_CHECKOUT === 'true' ||
   (!isProd && !hasUsableRazorpayCredentials());
 
+if (isProd && process.env.PAYMENT_MOCK_CHECKOUT === 'true') {
+  console.error(
+    'FATAL: PAYMENT_MOCK_CHECKOUT=true is not allowed when NODE_ENV=production. ' +
+    'Disable mock checkout and configure real Razorpay credentials before starting the server.'
+  );
+  throw new Error(
+    'FATAL: PAYMENT_MOCK_CHECKOUT=true is not allowed when NODE_ENV=production. ' +
+    'Disable mock checkout and configure real Razorpay credentials before starting the server.'
+  );
+}
+
 const env = {
   node_env: nodeEnv,
   port: parseInt(process.env.PORT, 10) || 5000,
@@ -107,6 +118,7 @@ const env = {
       ? process.env.ALLOWED_FILE_TYPES.split(',')
       : ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
     mintboxMaxFileSizeMb: parseInt(process.env.MINTBOX_MAX_FILE_SIZE_MB, 10) || 2048,
+    mintboxBucketMaxFileSizeMb: parseInt(process.env.MINTBOX_BUCKET_MAX_FILE_SIZE_MB, 10) || 50,
     mintboxAllowedFileTypes: process.env.MINTBOX_ALLOWED_FILE_TYPES
       ? process.env.MINTBOX_ALLOWED_FILE_TYPES.split(',').map((type) => type.trim())
       : [

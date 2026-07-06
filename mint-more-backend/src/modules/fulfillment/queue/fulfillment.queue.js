@@ -30,4 +30,11 @@ const scheduleFulfillmentMonitor = async () => {
   );
 };
 
-module.exports = { getFulfillmentQueue, scheduleFulfillmentMonitor };
+const closeFulfillmentQueue = async () => {
+  if (!fulfillmentQueue) return;
+  const queue = fulfillmentQueue;
+  fulfillmentQueue = null;
+  await queue.close();
+};
+
+module.exports = { getFulfillmentQueue, scheduleFulfillmentMonitor, closeFulfillmentQueue };

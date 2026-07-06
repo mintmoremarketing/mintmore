@@ -41,10 +41,13 @@ const toSharedFile = (file) => ({
 });
 const safeName = (value) => String(value || 'file').replace(/[^\w.\- ]+/g, '').trim() || 'file';
 const MINTBOX_MAX_FILE_BYTES = env.upload.mintboxMaxFileSizeMb * 1024 * 1024;
+const MINTBOX_BUCKET_MAX_FILE_BYTES = env.upload.mintboxBucketMaxFileSizeMb * 1024 * 1024;
 
 const getUploadPolicy = () => ({
   max_file_size_bytes: MINTBOX_MAX_FILE_BYTES,
   max_file_size_mb: env.upload.mintboxMaxFileSizeMb,
+  storage_bucket_max_file_size_bytes: MINTBOX_BUCKET_MAX_FILE_BYTES,
+  storage_bucket_max_file_size_mb: env.upload.mintboxBucketMaxFileSizeMb,
   allowed_file_types: env.upload.mintboxAllowedFileTypes,
   allowed_extensions: env.upload.mintboxAllowedExtensions,
   resumable: true,
@@ -102,6 +105,12 @@ const validateMintboxFile = ({ name, size, type }) => {
   const fileSize = Number(size);
   if (!name || !Number.isFinite(fileSize) || fileSize <= 0) {
     throw new AppError('name and size are required', 400);
+  }
+  if (fileSize > MINTBOX_BUCKET_MAX_FILE_BYTES) {
+    throw new AppError(
+      `File too large, max ${env.upload.mintboxBucketMaxFileSizeMb}MB. The mintbox-files storage bucket limit must be raised before larger files can be uploaded.`,
+      413
+    );
   }
   if (fileSize > MINTBOX_MAX_FILE_BYTES) {
     throw new AppError(`File is too large. Maximum size is ${env.upload.mintboxMaxFileSizeMb}MB`, 413);

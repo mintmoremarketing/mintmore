@@ -49,4 +49,11 @@ const startAIWorker = () => {
   return aiWorker;
 };
 
-module.exports = { startAIWorker };
+const closeAIWorker = async () => {
+  if (!aiWorker) return;
+  const activeWorker = aiWorker;
+  aiWorker = null;
+  await activeWorker.close();
+};
+
+module.exports = { startAIWorker, closeAIWorker };

@@ -14,6 +14,7 @@ const supabase = createClient(env.supabase.url, env.supabase.serviceKey, {
   auth: { persistSession: false },
 });
 const bucketChecks = new Map();
+const PRIVATE_BUCKETS = new Set(['kyc-docs', 'mintbox-files']);
 
 const isMissingBucketError = (error) => {
   const status = Number(error?.statusCode || error?.status);
@@ -24,7 +25,12 @@ const ensureStorageBucket = async (bucket, options = {}) => {
   if (!bucketChecks.has(bucket)) {
     const check = (async () => {
       const { data, error } = await supabase.storage.getBucket(bucket);
-      if (data && !error) return data;
+      if (data && !error) {
+        if (bucket === 'kyc-docs' && data.public) {
+          throw new Error('The kyc-docs bucket is public. Set it to private before accepting KYC uploads.');
+        }
+        return data;
+      }
 
       if (error && !isMissingBucketError(error)) {
         logger.error('Supabase bucket lookup failed', {
@@ -36,6 +42,10 @@ const ensureStorageBucket = async (bucket, options = {}) => {
           `Storage bucket lookup failed: ${error.message}. ` +
           'Check that SUPABASE_URL is the project API URL and SUPABASE_SERVICE_KEY belongs to the same project.'
         );
+      }
+
+      if (bucket === 'kyc-docs') {
+        throw new Error('The kyc-docs bucket is missing. Create it explicitly as private before accepting KYC uploads.');
       }
 
       const { data: created, error: createError } = await supabase.storage.createBucket(bucket, {
@@ -91,10 +101,10 @@ const uploadBucketOptions = (bucket) => {
  * @param {string} filePath   - Path inside bucket (e.g. 'user-id/front.jpg')
  * @param {Buffer} buffer     - File buffer from multer memoryStorage
  * @param {string} mimeType   - MIME type of the file
- * @returns {string}          - Public URL of the uploaded file
+ * @returns {string|object}   - Public URL for public buckets, or { bucket, path } for private buckets
  */
 const uploadFile = async (bucket, filePath, buffer, mimeType) => {
-  await ensureStorageBucket(bucket, uploadBucketOptions(bucket));
+  const bucketInfo = await ensureStorageBucket(bucket, uploadBucketOptions(bucket));
 
   const { data, error } = await supabase.storage
     .from(bucket)
@@ -108,11 +118,13 @@ const uploadFile = async (bucket, filePath, buffer, mimeType) => {
     throw new Error(`File upload failed: ${error.message}`);
   }
 
-  // Get the public URL
+  if (PRIVATE_BUCKETS.has(bucket) || !bucketInfo?.public) {
+    return { bucket, path: filePath };
+  }
+
   const { data: urlData } = supabase.storage
     .from(bucket)
     .getPublicUrl(filePath);
-
   return urlData.publicUrl;
 };
 

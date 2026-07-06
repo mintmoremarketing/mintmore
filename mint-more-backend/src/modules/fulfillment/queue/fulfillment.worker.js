@@ -28,4 +28,11 @@ const startFulfillmentWorker = async () => {
   return worker;
 };
 
-module.exports = { startFulfillmentWorker };
+const closeFulfillmentWorker = async () => {
+  if (!worker) return;
+  const activeWorker = worker;
+  worker = null;
+  await activeWorker.close();
+};
+
+module.exports = { startFulfillmentWorker, closeFulfillmentWorker };

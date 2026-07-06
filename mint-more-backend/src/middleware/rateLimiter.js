@@ -21,4 +21,38 @@ const globalRateLimiter = rateLimit({
   },
 });
 
-module.exports = { globalRateLimiter };
+const createSensitiveEndpointLimiter = ({ max, message }) => rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max,
+  skip: (req) => req.method === 'OPTIONS',
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    return sendError(res, {
+      statusCode: 429,
+      message,
+    });
+  },
+});
+
+const authLoginLimiter = createSensitiveEndpointLimiter({
+  max: 10,
+  message: 'Too many login attempts. Please wait and try again.',
+});
+
+const paymentCheckoutLimiter = createSensitiveEndpointLimiter({
+  max: 20,
+  message: 'Too many checkout attempts. Please wait and try again.',
+});
+
+const paymentVerifyLimiter = createSensitiveEndpointLimiter({
+  max: 30,
+  message: 'Too many payment verification attempts. Please wait and try again.',
+});
+
+module.exports = {
+  globalRateLimiter,
+  authLoginLimiter,
+  paymentCheckoutLimiter,
+  paymentVerifyLimiter,
+};

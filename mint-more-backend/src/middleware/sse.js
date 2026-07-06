@@ -142,6 +142,22 @@ const initSSESubscriber = () => {
 
 };
 
+const closeSSESubscriber = async () => {
+  activeConnections.forEach((connections) => {
+    connections.forEach((res) => {
+      try {
+        res.end();
+      } catch {}
+    });
+  });
+  activeConnections.clear();
+
+  if (!redisSubscriber) return;
+  const subscriber = redisSubscriber;
+  redisSubscriber = null;
+  await subscriber.quit();
+};
+
 /**
  * Express middleware for SSE stream endpoint.
  * Authenticates via Bearer token in Authorization header or ?token= query param.
@@ -220,4 +236,4 @@ const sseHandler = async (req, res) => {
   });
 };
 
-module.exports = { sseHandler, initSSESubscriber };
+module.exports = { sseHandler, initSSESubscriber, closeSSESubscriber };

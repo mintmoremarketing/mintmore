@@ -41,4 +41,11 @@ const startPublishWorker = () => {
   return worker;
 };
 
-module.exports = { startPublishWorker };
+const closePublishWorker = async () => {
+  if (!worker) return;
+  const activeWorker = worker;
+  worker = null;
+  await activeWorker.close();
+};
+
+module.exports = { startPublishWorker, closePublishWorker };

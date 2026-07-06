@@ -24,4 +24,11 @@ const enqueueGeneration = async (generationId) => {
   return job.id;
 };
 
-module.exports = { getAIQueue, enqueueGeneration };
+const closeAIQueue = async () => {
+  if (!aiQueue) return;
+  const queue = aiQueue;
+  aiQueue = null;
+  await queue.close();
+};
+
+module.exports = { getAIQueue, enqueueGeneration, closeAIQueue };

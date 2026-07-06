@@ -3,6 +3,7 @@ const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { hashPassword } = require('../../utils/hash');
 const { writeAudit } = require('../audit/audit.service');
+const { sanitizeSubmissions } = require('../kyc/kyc.service');
 
 // ── User Management ───────────────────────────────────────────────────────────
 
@@ -115,7 +116,7 @@ const getUserById = async (userId) => {
     user: result.rows[0],
     wallet: walletResult.rows[0] || null,
     mint_credit_account: creditsResult.rows[0] || null,
-    kyc_submissions: kycResult.rows,
+    kyc_submissions: sanitizeSubmissions(kycResult.rows),
     portfolio_items: portfolioResult.rows,
   };
 };

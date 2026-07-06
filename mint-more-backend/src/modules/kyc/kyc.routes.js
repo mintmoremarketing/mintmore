@@ -53,4 +53,11 @@ router.patch(
   controller.reviewSubmission
 );
 
+router.get(
+  '/admin/submissions/:submissionId/documents/:field',
+  authorize('admin'),
+  requirePermission('users.manage'),
+  controller.getAdminDocumentUrl
+);
+
 module.exports = router;

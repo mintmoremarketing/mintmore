@@ -1,5 +1,5 @@
 const { query, getClient } = require('../../config/database');
-const { uploadFile } = require('../../config/supabase');
+const { uploadFile, createSignedDownloadUrl } = require('../../config/supabase');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { v4: uuidv4 } = require('uuid');
@@ -20,6 +20,46 @@ const KYC_STATUS_MAP = {
   identity: 'pending',
   address:  'pending',
 };
+
+const KYC_DOCUMENT_FIELDS = new Set([
+  'document_front_url',
+  'document_back_url',
+  'selfie_url',
+  'address_proof_url',
+]);
+
+const serializePrivateFileRef = (ref) => {
+  if (!ref?.bucket || !ref?.path) {
+    throw new AppError('KYC document storage failed', 500);
+  }
+  return JSON.stringify({ bucket: ref.bucket, path: ref.path });
+};
+
+const parsePrivateFileRef = (value) => {
+  if (!value) return null;
+  if (typeof value === 'object' && value.bucket && value.path) return value;
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed?.bucket && parsed?.path) return parsed;
+  } catch (_) {
+    return null;
+  }
+  return null;
+};
+
+const publicKycUrlPattern = /\/storage\/v1\/object\/(?:public|sign)\/kyc-docs\//i;
+
+const sanitizeSubmissionDocuments = (submission) => {
+  if (!submission) return submission;
+  const copy = { ...submission };
+  for (const field of KYC_DOCUMENT_FIELDS) {
+    copy[field] = Boolean(parsePrivateFileRef(copy[field]));
+    copy[`${field.replace(/_url$/, '')}_available`] = copy[field];
+  }
+  return copy;
+};
+
+const sanitizeSubmissions = (submissions) => submissions.map(sanitizeSubmissionDocuments);
 
 /**
  * Submit Basic KYC — personal info only, no documents.
@@ -98,7 +138,8 @@ const submitIdentityKyc = async (userId, data, files) => {
   const uploadDoc = async (file, name) => {
     const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
     const filePath = `${userId}/${name}-${uuidv4()}${ext}`;
-    return uploadFile('kyc-docs', filePath, file.buffer, file.mimetype);
+    const ref = await uploadFile('kyc-docs', filePath, file.buffer, file.mimetype);
+    return serializePrivateFileRef(ref);
   };
 
   if (!files.document_front?.[0]) {
@@ -195,7 +236,7 @@ const submitAddressKyc = async (userId, data, files) => {
       data.state,
       data.pincode,
       data.country || 'India',
-      address_proof_url,
+      serializePrivateFileRef(address_proof_url),
     ]
   );
 
@@ -227,7 +268,7 @@ const getMyKycStatus = async (userId) => {
     role: userResult.rows[0]?.role,
     overall_status: userResult.rows[0]?.kyc_status,
     current_level:  userResult.rows[0]?.kyc_level,
-    submissions:    submissions.rows,
+    submissions:    sanitizeSubmissions(submissions.rows),
     portfolio_count: Number(portfolioResult.rows[0]?.count || 0),
     required_portfolio_count: userResult.rows[0]?.role === 'freelancer' ? 3 : 0,
   };
@@ -268,7 +309,7 @@ const getPendingSubmissions = async ({ page = 1, limit = 20, level } = {}) => {
   );
 
   return {
-    submissions: result.rows,
+    submissions: sanitizeSubmissions(result.rows),
     pagination: {
       page,
       limit,
@@ -381,6 +422,59 @@ const reviewSubmission = async (submissionId, adminId, { status, admin_note }) =
   }
 };
 
+const getAdminDocumentUrl = async (submissionId, field) => {
+  if (!KYC_DOCUMENT_FIELDS.has(field)) {
+    throw new AppError('Invalid KYC document field', 400);
+  }
+
+  const result = await query(
+    `SELECT id, ${field}
+     FROM kyc_submissions
+     WHERE id = $1`,
+    [submissionId]
+  );
+  const submission = result.rows[0];
+  if (!submission) throw new AppError('KYC submission not found', 404);
+
+  const ref = parsePrivateFileRef(submission[field]);
+  if (!ref) {
+    throw new AppError('KYC document is unavailable or needs migration', 404);
+  }
+  if (ref.bucket !== 'kyc-docs') {
+    throw new AppError('Invalid KYC document storage bucket', 409);
+  }
+
+  const signed_url = await createSignedDownloadUrl(ref.bucket, ref.path, 120);
+  if (!signed_url) throw new AppError('KYC document is temporarily unavailable', 503);
+
+  return {
+    submission_id: submission.id,
+    field,
+    expires_in_seconds: 120,
+    signed_url,
+  };
+};
+
+const findPublicKycDocumentReferences = async () => {
+  const result = await query(
+    `SELECT id, user_id, level,
+            document_front_url, document_back_url, selfie_url, address_proof_url
+     FROM kyc_submissions
+     WHERE document_front_url ILIKE '%/storage/v1/object/%kyc-docs/%'
+        OR document_back_url ILIKE '%/storage/v1/object/%kyc-docs/%'
+        OR selfie_url ILIKE '%/storage/v1/object/%kyc-docs/%'
+        OR address_proof_url ILIKE '%/storage/v1/object/%kyc-docs/%'
+     ORDER BY created_at DESC`
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    user_id: row.user_id,
+    level: row.level,
+    exposed_fields: [...KYC_DOCUMENT_FIELDS].filter((field) => publicKycUrlPattern.test(row[field] || '')),
+  }));
+};
+
 module.exports = {
   submitBasicKyc,
   submitIdentityKyc,
@@ -388,4 +482,7 @@ module.exports = {
   getMyKycStatus,
   getPendingSubmissions,
   reviewSubmission,
+  getAdminDocumentUrl,
+  findPublicKycDocumentReferences,
+  sanitizeSubmissions,
 };

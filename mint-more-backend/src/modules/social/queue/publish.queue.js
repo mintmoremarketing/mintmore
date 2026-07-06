@@ -56,4 +56,11 @@ const cancelScheduledPost = async (queueJobId) => {
   }
 };
 
-module.exports = { getPublishQueue, schedulePost, cancelScheduledPost };
+const closePublishQueue = async () => {
+  if (!publishQueue) return;
+  const queue = publishQueue;
+  publishQueue = null;
+  await queue.close();
+};
+
+module.exports = { getPublishQueue, schedulePost, cancelScheduledPost, closePublishQueue };

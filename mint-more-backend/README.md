@@ -124,7 +124,9 @@ MAX_FILE_SIZE_MB=5
 ALLOWED_FILE_TYPES=image/jpeg,image/png,image/webp,application/pdf
 
 # ── RAZORPAY ─────────────────────────────────────────
-PAYMENT_MOCK_CHECKOUT=true
+# WARNING: never set PAYMENT_MOCK_CHECKOUT=true in production.
+# Production startup refuses to run with mock checkout enabled.
+PAYMENT_MOCK_CHECKOUT=false
 RAZORPAY_KEY_ID=rzp_test_your_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret
 RAZORPAY_WEBHOOK_SECRET=your_webhook_secret

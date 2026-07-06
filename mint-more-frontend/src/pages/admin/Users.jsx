@@ -419,6 +419,22 @@ function UserDetailModal({ userId, onClose }) {
     },
   })
 
+  const openKycDocument = async (submissionId, field) => {
+    try {
+      const response = await api.get(`/kyc/admin/submissions/${submissionId}/documents/${field}`)
+      const signedUrl = response.data?.data?.document?.signed_url
+      if (!signedUrl) throw new Error('No signed document URL returned')
+      window.open(signedUrl, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      pushToast({
+        title: 'Document unavailable',
+        body: err.response?.data?.message || err.message || 'Try again',
+        tone: 'amber',
+        icon: 'x',
+      })
+    }
+  }
+
   if (isLoading) return (
     <Modal title="User detail" onClose={onClose}>
       <div style={{ padding: 20 }}><SkeletonCard /></div>
@@ -524,10 +540,10 @@ function UserDetailModal({ userId, onClose }) {
                     </span>
                   </div>
                   <div className="row" style={{ gap: 7, flexWrap: 'wrap', marginBottom: 9 }}>
-                    {k.document_front_url && <a className="btn ghost sm" href={k.document_front_url} target="_blank" rel="noreferrer"><Icon name="file" /> Document front</a>}
-                    {k.document_back_url && <a className="btn ghost sm" href={k.document_back_url} target="_blank" rel="noreferrer"><Icon name="file" /> Document back</a>}
-                    {k.selfie_url && <a className="btn ghost sm" href={k.selfie_url} target="_blank" rel="noreferrer"><Icon name="image" /> Selfie</a>}
-                    {k.address_proof_url && <a className="btn ghost sm" href={k.address_proof_url} target="_blank" rel="noreferrer"><Icon name="file" /> Address proof</a>}
+                    {k.document_front_url && <button type="button" className="btn ghost sm" onClick={() => openKycDocument(k.id, 'document_front_url')}><Icon name="file" /> Document front</button>}
+                    {k.document_back_url && <button type="button" className="btn ghost sm" onClick={() => openKycDocument(k.id, 'document_back_url')}><Icon name="file" /> Document back</button>}
+                    {k.selfie_url && <button type="button" className="btn ghost sm" onClick={() => openKycDocument(k.id, 'selfie_url')}><Icon name="image" /> Selfie</button>}
+                    {k.address_proof_url && <button type="button" className="btn ghost sm" onClick={() => openKycDocument(k.id, 'address_proof_url')}><Icon name="file" /> Address proof</button>}
                   </div>
                   {k.status === 'pending' && k.level === 'address' && (
                     <div className="stack" style={{ gap: 8 }}>
