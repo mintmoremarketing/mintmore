@@ -1,3 +1,4 @@
+const { randomUUID }         = require('crypto');
 const { query, getClient }   = require('../../config/database');
 const { getRedis }           = require('../../config/redis');
 const { enqueueGeneration }  = require('./queue/ai.queue');
@@ -15,7 +16,7 @@ const {
   getOpenRouterVideoModel,
   normalizeVideoParameters,
 } = require('./providers/openrouter.provider');
-const { uploadFile }         = require('../storage/app-storage.provider');
+const { uploadFile, getBucket, createSignedDownloadUrl } = require('../storage/app-storage.provider');
 const AppError  = require('../../utils/AppError');
 const logger    = require('../../utils/logger');
 const env       = require('../../config/env');
@@ -30,6 +31,42 @@ const { getWalletByUserId, recordTransaction } = require('../wallet/wallet.servi
 const RATE_LIMIT_KEY      = (userId) => `ai:ratelimit:${userId}`;
 const AI_PROGRESS_CHANNEL = 'mint_more:ai_progress';
 const userPrice = (model) => Number(model?.user_price_per_1k_tokens ?? model?.cost_per_1k_tokens ?? 0);
+const IMAGE_REFERENCE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const IMAGE_REFERENCE_MAX_BYTES = 5 * 1024 * 1024;
+const RESOLUTION_MULTIPLIERS = { '1K': 1, '2K': 4, '4K': 16 };
+
+const parseJsonObject = (value) => {
+  if (!value) return {};
+  if (typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try { return JSON.parse(value); } catch (_) { return {}; }
+  }
+  return {};
+};
+
+const isUnlimitedForResolution = (model, resolutionTier = '1K') => {
+  const tiers = parseJsonObject(model?.is_unlimited_tier);
+  return Boolean(tiers[resolutionTier]);
+};
+
+const modelResolutionCost = (model, resolutionTier = '1K') => {
+  if (isUnlimitedForResolution(model, resolutionTier)) return 0;
+  const multiplier = RESOLUTION_MULTIPLIERS[resolutionTier] || 1;
+  return Math.max(0, Math.ceil(userPrice(model) * multiplier));
+};
+
+const modelCostSummary = (model) => {
+  const tiers = ['1K', '2K', '4K'].map((tier) => ({
+    tier,
+    unlimited: isUnlimitedForResolution(model, tier),
+    cost: modelResolutionCost(model, tier),
+  }));
+  const paid = tiers.filter((tier) => !tier.unlimited).map((tier) => tier.cost);
+  return {
+    tiers,
+    label: paid.length === 0 ? '∞' : paid.length === 1 ? `${paid[0]}` : `${Math.min(...paid)} - ${Math.max(...paid)}`,
+  };
+};
 
 const requireNonEmptyTextResult = (result, openrouterId) => {
   const text = typeof result?.text === 'string' ? result.text.trim() : '';
@@ -257,11 +294,17 @@ const createGeneration = async (userId, {
     normalizedParameters = normalizeVideoParameters(capabilities, parameters);
   }
 
-  await assertIncludedQuota(userId, tool_type, model);
+  const engineCost = Number(normalizedParameters._engine_credit_cost || 0);
+  const engineUnlimited = normalizedParameters._engine_unlimited === true;
+
+  if (!engineUnlimited && engineCost <= 0) {
+    await assertIncludedQuota(userId, tool_type, model);
+  }
   await checkRateLimit(userId);
 
   // Credit preflight check
-  if (userPrice(model) > 0) {
+  const preflightCost = engineCost > 0 ? engineCost : userPrice(model);
+  if (!engineUnlimited && preflightCost > 0) {
     await expireCreditsForUser(userId);
     const walletResult = await query(
       `SELECT w.balance AS cash_balance, COALESCE(c.balance, 0) AS credit_balance
@@ -270,7 +313,7 @@ const createGeneration = async (userId, {
        WHERE w.user_id = $1`,
       [userId]
     );
-    const minRequired = userPrice(model);
+    const minRequired = preflightCost;
     const available = Number(walletResult.rows[0]?.cash_balance || 0) + Number(walletResult.rows[0]?.credit_balance || 0);
     if (available < minRequired) {
       throw new AppError(
@@ -285,8 +328,11 @@ const createGeneration = async (userId, {
   const result = await query(
     `INSERT INTO ai_generations
        (user_id, ai_model_id, tool_type, openrouter_id, model_name,
-        prompt, parameters, status, source_post_id, source_job_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,'queued',$8,$9)
+        prompt, parameters, status, source_post_id, source_job_id,
+        raw_prompt, enhanced_prompt, seed, aspect_ratio, resolution_tier,
+        style_preset_id, reference_asset_ids, thinking_level, google_search_enabled,
+        batch_count, engine_metadata)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'queued',$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
      RETURNING *`,
     [
       userId, model.id, tool_type,
@@ -295,10 +341,28 @@ const createGeneration = async (userId, {
       JSON.stringify({ ...normalizedParameters, _system: promptData.system }),
       source_post_id || null,
       source_job_id  || null,
+      normalizedParameters._raw_prompt || null,
+      normalizedParameters._enhanced_prompt || null,
+      normalizedParameters.seed || null,
+      normalizedParameters.aspect_ratio || null,
+      normalizedParameters.resolution_tier || null,
+      normalizedParameters.style_preset_id || null,
+      normalizedParameters.reference_asset_ids || [],
+      normalizedParameters.thinking_level || null,
+      Boolean(normalizedParameters.google_search_enabled),
+      normalizedParameters.batch_count || 1,
+      JSON.stringify(normalizedParameters.engine_metadata || {}),
     ]
   );
 
   const generation  = result.rows[0];
+  if (engineCost > 0 && normalizedParameters._engine_deduct_before_enqueue) {
+    await deductCredits(userId, generation.id, engineCost);
+    await query(
+      'UPDATE ai_generations SET credits_used = $1 WHERE id = $2',
+      [engineCost, generation.id]
+    );
+  }
   let queueJobId;
   try {
     queueJobId = await enqueueGeneration(generation.id);
@@ -378,7 +442,28 @@ const processGeneration = async (generationId) => {
     if (isImage) {
       // ── Image generation ────────────────────────────────────────────────────
       try {
-        result = await generateImage(openrouterId, generation.prompt, params);
+        const referenceUrls = [];
+        const references = Array.isArray(params.engine_metadata?.references)
+          ? params.engine_metadata.references
+          : [];
+        for (const reference of references) {
+          if (!reference?.bucket || !reference?.path) continue;
+          try {
+            const signed = await createSignedDownloadUrl(reference.bucket, reference.path, 900);
+            if (signed) referenceUrls.push(signed);
+          } catch (err) {
+            logger.warn('AI reference signing failed', {
+              generationId,
+              referenceId: reference.id,
+              error: err.message,
+            });
+          }
+        }
+
+        result = await generateImage(openrouterId, generation.prompt, {
+          ...params,
+          reference_urls: referenceUrls,
+        });
       } catch (err) {
         // Failover to free text model for image prompts is not applicable
         // Re-throw so admin knows
@@ -391,8 +476,13 @@ const processGeneration = async (generationId) => {
       const filePath  = `ai-generated/${generation.user_id}/${generationId}.webp`;
       const storedUrl = await uploadFile('job-attachments', filePath, buffer, 'image/webp');
 
-      const creditCost = userPrice(model);
-      if (creditCost > 0) await deductCredits(generation.user_id, generationId, creditCost);
+      const prepaidEngineCost = params._engine_deduct_before_enqueue
+        ? Number(params._engine_credit_cost || 0)
+        : 0;
+      const creditCost = prepaidEngineCost > 0 ? prepaidEngineCost : userPrice(model);
+      if (!prepaidEngineCost && creditCost > 0) {
+        await deductCredits(generation.user_id, generationId, creditCost);
+      }
 
       await query(
         `UPDATE ai_generations
@@ -400,9 +490,23 @@ const processGeneration = async (generationId) => {
              result_url   = $1,
              credits_used = $2,
              duration_ms  = $3,
-             completed_at = NOW()
-         WHERE id = $4`,
-        [storedUrl, creditCost, result.duration_ms, generationId]
+             completed_at = NOW(),
+             result_metadata = $4
+         WHERE id = $5`,
+        [
+          storedUrl,
+          creditCost,
+          result.duration_ms,
+          JSON.stringify({
+            seed: params.seed || null,
+            aspect_ratio: params.aspect_ratio || null,
+            resolution_tier: params.resolution_tier || null,
+            style_preset_id: params.style_preset_id || null,
+            reference_asset_ids: params.reference_asset_ids || [],
+            enhanced_prompt: params._enhanced_prompt || null,
+          }),
+          generationId,
+        ]
       );
     } else if (isVideo) {
       // ── Video generation ────────────────────────────────────────────────────
@@ -590,6 +694,206 @@ const processGeneration = async (generationId) => {
 
 // ── Read Methods ──────────────────────────────────────────────────────────────
 
+const getEngineModels = async (userId, { tool_type = 'image' } = {}) => {
+  const models = (await getAllModels()).filter((model) => model.supported_tools?.includes(tool_type));
+  const creditAccount = await getCreditAccount(userId).catch(() => null);
+  return {
+    balance: Number(creditAccount?.balance || 0),
+    models: models.map((model) => ({
+      ...model,
+      cost_summary: modelCostSummary(model),
+    })),
+  };
+};
+
+const getStylePresets = async () => {
+  const result = await query(
+    `SELECT id, name, thumbnail_url
+     FROM ai_style_presets
+     WHERE is_active = true
+     ORDER BY sort_order ASC, name ASC`
+  );
+  return result.rows;
+};
+
+const uploadReferenceAsset = async (userId, { file, sessionId, projectId = null }) => {
+  if (!sessionId) throw new AppError('Reference session_id is required', 400);
+  if (!file) throw new AppError('Reference image is required', 400);
+  if (!IMAGE_REFERENCE_TYPES.has(file.mimetype)) {
+    throw new AppError('Reference image must be JPEG, PNG, or WebP', 415);
+  }
+  if (file.size > IMAGE_REFERENCE_MAX_BYTES) {
+    throw new AppError('Reference image too large. Max size: 5MB', 413);
+  }
+
+  const countResult = await query(
+    `SELECT COUNT(*)::int AS count
+     FROM ai_reference_assets
+     WHERE user_id = $1 AND session_id = $2`,
+    [userId, sessionId]
+  );
+  const currentCount = Number(countResult.rows[0]?.count || 0);
+  if (currentCount >= 4) {
+    throw new AppError('You can add up to 4 image references in this phase', 400);
+  }
+
+  const alias = `img${currentCount + 1}`;
+  const extension = file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+  const bucket = getBucket('mintbox');
+  const storagePath = `ai-references/${userId}/${sessionId}/${alias}-${randomUUID()}.${extension}`;
+  await uploadFile(bucket, storagePath, file.buffer, file.mimetype);
+
+  const inserted = await query(
+    `INSERT INTO ai_reference_assets
+       (user_id, session_id, project_id, alias, storage_bucket, storage_path,
+        original_filename, mime_type, size_bytes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     RETURNING id, alias, original_filename, mime_type, size_bytes, created_at`,
+    [
+      userId,
+      sessionId,
+      projectId || null,
+      alias,
+      bucket,
+      storagePath,
+      file.originalname || `${alias}.${extension}`,
+      file.mimetype,
+      file.size,
+    ]
+  );
+
+  const asset = inserted.rows[0];
+  const preview_url = await createSignedDownloadUrl(bucket, storagePath, 900).catch(() => null);
+  return { ...asset, preview_url };
+};
+
+const resolveReferenceAssets = async (userId, sessionId, aliases = []) => {
+  const uniqueAliases = [...new Set((aliases || []).filter(Boolean))];
+  if (!uniqueAliases.length) return [];
+  const result = await query(
+    `SELECT id, alias, storage_bucket, storage_path, mime_type
+     FROM ai_reference_assets
+     WHERE user_id = $1 AND session_id = $2 AND alias = ANY($3::text[])
+     ORDER BY created_at ASC`,
+    [userId, sessionId, uniqueAliases]
+  );
+  return result.rows;
+};
+
+const enhancePrompt = async ({ rawPrompt, styleModifier }) => {
+  const freeModels = await getFreeModels('text');
+  const model = freeModels.find((item) => item.openrouter_id === 'openrouter/free') || freeModels[0];
+  if (!model) return rawPrompt;
+  const result = await generateText(
+    model.openrouter_id,
+    `Rewrite this image prompt into one production-quality prompt. Keep the user's intent. Do not add markdown. Do not exceed 110 words.\n\nPrompt: ${rawPrompt}${styleModifier ? `\n\nStyle direction: ${styleModifier}` : ''}`,
+    { temperature: 0.4, max_tokens: 220 },
+    'You improve image-generation prompts for Indian business creatives. Return only the final prompt.'
+  );
+  return requireNonEmptyTextResult(result, model.openrouter_id).text;
+};
+
+const createEngineImageGeneration = async (userId, payload = {}) => {
+  const {
+    model_id,
+    prompt,
+    session_id,
+    project_id,
+    reference_aliases = [],
+    style_preset_id,
+    ai_prompt = false,
+    fixed_seed = false,
+    seed,
+    batch_count = 1,
+    aspect_ratio = 'Auto',
+    resolution_tier = '1K',
+    thinking_level,
+    google_search_enabled = false,
+  } = payload;
+
+  const modelResult = await query(
+    'SELECT * FROM ai_models WHERE id = $1 AND is_active = true',
+    [model_id]
+  );
+  const model = modelResult.rows[0];
+  if (!model) throw new AppError('Image model not found or inactive', 404);
+  if (!model.supported_tools?.includes('image')) {
+    throw new AppError(`Model "${model.name}" does not support image generation`, 400);
+  }
+
+  const rawPrompt = String(prompt || '').trim();
+  if (!rawPrompt) throw new AppError('Prompt is required', 400);
+
+  const styleResult = style_preset_id
+    ? await query(
+      `SELECT id, prompt_modifier
+       FROM ai_style_presets
+       WHERE id = $1 AND is_active = true`,
+      [style_preset_id]
+    )
+    : { rows: [] };
+  const stylePreset = styleResult.rows[0] || null;
+
+  const references = await resolveReferenceAssets(userId, session_id, reference_aliases);
+  const styleModifier = stylePreset?.prompt_modifier || '';
+  const promptWithStyle = styleModifier ? `${rawPrompt}\n\nStyle direction: ${styleModifier}` : rawPrompt;
+  const enhancedPrompt = ai_prompt
+    ? await enhancePrompt({ rawPrompt, styleModifier })
+    : null;
+  const finalPrompt = enhancedPrompt || promptWithStyle;
+
+  const safeBatchCount = Math.max(1, Math.min(4, Number(batch_count || 1)));
+  const usedSeed = fixed_seed
+    ? Number(seed || 123456789)
+    : Math.floor(Math.random() * 2147483647);
+  const allowedThinkingLevel = model.supports_thinking_level ? (thinking_level || null) : null;
+  const allowedGoogleSearch = Boolean(model.supports_google_search && google_search_enabled);
+  const creditCost = modelResolutionCost(model, resolution_tier) * safeBatchCount;
+  const unlimited = isUnlimitedForResolution(model, resolution_tier);
+
+  const generation = await createGeneration(userId, {
+    tool_type: 'image',
+    model_id,
+    prompt: finalPrompt,
+    source_job_id: project_id || null,
+    parameters: {
+      aspect_ratio,
+      resolution_tier,
+      batch_count: safeBatchCount,
+      seed: usedSeed,
+      reference_asset_ids: references.map((item) => item.id),
+      reference_aliases: references.map((item) => item.alias),
+      style_preset_id: stylePreset?.id || null,
+      thinking_level: allowedThinkingLevel,
+      google_search_enabled: allowedGoogleSearch,
+      _raw_prompt: rawPrompt,
+      _enhanced_prompt: enhancedPrompt,
+      _engine_credit_cost: unlimited ? 0 : creditCost,
+      _engine_unlimited: unlimited,
+      _engine_deduct_before_enqueue: !unlimited && creditCost > 0,
+      engine_metadata: {
+        project_id: project_id || null,
+        references: references.map((item) => ({
+          id: item.id,
+          alias: item.alias,
+          bucket: item.storage_bucket,
+          path: item.storage_path,
+          mime_type: item.mime_type,
+        })),
+      },
+    },
+  });
+
+  return {
+    ...generation,
+    seed: usedSeed,
+    cost: unlimited ? 0 : creditCost,
+    unlimited,
+    raw_prompt: rawPrompt,
+    enhanced_prompt: enhancedPrompt,
+  };
+};
+
 const getGeneration = async (generationId, userId, role) => {
   const result = await query(
     'SELECT * FROM ai_generations WHERE id = $1',
@@ -667,6 +971,10 @@ module.exports = {
   AI_PROGRESS_CHANNEL,
   createGeneration,
   processGeneration,
+  getEngineModels,
+  getStylePresets,
+  uploadReferenceAsset,
+  createEngineImageGeneration,
   getGeneration,
   getMyGenerations,
   getUsageSummary,

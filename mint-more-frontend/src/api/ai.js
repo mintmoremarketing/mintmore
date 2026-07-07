@@ -5,9 +5,23 @@ export const aiApi = {
   getModels: () =>
     api.get('/ai/models'),
 
+  getEngineModels: (params) =>
+    api.get('/ai/engine/models', { params }),
+
+  getStylePresets: () =>
+    api.get('/ai/engine/styles'),
+
+  uploadReference: (formData) =>
+    api.post('/ai/engine/references', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+
   // Generate
   generate: (data) =>
     api.post('/ai/generate', data),
+
+  generateEngineImage: (data) =>
+    api.post('/ai/engine/image/generate', data),
 
   // History
   getGenerations: (params) =>

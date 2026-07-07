@@ -40,6 +40,7 @@ export default function AppShell() {
   } = useUIStore()
 
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const isMobile = useIsMobile()
   const role = isGuest ? 'client' : user?.role
   const { data: access } = useEntitlements()
@@ -87,9 +88,15 @@ export default function AppShell() {
   if (!isAuthed && !isGuest) return <Navigate to="/login" replace />
 
   return (
-    <div className={`app${isMobile ? ' mobile' : ''}`}>
+    <div className={`app${isMobile ? ' mobile' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
       {/* Desktop sidebar — hidden on mobile */}
-      {!isMobile && <Sidebar role={role} />}
+      {!isMobile && (
+        <Sidebar
+          role={role}
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+        />
+      )}
 
       {/* Main column */}
       <main>

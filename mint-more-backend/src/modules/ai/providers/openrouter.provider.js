@@ -112,7 +112,19 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
   const {
     width  = 1024,
     height = 1024,
+    aspect_ratio,
+    reference_urls = [],
   } = params;
+
+  const userContent = reference_urls.length > 0
+    ? [
+      { type: 'text', text: prompt },
+      ...reference_urls.map((url) => ({
+        type: 'image_url',
+        image_url: { url },
+      })),
+    ]
+    : prompt;
 
   const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
     method:  'POST',
@@ -124,9 +136,13 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
     },
     body: JSON.stringify({
       model: openrouterId,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: userContent }],
       modalities: ['image', 'text'],
-      image_config: { aspect_ratio: width === height ? '1:1' : `${width}:${height}` },
+      image_config: {
+        aspect_ratio: aspect_ratio && aspect_ratio !== 'Auto'
+          ? aspect_ratio
+          : width === height ? '1:1' : `${width}:${height}`,
+      },
     }),
   });
 

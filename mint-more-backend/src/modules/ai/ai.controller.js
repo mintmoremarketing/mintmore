@@ -97,6 +97,48 @@ const getUsageSummary = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const getEngineModels = async (req, res, next) => {
+  try {
+    const result = await aiService.getEngineModels(req.user.sub, {
+      tool_type: req.query.tool_type || 'image',
+    });
+    return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
+const getStylePresets = async (req, res, next) => {
+  try {
+    const styles = await aiService.getStylePresets();
+    return sendSuccess(res, { data: { styles } });
+  } catch (err) { next(err); }
+};
+
+const uploadReference = async (req, res, next) => {
+  try {
+    const asset = await aiService.uploadReferenceAsset(req.user.sub, {
+      file: req.file,
+      sessionId: req.body.session_id,
+      projectId: req.body.project_id || null,
+    });
+    return sendSuccess(res, {
+      data: { asset },
+      message: 'Reference uploaded',
+      statusCode: 201,
+    });
+  } catch (err) { next(err); }
+};
+
+const generateEngineImage = async (req, res, next) => {
+  try {
+    const result = await aiService.createEngineImageGeneration(req.user.sub, req.body);
+    return sendSuccess(res, {
+      data: result,
+      message: 'Image generation queued. Connect to the SSE stream for live progress.',
+      statusCode: 201,
+    });
+  } catch (err) { next(err); }
+};
+
 // ── Admin Controllers ─────────────────────────────────────────────────────────
 
 const adminGetAIStats = async (req, res, next) => {
@@ -163,6 +205,10 @@ module.exports = {
   getModels,
   getSingleModelTraffic,
   generate,
+  getEngineModels,
+  getStylePresets,
+  uploadReference,
+  generateEngineImage,
   getGeneration,
   getMyGenerations,
   getUsageSummary,

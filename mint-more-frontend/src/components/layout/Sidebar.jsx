@@ -7,11 +7,12 @@ import { useEntitlements } from '../../hooks/useEntitlements'
 import { filterNavItems, navForRole } from './navigation'
 import ProfilePopover from './ProfilePopover'
 
-export default function Sidebar({ role }) {
+export default function Sidebar({ role, collapsed = false, onCollapsedChange }) {
   const navigate  = useNavigate()
   const location  = useLocation()
   const { user, isGuest } = useAuthStore()
   const [profileOpen, setProfileOpen] = useState(false)
+  const [hovered, setHovered] = useState(false)
   const unreadCount = useUIStore((s) => s.unreadCount)
   const { data: access } = useEntitlements()
 
@@ -19,11 +20,33 @@ export default function Sidebar({ role }) {
   const items = filterNavItems({ role, isGuest, access, items: allItems })
   const homeRoute = role === 'admin' ? '/admin' : '/dashboard'
 
+  const expanded = !collapsed || hovered
+
   return (
-    <nav className="sidebar">
+    <nav
+      className={`sidebar${collapsed ? ' collapsed' : ''}${hovered ? ' hover-expanded' : ''}`}
+      onMouseEnter={() => collapsed && setHovered(true)}
+      onMouseLeave={() => {
+        setHovered(false)
+        setProfileOpen(false)
+      }}
+    >
+      <button
+        type="button"
+        className="sidebar-collapse-toggle"
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        onClick={() => onCollapsedChange?.(!collapsed)}
+      >
+        <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} size={14} />
+      </button>
       {/* Logo */}
       <div className="sidebar-logo" onClick={() => navigate(homeRoute)}>
-        CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
+        <span className="sidebar-logo-mark">C</span>
+        {expanded && (
+          <span className="sidebar-logo-word">
+            CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
+          </span>
+        )}
       </div>
 
       {/* Main nav */}
@@ -34,9 +57,9 @@ export default function Sidebar({ role }) {
             className={`nav-item ${location.pathname === item.route || location.pathname.startsWith(`${item.route}/`) ? 'active' : ''}`}
             onClick={() => navigate(item.route)}
           >
-            <Icon name={item.icon} size={15} />
-            <span>{item.label}</span>
-            {item.showCount && unreadCount > 0 && (
+            <Icon name={item.icon || 'briefcase'} size={15} />
+            {expanded && <span>{item.label}</span>}
+            {expanded && item.showCount && unreadCount > 0 && (
               <span
                 className="mono"
                 style={{
@@ -67,14 +90,14 @@ export default function Sidebar({ role }) {
           onClick={() => navigate('/settings')}
         >
           <Icon name="settings" size={15} />
-          <span>Settings</span>
+          {expanded && <span>Settings</span>}
         </button>}
 
         <button className="sidebar-user sidebar-user-button" onClick={() => setProfileOpen(open => !open)}>
           <div className="avatar sm">
             {(user?.full_name || 'U').split(' ').map(p => p[0]).slice(0, 2).join('')}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          {expanded && <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
               fontSize: 12.5, fontWeight: 500, color: 'var(--ink-950)',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -84,8 +107,8 @@ export default function Sidebar({ role }) {
             <div style={{ fontSize: 11, color: 'var(--ink-500)', textTransform: 'capitalize' }}>
               {user?.role}
             </div>
-          </div>
-          <Icon name="chevronRight" size={13} />
+          </div>}
+          {expanded && <Icon name="chevronRight" size={13} />}
         </button>
         {profileOpen && <ProfilePopover onClose={() => setProfileOpen(false)} />}
       </div>

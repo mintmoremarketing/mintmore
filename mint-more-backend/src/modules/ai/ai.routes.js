@@ -2,6 +2,7 @@ const { Router } = require('express');
 const controller = require('./ai.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
 const { requireEntitlement, requirePermission } = require('../../middleware/permissions');
+const { upload, handleUploadError } = require('../../middleware/upload');
 
 const router = Router();
 
@@ -14,6 +15,16 @@ router.get('/models', controller.getModels);
 
 // GET  /api/v1/ai/models/:modelId/traffic        — single model live traffic
 router.get('/models/:modelId/traffic', controller.getSingleModelTraffic);
+
+router.get('/engine/models', requireEntitlement('can_use_ai'), controller.getEngineModels);
+router.get('/engine/styles', requireEntitlement('can_use_ai'), controller.getStylePresets);
+router.post(
+  '/engine/references',
+  requireEntitlement('can_use_ai'),
+  handleUploadError(upload.single('file')),
+  controller.uploadReference
+);
+router.post('/engine/image/generate', requireEntitlement('can_use_ai'), controller.generateEngineImage);
 
 // ── Generation ────────────────────────────────────────────────────────────────
 
