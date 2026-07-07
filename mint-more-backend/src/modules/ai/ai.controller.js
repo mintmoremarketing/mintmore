@@ -80,13 +80,57 @@ const getGeneration = async (req, res, next) => {
 
 const getMyGenerations = async (req, res, next) => {
   try {
-    const { page, limit, tool_type, status } = req.query;
+    const { page, limit, tool_type, status, project_id, favorite, search } = req.query;
     const result = await aiService.getMyGenerations(req.user.sub, {
       page:  parseInt(page, 10) || 1,
       limit: parseInt(limit, 10) || 20,
-      tool_type, status,
+      tool_type,
+      status,
+      project_id,
+      favorite,
+      search,
     });
     return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
+const favoriteGeneration = async (req, res, next) => {
+  try {
+    const generation = await aiService.setGenerationFavorite(
+      req.params.generationId,
+      req.user.sub,
+      req.body.is_favorite
+    );
+    return sendSuccess(res, {
+      data: { generation },
+      message: 'Favorite updated',
+    });
+  } catch (err) { next(err); }
+};
+
+const deleteGenerations = async (req, res, next) => {
+  try {
+    const ids = req.body.generation_ids || (req.params.generationId ? [req.params.generationId] : []);
+    const result = await aiService.deleteGenerations(ids, req.user.sub);
+    return sendSuccess(res, {
+      data: result,
+      message: 'Generation deleted',
+    });
+  } catch (err) { next(err); }
+};
+
+const publishGenerationPost = async (req, res, next) => {
+  try {
+    const post = await aiService.publishGenerationPost(
+      req.params.generationId,
+      req.user.sub,
+      req.body
+    );
+    return sendSuccess(res, {
+      data: { post },
+      message: 'Post saved as draft. The public feed surface is not built yet.',
+      statusCode: 201,
+    });
   } catch (err) { next(err); }
 };
 
@@ -211,6 +255,9 @@ module.exports = {
   generateEngineImage,
   getGeneration,
   getMyGenerations,
+  favoriteGeneration,
+  deleteGenerations,
+  publishGenerationPost,
   getUsageSummary,
   adminGetAIStats,
   adminGetModelStats,

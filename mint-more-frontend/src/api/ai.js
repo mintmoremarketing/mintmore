@@ -30,6 +30,18 @@ export const aiApi = {
   getGeneration: (id) =>
     api.get(`/ai/generations/${id}`),
 
+  favoriteGeneration: (id, is_favorite) =>
+    api.patch(`/ai/generations/${id}/favorite`, { is_favorite }),
+
+  deleteGeneration: (id) =>
+    api.delete(`/ai/generations/${id}`),
+
+  deleteGenerations: (generation_ids) =>
+    api.delete('/ai/generations', { data: { generation_ids } }),
+
+  publishGeneration: (id, data) =>
+    api.post(`/ai/generations/${id}/publish`, data),
+
   // Usage
   getUsage: () =>
     api.get('/ai/usage'),

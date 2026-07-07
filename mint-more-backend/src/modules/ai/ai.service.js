@@ -923,9 +923,23 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
   };
 };
 
+const generationSelect = `
+  SELECT g.*,
+         m.provider_name,
+         m.provider_display_name,
+         m.icon_key,
+         m.avg_latency_seconds,
+         m.best_for,
+         j.title AS project_title
+  FROM ai_generations g
+  LEFT JOIN ai_models m ON m.id = g.ai_model_id
+  LEFT JOIN jobs j ON j.id = g.source_job_id
+`;
+
 const getGeneration = async (generationId, userId, role) => {
   const result = await query(
-    'SELECT * FROM ai_generations WHERE id = $1',
+    `${generationSelect}
+     WHERE g.id = $1 AND g.deleted_at IS NULL`,
     [generationId]
   );
   const gen = result.rows[0];
@@ -934,31 +948,42 @@ const getGeneration = async (generationId, userId, role) => {
   return gen;
 };
 
-const getMyGenerations = async (userId, { page = 1, limit = 20, tool_type, status } = {}) => {
+const getMyGenerations = async (
+  userId,
+  { page = 1, limit = 20, tool_type, status, project_id, favorite, search } = {}
+) => {
   const offset = (page - 1) * limit;
   const params = [userId];
-  const conds  = [];
+  const conds  = ['g.deleted_at IS NULL'];
 
-  if (tool_type) { params.push(tool_type); conds.push(`tool_type = $${params.length}`); }
-  if (status)    { params.push(status);    conds.push(`status = $${params.length}`); }
+  if (tool_type) { params.push(tool_type); conds.push(`g.tool_type = $${params.length}`); }
+  if (status)    { params.push(status);    conds.push(`g.status = $${params.length}`); }
+  if (project_id) {
+    params.push(project_id);
+    conds.push(`g.source_job_id = $${params.length}`);
+  }
+  if (favorite === true || favorite === 'true') {
+    conds.push('g.is_favorite = true');
+  }
+  if (search) {
+    params.push(`%${String(search).trim()}%`);
+    conds.push(`(g.prompt ILIKE $${params.length} OR g.raw_prompt ILIKE $${params.length} OR g.enhanced_prompt ILIKE $${params.length})`);
+  }
 
   const where = conds.length > 0 ? `AND ${conds.join(' AND ')}` : '';
 
   const result = await query(
-    `SELECT id, tool_type, openrouter_id, model_name,
-            status, result_text, result_url,
-            credits_used, tokens_input, tokens_output,
-            duration_ms, error_message, used_failover,
-            created_at, completed_at
-     FROM ai_generations
-     WHERE user_id = $1 ${where}
-     ORDER BY created_at DESC
+    `${generationSelect}
+     WHERE g.user_id = $1 ${where}
+     ORDER BY g.created_at DESC
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset]
   );
 
   const count = await query(
-    `SELECT COUNT(*) FROM ai_generations WHERE user_id = $1 ${where}`,
+    `SELECT COUNT(*)
+     FROM ai_generations g
+     WHERE g.user_id = $1 ${where}`,
     params
   );
 
@@ -970,6 +995,56 @@ const getMyGenerations = async (userId, { page = 1, limit = 20, tool_type, statu
       pages: Math.ceil(count.rows[0].count / limit),
     },
   };
+};
+
+const setGenerationFavorite = async (generationId, userId, isFavorite) => {
+  const result = await query(
+    `UPDATE ai_generations
+     SET is_favorite = $1
+     WHERE id = $2 AND user_id = $3 AND deleted_at IS NULL
+     RETURNING *`,
+    [Boolean(isFavorite), generationId, userId]
+  );
+  if (!result.rows[0]) throw new AppError('Generation not found', 404);
+  return result.rows[0];
+};
+
+const deleteGenerations = async (generationIds, userId) => {
+  const ids = Array.isArray(generationIds) ? generationIds.filter(Boolean) : [generationIds].filter(Boolean);
+  if (!ids.length) throw new AppError('No generation IDs provided', 400);
+  const result = await query(
+    `UPDATE ai_generations
+     SET deleted_at = NOW()
+     WHERE user_id = $1 AND id = ANY($2::uuid[]) AND deleted_at IS NULL
+     RETURNING id`,
+    [userId, ids]
+  );
+  return { deleted: result.rows.map((row) => row.id), count: result.rowCount };
+};
+
+const publishGenerationPost = async (generationId, userId, payload = {}) => {
+  const generation = await getGeneration(generationId, userId, 'client');
+  if (generation.status !== 'completed' || !generation.result_url) {
+    throw new AppError('Only completed image generations can be published', 400);
+  }
+  const tags = Array.isArray(payload.tags)
+    ? payload.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 12)
+    : [];
+  const result = await query(
+    `INSERT INTO published_posts
+       (user_id, generation_id, media_url, caption, tags, share_generation_parameters, status)
+     VALUES ($1,$2,$3,$4,$5,$6,'draft')
+     RETURNING *`,
+    [
+      userId,
+      generationId,
+      generation.result_url,
+      String(payload.caption || '').trim() || null,
+      tags,
+      Boolean(payload.share_generation_parameters),
+    ]
+  );
+  return result.rows[0];
 };
 
 const getUsageSummary = async (userId) => {
@@ -1006,6 +1081,9 @@ module.exports = {
   createEngineImageGeneration,
   getGeneration,
   getMyGenerations,
+  setGenerationFavorite,
+  deleteGenerations,
+  publishGenerationPost,
   getUsageSummary,
   bustModelCache,
 };

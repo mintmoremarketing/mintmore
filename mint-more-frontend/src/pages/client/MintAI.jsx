@@ -45,6 +45,59 @@ const tierCost = (model, resolution) => {
 const extractAliases = (value) =>
   Array.from(new Set((value.match(/@img\d+/g) || []).map(alias => alias.replace('@', ''))))
 
+const monthLabel = (value) => {
+  const date = value ? new Date(value) : new Date()
+  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date)
+}
+
+const promptFor = (generation) =>
+  generation?.enhanced_prompt || generation?.raw_prompt || generation?.prompt || ''
+
+const parametersFor = (generation) => generation?.parameters || {}
+
+const metadataFor = (generation) =>
+  generation?.engine_metadata || parametersFor(generation).engine_metadata || generation?.result_metadata || {}
+
+const imageUrlFor = (generation, progress) => progress?.result_url || generation?.result_url || ''
+
+const resolutionFor = (generation) =>
+  generation?.resolution_tier || parametersFor(generation).resolution_tier || metadataFor(generation).resolution_tier || '1K'
+
+const aspectFor = (generation) =>
+  generation?.aspect_ratio || parametersFor(generation).aspect_ratio || metadataFor(generation).aspect_ratio || 'Auto'
+
+const modelNameFor = (generation) =>
+  generation?.model_name || generation?.name || generation?.provider_display_name || generation?.provider_name || 'Model'
+
+const providerIconFor = (generation) =>
+  generation?.icon_key?.slice(0, 2)?.toUpperCase() || generation?.provider_display_name?.slice(0, 2)?.toUpperCase() || 'AI'
+
+const pixelSizeFor = (generation) => {
+  const result = generation?.result_metadata || {}
+  if (result.width && result.height) return `${result.width}x${result.height}`
+  return aspectFor(generation)
+}
+
+const referencesFor = (generation) => {
+  const metadata = metadataFor(generation)
+  if (Array.isArray(metadata.references)) return metadata.references
+  if (Array.isArray(generation?.reference_asset_ids)) {
+    return generation.reference_asset_ids.map((id, index) => ({ id, alias: `img${index + 1}` }))
+  }
+  return []
+}
+
+const downloadFile = (url, name = 'creatyv-image') => {
+  if (!url) return
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  link.target = '_blank'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
 function Toggle({ checked, onChange, label }) {
   return (
     <button
@@ -268,16 +321,11 @@ function ReferencesBlock({ styles, selectedStyle, setSelectedStyle, references, 
 }
 
 function PromptBox({ value, setValue, references, aiPrompt, setAiPrompt, fixedSeed, setFixedSeed, seed, setSeed }) {
-  const [showRefs, setShowRefs] = useState(false)
   const [showEditor, setShowEditor] = useState(false)
-
-  useEffect(() => {
-    setShowRefs(value.endsWith('@') && references.length > 0)
-  }, [value, references.length])
+  const showRefs = value.endsWith('@') && references.length > 0
 
   const insertAlias = (alias) => {
     setValue(current => `${current.slice(0, -1)}@${alias} `)
-    setShowRefs(false)
   }
 
   return (
@@ -339,10 +387,529 @@ function PromptBox({ value, setValue, references, aiPrompt, setAiPrompt, fixedSe
   )
 }
 
+function PublishPostModal({ generation, onClose, onPublish, publishing }) {
+  const [caption, setCaption] = useState('')
+  const [shareParams, setShareParams] = useState(false)
+  const [tags, setTags] = useState('')
+  const url = imageUrlFor(generation)
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="creation-publish-modal" onClick={event => event.stopPropagation()}>
+        <div className="creation-publish-preview">
+          {url ? <img src={url} alt="" /> : <div className="creation-empty-preview"><Icon name="image" size={28} /></div>}
+        </div>
+        <div className="creation-publish-form">
+          <div className="row between">
+            <div>
+              <p className="eyebrow">Publish as post</p>
+              <h3>Create a draft post</h3>
+            </div>
+            <button className="icon-btn" type="button" onClick={onClose}><Icon name="x" size={14} /></button>
+          </div>
+          <label>
+            Caption
+            <textarea rows={6} value={caption} onChange={event => setCaption(event.target.value)} placeholder="Write a caption..." />
+          </label>
+          <label className="creation-inline-setting">
+            <span>
+              <strong>Share generation parameters?</strong>
+              <small>When on, this draft keeps a public reference to prompt, model, and settings.</small>
+            </span>
+            <Toggle checked={shareParams} onChange={setShareParams} />
+          </label>
+          <label>
+            Tags
+            <input value={tags} onChange={event => setTags(event.target.value)} placeholder="launch, festival, product" />
+          </label>
+          <div className="row end gap">
+            <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+            <button
+              type="button"
+              className="btn dark"
+              disabled={publishing}
+              onClick={() => onPublish({
+                caption,
+                share_generation_parameters: shareParams,
+                tags: tags.split(',').map(tag => tag.trim()).filter(Boolean),
+              })}
+            >
+              Publish Post
+            </button>
+          </div>
+          <p className="creation-note">This saves a draft in <code>published_posts</code>. The public feed page is not built yet.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CreationInspector({ generation, progress, onClose, onFavorite, onDelete, onPublish, onReuse, onEditImage }) {
+  const [tab, setTab] = useState('details')
+  const [zoom, setZoom] = useState(100)
+  const [downloadOpen, setDownloadOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const url = imageUrlFor(generation, progress)
+  const prompt = promptFor(generation)
+  const references = referencesFor(generation)
+
+  const copyPrompt = async () => {
+    await navigator.clipboard?.writeText(prompt)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1200)
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="creation-inspector" onClick={event => event.stopPropagation()}>
+        <header className="creation-inspector-tabs">
+          <div className="segmented compact">
+            {['details', 'comments'].map(item => (
+              <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>
+                {item === 'details' ? 'Details' : 'Comments'}
+              </button>
+            ))}
+          </div>
+          <button className="icon-btn" type="button" onClick={onClose}><Icon name="x" size={14} /></button>
+        </header>
+        <div className="creation-inspector-body">
+          <section className="creation-preview-pane">
+            {url ? (
+              <img src={url} alt="" style={{ transform: `scale(${zoom / 100})` }} />
+            ) : (
+              <div className="creation-empty-preview"><Icon name="image" size={30} /></div>
+            )}
+            <label className="creation-zoom">
+              <span>{zoom}%</span>
+              <input type="range" min="50" max="200" value={zoom} onChange={event => setZoom(Number(event.target.value))} />
+            </label>
+          </section>
+          <aside className="creation-details-pane">
+            <div className="creation-action-row">
+              <button className="icon-btn" type="button" onClick={() => onDelete(generation.id)}><Icon name="trash" size={15} /></button>
+              <button className={`icon-btn${generation.is_favorite ? ' active' : ''}`} type="button" onClick={() => onFavorite(generation)}><Icon name="heart" size={15} /></button>
+              <button className="icon-btn" type="button" title="Save to collection coming soon"><Icon name="bookmark" size={15} /></button>
+              <div className="creation-download-menu">
+                <button className="btn ghost" type="button" onClick={() => setDownloadOpen(v => !v)}>PNG <Icon name="chevronDown" size={12} /></button>
+                {downloadOpen && (
+                  <div>
+                    <button type="button" onClick={() => downloadFile(url, `${generation.id}.png`)}>PNG</button>
+                    <button type="button" onClick={() => downloadFile(url, `${generation.id}.jpg`)}>JPG</button>
+                    <button type="button" disabled>SVG</button>
+                    <button type="button" onClick={() => alert('Upscale is coming soon.')}>Upscale</button>
+                  </div>
+                )}
+              </div>
+            </div>
+            {tab === 'comments' ? (
+              <div className="creation-comments-placeholder">Comments are coming soon.</div>
+            ) : (
+              <>
+                <button type="button" className="creation-prompt-block" onClick={copyPrompt}>
+                  <span>{generation.enhanced_prompt ? 'AI-enhanced prompt' : 'Raw prompt'}</span>
+                  <p>{prompt || 'No prompt stored.'}</p>
+                  <small>{copied ? 'Copied' : 'Click to copy'}</small>
+                </button>
+                <div className="creation-settings-tags">
+                  <span>{aspectFor(generation)}</span>
+                  <span>{modelNameFor(generation)}</span>
+                  {generation.thinking_level && <span>{generation.thinking_level}</span>}
+                  <span>{pixelSizeFor(generation)}</span>
+                </div>
+                <div className="creation-reference-row">
+                  <strong>References</strong>
+                  {references.length ? references.map((ref, index) => (
+                    <span key={ref.id || ref.alias || index} className="creation-reference-thumb">
+                      {ref.preview_url ? <img src={ref.preview_url} alt="" /> : <Icon name="image" size={14} />}
+                      <small>{ref.alias || `img${index + 1}`}</small>
+                      {ref.preview_url && <button type="button" onClick={() => downloadFile(ref.preview_url, ref.alias || 'reference')}><Icon name="download" size={12} /></button>}
+                    </span>
+                  )) : <small>No references used.</small>}
+                </div>
+                <div className="creation-inspector-actions">
+                  <button type="button" className="btn dark" onClick={() => onPublish(generation)}>Publish Image</button>
+                  <button type="button" className="btn ghost" onClick={() => onEditImage(generation)}>Edit Image</button>
+                  <button type="button" className="btn ghost" onClick={() => alert('Create Video is coming soon.')}>Create Video</button>
+                  <button type="button" className="btn ghost" onClick={() => alert('Save as Template is coming soon.')}>Save as Template</button>
+                  <button type="button" className="btn ghost" onClick={() => alert('Share is coming soon.')}>Share</button>
+                  <button type="button" className="btn ghost" onClick={() => onReuse(generation)}>Reuse Configuration</button>
+                </div>
+              </>
+            )}
+          </aside>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CreationCard({
+  generation,
+  progress,
+  selected,
+  onSelect,
+  onOpen,
+  onFavorite,
+  onDelete,
+  onDownload,
+  onReuse,
+  onPublish,
+  viewMode,
+  ratioMode,
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const status = progress?.status || generation.status
+  const url = imageUrlFor(generation, progress)
+  const loading = ['queued', 'processing', 'pending'].includes(status)
+  const failed = status === 'failed'
+  const error = progress?.error || generation.error_message
+
+  return (
+    <article
+      className={`creation-card ${viewMode} ${ratioMode === 'square' ? 'square' : ''} ${loading ? 'loading' : ''} ${failed ? 'failed' : ''}`}
+      onClick={() => onOpen(generation)}
+    >
+      <button
+        type="button"
+        className={`creation-select${selected ? ' selected' : ''}`}
+        onClick={(event) => {
+          event.stopPropagation()
+          onSelect(generation.id)
+        }}
+        aria-label="Select generation"
+      >
+        {selected && <Icon name="check" size={12} />}
+      </button>
+      {loading ? (
+        <div className="creation-skeleton">
+          <Icon name="sparkles" size={18} />
+          <span>{status === 'processing' ? 'Generating...' : 'Queued...'}</span>
+        </div>
+      ) : failed ? (
+        <div className="creation-failed">
+          <Icon name="x" size={16} />
+          <strong>Generation failed</strong>
+          <small>{error || 'No error reason was returned.'}</small>
+        </div>
+      ) : url ? (
+        <img src={url} alt={promptFor(generation) || 'Generated image'} />
+      ) : (
+        <div className="creation-empty-preview"><Icon name="image" size={22} /></div>
+      )}
+
+      <div className="creation-card-overlay">
+        <div className="creation-bottom-left">
+          <span>{resolutionFor(generation)}</span>
+          <span>{providerIconFor(generation)}</span>
+        </div>
+        <div className="creation-bottom-right">
+          <button
+            type="button"
+            className="btn dark sm"
+            onClick={(event) => {
+              event.stopPropagation()
+              setMenuOpen(v => !v)
+            }}
+          >
+            Use
+          </button>
+          {menuOpen && (
+            <div className="creation-use-menu" onClick={event => event.stopPropagation()}>
+              <button type="button" onClick={() => { onReuse(generation); setMenuOpen(false) }}>Reuse Configuration</button>
+              <button type="button" onClick={() => { onPublish(generation); setMenuOpen(false) }}>Publish as Post</button>
+            </div>
+          )}
+        </div>
+      </div>
+      {viewMode === 'list' && (
+        <div className="creation-list-meta">
+          <strong>{promptFor(generation) || 'Untitled generation'}</strong>
+          <small>{modelNameFor(generation)} - {aspectFor(generation)}</small>
+          <div className="row gap">
+            <button type="button" onClick={(event) => { event.stopPropagation(); onFavorite(generation) }}><Icon name="heart" size={13} /></button>
+            <button type="button" onClick={(event) => { event.stopPropagation(); onDownload(generation) }}><Icon name="download" size={13} /></button>
+            <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(generation.id) }}><Icon name="trash" size={13} /></button>
+          </div>
+        </div>
+      )}
+    </article>
+  )
+}
+
+function CreationsGallery({
+  projectId,
+  models,
+  setSelectedModel,
+  setPrompt,
+  setAspectRatio,
+  setResolution,
+  setSeed,
+  setFixedSeed,
+  setReferences,
+  optimisticGenerations,
+  setOptimisticGenerations,
+}) {
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore(s => s.pushToast)
+  const aiProgress = useUIStore(s => s.aiProgress)
+  const [search, setSearch] = useState('')
+  const [favoriteOnly, setFavoriteOnly] = useState(false)
+  const [typeFilter, setTypeFilter] = useState('All')
+  const [viewMode, setViewMode] = useState('grid')
+  const [layoutOpen, setLayoutOpen] = useState(false)
+  const [ratioMode, setRatioMode] = useState('original')
+  const [size, setSize] = useState('M')
+  const [editsMode, setEditsMode] = useState('group')
+  const [selectedIds, setSelectedIds] = useState([])
+  const [inspector, setInspector] = useState(null)
+  const [publishTarget, setPublishTarget] = useState(null)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['ai-generations', 'image', projectId, search, favoriteOnly],
+    queryFn: () => aiApi.getGenerations({
+      tool_type: 'image',
+      project_id: projectId || undefined,
+      favorite: favoriteOnly || undefined,
+      search: search || undefined,
+      limit: 80,
+    }).then(res => res.data.data),
+  })
+
+  useEffect(() => {
+    const statuses = Object.values(aiProgress || {}).map(item => item?.status)
+    if (statuses.some(status => ['completed', 'failed'].includes(status))) {
+      queryClient.invalidateQueries({ queryKey: ['ai-generations'] })
+    }
+  }, [aiProgress, queryClient])
+
+  const serverGenerations = useMemo(() => data?.generations || [], [data?.generations])
+  const generations = useMemo(() => {
+    const byId = new Map(serverGenerations.map(item => [item.id, item]))
+    optimisticGenerations.forEach(item => {
+      if (!byId.has(item.id)) byId.set(item.id, item)
+    })
+    return Array.from(byId.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+  }, [serverGenerations, optimisticGenerations])
+
+  useEffect(() => {
+    if (!serverGenerations.length) return
+    setOptimisticGenerations(current => current.filter(item => !serverGenerations.some(server => server.id === item.id)))
+  }, [serverGenerations, setOptimisticGenerations])
+
+  const visibleGenerations = generations.filter(item => {
+    if (typeFilter === 'Image' && item.tool_type !== 'image') return false
+    if (favoriteOnly && !item.is_favorite) return false
+    return true
+  })
+  const grouped = groupBy(visibleGenerations, item => monthLabel(item.created_at))
+
+  const favoriteMutation = useMutation({
+    mutationFn: (generation) => aiApi.favoriteGeneration(generation.id, !generation.is_favorite),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-generations'] }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (ids) => Array.isArray(ids) ? aiApi.deleteGenerations(ids) : aiApi.deleteGeneration(ids),
+    onSuccess: () => {
+      setSelectedIds([])
+      setInspector(null)
+      queryClient.invalidateQueries({ queryKey: ['ai-generations'] })
+      pushToast?.({ type: 'success', title: 'Generation deleted' })
+    },
+    onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Delete failed' }),
+  })
+
+  const publishMutation = useMutation({
+    mutationFn: ({ generation, payload }) => aiApi.publishGeneration(generation.id, payload),
+    onSuccess: () => {
+      setPublishTarget(null)
+      pushToast?.({ type: 'success', title: 'Draft post saved' })
+    },
+    onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Publish failed' }),
+  })
+
+  const toggleSelect = (id) => {
+    setSelectedIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
+  }
+
+  const reuseGeneration = (generation) => {
+    const model = models.find(item => item.id === generation.ai_model_id)
+    if (model) setSelectedModel(model)
+    setPrompt(generation.raw_prompt || generation.prompt || '')
+    setAspectRatio(aspectFor(generation))
+    setResolution(resolutionFor(generation))
+    if (generation.seed) {
+      setFixedSeed(true)
+      setSeed(String(generation.seed))
+    }
+    pushToast?.({ type: 'success', title: 'Configuration copied to the engine' })
+  }
+
+  const editImage = (generation) => {
+    const url = imageUrlFor(generation)
+    if (!url) return
+    setReferences(current => [
+      ...current,
+      {
+        id: `generated-${generation.id}`,
+        alias: `img${current.length + 1}`,
+        preview_url: url,
+      },
+    ].slice(0, 4))
+    pushToast?.({ type: 'success', title: 'Image added as a reference' })
+  }
+
+  const selectedGenerations = generations.filter(item => selectedIds.includes(item.id))
+  const gallerySizeClass = `size-${size.toLowerCase()}`
+
+  return (
+    <aside className={`creations-gallery ${gallerySizeClass}`}>
+      <header className="creations-toolbar">
+        <div className="creations-tabs">
+          <button className="active">Creations</button>
+          <button disabled>My templates</button>
+          <button disabled>Academy</button>
+        </div>
+        <div className="creations-filter-icons">
+          {['All', 'Image', 'Video', 'Audio', 'Design', '3D'].map(item => (
+            <button
+              key={item}
+              className={typeFilter === item ? 'active' : ''}
+              disabled={!['All', 'Image'].includes(item)}
+              onClick={() => setTypeFilter(item)}
+            >
+              {item === 'All' ? <Icon name="grid" size={14} /> : <Icon name={item.toLowerCase() === '3d' ? 'layers' : item.toLowerCase()} size={14} />}
+              <span>{item}</span>
+            </button>
+          ))}
+          <button className={favoriteOnly ? 'active' : ''} onClick={() => setFavoriteOnly(v => !v)} title="Favorites">
+            <Icon name="heart" size={14} />
+          </button>
+          <button className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')} title="Row">
+            <Icon name="list" size={14} />
+          </button>
+          <button className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')} title="Grid">
+            <Icon name="grid" size={14} />
+          </button>
+          <button onClick={() => setLayoutOpen(v => !v)} title="Layout Options">
+            <Icon name="sliders" size={14} />
+          </button>
+        </div>
+        <label className="creations-search">
+          <Icon name="search" size={14} />
+          <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search prompt..." />
+        </label>
+        {layoutOpen && (
+          <div className="creations-layout-panel">
+            <section>
+              <span>Ratio</span>
+              <div className="segmented compact">
+                {['original', 'square'].map(item => (
+                  <button key={item} className={ratioMode === item ? 'active' : ''} onClick={() => setRatioMode(item)}>
+                    {item === 'original' ? 'Original' : 'Square'}
+                  </button>
+                ))}
+              </div>
+            </section>
+            <section>
+              <span>Size</span>
+              <div className="segmented compact">
+                {['S', 'M', 'L', 'XL'].map(item => (
+                  <button key={item} className={size === item ? 'active' : ''} onClick={() => setSize(item)}>{item}</button>
+                ))}
+              </div>
+            </section>
+            <section>
+              <span>Edits</span>
+              <div className="segmented compact">
+                {['group', 'ungroup'].map(item => (
+                  <button key={item} className={editsMode === item ? 'active' : ''} onClick={() => setEditsMode(item)}>
+                    {item === 'group' ? 'Group' : 'Ungroup'}
+                  </button>
+                ))}
+              </div>
+              <small>{editsMode === 'group' ? 'Batch variations stay bundled when backend grouping data is available.' : 'Each variation can be shown separately in a future batch view.'}</small>
+            </section>
+          </div>
+        )}
+      </header>
+
+      {selectedIds.length > 0 && (
+        <div className="creations-bulk-bar">
+          <span>{selectedIds.length} selected</span>
+          <button className="btn ghost sm" onClick={() => selectedGenerations.forEach(item => downloadFile(imageUrlFor(item), `${item.id}.png`))}>
+            <Icon name="download" size={13} /> Download
+          </button>
+          <button className="btn ghost sm" onClick={() => deleteMutation.mutate(selectedIds)}>
+            <Icon name="trash" size={13} /> Delete
+          </button>
+          <button className="btn ghost sm" onClick={() => setSelectedIds([])}>Clear</button>
+        </div>
+      )}
+
+      <div className={`creations-feed ${viewMode} ${ratioMode}`}>
+        {isLoading && <div className="creation-gallery-empty">Loading creations...</div>}
+        {!isLoading && visibleGenerations.length === 0 && (
+          <div className="creation-gallery-empty">
+            <Icon name="image" size={26} />
+            <strong>No creations yet</strong>
+            <span>Generate an image and it will appear here instantly.</span>
+          </div>
+        )}
+        {Object.entries(grouped).map(([month, items]) => (
+          <section key={month} className="creation-month-group">
+            <h3>{month}</h3>
+            <div className={`creation-grid ${viewMode}`}>
+              {items.map(generation => (
+                <CreationCard
+                  key={generation.id}
+                  generation={generation}
+                  progress={aiProgress?.[generation.id]}
+                  selected={selectedIds.includes(generation.id)}
+                  onSelect={toggleSelect}
+                  onOpen={setInspector}
+                  onFavorite={(item) => favoriteMutation.mutate(item)}
+                  onDelete={(id) => deleteMutation.mutate(id)}
+                  onDownload={(item) => downloadFile(imageUrlFor(item), `${item.id}.png`)}
+                  onReuse={reuseGeneration}
+                  onPublish={setPublishTarget}
+                  viewMode={viewMode}
+                  ratioMode={ratioMode}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      {inspector && (
+        <CreationInspector
+          generation={inspector}
+          progress={aiProgress?.[inspector.id]}
+          onClose={() => setInspector(null)}
+          onFavorite={(item) => favoriteMutation.mutate(item)}
+          onDelete={(id) => deleteMutation.mutate(id)}
+          onPublish={setPublishTarget}
+          onReuse={reuseGeneration}
+          onEditImage={editImage}
+        />
+      )}
+      {publishTarget && (
+        <PublishPostModal
+          generation={publishTarget}
+          publishing={publishMutation.isPending}
+          onClose={() => setPublishTarget(null)}
+          onPublish={(payload) => publishMutation.mutate({ generation: publishTarget, payload })}
+        />
+      )}
+    </aside>
+  )
+}
+
 export default function MintAI() {
   const queryClient = useQueryClient()
   const pushToast = useUIStore(s => s.pushToast)
-  const session = useMemo(sessionId, [])
+  const session = useMemo(() => sessionId(), [])
   const [projectId, setProjectId] = useState('')
   const [selectedModel, setSelectedModel] = useState(null)
   const [modelMulti, setModelMulti] = useState(false)
@@ -357,28 +924,36 @@ export default function MintAI() {
   const [resolution, setResolution] = useState('1K')
   const [thinking, setThinking] = useState('fast')
   const [googleSearch, setGoogleSearch] = useState(false)
+  const [optimisticGenerations, setOptimisticGenerations] = useState([])
 
   const { data: modelData, isLoading: modelsLoading } = useQuery({
     queryKey: ['ai-engine-models'],
     queryFn: () => aiApi.getEngineModels({ tool_type: 'image' }).then(res => res.data.data),
   })
-  const models = modelData?.models || []
+  const models = useMemo(() => modelData?.models || [], [modelData?.models])
   const balance = Number(modelData?.balance ?? 0)
 
   const { data: styleData } = useQuery({
     queryKey: ['ai-engine-styles'],
     queryFn: () => aiApi.getStylePresets().then(res => res.data.data),
   })
-  const styles = styleData?.styles || []
+  const styles = useMemo(() => styleData?.styles || [], [styleData?.styles])
 
   const { data: mintboxData } = useQuery({
     queryKey: ['mintbox-folders'],
     queryFn: () => mintboxApi.getFolders().then(res => res.data.data),
   })
-  const folders = mintboxData?.folders || mintboxData?.projects || mintboxData?.items || []
+  const folders = useMemo(
+    () => mintboxData?.folders || mintboxData?.projects || mintboxData?.items || [],
+    [mintboxData?.folders, mintboxData?.items, mintboxData?.projects]
+  )
 
   useEffect(() => {
-    if (!selectedModel && models.length > 0) setSelectedModel(models[0])
+    if (!selectedModel && models.length > 0) {
+      const frame = requestAnimationFrame(() => setSelectedModel(models[0]))
+      return () => cancelAnimationFrame(frame)
+    }
+    return undefined
   }, [models, selectedModel])
 
   const uploadMutation = useMutation({
@@ -416,7 +991,50 @@ export default function MintAI() {
       thinking_level: thinking,
       google_search_enabled: googleSearch,
     }).then(res => res.data.data),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      const generationId = data.generation_id || data.id
+      if (generationId) {
+        const queuedGeneration = {
+          id: generationId,
+          user_id: 'me',
+          ai_model_id: selectedModel?.id,
+          model_name: selectedModel?.name,
+          provider_name: selectedModel?.provider_name,
+          provider_display_name: selectedModel?.provider_display_name,
+          icon_key: selectedModel?.icon_key,
+          tool_type: 'image',
+          prompt,
+          raw_prompt: prompt,
+          enhanced_prompt: data.enhanced_prompt || null,
+          parameters: {
+            aspect_ratio: aspectRatio,
+            resolution_tier: resolution,
+            batch_count: batchCount,
+            seed: data.seed || seed,
+            reference_aliases: extractAliases(prompt),
+          },
+          engine_metadata: {
+            references: references.map(ref => ({
+              id: ref.id,
+              alias: ref.alias,
+              preview_url: ref.preview_url,
+            })),
+          },
+          status: 'queued',
+          result_url: null,
+          created_at: new Date().toISOString(),
+          source_job_id: projectId || null,
+          aspect_ratio: aspectRatio,
+          resolution_tier: resolution,
+          seed: data.seed || seed,
+          batch_count: batchCount,
+          is_favorite: false,
+        }
+        setOptimisticGenerations(current => [
+          queuedGeneration,
+          ...current.filter(item => item.id !== generationId),
+        ])
+      }
       pushToast?.({ type: 'success', title: 'Image generation queued' })
       queryClient.invalidateQueries({ queryKey: ['ai-generations'] })
     },
@@ -520,14 +1138,19 @@ export default function MintAI() {
         </footer>
       </section>
 
-      <aside className="engine-gallery-placeholder">
-        <p className="eyebrow">Creations</p>
-        <div>
-          <Icon name="image" size={26} />
-          <strong>Your generated images will appear here.</strong>
-          <span>The live gallery is intentionally reserved for the next build.</span>
-        </div>
-      </aside>
+      <CreationsGallery
+        projectId={projectId}
+        models={models}
+        setSelectedModel={setSelectedModel}
+        setPrompt={setPrompt}
+        setAspectRatio={setAspectRatio}
+        setResolution={setResolution}
+        setSeed={setSeed}
+        setFixedSeed={setFixedSeed}
+        setReferences={setReferences}
+        optimisticGenerations={optimisticGenerations}
+        setOptimisticGenerations={setOptimisticGenerations}
+      />
     </div>
   )
 }
