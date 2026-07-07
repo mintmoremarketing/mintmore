@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import * as tus from 'tus-js-client'
 import { jobsApi } from '../../api/jobs'
 import { creativeApi } from '../../api/creative'
 import { mintboxApi } from '../../api/mintbox'
@@ -9,6 +8,7 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import DateBadge from '../../components/ui/DateBadge'
 import { rupee } from '../../utils/format'
+import { uploadMintboxFile } from '../../utils/mintboxUpload'
 import { BRIEF_GUIDE_OPTIONS, CREATIVE_SKILLS } from '../../data/creativeOptions'
 
 const TOTAL_STEPS = 13
@@ -219,21 +219,12 @@ export default function PostJob() {
       if (uploadedFileKeysRef.current.has(fileKey)) continue
       const prepared = await mintboxApi.prepareUpload(jobId, { name: file.name, size: file.size, type: file.type || 'application/octet-stream', purpose: 'brief' })
       const config = prepared.data?.data?.upload
-      await new Promise((resolve, reject) => {
-        const upload = new tus.Upload(file, {
-          endpoint: config.endpoint,
-          chunkSize: config.policy?.chunk_size_bytes || 6 * 1024 * 1024,
-          retryDelays: [0, 1000, 3000, 5000, 10000],
-          uploadDataDuringCreation: true,
-          headers: { 'x-signature': String(config.token || '').trim() },
-          metadata: { bucketName: config.bucket, objectName: config.storage_path, contentType: file.type || 'application/octet-stream', cacheControl: '3600' },
-          onError: reject,
-          onSuccess: async () => {
-            try { await mintboxApi.completeUpload(config.upload_id); resolve() } catch (error) { reject(error) }
-          },
-        })
-        upload.start()
+      await uploadMintboxFile({
+        file,
+        config,
+        fileType: file.type || 'application/octet-stream',
       })
+      await mintboxApi.completeUpload(config.upload_id)
       uploadedFileKeysRef.current.add(fileKey)
     }
   }, [])

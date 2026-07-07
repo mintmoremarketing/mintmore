@@ -18,16 +18,24 @@ const normalizeSupabaseUrl = (rawUrl) => {
   }
 };
 
-const normalizeStorageBucket = (rawBucket) => {
-  const bucket = String(rawBucket || 'mintbox-files')
+const normalizeStorageBucket = (rawBucket, fallback = 'mintbox-files') => {
+  const bucket = String(rawBucket || fallback)
     .trim()
     .replace(/^(['"])(.*)\1$/, '$2')
     .replace(/^\/+|\/+$/g, '');
 
   if (!/^[a-zA-Z0-9_-]+$/.test(bucket)) {
-    throw new Error('Invalid MINTBOX_STORAGE_BUCKET: use only letters, numbers, hyphens, and underscores');
+    throw new Error('Invalid storage bucket name: use only letters, numbers, hyphens, and underscores');
   }
   return bucket;
+};
+
+const normalizeStorageProvider = (value) => {
+  const provider = String(value || 'supabase').trim().toLowerCase();
+  if (!['supabase', 'r2'].includes(provider)) {
+    throw new Error('Invalid STORAGE_PROVIDER: expected "supabase" or "r2"');
+  }
+  return provider;
 };
 
 const nodeEnv = process.env.NODE_ENV || 'development';
@@ -100,6 +108,31 @@ const env = {
     url:        normalizeSupabaseUrl(process.env.SUPABASE_URL),
     serviceKey: process.env.SUPABASE_SERVICE_KEY,
     mintboxBucket: normalizeStorageBucket(process.env.MINTBOX_STORAGE_BUCKET),
+  },
+
+  storage: {
+    provider: normalizeStorageProvider(process.env.STORAGE_PROVIDER),
+  },
+
+  r2: {
+    accountId: process.env.R2_ACCOUNT_ID?.trim(),
+    endpoint: process.env.R2_ENDPOINT?.trim() ||
+      (process.env.R2_ACCOUNT_ID?.trim()
+        ? `https://${process.env.R2_ACCOUNT_ID.trim()}.r2.cloudflarestorage.com`
+        : undefined),
+    accessKeyId: process.env.R2_ACCESS_KEY_ID?.trim(),
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY?.trim(),
+    publicBaseUrl: process.env.R2_PUBLIC_BASE_URL?.trim(),
+    publicBaseUrls: {
+      avatars: process.env.R2_AVATARS_PUBLIC_BASE_URL?.trim(),
+      jobAttachments: process.env.R2_JOB_ATTACHMENTS_PUBLIC_BASE_URL?.trim(),
+    },
+    buckets: {
+      mintbox: normalizeStorageBucket(process.env.R2_MINTBOX_BUCKET || process.env.MINTBOX_STORAGE_BUCKET, 'mintbox-files'),
+      avatars: normalizeStorageBucket(process.env.R2_AVATARS_BUCKET, 'avatars'),
+      kycDocs: normalizeStorageBucket(process.env.R2_KYC_DOCS_BUCKET, 'kyc-docs'),
+      jobAttachments: normalizeStorageBucket(process.env.R2_JOB_ATTACHMENTS_BUCKET, 'job-attachments'),
+    },
   },
 
   razorpay: {
@@ -219,6 +252,16 @@ if (env.isProd) {
   });
 }
 
-
+if (env.storage.provider === 'r2') {
+  [
+    'R2_ACCOUNT_ID',
+    'R2_ACCESS_KEY_ID',
+    'R2_SECRET_ACCESS_KEY',
+  ].forEach((key) => {
+    if (!process.env[key]) {
+      throw new Error(`Missing required environment variable for R2 storage: ${key}`);
+    }
+  });
+}
 
 module.exports = env;

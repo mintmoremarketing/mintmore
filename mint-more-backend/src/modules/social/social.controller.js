@@ -3,7 +3,7 @@ const { validateCreatePost } = require('./social.validator');
 const { sendSuccess } = require('../../utils/apiResponse');
 const AppError = require('../../utils/AppError');
 const env = require('../../config/env');
-const { uploadFile } = require('../../config/supabase');
+const { uploadFile } = require('../storage/app-storage.provider');
 const crypto = require('crypto');
 const path = require('path');
 

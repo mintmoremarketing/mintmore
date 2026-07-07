@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import * as tus from 'tus-js-client'
 import { mintboxApi } from '../../api/mintbox'
 import { addonsApi } from '../../api/addons'
 import { walletApi } from '../../api/wallet'
@@ -11,6 +10,7 @@ import Icon from '../../components/ui/Icon'
 import Avatar from '../../components/ui/Avatar'
 import Modal from '../../components/ui/Modal'
 import { rupee, timeAgo } from '../../utils/format'
+import { uploadMintboxFile } from '../../utils/mintboxUpload'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 
 const GB = 1024 * 1024 * 1024
@@ -166,50 +166,26 @@ export default function Mintbox() {
 			})
 			const config = prepared.data?.data?.upload
 			setUploadState(prev => ({ ...prev, uploadId: config.upload_id }))
-			await new Promise((resolve, reject) => {
-			const upload = new tus.Upload(file, {
-				endpoint: config.endpoint,
-				// Version the fingerprint so tus-js-client never resumes uploads
-				// created against the old unsigned endpoint.
-				fingerprint: () => Promise.resolve(`mintbox-signed-v1-${config.upload_id}`),
-				retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
-				chunkSize: config.policy?.chunk_size_bytes || 6 * 1024 * 1024,
-				uploadDataDuringCreation: true,
-				removeFingerprintOnSuccess: true,
-				headers: {
-					'x-signature': String(config.token || '').trim(),
-				},
-				metadata: {
-					bucketName: config.bucket,
-					objectName: config.storage_path,
-					contentType: fileType,
-					cacheControl: '3600',
-				},
+			await uploadMintboxFile({
+				file,
+				config,
+				fileType,
+				onUploadRef: upload => { uploadRef.current = upload },
 				onProgress: (uploaded, total) => {
 					setUploadState(prev => ({ ...prev, status: 'uploading', progress: Math.round((uploaded / total) * 100), error: '' }))
 				},
-				onError: (error) => {
-					setUploadState(prev => ({ ...prev, status: 'failed', error: error.message || 'Upload failed' }))
-					reject(error)
-				},
-				onSuccess: async () => {
-					try {
-						await mintboxApi.completeUpload(config.upload_id)
-						setUploadState({ status: 'complete', progress: 100, file: null, error: '', uploadId: null })
-						setNote('')
-						queryClient.invalidateQueries({ queryKey })
-						queryClient.invalidateQueries({ queryKey: ['mintbox'] })
-						pushToast({ title: 'Uploaded to Mintbox', icon: 'check' })
-						resolve()
-					} catch (error) {
-						setUploadState(prev => ({ ...prev, status: 'failed', error: error.response?.data?.message || 'Upload finished but could not be finalized' }))
-						reject(error)
-					}
-				},
 			})
-			uploadRef.current = upload
-			upload.start()
-			})
+			try {
+				await mintboxApi.completeUpload(config.upload_id)
+				setUploadState({ status: 'complete', progress: 100, file: null, error: '', uploadId: null })
+				setNote('')
+				queryClient.invalidateQueries({ queryKey })
+				queryClient.invalidateQueries({ queryKey: ['mintbox'] })
+				pushToast({ title: 'Uploaded to Mintbox', icon: 'check' })
+			} catch (error) {
+				setUploadState(prev => ({ ...prev, status: 'failed', error: error.response?.data?.message || 'Upload finished but could not be finalized' }))
+				throw error
+			}
 		} catch (error) {
 			setUploadState({ status: 'failed', progress: 0, file, error: error.response?.data?.message || error.message || 'Could not prepare upload', uploadId: null })
 			throw error

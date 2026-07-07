@@ -15,7 +15,7 @@ const {
   getOpenRouterVideoModel,
   normalizeVideoParameters,
 } = require('./providers/openrouter.provider');
-const { uploadFile }         = require('../../config/supabase');
+const { uploadFile }         = require('../storage/app-storage.provider');
 const AppError  = require('../../utils/AppError');
 const logger    = require('../../utils/logger');
 const env       = require('../../config/env');

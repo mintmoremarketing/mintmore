@@ -388,7 +388,10 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
     ) : { rows: [] };
     const revisionRound = activeRevision.rows[0]?.round_number || null;
     const storagePath = `${folder.storage_prefix}/${uploadPurpose}/${fileCategory}/${Date.now()}-${crypto.randomUUID()}${ext}`;
-    const signedUpload = await storage.prepareResumableUpload(storagePath);
+    const signedUpload = await storage.prepareResumableUpload(storagePath, {
+      contentType: type || 'application/octet-stream',
+      size: Number(size),
+    });
     const session = await dbClient.query(
       `INSERT INTO mintbox_upload_sessions
          (folder_id, job_id, client_id, uploaded_by, original_name, storage_bucket,

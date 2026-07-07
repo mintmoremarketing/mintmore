@@ -1,5 +1,5 @@
 const { query }  = require('../../config/database');
-const { uploadFile } = require('../../config/supabase');
+const { uploadFile } = require('../storage/app-storage.provider');
 const AppError   = require('../../utils/AppError');
 const logger     = require('../../utils/logger');
 const { v4: uuidv4 } = require('uuid');

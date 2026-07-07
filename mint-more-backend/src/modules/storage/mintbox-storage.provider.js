@@ -1,14 +1,14 @@
-const env = require('../../config/env');
 const {
-  createSignedResumableUpload,
   createSignedDownloadUrl,
+  createSignedUpload,
+  getBucket: resolveBucket,
   storageObjectExists,
-} = require('../../config/supabase');
+} = require('./app-storage.provider');
 
-const bucket = env.supabase.mintboxBucket;
+const bucket = resolveBucket('mintbox');
 
-const prepareResumableUpload = (storagePath) =>
-  createSignedResumableUpload(bucket, storagePath);
+const prepareResumableUpload = (storagePath, options = {}) =>
+  createSignedUpload(bucket, storagePath, options);
 
 const objectExists = (storagePath) =>
   storageObjectExists(bucket, storagePath);
