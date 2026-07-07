@@ -11,11 +11,12 @@ const {
 } = require('./models/model.registry');
 const {
   generateText,
-  generateImage,
+  generateImage: generateOpenRouterImage,
   generateVideo,
   getOpenRouterVideoModel,
   normalizeVideoParameters,
 } = require('./providers/openrouter.provider');
+const { generateImage: generatePollinationsImage } = require('./providers/pollinations.provider');
 const { uploadFile, getBucket, createSignedDownloadUrl } = require('../storage/app-storage.provider');
 const AppError  = require('../../utils/AppError');
 const logger    = require('../../utils/logger');
@@ -460,7 +461,11 @@ const processGeneration = async (generationId) => {
           }
         }
 
-        result = await generateImage(openrouterId, generation.prompt, {
+        const imageProvider = String(openrouterId || '').startsWith('pollinations/')
+          ? generatePollinationsImage
+          : generateOpenRouterImage;
+
+        result = await imageProvider(openrouterId, generation.prompt, {
           ...params,
           reference_urls: referenceUrls,
         });
@@ -470,11 +475,27 @@ const processGeneration = async (generationId) => {
         throw err;
       }
 
-      // Upload to Supabase Storage
+      const imageDownloadStartedAt = Date.now();
       const imageRes  = await fetch(result.url);
+      if (!imageRes.ok) {
+        const error = new Error(`Generated image download failed with status ${imageRes.status}`);
+        error.retryable = imageRes.status === 429 || imageRes.status >= 500;
+        throw error;
+      }
       const buffer    = Buffer.from(await imageRes.arrayBuffer());
-      const filePath  = `ai-generated/${generation.user_id}/${generationId}.webp`;
-      const storedUrl = await uploadFile('job-attachments', filePath, buffer, 'image/webp');
+      const contentType = (imageRes.headers.get('content-type') || 'image/jpeg').split(';')[0];
+      const extension = contentType.includes('png')
+        ? 'png'
+        : contentType.includes('webp')
+          ? 'webp'
+          : contentType.includes('svg')
+            ? 'svg'
+            : 'jpg';
+      const filePath  = `ai-generated/${generation.user_id}/${generationId}.${extension}`;
+      const storedUrl = await uploadFile('job-attachments', filePath, buffer, contentType);
+      const imageDurationMs = Number(result.duration_ms) > 1000
+        ? result.duration_ms
+        : Date.now() - imageDownloadStartedAt;
 
       const prepaidEngineCost = params._engine_deduct_before_enqueue
         ? Number(params._engine_credit_cost || 0)
@@ -496,7 +517,7 @@ const processGeneration = async (generationId) => {
         [
           storedUrl,
           creditCost,
-          result.duration_ms,
+          imageDurationMs,
           JSON.stringify({
             seed: params.seed || null,
             aspect_ratio: params.aspect_ratio || null,
@@ -784,13 +805,21 @@ const enhancePrompt = async ({ rawPrompt, styleModifier }) => {
   const freeModels = await getFreeModels('text');
   const model = freeModels.find((item) => item.openrouter_id === 'openrouter/free') || freeModels[0];
   if (!model) return rawPrompt;
-  const result = await generateText(
-    model.openrouter_id,
-    `Rewrite this image prompt into one production-quality prompt. Keep the user's intent. Do not add markdown. Do not exceed 110 words.\n\nPrompt: ${rawPrompt}${styleModifier ? `\n\nStyle direction: ${styleModifier}` : ''}`,
-    { temperature: 0.4, max_tokens: 220 },
-    'You improve image-generation prompts for Indian business creatives. Return only the final prompt.'
-  );
-  return requireNonEmptyTextResult(result, model.openrouter_id).text;
+  try {
+    const result = await generateText(
+      model.openrouter_id,
+      `Rewrite this image prompt into one production-quality prompt. Keep the user's intent. Do not add markdown. Do not exceed 110 words.\n\nPrompt: ${rawPrompt}${styleModifier ? `\n\nStyle direction: ${styleModifier}` : ''}`,
+      { temperature: 0.4, max_tokens: 220 },
+      'You improve image-generation prompts for Indian business creatives. Return only the final prompt.'
+    );
+    return requireNonEmptyTextResult(result, model.openrouter_id).text;
+  } catch (err) {
+    logger.warn('AI prompt enhancement skipped', {
+      model: model.openrouter_id,
+      error: err.message,
+    });
+    return rawPrompt;
+  }
 };
 
 const createEngineImageGeneration = async (userId, payload = {}) => {

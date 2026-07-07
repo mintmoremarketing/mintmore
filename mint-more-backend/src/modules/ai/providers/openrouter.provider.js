@@ -43,6 +43,17 @@ const assertConfigured = () => {
   }
 };
 
+const markProviderError = (error, message = '') => {
+  if (/requires more credits|can only afford|upgrade to a paid account/i.test(message)) {
+    error.retryable = false;
+    error.code = 'OPENROUTER_INSUFFICIENT_CREDITS';
+  } else if (/rate limit|too many requests/i.test(message)) {
+    error.retryable = true;
+    error.code = 'OPENROUTER_RATE_LIMITED';
+  }
+  return error;
+};
+
 /**
  * Generate text via OpenRouter.
  */
@@ -90,7 +101,7 @@ const generateText = async (openrouterId, prompt, params = {}, systemPromptOverr
       logger.warn('OpenRouter model unavailable, using free router fallback', { openrouterId });
       return generateText('openrouter/free', prompt, params, systemPromptOverride);
     }
-    throw new Error(errorMsg);
+    throw markProviderError(new Error(errorMsg), errorMsg);
   }
 
   return {
@@ -114,6 +125,7 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
     height = 1024,
     aspect_ratio,
     reference_urls = [],
+    max_tokens = 1024,
   } = params;
 
   const userContent = reference_urls.length > 0
@@ -143,6 +155,7 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
           ? aspect_ratio
           : width === height ? '1:1' : `${width}:${height}`,
       },
+      max_tokens,
     }),
   });
 
@@ -151,7 +164,7 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
   if (!response.ok) {
     const errorMsg = data.error?.message || `OpenRouter image error: ${response.status}`;
     logger.error('OpenRouter image error', { openrouterId, error: errorMsg });
-    throw new Error(errorMsg);
+    throw markProviderError(new Error(errorMsg), errorMsg);
   }
 
   const image = data.choices?.[0]?.message?.images?.[0];
