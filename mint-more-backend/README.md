@@ -151,8 +151,9 @@ YOUTUBE_REDIRECT_URI=http://localhost:5000/api/v1/social/callback/youtube
 # ── FRONTEND ─────────────────────────────────────────
 FRONTEND_URL=http://localhost:3000
 
-# ── AI (OpenRouter) ───────────────────────────────────
+# ── AI (OpenRouter + Replicate) ───────────────────────
 OPENROUTER_API_KEY=sk-or-v1-your_openrouter_key
+REPLICATE_API_TOKEN=your_replicate_api_token
 AI_TEXT_CREDIT_PER_1K_TOKENS=2
 AI_IMAGE_CREDIT_BASE=10
 AI_MAX_REQUESTS_PER_HOUR=20

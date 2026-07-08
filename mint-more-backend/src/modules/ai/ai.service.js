@@ -17,6 +17,11 @@ const {
   normalizeVideoParameters,
 } = require('./providers/openrouter.provider');
 const { generateImage: generatePollinationsImage } = require('./providers/pollinations.provider');
+const { generateImage: generateReplicateImage } = require('./providers/replicate.provider');
+const {
+  buildEnhancementMessages,
+  composeImagePrompt,
+} = require('./image-prompt.orchestrator');
 const { uploadFile, getBucket, createSignedDownloadUrl } = require('../storage/app-storage.provider');
 const AppError  = require('../../utils/AppError');
 const logger    = require('../../utils/logger');
@@ -69,6 +74,26 @@ const modelCostSummary = (model) => {
   };
 };
 
+const resolveImageProvider = (modelId) => {
+  const normalizedId = String(modelId || '');
+  if (normalizedId.startsWith('pollinations/')) {
+    return {
+      modelId: normalizedId,
+      generate: generatePollinationsImage,
+    };
+  }
+  if (normalizedId.startsWith('replicate/')) {
+    return {
+      modelId: normalizedId.replace(/^replicate\//, ''),
+      generate: generateReplicateImage,
+    };
+  }
+  return {
+    modelId: normalizedId,
+    generate: generateOpenRouterImage,
+  };
+};
+
 const requireNonEmptyTextResult = (result, openrouterId) => {
   const text = typeof result?.text === 'string' ? result.text.trim() : '';
   if (!text) {
@@ -111,7 +136,7 @@ const buildPrompt = (toolType, userPrompt, params = {}, modelSystemPrompts = {})
       user: `Repurpose this content into all formats:\n\n${userPrompt}\n\n1. Instagram Caption (150 words max + 10 hashtags)\n2. Twitter/X Post (280 chars max)\n3. LinkedIn Post (professional, 150-200 words)\n4. WhatsApp Status (casual, 100 chars max)\n5. YouTube Description (100-150 words)\n\nLabel each format clearly.`,
     },
     image: {
-      system: customSystemPrompt || '',
+      system: params._system || customSystemPrompt || '',
       user:   userPrompt, // image prompts go direct
     },
     video: {
@@ -461,11 +486,9 @@ const processGeneration = async (generationId) => {
           }
         }
 
-        const imageProvider = String(openrouterId || '').startsWith('pollinations/')
-          ? generatePollinationsImage
-          : generateOpenRouterImage;
+        const imageProvider = resolveImageProvider(openrouterId);
 
-        result = await imageProvider(openrouterId, generation.prompt, {
+        result = await imageProvider.generate(imageProvider.modelId, generation.prompt, {
           ...params,
           reference_urls: referenceUrls,
         });
@@ -525,6 +548,9 @@ const processGeneration = async (generationId) => {
             style_preset_id: params.style_preset_id || null,
             reference_asset_ids: params.reference_asset_ids || [],
             enhanced_prompt: params._enhanced_prompt || null,
+            provider_prompt: params._provider_prompt || generation.prompt,
+            prompt_profile_version: params._prompt_profile_version || null,
+            reference_policy: params._reference_policy || null,
           }),
           generationId,
         ]
@@ -801,16 +827,57 @@ const resolveReferenceAssets = async (userId, sessionId, aliases = []) => {
   return result.rows;
 };
 
-const enhancePrompt = async ({ rawPrompt, styleModifier }) => {
+const getImagePromptContext = async (userId, projectId) => {
+  const [userResult, projectResult] = await Promise.all([
+    query(
+      `SELECT business_name, business_type, customer_profile
+       FROM users
+       WHERE id = $1`,
+      [userId]
+    ),
+    projectId
+      ? query(
+        `SELECT title, description
+         FROM jobs
+         WHERE id = $1 AND client_id = $2`,
+        [projectId, userId]
+      )
+      : Promise.resolve({ rows: [] }),
+  ]);
+
+  return {
+    businessContext: userResult.rows[0] || {},
+    projectContext: projectResult.rows[0] || {},
+  };
+};
+
+const enhancePrompt = async ({
+  rawPrompt,
+  styleModifier,
+  references = [],
+  businessContext = {},
+  projectContext = {},
+  aspectRatio,
+  resolutionTier,
+}) => {
   const freeModels = await getFreeModels('text');
   const model = freeModels.find((item) => item.openrouter_id === 'openrouter/free') || freeModels[0];
-  if (!model) return rawPrompt;
+  if (!model) return null;
   try {
+    const enhancement = buildEnhancementMessages({
+      rawPrompt,
+      styleModifier,
+      references,
+      businessContext,
+      projectContext,
+      aspectRatio,
+      resolutionTier,
+    });
     const result = await generateText(
       model.openrouter_id,
-      `Rewrite this image prompt into one production-quality prompt. Keep the user's intent. Do not add markdown. Do not exceed 110 words.\n\nPrompt: ${rawPrompt}${styleModifier ? `\n\nStyle direction: ${styleModifier}` : ''}`,
-      { temperature: 0.4, max_tokens: 220 },
-      'You improve image-generation prompts for Indian business creatives. Return only the final prompt.'
+      enhancement.user,
+      { temperature: 0.35, max_tokens: 320 },
+      enhancement.system
     );
     return requireNonEmptyTextResult(result, model.openrouter_id).text;
   } catch (err) {
@@ -818,7 +885,7 @@ const enhancePrompt = async ({ rawPrompt, styleModifier }) => {
       model: model.openrouter_id,
       error: err.message,
     });
-    return rawPrompt;
+    return null;
   }
 };
 
@@ -865,11 +932,30 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
 
   const references = await resolveReferenceAssets(userId, session_id, reference_aliases);
   const styleModifier = stylePreset?.prompt_modifier || '';
-  const promptWithStyle = styleModifier ? `${rawPrompt}\n\nStyle direction: ${styleModifier}` : rawPrompt;
+  const promptContext = await getImagePromptContext(userId, project_id || null);
   const enhancedPrompt = ai_prompt
-    ? await enhancePrompt({ rawPrompt, styleModifier })
+    ? await enhancePrompt({
+      rawPrompt,
+      styleModifier,
+      references,
+      businessContext: promptContext.businessContext,
+      projectContext: promptContext.projectContext,
+      aspectRatio: aspect_ratio,
+      resolutionTier: resolution_tier,
+    })
     : null;
-  const finalPrompt = enhancedPrompt || promptWithStyle;
+  const promptOrchestration = composeImagePrompt({
+    rawPrompt,
+    enhancedPrompt,
+    styleModifier,
+    references,
+    model,
+    businessContext: promptContext.businessContext,
+    projectContext: promptContext.projectContext,
+    aspectRatio: aspect_ratio,
+    resolutionTier: resolution_tier,
+  });
+  const finalPrompt = promptOrchestration.providerPrompt;
 
   const safeBatchCount = Math.max(1, Math.min(4, Number(batch_count || 1)));
   const usedSeed = fixed_seed
@@ -895,13 +981,30 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
       style_preset_id: stylePreset?.id || null,
       thinking_level: allowedThinkingLevel,
       google_search_enabled: allowedGoogleSearch,
+      _system: promptOrchestration.systemPrompt,
       _raw_prompt: rawPrompt,
       _enhanced_prompt: enhancedPrompt,
+      _provider_prompt: finalPrompt,
+      _prompt_profile_version: promptOrchestration.profileVersion,
+      _reference_policy: promptOrchestration.referencePolicy,
       _engine_credit_cost: unlimited ? 0 : creditCost,
       _engine_unlimited: unlimited,
       _engine_deduct_before_enqueue: !unlimited && creditCost > 0,
       engine_metadata: {
         project_id: project_id || null,
+        prompt_orchestration: {
+          profile_version: promptOrchestration.profileVersion,
+          reference_policy: promptOrchestration.referencePolicy,
+          has_business_context: Boolean(
+            promptContext.businessContext?.business_name ||
+            promptContext.businessContext?.business_type ||
+            promptContext.businessContext?.customer_profile
+          ),
+          has_project_context: Boolean(
+            promptContext.projectContext?.title ||
+            promptContext.projectContext?.description
+          ),
+        },
         references: references.map((item) => ({
           id: item.id,
           alias: item.alias,

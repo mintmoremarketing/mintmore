@@ -126,6 +126,7 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
     aspect_ratio,
     reference_urls = [],
     max_tokens = 1024,
+    _system,
   } = params;
 
   const userContent = reference_urls.length > 0
@@ -148,7 +149,10 @@ const generateImage = async (openrouterId, prompt, params = {}) => {
     },
     body: JSON.stringify({
       model: openrouterId,
-      messages: [{ role: 'user', content: userContent }],
+      messages: [
+        _system ? { role: 'system', content: _system } : null,
+        { role: 'user', content: userContent },
+      ].filter(Boolean),
       modalities: ['image', 'text'],
       image_config: {
         aspect_ratio: aspect_ratio && aspect_ratio !== 'Auto'
