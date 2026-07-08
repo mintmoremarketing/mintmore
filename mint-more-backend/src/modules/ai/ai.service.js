@@ -152,36 +152,56 @@ const buildPrompt = (toolType, userPrompt, params = {}, modelSystemPrompts = {})
 // ── Rate Limit ────────────────────────────────────────────────────────────────
 
 const checkRateLimit = async (userId) => {
-  let redis;
+  const limit = env.ai.maxRequestsPerHour;
+
+  const fallbackToDatabaseLimit = async (error) => {
+    logger.warn('AI Redis rate limit unavailable, falling back to database usage count', {
+      userId,
+      error: error.message,
+    });
+
+    const usage = await query(
+      `SELECT COUNT(*)::int AS count
+       FROM ai_generations
+       WHERE user_id = $1
+         AND created_at > NOW() - INTERVAL '1 hour'
+         AND status <> 'failed'`,
+      [userId]
+    );
+    const count = Number(usage.rows[0]?.count || 0) + 1;
+    if (count > limit) {
+      throw new AppError(
+        `AI rate limit reached (${limit}/hour). Please try again later.`,
+        429
+      );
+    }
+    return { count, limit, remaining: Math.max(0, limit - count) };
+  };
+
   try {
-    redis = getRedis();
+    const redis = getRedis();
+    const key   = RATE_LIMIT_KEY(userId);
+    const count = await redis.incr(key);
+    if (count === 1) await redis.expire(key, 3600);
+
+    if (count > limit) {
+      const ttl         = await redis.ttl(key);
+      const minutesLeft = Math.ceil(ttl / 60);
+      throw new AppError(
+        `AI rate limit reached (${limit}/hour). Resets in ${minutesLeft} min.`,
+        429
+      );
+    }
+    return { count, limit, remaining: limit - count };
   } catch (err) {
-    if (env.node_env === 'production') throw err;
+    if (err instanceof AppError) throw err;
+    if (env.node_env === 'production') return fallbackToDatabaseLimit(err);
     logger.warn('AI rate limit skipped because Redis is unavailable in development', {
       userId,
       error: err.message,
     });
-    return {
-      count: 0,
-      limit: env.ai.maxRequestsPerHour,
-      remaining: env.ai.maxRequestsPerHour,
-    };
+    return { count: 0, limit, remaining: limit };
   }
-
-  const key   = RATE_LIMIT_KEY(userId);
-  const count = await redis.incr(key);
-  if (count === 1) await redis.expire(key, 3600);
-
-  const limit = env.ai.maxRequestsPerHour;
-  if (count > limit) {
-    const ttl        = await redis.ttl(key);
-    const minutesLeft = Math.ceil(ttl / 60);
-    throw new AppError(
-      `AI rate limit reached (${limit}/hour). Resets in ${minutesLeft} min.`,
-      429
-    );
-  }
-  return { count, limit, remaining: limit - count };
 };
 
 const assertIncludedQuota = async (userId, toolType, model) => {
