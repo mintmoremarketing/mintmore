@@ -353,10 +353,11 @@ const createGeneration = async (userId, {
   if (!engineUnlimited && preflightCost > 0) {
     await expireCreditsForUser(userId);
     const walletResult = await query(
-      `SELECT w.balance AS cash_balance, COALESCE(c.balance, 0) AS credit_balance
-       FROM wallets w
-       LEFT JOIN mint_credit_accounts c ON c.user_id = w.user_id
-       WHERE w.user_id = $1`,
+      `SELECT COALESCE(w.balance, 0) AS cash_balance,
+              COALESCE(c.balance, 0) AS credit_balance
+       FROM mint_credit_accounts c
+       LEFT JOIN wallets w ON w.user_id = c.user_id
+       WHERE c.user_id = $1`,
       [userId]
     );
     const minRequired = preflightCost;
