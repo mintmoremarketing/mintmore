@@ -79,7 +79,7 @@ const connectRedis = () => {
         markRedisUnavailable(err);
         return;
       }
-      logger.error('Redis error', { error: err.message });
+      logger.error(`Redis error: ${err.message}`, { error: err.message });
       // Don't reject here - ioredis manages reconnection internally
     });
 

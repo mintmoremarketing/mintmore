@@ -485,16 +485,29 @@ const createGeneration = async (userId, {
     if (engineCost > 0 && normalizedParameters._engine_deduct_before_enqueue) {
       await refundPrepaidGenerationCredits(userId, generation.id);
     }
+    logger.error('AI generation enqueue failed', {
+      generationId: generation.id,
+      error: err.message,
+      code: err.code,
+      name: err.name,
+      statusCode: err.statusCode,
+      redisCircuitOpen: Boolean(err.redisCircuitOpen),
+    });
     const queueErrorMessage = err.isOperational
       ? err.message
-      : 'AI queue is unavailable. Check Redis/worker configuration.';
+      : err.message
+        ? `AI queue is unavailable: ${err.message}`
+        : 'AI queue is unavailable. Check Redis/worker configuration.';
+    const queueStatusCode = err.isOperational && err.statusCode
+      ? err.statusCode
+      : 503;
     await query(
       `UPDATE ai_generations
        SET status = 'failed', error_message = $1, completed_at = NOW()
        WHERE id = $2`,
       [queueErrorMessage, generation.id]
     );
-    throw new AppError(queueErrorMessage, err.statusCode || 503);
+    throw new AppError(queueErrorMessage, queueStatusCode);
   }
 
   await query(
