@@ -14,6 +14,7 @@ const { closePublishQueue } = require('./src/modules/social/queue/publish.queue'
 const { closeAIQueue } = require('./src/modules/ai/queue/ai.queue');
 const { closeFulfillmentQueue } = require('./src/modules/fulfillment/queue/fulfillment.queue');
 const { closeOutboxQueue } = require('./src/modules/events/queue/outbox.queue');
+const { ensureAIEngineSchema } = require('./src/modules/ai/ai.schema');
 
 let server;
 let shuttingDown = false;
@@ -28,6 +29,7 @@ const bootstrap = async () => {
   try {
     logger.info('🔄 Connecting to PostgreSQL...');
     await connectDB();
+    await ensureAIEngineSchema();
 
     logger.info('🔄 Connecting to Redis...');
     let redisReady = false;
