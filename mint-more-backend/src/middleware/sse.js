@@ -1,4 +1,4 @@
-const { getRedis } = require('../config/redis');
+const { handleRedisError, isRedisQuotaError } = require('../config/redis');
 const { verifyAccessToken } = require('../utils/jwt');
 const { SSE_CHANNEL } = require('../modules/notifications/notification.service');
 const logger = require('../utils/logger');
@@ -72,6 +72,8 @@ const initSSESubscriber = () => {
   });
 
   redisSubscriber.on('error', (err) => {
+    handleRedisError(err);
+    if (isRedisQuotaError(err)) return;
     logger.error('SSE Redis subscriber error', { error: err.message });
   });
 

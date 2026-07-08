@@ -1,5 +1,6 @@
 const { Queue } = require('bullmq');
 const { getRedis } = require('../../../config/redis');
+const { attachRedisQueueErrorHandler, withRedisQueueOperation } = require('../../../utils/redisQueueGuard');
 
 let outboxQueue = null;
 
@@ -14,18 +15,21 @@ const getOutboxQueue = () => {
         removeOnFail: { count: 500 },
       },
     });
+    attachRedisQueueErrorHandler(outboxQueue, 'Event outbox queue', closeOutboxQueue);
   }
   return outboxQueue;
 };
 
 const scheduleOutboxDispatcher = async () =>
-  getOutboxQueue().add(
-    'dispatch-pending-events',
-    {},
-    {
-      jobId: 'event-outbox-dispatcher',
-      repeat: { every: 5000 },
-    }
+  withRedisQueueOperation('Event outbox queue', () =>
+    getOutboxQueue().add(
+      'dispatch-pending-events',
+      {},
+      {
+        jobId: 'event-outbox-dispatcher',
+        repeat: { every: 5000 },
+      }
+    )
   );
 
 const closeOutboxQueue = async () => {

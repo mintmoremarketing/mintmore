@@ -1,5 +1,6 @@
 const { Queue } = require('bullmq');
 const { getRedis } = require('../../../config/redis');
+const { attachRedisQueueErrorHandler, withRedisQueueOperation } = require('../../../utils/redisQueueGuard');
 
 let publishQueue = null;
 
@@ -17,6 +18,7 @@ const getPublishQueue = () => {
         removeOnFail:     { count: 200 },
       },
     });
+    attachRedisQueueErrorHandler(publishQueue, 'Social publish queue', closePublishQueue);
   }
   return publishQueue;
 };
@@ -27,19 +29,21 @@ const getPublishQueue = () => {
  * If publish_at is in the future → BullMQ delays the job.
  */
 const schedulePost = async (postId, publishAt = null) => {
-  const queue = getPublishQueue();
+  return withRedisQueueOperation('Social publish queue', async () => {
+    const queue = getPublishQueue();
 
-  const delay = publishAt
-    ? Math.max(0, new Date(publishAt).getTime() - Date.now())
-    : 0;
+    const delay = publishAt
+      ? Math.max(0, new Date(publishAt).getTime() - Date.now())
+      : 0;
 
-  const job = await queue.add(
-    'publish-post',
-    { postId },
-    { delay }
-  );
+    const job = await queue.add(
+      'publish-post',
+      { postId },
+      { delay }
+    );
 
-  return job.id;
+    return job.id;
+  });
 };
 
 /**

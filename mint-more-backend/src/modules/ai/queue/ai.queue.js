@@ -1,5 +1,6 @@
 const { Queue } = require('bullmq');
 const { getRedis } = require('../../../config/redis');
+const { attachRedisQueueErrorHandler, withRedisQueueOperation } = require('../../../utils/redisQueueGuard');
 
 let aiQueue = null;
 
@@ -14,14 +15,17 @@ const getAIQueue = () => {
         removeOnFail:     { count: 500 },
       },
     });
+    attachRedisQueueErrorHandler(aiQueue, 'AI queue', closeAIQueue);
   }
   return aiQueue;
 };
 
 const enqueueGeneration = async (generationId) => {
-  const queue  = getAIQueue();
-  const job    = await queue.add('generate', { generationId }, { priority: 1 });
-  return job.id;
+  return withRedisQueueOperation('AI queue', async () => {
+    const queue = getAIQueue();
+    const job = await queue.add('generate', { generationId }, { priority: 1 });
+    return job.id;
+  });
 };
 
 const closeAIQueue = async () => {

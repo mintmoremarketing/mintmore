@@ -2,6 +2,7 @@ const { Worker } = require('bullmq');
 const { getRedis }   = require('../../../config/redis');
 const { executePublish } = require('../social.service');
 const logger = require('../../../utils/logger');
+const { attachRedisQueueErrorHandler } = require('../../../utils/redisQueueGuard');
 
 let worker = null;
 
@@ -36,6 +37,7 @@ const startPublishWorker = () => {
       error:   err.message,
     });
   });
+  attachRedisQueueErrorHandler(worker, 'Social publish worker', closePublishWorker);
 
   logger.info('Social publish worker started');
   return worker;

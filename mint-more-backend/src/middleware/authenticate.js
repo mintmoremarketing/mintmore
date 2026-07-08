@@ -1,5 +1,5 @@
 const { verifyAccessToken } = require('../utils/jwt');
-const { getRedis } = require('../config/redis');
+const { getRedis, handleRedisError, isRedisQuotaError } = require('../config/redis');
 const env = require('../config/env');
 const AppError = require('../utils/AppError');
 
@@ -33,7 +33,11 @@ const authenticate = async (req, res, next) => {
         throw new AppError('Token has been revoked. Please log in again.', 401);
       }
     } catch (redisErr) {
-      if (!env.isDev || redisErr instanceof AppError) {
+      handleRedisError(redisErr);
+      const skipBlacklist = redisErr.redisCircuitOpen || isRedisQuotaError(redisErr);
+      // JWT signature/expiry is still enforced. Only the logout blacklist
+      // check is skipped while Redis quota is exhausted.
+      if (!skipBlacklist && (!env.isDev || redisErr instanceof AppError)) {
         throw redisErr;
       }
     }

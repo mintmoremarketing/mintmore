@@ -3,6 +3,7 @@ const { getRedis } = require('../../../config/redis');
 const logger = require('../../../utils/logger');
 const { dispatchPendingEvents } = require('../outbox.service');
 const { scheduleOutboxDispatcher } = require('./outbox.queue');
+const { attachRedisQueueErrorHandler } = require('../../../utils/redisQueueGuard');
 
 let worker = null;
 
@@ -23,6 +24,7 @@ const startOutboxWorker = async () => {
       error: error.message,
     });
   });
+  attachRedisQueueErrorHandler(worker, 'Event outbox worker', closeOutboxWorker);
   await scheduleOutboxDispatcher();
   logger.info('[Outbox] Dispatcher worker started');
   return worker;

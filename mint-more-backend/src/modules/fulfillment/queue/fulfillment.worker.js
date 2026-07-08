@@ -3,6 +3,7 @@ const { getRedis } = require('../../../config/redis');
 const logger = require('../../../utils/logger');
 const { scanStalledDeliveries } = require('../fulfillment.service');
 const { scheduleFulfillmentMonitor } = require('./fulfillment.queue');
+const { attachRedisQueueErrorHandler } = require('../../../utils/redisQueueGuard');
 
 let worker = null;
 
@@ -23,6 +24,7 @@ const startFulfillmentWorker = async () => {
       error: err.message,
     });
   });
+  attachRedisQueueErrorHandler(worker, 'Fulfillment worker', closeFulfillmentWorker);
   await scheduleFulfillmentMonitor();
   logger.info('[Fulfillment] Monitor worker started');
   return worker;

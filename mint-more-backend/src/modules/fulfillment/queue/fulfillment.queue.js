@@ -1,5 +1,6 @@
 const { Queue } = require('bullmq');
 const { getRedis } = require('../../../config/redis');
+const { attachRedisQueueErrorHandler, withRedisQueueOperation } = require('../../../utils/redisQueueGuard');
 
 let fulfillmentQueue = null;
 
@@ -14,20 +15,23 @@ const getFulfillmentQueue = () => {
         removeOnFail: { count: 500 },
       },
     });
+    attachRedisQueueErrorHandler(fulfillmentQueue, 'Fulfillment queue', closeFulfillmentQueue);
   }
   return fulfillmentQueue;
 };
 
 const scheduleFulfillmentMonitor = async () => {
-  const queue = getFulfillmentQueue();
-  return queue.add(
-    'scan-stalled-deliveries',
-    {},
-    {
-      jobId: 'stalled-delivery-monitor',
-      repeat: { every: 15 * 60 * 1000 },
-    }
-  );
+  return withRedisQueueOperation('Fulfillment queue', () => {
+    const queue = getFulfillmentQueue();
+    return queue.add(
+      'scan-stalled-deliveries',
+      {},
+      {
+        jobId: 'stalled-delivery-monitor',
+        repeat: { every: 15 * 60 * 1000 },
+      }
+    );
+  });
 };
 
 const closeFulfillmentQueue = async () => {

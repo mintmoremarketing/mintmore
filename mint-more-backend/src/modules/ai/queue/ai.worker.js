@@ -2,6 +2,7 @@ const { Worker, UnrecoverableError } = require('bullmq');
 const { getRedis }  = require('../../../config/redis');
 const { processGeneration } = require('../ai.service');
 const logger = require('../../../utils/logger');
+const { attachRedisQueueErrorHandler } = require('../../../utils/redisQueueGuard');
 
 let aiWorker = null;
 
@@ -41,9 +42,7 @@ const startAIWorker = () => {
     });
   });
 
-  aiWorker.on('error', (err) => {
-    logger.error('AI worker connection error', { error: err.message });
-  });
+  attachRedisQueueErrorHandler(aiWorker, 'AI worker', closeAIWorker);
 
   logger.info('AI worker started');
   return aiWorker;

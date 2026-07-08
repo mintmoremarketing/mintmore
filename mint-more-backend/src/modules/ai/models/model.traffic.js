@@ -1,4 +1,4 @@
-const { getRedis } = require('../../../config/redis');
+const { getRedis, handleRedisError } = require('../../../config/redis');
 const logger = require('../../../utils/logger');
 
 /**
@@ -32,6 +32,7 @@ const incrementActive = async (modelId) => {
     await redis.incr(HOURLY_KEY(modelId));
     await redis.expire(HOURLY_KEY(modelId), HOURLY_TTL);
   } catch (err) {
+    handleRedisError(err);
     logger.warn('Traffic increment failed', { modelId, error: err.message });
   }
 };
@@ -60,6 +61,7 @@ const decrementActive = async (modelId, responseMs = null, isError = false) => {
       await redis.expire(ERROR_KEY(modelId), 300); // 5 min window
     }
   } catch (err) {
+    handleRedisError(err);
     logger.warn('Traffic decrement failed', { modelId, error: err.message });
   }
 };
@@ -125,6 +127,7 @@ const getModelTraffic = async (modelId) => {
       estimated_wait_min: estimatedWaitMin,
     };
   } catch (err) {
+    handleRedisError(err);
     logger.warn('getModelTraffic failed', { modelId, error: err.message });
     return {
       model_id:           modelId,

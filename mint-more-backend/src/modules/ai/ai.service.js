@@ -1,6 +1,6 @@
 const { randomUUID }         = require('crypto');
 const { query, getClient }   = require('../../config/database');
-const { getRedis }           = require('../../config/redis');
+const { getRedis, handleRedisError } = require('../../config/redis');
 const { enqueueGeneration }  = require('./queue/ai.queue');
 const {
   incrementActive, decrementActive, getBestFreeModel,
@@ -298,6 +298,73 @@ const deductCredits = async (userId, generationId, creditCost) => {
 
 // ── Publish SSE Progress ──────────────────────────────────────────────────────
 
+const refundPrepaidGenerationCredits = async (userId, generationId) => {
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+
+    const creditTx = await dbClient.query(
+      'SELECT amount FROM mint_credit_transactions WHERE idempotency_key = $1',
+      [`ai-credit:${generationId}`]
+    );
+    const existingCreditRefund = await dbClient.query(
+      'SELECT id FROM mint_credit_transactions WHERE idempotency_key = $1',
+      [`ai-credit-refund:${generationId}`]
+    );
+    const creditRefund = creditTx.rows[0] && !existingCreditRefund.rows[0]
+      ? Math.abs(Number(creditTx.rows[0].amount))
+      : 0;
+
+    if (creditRefund > 0) {
+      await recordCreditTransaction(dbClient, {
+        userId,
+        type: 'reversal',
+        amount: creditRefund,
+        referenceId: generationId,
+        referenceType: 'ai_generation',
+        idempotencyKey: `ai-credit-refund:${generationId}`,
+        description: 'Mint AI generation refund - queue unavailable',
+      });
+    }
+
+    const cashTx = await dbClient.query(
+      'SELECT wallet_id, amount FROM wallet_transactions WHERE idempotency_key = $1',
+      [`ai-cash:${generationId}`]
+    );
+    const existingCashRefund = await dbClient.query(
+      'SELECT id FROM wallet_transactions WHERE idempotency_key = $1',
+      [`ai-cash-refund:${generationId}`]
+    );
+    const cashRefund = cashTx.rows[0] && !existingCashRefund.rows[0]
+      ? Math.abs(Number(cashTx.rows[0].amount))
+      : 0;
+
+    if (cashRefund > 0) {
+      await recordTransaction(dbClient, {
+        walletId: cashTx.rows[0].wallet_id,
+        userId,
+        type: 'adjustment',
+        amount: cashRefund,
+        referenceId: generationId,
+        referenceType: 'ai_generation',
+        idempotencyKey: `ai-cash-refund:${generationId}`,
+        description: 'Mint AI generation refund - queue unavailable',
+        metadata: { generation_id: generationId },
+      });
+    }
+
+    await dbClient.query('COMMIT');
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    logger.error('Credit refund after queue failure failed', {
+      generationId,
+      error: err.message,
+    });
+  } finally {
+    dbClient.release();
+  }
+};
+
 const publishProgress = async (generationId, userId, status, data = {}) => {
   try {
     const redis = getRedis();
@@ -306,6 +373,7 @@ const publishProgress = async (generationId, userId, status, data = {}) => {
       JSON.stringify({ generationId, userId, status, ...data })
     );
   } catch (err) {
+    handleRedisError(err);
     logger.warn('AI progress publish failed', { error: err.message });
   }
 };
@@ -414,13 +482,19 @@ const createGeneration = async (userId, {
   try {
     queueJobId = await enqueueGeneration(generation.id);
   } catch (err) {
+    if (engineCost > 0 && normalizedParameters._engine_deduct_before_enqueue) {
+      await refundPrepaidGenerationCredits(userId, generation.id);
+    }
+    const queueErrorMessage = err.isOperational
+      ? err.message
+      : 'AI queue is unavailable. Check Redis/worker configuration.';
     await query(
       `UPDATE ai_generations
        SET status = 'failed', error_message = $1, completed_at = NOW()
        WHERE id = $2`,
-      ['AI queue is unavailable. Check Redis/worker configuration.', generation.id]
+      [queueErrorMessage, generation.id]
     );
-    throw new AppError('AI queue is unavailable. Check Redis/worker configuration.', 503);
+    throw new AppError(queueErrorMessage, err.statusCode || 503);
   }
 
   await query(

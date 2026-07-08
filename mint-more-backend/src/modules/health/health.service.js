@@ -1,10 +1,10 @@
 const { query } = require('../../config/database');
-const { getRedis } = require('../../config/redis');
+const { getRedis, getRedisCircuitState, handleRedisError } = require('../../config/redis');
 const logger = require('../../utils/logger');
 
 /**
  * Runs lightweight connectivity checks against DB and Redis.
- * Returns structured status object — used by health controller.
+ * Returns structured status object used by the health controller.
  */
 const getHealthStatus = async () => {
   const checks = {
@@ -14,22 +14,28 @@ const getHealthStatus = async () => {
     outbox: 'unknown',
   };
 
-  // ── PostgreSQL check ──────────────────────────────
   try {
     await query('SELECT 1');
     checks.database = 'ok';
   } catch (err) {
-    logger.error('Health check — DB failed', { error: err.message });
+    logger.error('Health check - DB failed', { error: err.message });
     checks.database = 'error';
   }
 
-  // ── Redis check ───────────────────────────────────
   try {
-    const redis = getRedis();
-    const pong = await redis.ping();
-    checks.redis = pong === 'PONG' ? 'ok' : 'degraded';
+    const redisState = getRedisCircuitState();
+    if (redisState.open) {
+      checks.redis = 'error';
+      checks.redis_reason = 'request_quota_exhausted';
+      checks.redis_unavailable_until = redisState.unavailableUntil;
+    } else {
+      const redis = getRedis();
+      const pong = await redis.ping();
+      checks.redis = pong === 'PONG' ? 'ok' : 'degraded';
+    }
   } catch (err) {
-    logger.error('Health check — Redis failed', { error: err.message });
+    handleRedisError(err);
+    logger.error('Health check - Redis failed', { error: err.message });
     checks.redis = 'error';
   }
 
@@ -51,7 +57,7 @@ const getHealthStatus = async () => {
     checks.outbox = 'error';
   }
 
-  const allOk = Object.values(checks).every((v) => v === 'ok');
+  const allOk = ['server', 'database', 'redis', 'outbox'].every((key) => checks[key] === 'ok');
 
   return {
     status: allOk ? 'healthy' : 'degraded',
