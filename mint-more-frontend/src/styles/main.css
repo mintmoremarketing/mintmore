@@ -2673,13 +2673,19 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 .sidebar > div:last-child { position: relative; }
 
 /* Mint AI image engine */
+.mint-ai-page {
+  margin: -24px -24px -80px;
+  width: calc(100% + 48px);
+}
+
 .engine-workspace {
   display: grid;
-  grid-template-columns: minmax(500px, 680px) minmax(360px, 520px);
-  gap: 18px;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 0;
   align-items: start;
-  max-width: 1320px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .engine-panel,
@@ -2693,6 +2699,9 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 
 .engine-panel {
   padding: 20px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: 0;
 }
 
 .engine-header,
@@ -3170,7 +3179,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   flex-wrap: wrap;
 }
 
-.engine-prompt-options label {
+.engine-prompt-option {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3190,6 +3199,22 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   background: var(--paper-tint);
   color: var(--ink-600);
   font-weight: 800;
+}
+
+.creation-modal-backdrop {
+  z-index: 300;
+}
+
+.app:not(.mobile) .creation-modal-backdrop {
+  inset: 0 0 0 240px;
+}
+
+.app.sidebar-collapsed .creation-modal-backdrop {
+  inset: 0 0 0 68px;
+}
+
+.app.sidebar-collapsed.hover-expanded .creation-modal-backdrop {
+  inset: 0 0 0 240px;
 }
 
 .engine-config-row {
@@ -3274,7 +3299,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   color: var(--ink-900);
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 960px) {
   .engine-workspace {
     grid-template-columns: 1fr;
   }
@@ -3297,6 +3322,9 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .creations-toolbar {
@@ -3651,7 +3679,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 
 .creation-inspector,
 .creation-publish-modal {
-  width: min(980px, calc(100vw - 28px));
+  width: min(760px, calc(100vw - 360px));
   max-height: calc(100vh - 28px);
   overflow: hidden;
   border-radius: 24px;
@@ -3855,7 +3883,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 
 .creation-publish-modal {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.8fr);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.82fr);
 }
 
 .creation-publish-preview {

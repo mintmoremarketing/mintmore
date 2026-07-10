@@ -434,15 +434,21 @@ function PromptBox({
         <button type="button" title="More prompt tools" onClick={() => alert('Tell me what this third utility should do, and I will wire it intentionally.')}><Icon name="sparkles" size={14} /></button>
       </div>
       <div className="engine-prompt-options">
-        <label><Toggle checked={aiPrompt} onChange={setAiPrompt} /> AI prompt</label>
-        <label><Toggle checked={fixedSeed} onChange={setFixedSeed} /> Fixed seed</label>
+        <div className="engine-prompt-option">
+          <Toggle checked={aiPrompt} onChange={setAiPrompt} />
+          <span>AI prompt</span>
+        </div>
+        <div className="engine-prompt-option">
+          <Toggle checked={fixedSeed} onChange={setFixedSeed} />
+          <span>Fixed seed</span>
+        </div>
         <button type="button" className="engine-info" title="Enable this to get consistent results every time you use the same prompt.">i</button>
         {fixedSeed && (
           <input className="input" value={seed} onChange={event => setSeed(event.target.value)} placeholder="Seed" />
         )}
       </div>
       {showEditor && (
-        <div className="modal-backdrop" onClick={() => setShowEditor(false)}>
+        <div className="modal-backdrop creation-modal-backdrop" onClick={() => setShowEditor(false)}>
           <div className="modal" onClick={event => event.stopPropagation()}>
             <div className="row between">
               <h3>Prompt editor</h3>
@@ -593,7 +599,7 @@ function PublishPostModal({ generation, onClose, onPublish, publishing }) {
   const previewText = generationResultText(generation) || promptFor(generation)
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop creation-modal-backdrop" onClick={onClose}>
       <div className="creation-publish-modal" onClick={event => event.stopPropagation()}>
         <div className="creation-publish-preview">
           {isVideo ? (
@@ -675,7 +681,7 @@ function CreationInspector({ generation, progress, onClose, onFavorite, onDelete
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop creation-modal-backdrop" onClick={onClose}>
       <div className="creation-inspector" onClick={event => event.stopPropagation()}>
         <header className="creation-inspector-tabs">
           <div className="segmented compact">
@@ -1369,7 +1375,8 @@ export default function MintAI() {
   const promptReferences = activeMode === 'chat' ? [] : references
 
   return (
-    <div className="engine-workspace">
+    <div className="mint-ai-page">
+      <div className="engine-workspace">
       <section className="engine-panel">
         <header className="engine-header">
           <div>
@@ -1496,22 +1503,23 @@ export default function MintAI() {
         )}
       </section>
 
-      <CreationsGallery
-        projectId={projectId}
-        mode={activeMode}
-        toolType={currentToolType}
-        models={models}
-        setMode={setActiveMode}
-        setSelectedModel={setSelectedModel}
-        setPrompt={setPrompt}
-        setAspectRatio={setAspectRatio}
-        setResolution={setResolution}
-        setSeed={setSeed}
-        setFixedSeed={setFixedSeed}
-        setReferences={setReferences}
-        optimisticGenerations={optimisticGenerations}
-        setOptimisticGenerations={setOptimisticGenerations}
-      />
+        <CreationsGallery
+          projectId={projectId}
+          mode={activeMode}
+          toolType={currentToolType}
+          models={models}
+          setMode={setActiveMode}
+          setSelectedModel={setSelectedModel}
+          setPrompt={setPrompt}
+          setAspectRatio={setAspectRatio}
+          setResolution={setResolution}
+          setSeed={setSeed}
+          setFixedSeed={setFixedSeed}
+          setReferences={setReferences}
+          optimisticGenerations={optimisticGenerations}
+          setOptimisticGenerations={setOptimisticGenerations}
+        />
+      </div>
     </div>
   )
 }
