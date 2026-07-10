@@ -5,7 +5,7 @@ const logger   = require('../../utils/logger');
 const triggers = require('../notifications/notification.triggers');
 const { holdEscrow, getWalletByUserId } = require('../wallet/wallet.service');
 const { writeAudit } = require('../audit/audit.service');
-const { enqueueOutboxEvent } = require('../events/outbox.service');
+const { enqueueOutboxEvent, dispatchOutboxImmediately } = require('../events/outbox.service');
 
 const MAX_ROUNDS = 4;
 
@@ -1035,6 +1035,7 @@ const adminApproveDeal = async (jobId, adminId, { admin_note }) => {
     );
 
     await dbClient.query('COMMIT');
+    await dispatchOutboxImmediately();
 
     logger.info('[Negotiation] Admin approved deal — assignment created', {
       jobId,

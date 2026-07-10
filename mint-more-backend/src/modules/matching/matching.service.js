@@ -4,7 +4,7 @@ const logger = require('../../utils/logger');
 const { getCategoryPriceRange, evaluatePricingAlignment } = require('./pricing.service');
 const { saveMatchedCandidates } = require('../negotiation/negotiation.service');
 const { getSetting } = require('../commerce/settings.service');
-const { enqueueOutboxEvent } = require('../events/outbox.service');
+const { enqueueOutboxEvent, dispatchOutboxImmediately } = require('../events/outbox.service');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -381,6 +381,7 @@ const runMatchingForJob = async (jobId) => {
       { trigger: 'notifyMatchedCandidates', args: [job, ranked] },
       { dedupeKey: `matching:${jobId}:matched-candidates` }
     );
+    await dispatchOutboxImmediately();
   }
 
   

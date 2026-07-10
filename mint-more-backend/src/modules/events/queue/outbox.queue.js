@@ -27,7 +27,9 @@ const scheduleOutboxDispatcher = async () =>
       {},
       {
         jobId: 'event-outbox-dispatcher',
-        repeat: { every: 5000 },
+        // Safety-net sweep only: immediate dispatch happens when rows are written.
+        // This catches anything that was committed but missed the first pass.
+        repeat: { every: 2 * 60 * 1000 },
       }
     )
   );

@@ -166,6 +166,17 @@ const dispatchPendingEvents = async ({ limit = 50 } = {}) => {
   return { claimed: events.length, completed, failed };
 };
 
+const dispatchOutboxImmediately = async () => {
+  try {
+    return await dispatchPendingEvents();
+  } catch (error) {
+    logger.warn('[Outbox] Immediate dispatch failed; safety-net sweep will retry', {
+      error: error.message,
+    });
+    return null;
+  }
+};
+
 const listOutboxEvents = async ({ status = null, limit = 50 } = {}) => {
   const result = await query(
     `SELECT id, event_type, dedupe_key, status, attempts, available_at,
@@ -195,6 +206,7 @@ const retryOutboxEvent = async (eventId) => {
 module.exports = {
   enqueueOutboxEvent,
   dispatchPendingEvents,
+  dispatchOutboxImmediately,
   listOutboxEvents,
   retryOutboxEvent,
 };

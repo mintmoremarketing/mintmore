@@ -1,7 +1,7 @@
 const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
-const { enqueueOutboxEvent } = require('../events/outbox.service');
+const { enqueueOutboxEvent, dispatchOutboxImmediately } = require('../events/outbox.service');
 const { getSetting } = require('../commerce/settings.service');
 
 // ── Lazy-load matching service to avoid circular dependency ───────────────────
@@ -35,6 +35,7 @@ const queueMatching = async (jobId, reason) => {
   // Fire-and-forget — never blocks the HTTP response.
   // Errors are caught and logged; they must not surface to the caller.
   await enqueueOutboxEvent('matching.run', { jobId, reason });
+  await dispatchOutboxImmediately();
   logger.info(`[Jobs] Auto-matching queued (${reason})`, { jobId });
 };
 

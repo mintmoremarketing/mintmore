@@ -6,7 +6,7 @@ const AppError = require('../../utils/AppError');
 const { getSetting } = require('./settings.service');
 const { recordCreditTransaction } = require('./credits.service');
 const { writeAudit } = require('../audit/audit.service');
-const { enqueueOutboxEvent } = require('../events/outbox.service');
+const { enqueueOutboxEvent, dispatchOutboxImmediately } = require('../events/outbox.service');
 const logger = require('../../utils/logger');
 
 const razorpay = env.payments.mockCheckout
@@ -77,6 +77,7 @@ const createCheckout = async (userId, { kind = 'membership', days } = {}) => {
       const payment = result.rows[0];
       const activated = await activatePayment(dbClient, payment, `mock_${crypto.randomUUID()}`);
       await dbClient.query('COMMIT');
+      await dispatchOutboxImmediately();
       logger.warn('Mock membership checkout activated', { userId, kind, amount, paymentId: payment.id });
       return {
         checkout_mode: 'mock',
@@ -283,6 +284,7 @@ const verifyCheckout = async (userId, payload) => {
     }
     const activated = await activatePayment(dbClient, payment, payload.razorpay_payment_id);
     await dbClient.query('COMMIT');
+    await dispatchOutboxImmediately();
     return activated;
   } catch (err) {
     await dbClient.query('ROLLBACK');
@@ -333,6 +335,7 @@ const processSubscriptionCharge = async (subscriptionId, paymentId, amountPaise)
     }
     const activated = await activatePayment(dbClient, paymentResult.rows[0], paymentId);
     await dbClient.query('COMMIT');
+    await dispatchOutboxImmediately();
     return { handled: true, ...activated };
   } catch (err) {
     await dbClient.query('ROLLBACK');
