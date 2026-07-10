@@ -3689,6 +3689,36 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   transition: transform 0.12s ease;
 }
 
+.creation-video-preview {
+  width: 100%;
+  max-width: 100%;
+  max-height: 72vh;
+  border-radius: 18px;
+  background: #000;
+  object-fit: contain;
+}
+
+.creation-text-preview {
+  width: min(100%, 640px);
+  min-height: 280px;
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  background: var(--paper);
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.06);
+}
+
+.creation-text-preview p {
+  margin: 0;
+  color: var(--ink-800);
+  line-height: 1.7;
+  font-size: 15px;
+}
+
 .creation-zoom {
   align-self: end;
   justify-self: stretch;
@@ -3836,6 +3866,16 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   max-width: 100%;
   max-height: 72vh;
   border-radius: 18px;
+}
+
+.creation-publish-preview .creation-video-preview {
+  max-width: 100%;
+  max-height: 72vh;
+}
+
+.creation-publish-preview .creation-text-preview {
+  width: min(100%, 520px);
+  min-height: 240px;
 }
 
 .creation-publish-form {

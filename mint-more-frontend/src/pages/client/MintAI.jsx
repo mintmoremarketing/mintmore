@@ -5,7 +5,16 @@ import { mintboxApi } from '../../api/mintbox'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 
-const MODALITIES = ['Image', 'Video', 'Audio', 'Spaces', 'Design', '3D', 'Flows']
+const MODALITIES = [
+  { value: 'image', label: 'Image', icon: 'image' },
+  { value: 'video', label: 'Video', icon: 'video' },
+  { value: 'chat', label: 'Chat', icon: 'chat' },
+  { value: 'audio', label: 'Audio', icon: 'microphone', disabled: true },
+  { value: 'spaces', label: 'Spaces', icon: 'layers', disabled: true },
+  { value: 'design', label: 'Design', icon: 'grid', disabled: true },
+  { value: '3d', label: '3D', icon: 'layers', disabled: true },
+  { value: 'flows', label: 'Flows', icon: 'radar', disabled: true },
+]
 
 const ASPECT_RATIOS = [
   { value: 'Auto', label: 'Auto', icon: 'Auto' },
@@ -45,6 +54,23 @@ const tierCost = (model, resolution) => {
 const extractAliases = (value) =>
   Array.from(new Set((value.match(/@img\d+/g) || []).map(alias => alias.replace('@', ''))))
 
+const modeToolType = (mode) => {
+  if (mode === 'chat') return 'text'
+  return mode || 'image'
+}
+
+const modeTitle = (mode) => {
+  if (mode === 'video') return 'Video engine'
+  if (mode === 'chat') return 'Mint AI chat'
+  return 'Image engine'
+}
+
+const modePromptPlaceholder = (mode) => {
+  if (mode === 'video') return 'Describe your video—try @ to add references'
+  if (mode === 'chat') return 'Ask Mint AI anything about your business...'
+  return 'Describe your image—try @ to add references'
+}
+
 const monthLabel = (value) => {
   const date = value ? new Date(value) : new Date()
   return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date)
@@ -60,6 +86,42 @@ const metadataFor = (generation) =>
 
 const imageUrlFor = (generation, progress) => progress?.result_url || generation?.result_url || ''
 
+const generationResultText = (generation, progress) =>
+  progress?.result_text || generation?.result_text || ''
+
+const generationKind = (generation) => generation?.tool_type || 'image'
+
+const isVideoGeneration = (generation) => generationKind(generation) === 'video'
+const isTextGeneration = (generation) => generationKind(generation) === 'text'
+const isImageGeneration = (generation) => generationKind(generation) === 'image'
+
+const generationDownloadName = (generation) => {
+  const base = generation?.id || 'creatyv-generation'
+  if (isVideoGeneration(generation)) return `${base}.mp4`
+  if (isTextGeneration(generation)) return `${base}.txt`
+  return `${base}.png`
+}
+
+const downloadGenerationAsset = (generation, progress) => {
+  const url = imageUrlFor(generation, progress)
+  if (url) {
+    downloadFile(url, generationDownloadName(generation))
+    return
+  }
+
+  const text = generationResultText(generation, progress) || promptFor(generation)
+  if (!text) return
+
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = generationDownloadName(generation)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(link.href)
+}
+
 const resolutionFor = (generation) =>
   generation?.resolution_tier || parametersFor(generation).resolution_tier || metadataFor(generation).resolution_tier || '1K'
 
@@ -73,6 +135,7 @@ const providerIconFor = (generation) =>
   generation?.icon_key?.slice(0, 2)?.toUpperCase() || generation?.provider_display_name?.slice(0, 2)?.toUpperCase() || 'AI'
 
 const pixelSizeFor = (generation) => {
+  if (isTextGeneration(generation)) return 'Text'
   const result = generation?.result_metadata || {}
   if (result.width && result.height) return `${result.width}x${result.height}`
   return aspectFor(generation)
@@ -320,7 +383,18 @@ function ReferencesBlock({ styles, selectedStyle, setSelectedStyle, references, 
   )
 }
 
-function PromptBox({ value, setValue, references, aiPrompt, setAiPrompt, fixedSeed, setFixedSeed, seed, setSeed }) {
+function PromptBox({
+  value,
+  setValue,
+  references,
+  aiPrompt,
+  setAiPrompt,
+  fixedSeed,
+  setFixedSeed,
+  seed,
+  setSeed,
+  mode = 'image',
+}) {
   const [showEditor, setShowEditor] = useState(false)
   const showRefs = value.endsWith('@') && references.length > 0
 
@@ -346,7 +420,7 @@ function PromptBox({ value, setValue, references, aiPrompt, setAiPrompt, fixedSe
       <textarea
         value={value}
         onChange={event => setValue(event.target.value)}
-        placeholder="Describe your image—try @ to add references"
+        placeholder={modePromptPlaceholder(mode)}
         rows={7}
       />
       {showRefs && (
@@ -392,12 +466,23 @@ function PublishPostModal({ generation, onClose, onPublish, publishing }) {
   const [shareParams, setShareParams] = useState(false)
   const [tags, setTags] = useState('')
   const url = imageUrlFor(generation)
+  const canPublish = isImageGeneration(generation)
+  const isVideo = isVideoGeneration(generation)
+  const isText = isTextGeneration(generation)
+  const previewText = generationResultText(generation) || promptFor(generation)
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="creation-publish-modal" onClick={event => event.stopPropagation()}>
         <div className="creation-publish-preview">
-          {url ? <img src={url} alt="" /> : <div className="creation-empty-preview"><Icon name="image" size={28} /></div>}
+          {isVideo ? (
+            url ? <video src={url} controls playsInline className="creation-video-preview" /> : <div className="creation-empty-preview"><Icon name="video" size={28} /></div>
+          ) : isText ? (
+            <div className="creation-text-preview">
+              <Icon name="chat" size={26} />
+              <p>{previewText || 'Text generations can be published once the publishing flow supports them.'}</p>
+            </div>
+          ) : url ? <img src={url} alt="" /> : <div className="creation-empty-preview"><Icon name="image" size={28} /></div>}
         </div>
         <div className="creation-publish-form">
           <div className="row between">
@@ -407,6 +492,11 @@ function PublishPostModal({ generation, onClose, onPublish, publishing }) {
             </div>
             <button className="icon-btn" type="button" onClick={onClose}><Icon name="x" size={14} /></button>
           </div>
+          {!canPublish && (
+            <p className="creation-note">
+              Publishing is currently image-only. This modal is here so the video and chat tabs do not break the flow, but the actual post save is disabled for these modes.
+            </p>
+          )}
           <label>
             Caption
             <textarea rows={6} value={caption} onChange={event => setCaption(event.target.value)} placeholder="Write a caption..." />
@@ -427,7 +517,7 @@ function PublishPostModal({ generation, onClose, onPublish, publishing }) {
             <button
               type="button"
               className="btn dark"
-              disabled={publishing}
+              disabled={publishing || !canPublish}
               onClick={() => onPublish({
                 caption,
                 share_generation_parameters: shareParams,
@@ -450,6 +540,10 @@ function CreationInspector({ generation, progress, onClose, onFavorite, onDelete
   const [downloadOpen, setDownloadOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const url = imageUrlFor(generation, progress)
+  const textResult = generationResultText(generation, progress)
+  const isVideo = isVideoGeneration(generation)
+  const isText = isTextGeneration(generation)
+  const isImage = isImageGeneration(generation)
   const prompt = promptFor(generation)
   const references = referencesFor(generation)
 
@@ -474,15 +568,24 @@ function CreationInspector({ generation, progress, onClose, onFavorite, onDelete
         </header>
         <div className="creation-inspector-body">
           <section className="creation-preview-pane">
-            {url ? (
+            {isVideo ? (
+              url ? <video src={url} controls playsInline className="creation-video-preview" /> : <div className="creation-empty-preview"><Icon name="video" size={30} /></div>
+            ) : isText ? (
+              <div className="creation-text-preview">
+                <Icon name="chat" size={28} />
+                <p>{textResult || prompt || 'Text generation result will appear here.'}</p>
+              </div>
+            ) : url ? (
               <img src={url} alt="" style={{ transform: `scale(${zoom / 100})` }} />
             ) : (
               <div className="creation-empty-preview"><Icon name="image" size={30} /></div>
             )}
-            <label className="creation-zoom">
-              <span>{zoom}%</span>
-              <input type="range" min="50" max="200" value={zoom} onChange={event => setZoom(Number(event.target.value))} />
-            </label>
+            {!isVideo && !isText && (
+              <label className="creation-zoom">
+                <span>{zoom}%</span>
+                <input type="range" min="50" max="200" value={zoom} onChange={event => setZoom(Number(event.target.value))} />
+              </label>
+            )}
           </section>
           <aside className="creation-details-pane">
             <div className="creation-action-row">
@@ -490,13 +593,27 @@ function CreationInspector({ generation, progress, onClose, onFavorite, onDelete
               <button className={`icon-btn${generation.is_favorite ? ' active' : ''}`} type="button" onClick={() => onFavorite(generation)}><Icon name="heart" size={15} /></button>
               <button className="icon-btn" type="button" title="Save to collection coming soon"><Icon name="bookmark" size={15} /></button>
               <div className="creation-download-menu">
-                <button className="btn ghost" type="button" onClick={() => setDownloadOpen(v => !v)}>PNG <Icon name="chevronDown" size={12} /></button>
+                <button className="btn ghost" type="button" onClick={() => setDownloadOpen(v => !v)}>{isVideo ? 'MP4' : isText ? 'TXT' : 'PNG'} <Icon name="chevronDown" size={12} /></button>
                 {downloadOpen && (
                   <div>
-                    <button type="button" onClick={() => downloadFile(url, `${generation.id}.png`)}>PNG</button>
-                    <button type="button" onClick={() => downloadFile(url, `${generation.id}.jpg`)}>JPG</button>
-                    <button type="button" disabled>SVG</button>
-                    <button type="button" onClick={() => alert('Upscale is coming soon.')}>Upscale</button>
+                    {isText ? (
+                      <>
+                        <button type="button" onClick={() => downloadGenerationAsset(generation, progress)}>TXT</button>
+                        <button type="button" onClick={() => navigator.clipboard?.writeText(textResult || prompt || '')}>Copy text</button>
+                      </>
+                    ) : isVideo ? (
+                      <>
+                        <button type="button" onClick={() => downloadGenerationAsset(generation, progress)}>MP4</button>
+                        <button type="button" disabled>GIF</button>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" onClick={() => downloadGenerationAsset(generation, progress)}>PNG</button>
+                        <button type="button" onClick={() => downloadGenerationAsset(generation, progress)}>JPG</button>
+                        <button type="button" disabled>SVG</button>
+                        <button type="button" onClick={() => alert('Upscale is coming soon.')}>Upscale</button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -511,6 +628,7 @@ function CreationInspector({ generation, progress, onClose, onFavorite, onDelete
                   <small>{copied ? 'Copied' : 'Click to copy'}</small>
                 </button>
                 <div className="creation-settings-tags">
+                  <span>{isVideo ? 'Video' : isText ? 'Chat' : 'Image'}</span>
                   <span>{aspectFor(generation)}</span>
                   <span>{modelNameFor(generation)}</span>
                   {generation.thinking_level && <span>{generation.thinking_level}</span>}
@@ -527,9 +645,9 @@ function CreationInspector({ generation, progress, onClose, onFavorite, onDelete
                   )) : <small>No references used.</small>}
                 </div>
                 <div className="creation-inspector-actions">
-                  <button type="button" className="btn dark" onClick={() => onPublish(generation)}>Publish Image</button>
-                  <button type="button" className="btn ghost" onClick={() => onEditImage(generation)}>Edit Image</button>
-                  <button type="button" className="btn ghost" onClick={() => alert('Create Video is coming soon.')}>Create Video</button>
+                  <button type="button" className="btn dark" onClick={() => onPublish(generation)}>{isImage ? 'Publish Image' : 'Publish as Post'}</button>
+                  <button type="button" className="btn ghost" disabled={!isImage} onClick={() => onEditImage(generation)}>{isImage ? 'Edit Image' : 'Image only'}</button>
+                  <button type="button" className="btn ghost" onClick={() => alert(isVideo ? 'Video editing is coming soon.' : 'Create Video is coming soon.')}>Create Video</button>
                   <button type="button" className="btn ghost" onClick={() => alert('Save as Template is coming soon.')}>Save as Template</button>
                   <button type="button" className="btn ghost" onClick={() => alert('Share is coming soon.')}>Share</button>
                   <button type="button" className="btn ghost" onClick={() => onReuse(generation)}>Reuse Configuration</button>
@@ -560,6 +678,9 @@ function CreationCard({
   const [menuOpen, setMenuOpen] = useState(false)
   const status = progress?.status || generation.status
   const url = imageUrlFor(generation, progress)
+  const textResult = generationResultText(generation, progress)
+  const isVideo = isVideoGeneration(generation)
+  const isText = isTextGeneration(generation)
   const loading = ['queued', 'processing', 'pending'].includes(status)
   const failed = status === 'failed'
   const error = progress?.error || generation.error_message
@@ -591,6 +712,16 @@ function CreationCard({
           <strong>Generation failed</strong>
           <small>{error || 'No error reason was returned.'}</small>
         </div>
+      ) : isText ? (
+        <div className="creation-text-card">
+          <Icon name="chat" size={20} />
+          <strong>{promptFor(generation) || 'Chat response'}</strong>
+          <p>{textResult || 'Text response will appear here.'}</p>
+        </div>
+      ) : isVideo ? url ? (
+        <video src={url} controls playsInline />
+      ) : (
+        <div className="creation-empty-preview"><Icon name="video" size={22} /></div>
       ) : url ? (
         <img src={url} alt={promptFor(generation) || 'Generated image'} />
       ) : (
@@ -599,6 +730,7 @@ function CreationCard({
 
       <div className="creation-card-overlay">
         <div className="creation-bottom-left">
+          <span>{isVideo ? 'Video' : isText ? 'Chat' : 'Image'}</span>
           <span>{resolutionFor(generation)}</span>
           <span>{providerIconFor(generation)}</span>
         </div>
@@ -623,7 +755,7 @@ function CreationCard({
       </div>
       {viewMode === 'list' && (
         <div className="creation-list-meta">
-          <strong>{promptFor(generation) || 'Untitled generation'}</strong>
+          <strong>{isText ? textResult || promptFor(generation) || 'Untitled response' : promptFor(generation) || 'Untitled generation'}</strong>
           <small>{modelNameFor(generation)} - {aspectFor(generation)}</small>
           <div className="row gap">
             <button type="button" onClick={(event) => { event.stopPropagation(); onFavorite(generation) }}><Icon name="heart" size={13} /></button>
@@ -638,7 +770,10 @@ function CreationCard({
 
 function CreationsGallery({
   projectId,
+  mode,
+  toolType,
   models,
+  setMode,
   setSelectedModel,
   setPrompt,
   setAspectRatio,
@@ -665,9 +800,9 @@ function CreationsGallery({
   const [publishTarget, setPublishTarget] = useState(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['ai-generations', 'image', projectId, search, favoriteOnly],
+    queryKey: ['ai-generations', toolType, projectId, search, favoriteOnly],
     queryFn: () => aiApi.getGenerations({
-      tool_type: 'image',
+      tool_type: toolType,
       project_id: projectId || undefined,
       favorite: favoriteOnly || undefined,
       search: search || undefined,
@@ -686,18 +821,28 @@ function CreationsGallery({
   const generations = useMemo(() => {
     const byId = new Map(serverGenerations.map(item => [item.id, item]))
     optimisticGenerations.forEach(item => {
+      if (item?.tool_type && item.tool_type !== toolType) return
       if (!byId.has(item.id)) byId.set(item.id, item)
     })
     return Array.from(byId.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-  }, [serverGenerations, optimisticGenerations])
+  }, [serverGenerations, optimisticGenerations, toolType])
 
   useEffect(() => {
     if (!serverGenerations.length) return
     setOptimisticGenerations(current => current.filter(item => !serverGenerations.some(server => server.id === item.id)))
   }, [serverGenerations, setOptimisticGenerations])
 
+  useEffect(() => {
+    setTypeFilter('All')
+    setSelectedIds([])
+    setInspector(null)
+    setPublishTarget(null)
+  }, [mode])
+
   const visibleGenerations = generations.filter(item => {
     if (typeFilter === 'Image' && item.tool_type !== 'image') return false
+    if (typeFilter === 'Video' && item.tool_type !== 'video') return false
+    if (typeFilter === 'All' && mode === 'chat' && item.tool_type !== 'text') return false
     if (favoriteOnly && !item.is_favorite) return false
     return true
   })
@@ -735,6 +880,9 @@ function CreationsGallery({
   const reuseGeneration = (generation) => {
     const model = models.find(item => item.id === generation.ai_model_id)
     if (model) setSelectedModel(model)
+    if (generation.tool_type === 'video') setMode?.('video')
+    else if (generation.tool_type === 'text') setMode?.('chat')
+    else setMode?.('image')
     setPrompt(generation.raw_prompt || generation.prompt || '')
     setAspectRatio(aspectFor(generation))
     setResolution(resolutionFor(generation))
@@ -746,6 +894,10 @@ function CreationsGallery({
   }
 
   const editImage = (generation) => {
+    if (!isImageGeneration(generation)) {
+      pushToast?.({ type: 'error', title: 'Only image generations can be reused as references right now.' })
+      return
+    }
     const url = imageUrlFor(generation)
     if (!url) return
     setReferences(current => [
@@ -837,7 +989,7 @@ function CreationsGallery({
       {selectedIds.length > 0 && (
         <div className="creations-bulk-bar">
           <span>{selectedIds.length} selected</span>
-          <button className="btn ghost sm" onClick={() => selectedGenerations.forEach(item => downloadFile(imageUrlFor(item), `${item.id}.png`))}>
+          <button className="btn ghost sm" onClick={() => selectedGenerations.forEach(item => downloadFile(imageUrlFor(item), generationDownloadName(item)))}>
             <Icon name="download" size={13} /> Download
           </button>
           <button className="btn ghost sm" onClick={() => deleteMutation.mutate(selectedIds)}>
@@ -870,7 +1022,7 @@ function CreationsGallery({
                   onOpen={setInspector}
                   onFavorite={(item) => favoriteMutation.mutate(item)}
                   onDelete={(id) => deleteMutation.mutate(id)}
-                  onDownload={(item) => downloadFile(imageUrlFor(item), `${item.id}.png`)}
+                  onDownload={(item) => downloadFile(imageUrlFor(item), generationDownloadName(item))}
                   onReuse={reuseGeneration}
                   onPublish={setPublishTarget}
                   viewMode={viewMode}
@@ -911,6 +1063,7 @@ export default function MintAI() {
   const pushToast = useUIStore(s => s.pushToast)
   const session = useMemo(() => sessionId(), [])
   const [projectId, setProjectId] = useState('')
+  const [activeMode, setActiveMode] = useState('image')
   const [selectedModel, setSelectedModel] = useState(null)
   const [modelMulti, setModelMulti] = useState(false)
   const [selectedStyle, setSelectedStyle] = useState(null)
@@ -925,10 +1078,11 @@ export default function MintAI() {
   const [thinking, setThinking] = useState('fast')
   const [googleSearch, setGoogleSearch] = useState(false)
   const [optimisticGenerations, setOptimisticGenerations] = useState([])
+  const currentToolType = modeToolType(activeMode)
 
   const { data: modelData, isLoading: modelsLoading } = useQuery({
-    queryKey: ['ai-engine-models'],
-    queryFn: () => aiApi.getEngineModels({ tool_type: 'image' }).then(res => res.data.data),
+    queryKey: ['ai-engine-models', currentToolType],
+    queryFn: () => aiApi.getEngineModels({ tool_type: currentToolType }).then(res => res.data.data),
   })
   const models = useMemo(() => modelData?.models || [], [modelData?.models])
   const balance = Number(modelData?.balance ?? 0)
@@ -949,7 +1103,9 @@ export default function MintAI() {
   )
 
   useEffect(() => {
-    if (!selectedModel && models.length > 0) {
+    if (!models.length) return undefined
+    const selectedStillAvailable = selectedModel && models.some(item => item.id === selectedModel.id)
+    if (!selectedModel || !selectedStillAvailable) {
       const frame = requestAnimationFrame(() => setSelectedModel(models[0]))
       return () => cancelAnimationFrame(frame)
     }
@@ -975,22 +1131,40 @@ export default function MintAI() {
   })
 
   const generateMutation = useMutation({
-    mutationFn: () => aiApi.generateEngineImage({
-      model_id: selectedModel?.id,
-      prompt,
-      session_id: session,
-      project_id: projectId || null,
-      reference_aliases: extractAliases(prompt),
-      style_preset_id: selectedStyle?.id || null,
-      ai_prompt: aiPrompt,
-      fixed_seed: fixedSeed,
-      seed,
-      batch_count: batchCount,
-      aspect_ratio: aspectRatio,
-      resolution_tier: resolution,
-      thinking_level: thinking,
-      google_search_enabled: googleSearch,
-    }).then(res => res.data.data),
+    mutationFn: () => {
+      const promptValue = prompt.trim()
+      const sharedParameters = {
+        ai_prompt: activeMode === 'chat' ? false : aiPrompt,
+        fixed_seed: activeMode === 'chat' ? false : fixedSeed,
+        seed: activeMode === 'chat' ? null : seed,
+        batch_count: activeMode === 'image' ? batchCount : 1,
+        aspect_ratio: activeMode === 'chat' ? null : aspectRatio,
+        resolution_tier: activeMode === 'chat' ? null : resolution,
+        thinking_level: thinking,
+        google_search_enabled: googleSearch,
+        reference_aliases: activeMode === 'chat' ? [] : extractAliases(promptValue),
+        reference_asset_ids: activeMode === 'chat' ? [] : references.map(ref => ref.id),
+        style_preset_id: activeMode === 'image' ? selectedStyle?.id || null : null,
+      }
+
+      if (activeMode === 'image') {
+        return aiApi.generateEngineImage({
+          model_id: selectedModel?.id,
+          prompt: promptValue,
+          session_id: session,
+          project_id: projectId || null,
+          ...sharedParameters,
+        }).then(res => res.data.data)
+      }
+
+      return aiApi.generate({
+        tool_type: currentToolType,
+        model_id: selectedModel?.id,
+        prompt: promptValue,
+        parameters: sharedParameters,
+        source_job_id: projectId || null,
+      }).then(res => res.data.data)
+    },
     onSuccess: (data) => {
       const generationId = data.generation_id || data.id
       if (generationId) {
@@ -1002,7 +1176,7 @@ export default function MintAI() {
           provider_name: selectedModel?.provider_name,
           provider_display_name: selectedModel?.provider_display_name,
           icon_key: selectedModel?.icon_key,
-          tool_type: 'image',
+          tool_type: currentToolType,
           prompt,
           raw_prompt: prompt,
           enhanced_prompt: data.enhanced_prompt || null,
@@ -1011,10 +1185,10 @@ export default function MintAI() {
             resolution_tier: resolution,
             batch_count: batchCount,
             seed: data.seed || seed,
-            reference_aliases: extractAliases(prompt),
+            reference_aliases: activeMode === 'chat' ? [] : extractAliases(prompt),
           },
           engine_metadata: {
-            references: references.map(ref => ({
+            references: (activeMode === 'chat' ? [] : references).map(ref => ({
               id: ref.id,
               alias: ref.alias,
               preview_url: ref.preview_url,
@@ -1035,7 +1209,10 @@ export default function MintAI() {
           ...current.filter(item => item.id !== generationId),
         ])
       }
-      pushToast?.({ type: 'success', title: 'Image generation queued' })
+      pushToast?.({
+        type: 'success',
+        title: activeMode === 'chat' ? 'Message queued' : activeMode === 'video' ? 'Video generation queued' : 'Image generation queued',
+      })
       queryClient.invalidateQueries({ queryKey: ['ai-generations'] })
     },
     onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Generation failed' }),
@@ -1043,6 +1220,8 @@ export default function MintAI() {
 
   const cost = tierCost(selectedModel, resolution)
   const totalCost = cost.unlimited ? 0 : cost.cost * batchCount
+  const modeLabel = modeTitle(activeMode)
+  const promptReferences = activeMode === 'chat' ? [] : references
 
   return (
     <div className="engine-workspace">
@@ -1050,7 +1229,7 @@ export default function MintAI() {
         <header className="engine-header">
           <div>
             <p className="eyebrow">Mint AI</p>
-            <h1>Image engine</h1>
+            <h1>{modeLabel}</h1>
           </div>
           <select value={projectId} onChange={event => setProjectId(event.target.value)}>
             <option value="">No project folder selected</option>
@@ -1064,8 +1243,17 @@ export default function MintAI() {
 
         <div className="engine-modality-tabs">
           {MODALITIES.map(tab => (
-            <button key={tab} className={tab === 'Image' ? 'active' : ''} disabled={tab !== 'Image'}>
-              {tab}
+            <button
+              key={tab.value}
+              className={activeMode === tab.value ? 'active' : ''}
+              disabled={Boolean(tab.disabled)}
+              onClick={() => {
+                if (tab.disabled) return
+                setActiveMode(tab.value)
+              }}
+            >
+              <Icon name={tab.icon} size={14} />
+              {tab.label}
             </button>
           ))}
         </div>
@@ -1083,25 +1271,28 @@ export default function MintAI() {
           setGoogleSearch={setGoogleSearch}
         />
 
-        <ReferencesBlock
-          styles={styles}
-          selectedStyle={selectedStyle}
-          setSelectedStyle={setSelectedStyle}
-          references={references}
-          uploading={uploadMutation.isPending}
-          uploadReference={(file) => uploadMutation.mutate(file)}
-        />
+        {activeMode !== 'chat' && (
+          <ReferencesBlock
+            styles={styles}
+            selectedStyle={selectedStyle}
+            setSelectedStyle={setSelectedStyle}
+            references={references}
+            uploading={uploadMutation.isPending}
+            uploadReference={(file) => uploadMutation.mutate(file)}
+          />
+        )}
 
         <PromptBox
           value={prompt}
           setValue={setPrompt}
-          references={references}
+          references={promptReferences}
           aiPrompt={aiPrompt}
           setAiPrompt={setAiPrompt}
           fixedSeed={fixedSeed}
           setFixedSeed={setFixedSeed}
           seed={seed}
           setSeed={setSeed}
+          mode={activeMode}
         />
 
         <div className="engine-config-row">
@@ -1131,7 +1322,7 @@ export default function MintAI() {
           onClick={() => generateMutation.mutate()}
         >
           <Icon name="sparkles" size={16} />
-          {generateMutation.isPending ? 'Generating...' : 'Generate'}
+          {generateMutation.isPending ? 'Generating...' : activeMode === 'chat' ? 'Send' : 'Generate'}
         </button>
         <footer className="engine-status-footer">
           {cost.unlimited ? '∞ Unlimited generations' : `Uses ${totalCost} MintCoins • ${Math.max(0, balance - totalCost)} remaining`}
@@ -1140,7 +1331,10 @@ export default function MintAI() {
 
       <CreationsGallery
         projectId={projectId}
+        mode={activeMode}
+        toolType={currentToolType}
         models={models}
+        setMode={setActiveMode}
         setSelectedModel={setSelectedModel}
         setPrompt={setPrompt}
         setAspectRatio={setAspectRatio}
