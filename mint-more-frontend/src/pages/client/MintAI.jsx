@@ -461,6 +461,132 @@ function PromptBox({
   )
 }
 
+function ChatWorkspace({
+  prompt,
+  setPrompt,
+  onSend,
+  sending,
+  selectedModel,
+  modelsLoading,
+  balance,
+  cost,
+  unlimited,
+  quickPrompts = [],
+  generations = [],
+  progressMap = {},
+}) {
+  const thread = useMemo(
+    () => [...generations].sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)),
+    [generations]
+  )
+
+  const handleKeyDown = (event) => {
+    if (event.key !== 'Enter' || event.shiftKey) return
+    event.preventDefault()
+    onSend()
+  }
+
+  return (
+    <section className="engine-chat-shell">
+      <div className="engine-chat-hero">
+        <div>
+          <p className="eyebrow">Mint AI chat</p>
+          <h2>Ask, refine, and draft in one thread</h2>
+          <p className="muted">Enter sends. Shift+Enter makes a new line.</p>
+        </div>
+        <div className="engine-chat-meta">
+          <span className="engine-chat-model">{selectedModel?.name || 'Choose a model'}</span>
+          <span className="engine-chat-credit">{unlimited ? '∞ Unlimited' : `Uses ${cost} MintCoins • ${Math.max(0, balance - cost)} remaining`}</span>
+        </div>
+      </div>
+
+      <div className="chat-stream mint-ai-thread">
+        {thread.length === 0 ? (
+          <>
+            <div className="bubble-row system">
+              <div className="bubble">Ask Mint AI anything about your business, customers, offers, or content.</div>
+            </div>
+            <div className="bubble-row them">
+              <div className="bubble">
+                <div className="who">Mint AI</div>
+                I can help write captions, ad copy, campaign ideas, product storytelling, and launch messages.
+              </div>
+            </div>
+          </>
+        ) : thread.map((generation) => {
+          const progress = progressMap?.[generation.id]
+          const status = progress?.status || generation.status
+          const pending = ['queued', 'processing', 'pending'].includes(status)
+          const failed = status === 'failed'
+          const userText = promptFor(generation) || generation.raw_prompt || 'Message'
+          const assistantText = generationResultText(generation, progress) || generation.prompt || 'Thinking...'
+          return (
+            <div key={generation.id} className="chat-generation-thread">
+              <div className="bubble-row me">
+                <div className="bubble">{userText}</div>
+              </div>
+              {pending ? (
+                <div className="bubble-row them">
+                  <div className="bubble">
+                    <div className="who">Mint AI</div>
+                    Working on it...
+                  </div>
+                </div>
+              ) : failed ? (
+                <div className="bubble-row them">
+                  <div className="bubble">
+                    <div className="who">Mint AI</div>
+                    {progress?.error || generation.error_message || 'That request failed.'}
+                  </div>
+                </div>
+              ) : (
+                <div className="bubble-row them">
+                  <div className="bubble">
+                    <div className="who">Mint AI</div>
+                    {assistantText}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {sending && (
+          <div className="bubble-row them">
+            <div className="bubble">Mint AI is thinking...</div>
+          </div>
+        )}
+      </div>
+
+      <div className="engine-chat-composer">
+        <div className="engine-chat-chips">
+          {quickPrompts.map(item => (
+            <button key={item} type="button" onClick={() => setPrompt(item)}>{item}</button>
+          ))}
+        </div>
+        <textarea
+          value={prompt}
+          onChange={event => setPrompt(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask Mint AI anything about your business..."
+          rows={5}
+        />
+        <div className="engine-chat-actions">
+          <small>{modelsLoading ? 'Loading models...' : 'Chat mode uses text generation models and the same MintCoin balance.'}</small>
+          <button
+            type="button"
+            className="engine-generate"
+            disabled={!prompt.trim() || !selectedModel || modelsLoading || sending}
+            onClick={onSend}
+          >
+            <Icon name="sparkles" size={16} />
+            {sending ? 'Sending...' : 'Send'}
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PublishPostModal({ generation, onClose, onPublish, publishing }) {
   const [caption, setCaption] = useState('')
   const [shareParams, setShareParams] = useState(false)
@@ -1061,6 +1187,7 @@ function CreationsGallery({
 export default function MintAI() {
   const queryClient = useQueryClient()
   const pushToast = useUIStore(s => s.pushToast)
+  const aiProgress = useUIStore(s => s.aiProgress)
   const session = useMemo(() => sessionId(), [])
   const [projectId, setProjectId] = useState('')
   const [activeMode, setActiveMode] = useState('image')
@@ -1092,6 +1219,28 @@ export default function MintAI() {
     queryFn: () => aiApi.getStylePresets().then(res => res.data.data),
   })
   const styles = useMemo(() => styleData?.styles || [], [styleData?.styles])
+
+  const { data: chatHistoryData } = useQuery({
+    queryKey: ['ai-chat-history', projectId],
+    enabled: activeMode === 'chat',
+    queryFn: () => aiApi.getGenerations({
+      tool_type: 'text',
+      project_id: projectId || undefined,
+      limit: 20,
+    }).then(res => res.data.data),
+  })
+  const chatGenerations = useMemo(
+    () => chatHistoryData?.generations || [],
+    [chatHistoryData?.generations]
+  )
+  const chatFeedGenerations = useMemo(() => {
+    const byId = new Map(chatGenerations.map(item => [item.id, item]))
+    optimisticGenerations.forEach(item => {
+      if (item?.tool_type && item.tool_type !== 'text') return
+      if (!byId.has(item.id)) byId.set(item.id, item)
+    })
+    return Array.from(byId.values())
+  }, [chatGenerations, optimisticGenerations])
 
   const { data: mintboxData } = useQuery({
     queryKey: ['mintbox-folders'],
@@ -1214,6 +1363,7 @@ export default function MintAI() {
         title: activeMode === 'chat' ? 'Message queued' : activeMode === 'video' ? 'Video generation queued' : 'Image generation queued',
       })
       queryClient.invalidateQueries({ queryKey: ['ai-generations'] })
+      queryClient.invalidateQueries({ queryKey: ['ai-chat-history'] })
     },
     onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Generation failed' }),
   })
@@ -1271,62 +1421,84 @@ export default function MintAI() {
           setGoogleSearch={setGoogleSearch}
         />
 
-        {activeMode !== 'chat' && (
-          <ReferencesBlock
-            styles={styles}
-            selectedStyle={selectedStyle}
-            setSelectedStyle={setSelectedStyle}
-            references={references}
-            uploading={uploadMutation.isPending}
-            uploadReference={(file) => uploadMutation.mutate(file)}
+        {activeMode === 'chat' ? (
+          <ChatWorkspace
+            prompt={prompt}
+            setPrompt={setPrompt}
+            onSend={() => generateMutation.mutate()}
+            sending={generateMutation.isPending}
+            selectedModel={selectedModel}
+            modelsLoading={modelsLoading}
+            balance={balance}
+            cost={totalCost}
+            unlimited={cost.unlimited}
+            quickPrompts={[
+              'Write a caption for my new launch',
+              'Turn this idea into an ad',
+              'Give me a cleaner version',
+              'What should I post next week?',
+            ]}
+            generations={chatFeedGenerations}
+            progressMap={aiProgress}
           />
+        ) : (
+          <>
+            <ReferencesBlock
+              styles={styles}
+              selectedStyle={selectedStyle}
+              setSelectedStyle={setSelectedStyle}
+              references={references}
+              uploading={uploadMutation.isPending}
+              uploadReference={(file) => uploadMutation.mutate(file)}
+            />
+
+            <PromptBox
+              value={prompt}
+              setValue={setPrompt}
+              references={promptReferences}
+              aiPrompt={aiPrompt}
+              setAiPrompt={setAiPrompt}
+              fixedSeed={fixedSeed}
+              setFixedSeed={setFixedSeed}
+              seed={seed}
+              setSeed={setSeed}
+              mode={activeMode}
+            />
+
+            <div className="engine-config-row">
+              <div className="engine-stepper">
+                <button onClick={() => setBatchCount(v => Math.max(1, v - 1))}>-</button>
+                <span>{batchCount}</span>
+                <button onClick={() => setBatchCount(v => Math.min(4, v + 1))}>+</button>
+              </div>
+              <select value={aspectRatio} onChange={event => setAspectRatio(event.target.value)}>
+                {ASPECT_RATIOS.map(item => <option key={item.value} value={item.value}>{item.icon} • {item.label}</option>)}
+              </select>
+              <div className="segmented">
+                {['1K', '2K', '4K'].map(tier => {
+                  const tierMeta = tierCost(selectedModel, tier)
+                  return (
+                    <button key={tier} className={resolution === tier ? 'active' : ''} onClick={() => setResolution(tier)}>
+                      {tier} <small>{tierMeta.unlimited ? '∞' : tierMeta.cost}</small>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <button
+              className="engine-generate"
+              disabled={!prompt.trim() || !selectedModel || modelsLoading || generateMutation.isPending}
+              onClick={() => generateMutation.mutate()}
+            >
+              <Icon name="sparkles" size={16} />
+              {generateMutation.isPending ? 'Generating...' : 'Generate'}
+            </button>
+            <footer className="engine-status-footer">
+              {cost.unlimited ? '∞ Unlimited generations' : `Uses ${totalCost} MintCoins • ${Math.max(0, balance - totalCost)} remaining`}
+            </footer>
+          </>
         )}
-
-        <PromptBox
-          value={prompt}
-          setValue={setPrompt}
-          references={promptReferences}
-          aiPrompt={aiPrompt}
-          setAiPrompt={setAiPrompt}
-          fixedSeed={fixedSeed}
-          setFixedSeed={setFixedSeed}
-          seed={seed}
-          setSeed={setSeed}
-          mode={activeMode}
-        />
-
-        <div className="engine-config-row">
-          <div className="engine-stepper">
-            <button onClick={() => setBatchCount(v => Math.max(1, v - 1))}>-</button>
-            <span>{batchCount}</span>
-            <button onClick={() => setBatchCount(v => Math.min(4, v + 1))}>+</button>
-          </div>
-          <select value={aspectRatio} onChange={event => setAspectRatio(event.target.value)}>
-            {ASPECT_RATIOS.map(item => <option key={item.value} value={item.value}>{item.icon} • {item.label}</option>)}
-          </select>
-          <div className="segmented">
-            {['1K', '2K', '4K'].map(tier => {
-              const tierMeta = tierCost(selectedModel, tier)
-              return (
-                <button key={tier} className={resolution === tier ? 'active' : ''} onClick={() => setResolution(tier)}>
-                  {tier} <small>{tierMeta.unlimited ? '∞' : tierMeta.cost}</small>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <button
-          className="engine-generate"
-          disabled={!prompt.trim() || !selectedModel || modelsLoading || generateMutation.isPending}
-          onClick={() => generateMutation.mutate()}
-        >
-          <Icon name="sparkles" size={16} />
-          {generateMutation.isPending ? 'Generating...' : activeMode === 'chat' ? 'Send' : 'Generate'}
-        </button>
-        <footer className="engine-status-footer">
-          {cost.unlimited ? '∞ Unlimited generations' : `Uses ${totalCost} MintCoins • ${Math.max(0, balance - totalCost)} remaining`}
-        </footer>
       </section>
 
       <CreationsGallery
