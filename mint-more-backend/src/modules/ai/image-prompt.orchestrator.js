@@ -59,7 +59,10 @@ const buildEnhancementMessages = ({
     system: [
       'You are CREATYV prompt intelligence for Indian SMB creative work.',
       'Rewrite image requests into one production-quality image prompt.',
-      'Return plain text only. No markdown. No bullet list. No preamble.',
+      'Return plain text only.',
+      'No markdown, no bullet list, no preamble, no explanation, no reasoning, no self-talk.',
+      'Do not mention that you are rewriting or planning the prompt.',
+      'Start directly with the final prompt text.',
       'Preserve the user intent and never add fake claims, fake discounts, or unsupported facts.',
     ].join(' '),
     user: [
@@ -70,9 +73,29 @@ const buildEnhancementMessages = ({
       aspectRatio ? `Aspect ratio: ${aspectRatio}` : '',
       resolutionTier ? `Resolution tier: ${resolutionTier}` : '',
       'Write one concise but detailed prompt that states the commercial objective, the subject to preserve, the visual style, composition, lighting, background, text/layout guidance if relevant, and quality constraints.',
-      'Keep it under 150 words.',
+      'Keep it under 120 words.',
     ].filter(Boolean).join('\n'),
   };
+};
+
+const normalizeEnhancedPrompt = (text) => {
+  const value = safeText(text, 1400);
+  if (!value) return null;
+
+  const quoted = [...value.matchAll(/"([^"]{40,})"/g)];
+  if (quoted.length) {
+    return safeText(quoted[quoted.length - 1][1], 1400);
+  }
+
+  return safeText(
+    value
+      .replace(/^we need to rewrite[\s\S]*?prompt\.?\s*/i, '')
+      .replace(/^so we need to produce[\s\S]*?prompt\.?\s*/i, '')
+      .replace(/^let's craft:\s*/i, '')
+      .replace(/^probably need to describe[\s\S]*?\.?\s*/i, '')
+      .trim(),
+    1400
+  );
 };
 
 const composeImagePrompt = ({
@@ -120,4 +143,5 @@ module.exports = {
   buildEnhancementMessages,
   buildImageSystemPrompt,
   composeImagePrompt,
+  normalizeEnhancedPrompt,
 };

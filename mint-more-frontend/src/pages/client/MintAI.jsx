@@ -1195,7 +1195,7 @@ export default function MintAI() {
   const [fixedSeed, setFixedSeed] = useState(false)
   const [seed, setSeed] = useState('123456789')
   const [batchCount, setBatchCount] = useState(1)
-  const [aspectRatio, setAspectRatio] = useState('16:9')
+  const [aspectRatio, setAspectRatio] = useState('Auto')
   const [resolution, setResolution] = useState('1K')
   const [thinking, setThinking] = useState('fast')
   const [googleSearch, setGoogleSearch] = useState(false)

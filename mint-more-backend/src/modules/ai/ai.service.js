@@ -21,6 +21,7 @@ const { generateImage: generateReplicateImage } = require('./providers/replicate
 const {
   buildEnhancementMessages,
   composeImagePrompt,
+  normalizeEnhancedPrompt,
 } = require('./image-prompt.orchestrator');
 const { uploadFile, getBucket, createSignedDownloadUrl } = require('../storage/app-storage.provider');
 const AppError  = require('../../utils/AppError');
@@ -987,7 +988,7 @@ const enhancePrompt = async ({
       { temperature: 0.35, max_tokens: 320 },
       enhancement.system
     );
-    return requireNonEmptyTextResult(result, model.openrouter_id).text;
+    return normalizeEnhancedPrompt(requireNonEmptyTextResult(result, model.openrouter_id).text);
   } catch (err) {
     logger.warn('AI prompt enhancement skipped', {
       model: model.openrouter_id,
