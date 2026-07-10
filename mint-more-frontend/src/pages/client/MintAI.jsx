@@ -9,11 +9,6 @@ const MODALITIES = [
   { value: 'image', label: 'Image', icon: 'image' },
   { value: 'video', label: 'Video', icon: 'video' },
   { value: 'chat', label: 'Chat', icon: 'chat' },
-  { value: 'audio', label: 'Audio', icon: 'microphone', disabled: true },
-  { value: 'spaces', label: 'Spaces', icon: 'layers', disabled: true },
-  { value: 'design', label: 'Design', icon: 'grid', disabled: true },
-  { value: '3d', label: '3D', icon: 'layers', disabled: true },
-  { value: 'flows', label: 'Flows', icon: 'radar', disabled: true },
 ]
 
 const ASPECT_RATIOS = [
@@ -1049,7 +1044,7 @@ function CreationsGallery({
           <button disabled>Academy</button>
         </div>
         <div className="creations-filter-icons">
-          {['All', 'Image', 'Video', 'Audio', 'Design', '3D'].map(item => (
+          {['All', 'Image'].map(item => (
             <button
               key={item}
               className={typeFilter === item ? 'active' : ''}
