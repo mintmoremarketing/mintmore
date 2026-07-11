@@ -195,22 +195,13 @@ const validatePageToken = async (account) => {
   try {
     const res = await axios.get(`${FB_API}/${pageId}`, {
       params: {
-        fields:       'id,name,tasks',
+        fields:       'id,name',
         access_token: account.access_token,
       },
     });
 
     if (!res.data.id) {
       return { valid: false, reason: 'Token returned no page data' };
-    }
-
-    // Check page has CREATE_CONTENT task (required for posting)
-    const tasks = res.data.tasks || [];
-    if (!tasks.includes('CREATE_CONTENT') && !tasks.includes('MANAGE')) {
-      return {
-        valid:  false,
-        reason: 'Page token does not have CREATE_CONTENT permission. User may have revoked access.',
-      };
     }
 
     return { valid: true, page_id: res.data.id, page_name: res.data.name };

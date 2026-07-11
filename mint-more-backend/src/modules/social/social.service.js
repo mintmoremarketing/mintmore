@@ -624,9 +624,14 @@ const executePublish = async (postId) => {
 
         const tokenCheck = await validatePageToken(account);
         if (!tokenCheck.valid) {
-          // Mark account inactive so user knows they need to reconnect
+          const shouldDeactivate = tokenCheck.code === 190
+            || tokenCheck.code === 200
+            || /expired|invalid|revoked/i.test(String(tokenCheck.reason || ''));
+
           await query(
-            `UPDATE social_accounts SET is_active = false, last_error = $1 WHERE id = $2`,
+            `UPDATE social_accounts
+             SET last_error = $1${shouldDeactivate ? ', is_active = false' : ''}
+             WHERE id = $2`,
             [tokenCheck.reason, account.id]
           );
           throw new Error(`Facebook validation failed: ${tokenCheck.reason}`);
