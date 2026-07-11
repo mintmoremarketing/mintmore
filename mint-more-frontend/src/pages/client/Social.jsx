@@ -173,6 +173,10 @@ function AccountCard({ account, onDisconnect, onRefreshMeta }) {
   const isExp  = account.token_status === 'expired'
   const stats  = account.stats || {}
   const linkedInstagram = stats.linked_instagram || null
+  const openMetaInstagramSettings = () => {
+    const metaSettingsUrl = 'https://business.facebook.com/login/web/?next=' + encodeURIComponent('https://business.facebook.com/settings/instagram_accounts')
+    window.open(metaSettingsUrl, '_blank', 'noopener,noreferrer')
+  }
   const statItems = account.platform === 'instagram'
     ? [
       ['Followers', stats.followers_count],
@@ -266,14 +270,20 @@ function AccountCard({ account, onDisconnect, onRefreshMeta }) {
                 Instagram not linked yet
               </div>
               To publish to Instagram, link a professional Instagram account to this Facebook Page inside Meta first.
-              After that, click Refresh from Meta here and the Instagram account should appear automatically.
-              <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                <button className="btn ghost" type="button" onClick={onRefreshMeta}>
-                  Refresh from Meta
-                </button>
-              </div>
+              After that, click Refresh from Meta and the Instagram account should appear automatically.
             </>
           )}
+        </div>
+      )}
+
+      {account.platform === 'facebook' && (
+        <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          <button className="btn ghost" type="button" onClick={onRefreshMeta}>
+            Refresh from Meta
+          </button>
+          <button className="btn ghost" type="button" onClick={openMetaInstagramSettings}>
+            Open Instagram settings
+          </button>
         </div>
       )}
 

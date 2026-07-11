@@ -25,25 +25,50 @@ const fetchFacebookPageStats = async (account) => {
   if (!account.page_id) return null;
 
   try {
-    const [pageRes, postsRes] = await Promise.all([
-      axios.get(`${FB_API}/${account.page_id}`, {
-        params: {
-          fields: 'id,name,followers_count,fan_count,instagram_business_account',
-          access_token: account.access_token,
-        },
-      }),
-      axios.get(`${FB_API}/${account.page_id}/published_posts`, {
+    const pageRes = await axios.get(`${FB_API}/${account.page_id}`, {
+      params: {
+        fields: 'id,name,fan_count',
+        access_token: account.access_token,
+      },
+    });
+
+    let postsCount = null;
+    try {
+      const postsRes = await axios.get(`${FB_API}/${account.page_id}/published_posts`, {
         params: {
           summary: true,
           limit: 1,
           access_token: account.access_token,
         },
-      }).catch(() => ({ data: { summary: { total_count: null } } })),
-    ]);
+      });
+      postsCount = postsRes.data?.summary?.total_count ?? null;
+    } catch (postsErr) {
+      logger.debug('Facebook page post count fetch skipped', {
+        accountId: account.id,
+        pageId: account.page_id,
+        error: postsErr.message,
+      });
+    }
 
     const page = pageRes.data || {};
     let linkedInstagram = null;
-    const linkedInstagramId = page.instagram_business_account?.id;
+    let linkedInstagramId = null;
+    try {
+      const igLinkRes = await axios.get(`${FB_API}/${account.page_id}`, {
+        params: {
+          fields: 'instagram_business_account',
+          access_token: account.access_token,
+        },
+      });
+      linkedInstagramId = igLinkRes.data?.instagram_business_account?.id || null;
+    } catch (linkErr) {
+      logger.debug('Facebook linked Instagram lookup skipped', {
+        accountId: account.id,
+        pageId: account.page_id,
+        error: linkErr.message,
+      });
+    }
+
     if (linkedInstagramId) {
       try {
         const igRes = await axios.get(`${FB_API}/${linkedInstagramId}`, {
@@ -64,7 +89,7 @@ const fetchFacebookPageStats = async (account) => {
     return {
       followers_count: Number(page.followers_count || page.fan_count || 0),
       page_likes_count: Number(page.fan_count || 0),
-      posts_count: postsRes.data?.summary?.total_count ?? null,
+      posts_count: postsCount,
       linked_instagram: linkedInstagram ? {
         id: linkedInstagram.id || null,
         name: linkedInstagram.name || null,
@@ -76,12 +101,17 @@ const fetchFacebookPageStats = async (account) => {
       } : null,
     };
   } catch (err) {
-    logger.warn('Facebook account stats fetch failed', {
+    logger.debug('Facebook account stats fetch unavailable', {
       accountId: account.id,
       pageId: account.page_id,
       error: err.message,
     });
-    return null;
+    return {
+      followers_count: null,
+      page_likes_count: null,
+      posts_count: null,
+      linked_instagram: null,
+    };
   }
 };
 
