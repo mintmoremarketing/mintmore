@@ -21,6 +21,70 @@ const META_REQUIRED_SCOPES = [
 ];
 const META_REQUESTED_SCOPES = [...META_REQUIRED_SCOPES, 'public_profile'];
 
+const fetchFacebookPageStats = async (account) => {
+  if (!account.page_id) return null;
+
+  try {
+    const [pageRes, postsRes] = await Promise.all([
+      axios.get(`${FB_API}/${account.page_id}`, {
+        params: {
+          fields: 'id,name,followers_count,fan_count',
+          access_token: account.access_token,
+        },
+      }),
+      axios.get(`${FB_API}/${account.page_id}/published_posts`, {
+        params: {
+          summary: true,
+          limit: 1,
+          access_token: account.access_token,
+        },
+      }).catch(() => ({ data: { summary: { total_count: null } } })),
+    ]);
+
+    const page = pageRes.data || {};
+    return {
+      followers_count: Number(page.followers_count || page.fan_count || 0),
+      page_likes_count: Number(page.fan_count || 0),
+      posts_count: postsRes.data?.summary?.total_count ?? null,
+    };
+  } catch (err) {
+    logger.warn('Facebook account stats fetch failed', {
+      accountId: account.id,
+      pageId: account.page_id,
+      error: err.message,
+    });
+    return null;
+  }
+};
+
+const fetchInstagramAccountStats = async (account) => {
+  if (!account.instagram_account_id) return null;
+
+  try {
+    const res = await axios.get(`${FB_API}/${account.instagram_account_id}`, {
+      params: {
+        fields: 'id,name,username,followers_count,follows_count,media_count,profile_picture_url',
+        access_token: account.access_token,
+      },
+    });
+
+    const ig = res.data || {};
+    return {
+      followers_count: Number(ig.followers_count || 0),
+      following_count: Number(ig.follows_count || 0),
+      posts_count: Number(ig.media_count || 0),
+      profile_picture_url: ig.profile_picture_url || null,
+    };
+  } catch (err) {
+    logger.warn('Instagram account stats fetch failed', {
+      accountId: account.id,
+      instagramAccountId: account.instagram_account_id,
+      error: err.message,
+    });
+    return null;
+  }
+};
+
 const normalizeTargetPlatforms = (value) => {
   let platforms = value;
 
@@ -338,7 +402,21 @@ const getMyAccounts = async (userId) => {
      ORDER BY platform ASC, platform_name ASC`,
     [userId]
   );
-  return result.rows;
+
+  return Promise.all(result.rows.map(async (account) => {
+    let stats = null;
+
+    if (account.platform === 'facebook') {
+      stats = await fetchFacebookPageStats(account);
+    } else if (account.platform === 'instagram') {
+      stats = await fetchInstagramAccountStats(account);
+    }
+
+    return {
+      ...account,
+      stats,
+    };
+  }));
 };
 
 const disconnectAccount = async (accountId, userId) => {

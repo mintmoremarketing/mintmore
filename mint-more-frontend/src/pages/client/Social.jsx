@@ -171,6 +171,18 @@ function AccountCard({ account, onDisconnect }) {
   const meta   = PLATFORM_META[account.platform] || {}
   const isLow  = account.token_status === 'expiring_soon'
   const isExp  = account.token_status === 'expired'
+  const stats  = account.stats || {}
+  const statItems = account.platform === 'instagram'
+    ? [
+      ['Followers', stats.followers_count],
+      ['Posts', stats.posts_count],
+      ['Following', stats.following_count],
+    ]
+    : [
+      ['Followers', stats.followers_count ?? stats.page_likes_count],
+      ['Posts', stats.posts_count],
+      ['Page likes', stats.page_likes_count],
+    ]
 
   return (
     <div style={{
@@ -218,9 +230,31 @@ function AccountCard({ account, onDisconnect }) {
           </span>
         ) : (
           <span style={{ color: 'var(--ink-500)' }}>
-            Connected - {account.token_days_remaining ? `${account.token_days_remaining} days remaining` : 'Valid'}
-          </span>
-        )}
+          Connected - {account.token_days_remaining ? `${account.token_days_remaining} days remaining` : 'Valid'}
+        </span>
+      )}
+      </div>
+
+      <div className="row wrap" style={{ gap: 8, marginTop: 14 }}>
+        {statItems.map(([label, value]) => (
+          <div
+            key={label}
+            style={{
+              minWidth: 92,
+              padding: '9px 10px',
+              borderRadius: 12,
+              background: 'var(--paper-tint)',
+              border: '1px solid var(--hairline)',
+            }}
+          >
+            <div style={{ fontSize: 11, color: 'var(--ink-500)' }}>{label}</div>
+            <div style={{ fontSize: 15, fontWeight: 650, marginTop: 2 }}>
+              {typeof value === 'number' && Number.isFinite(value)
+                ? value.toLocaleString('en-IN')
+                : '—'}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -629,6 +663,13 @@ export default function Social() {
 
   const posts    = postsData?.posts || []
   const summary  = analyticsData?.summary
+  const accountTotals = useMemo(() => connectedAccounts.reduce((totals, account) => {
+    const stats = account.stats || {}
+    totals.followers += Number(stats.followers_count || 0)
+    totals.posts += Number(stats.posts_count || 0)
+    totals.likes += Number(stats.page_likes_count || 0)
+    return totals
+  }, { followers: 0, posts: 0, likes: 0 }), [connectedAccounts])
 
   return (
     <div className="stack-6">
@@ -685,6 +726,9 @@ export default function Social() {
             <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 10 }}>
               You'll be redirected to connect your own Facebook Pages, Instagram Business accounts, or YouTube channel.
             </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 6 }}>
+              Follower and post counts are pulled live from Meta once the account is connected.
+            </div>
           </div>
 
           {/* Connected accounts */}
@@ -737,6 +781,17 @@ export default function Social() {
                       return <span key={account.id} className="badge neutral"><Icon name={meta.icon} size={11} style={{ color: meta.color }} /> {account.page_name || account.platform_name || meta.label}</span>
                     })
                     : <span className="muted">Connect Facebook, Instagram, or YouTube to start insights.</span>}
+                </div>
+              </div>
+              <div className="card" style={{ padding: 20 }}>
+                <div className="h-eyebrow">Account stats</div>
+                <div style={{ fontSize: 28, fontWeight: 650, marginTop: 8 }}>
+                  {accountTotals.followers.toLocaleString('en-IN')}
+                </div>
+                <p className="muted" style={{ margin: '6px 0 0' }}>Total followers across connected Facebook and Instagram accounts.</p>
+                <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
+                  <span className="badge neutral">Posts: {accountTotals.posts.toLocaleString('en-IN')}</span>
+                  <span className="badge neutral">Page likes: {accountTotals.likes.toLocaleString('en-IN')}</span>
                 </div>
               </div>
               <div className="card" style={{ padding: 20 }}>
