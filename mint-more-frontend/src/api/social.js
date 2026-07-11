@@ -1,6 +1,6 @@
 import { api } from './client'
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'
+const BASE = api.defaults.baseURL || import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'
 
 export const socialApi = {
   // Accounts

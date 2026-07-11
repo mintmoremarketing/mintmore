@@ -569,22 +569,47 @@ const executePublish = async (postId) => {
 
   const media = post.media || [];
 
-  // Get all per-platform rows
+  // Get all retryable per-platform rows.
+  // BullMQ retries the same job, so previously failed rows need to be picked up again
+  // instead of being stranded in a terminal state that future attempts ignore.
   const platformsResult = await query(
     `SELECT spp.*, sa.*,
        spp.id AS platform_row_id
      FROM social_post_platforms spp
      JOIN social_accounts sa ON sa.id = spp.social_account_id
-     WHERE spp.post_id = $1 AND spp.status = 'pending'`,
+     WHERE spp.post_id = $1 AND spp.status IN ('pending', 'failed')`,
     [postId]
   );
 
   const platforms = platformsResult.rows;
+  const platformRowIds = platforms.map((platformRow) => platformRow.platform_row_id);
+
+  if (platforms.length === 0) {
+    const existingRows = await query(
+      `SELECT COUNT(*)::INT AS count
+       FROM social_post_platforms
+       WHERE post_id = $1`,
+      [postId]
+    );
+
+    const rowCount = existingRows.rows[0]?.count || 0;
+    if (rowCount === 0) {
+      throw new Error(`No social platform rows found for post ${postId}`);
+    }
+
+    logger.info('executePublish skipped - no retryable platform rows found', {
+      postId,
+      rowCount,
+    });
+    return;
+  }
 
   // Mark all as 'publishing'
   await query(
-    `UPDATE social_post_platforms SET status = 'publishing' WHERE post_id = $1`,
-    [postId]
+    `UPDATE social_post_platforms
+     SET status = 'publishing'
+     WHERE id = ANY($1::uuid[])`,
+    [platformRowIds]
   );
 
   // Publish to each platform in parallel
@@ -671,17 +696,22 @@ const executePublish = async (postId) => {
   // Assess overall post status
   const allSuccess = results.every((r) => r.status === 'fulfilled');
   const allFailed  = results.every((r) => r.status === 'rejected');
+  const failureReasons = [];
 
   for (const [i, result] of results.entries()) {
     if (result.status === 'rejected') {
+      const platform = platforms[i].platform;
+      const reason = result.reason?.message || 'Unknown error';
+      failureReasons.push({ platform, reason });
+
       await query(
         `UPDATE social_post_platforms
          SET status        = 'failed',
              error_message = $1,
              retry_count   = retry_count + 1,
              last_retry_at = NOW()
-         WHERE post_id = $2 AND platform = $3`,
-        [result.reason?.message || 'Unknown error', postId, platforms[i].platform]
+         WHERE id = $2`,
+        [reason, platforms[i].platform_row_id]
       );
     }
   }
@@ -702,10 +732,14 @@ const executePublish = async (postId) => {
       platform: platforms[i]?.platform,
       success:  r.status === 'fulfilled',
     })),
+    failureReasons,
   });
 
   if (allFailed) {
-    throw new Error('All platform publishes failed');
+    const detail = failureReasons.length
+      ? `: ${failureReasons.map((item) => `${item.platform} -> ${item.reason}`).join(' | ')}`
+      : '';
+    throw new Error(`All platform publishes failed${detail}`);
   }
 };
 
