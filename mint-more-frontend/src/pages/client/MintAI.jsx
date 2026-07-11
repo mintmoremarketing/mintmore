@@ -615,7 +615,7 @@ function PublishPostModal({ generation, onClose, onPublish, publishing }) {
           <div className="row between">
             <div>
               <p className="eyebrow">Publish as post</p>
-              <h3>Create a draft post</h3>
+              <h3>Publish this image</h3>
             </div>
             <button className="icon-btn" type="button" onClick={onClose}><Icon name="x" size={14} /></button>
           </div>
@@ -654,7 +654,7 @@ function PublishPostModal({ generation, onClose, onPublish, publishing }) {
               Publish Post
             </button>
           </div>
-          <p className="creation-note">This saves a draft in <code>published_posts</code>. The public feed page is not built yet.</p>
+            <p className="creation-note">This publishes the image, caption, tags, and sharing settings in <code>published_posts</code>.</p>
         </div>
       </div>
     </div>
@@ -995,7 +995,7 @@ function CreationsGallery({
     mutationFn: ({ generation, payload }) => aiApi.publishGeneration(generation.id, payload),
     onSuccess: () => {
       setPublishTarget(null)
-      pushToast?.({ type: 'success', title: 'Draft post saved' })
+      pushToast?.({ type: 'success', title: 'Image published' })
     },
     onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Publish failed' }),
   })

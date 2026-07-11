@@ -15,6 +15,10 @@ export const socialApi = {
     window.location.href = `${BASE}/social/connect/facebook?token=${encodeURIComponent(accessToken)}`
   },
 
+  connectInstagram: (accessToken) => {
+    window.location.href = `${BASE}/social/connect/instagram?token=${encodeURIComponent(accessToken)}`
+  },
+
   connectYouTube: (accessToken) => {
     window.location.href = `${BASE}/social/connect/youtube?token=${encodeURIComponent(accessToken)}`
   },

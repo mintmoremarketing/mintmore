@@ -11,6 +11,15 @@ const { getSetting } = require('../commerce/settings.service');
 
 const FB_API = 'https://graph.facebook.com/v19.0';
 const SOCIAL_PLATFORMS = ['facebook', 'instagram', 'youtube'];
+const META_REQUIRED_SCOPES = [
+  'pages_show_list',
+  'pages_read_engagement',
+  'pages_manage_posts',
+  'instagram_basic',
+  'instagram_content_publish',
+  'instagram_manage_insights',
+];
+const META_REQUESTED_SCOPES = [...META_REQUIRED_SCOPES, 'public_profile'];
 
 const normalizeTargetPlatforms = (value) => {
   let platforms = value;
@@ -53,16 +62,8 @@ const normalizePostRow = (post) => post
 const getOAuthUrl = (platform, userId) => {
   const state = Buffer.from(JSON.stringify({ platform, userId })).toString('base64');
 
-  if (platform === 'facebook') {
-    const scopes = [
-      'pages_show_list',
-      'pages_read_engagement',
-      'pages_manage_posts',
-      'instagram_basic',
-      'instagram_content_publish',
-      'instagram_manage_insights',
-      'public_profile',
-    ].join(',');
+  if (platform === 'facebook' || platform === 'instagram') {
+    const scopes = META_REQUESTED_SCOPES.join(',');
 
     const params = new URLSearchParams({
       client_id:     env.social.facebook.appId,
@@ -106,7 +107,7 @@ const handleOAuthCallback = async (platform, code, state) => {
 
   const { userId } = parsedState;
 
-  if (platform === 'facebook') {
+  if (platform === 'facebook' || platform === 'instagram') {
     return handleFacebookCallback(userId, code);
   }
 
@@ -143,6 +144,28 @@ const handleFacebookCallback = async (userId, code) => {
   const longToken   = longTokenRes.data.access_token;
   const expiresIn   = longTokenRes.data.expires_in || 5184000; // 60 days
   const expiresAt   = new Date(Date.now() + expiresIn * 1000);
+
+  const permissionsRes = await axios.get(`${FB_API}/me/permissions`, {
+    params: { access_token: longToken },
+  });
+  const grantedScopes = new Set(
+    (permissionsRes.data.data || [])
+      .filter((item) => item.status === 'granted')
+      .map((item) => item.permission)
+  );
+  const missingScopes = META_REQUIRED_SCOPES.filter((scope) => !grantedScopes.has(scope));
+
+  logger.info('Meta permission audit completed', {
+    userId,
+    grantedScopes: [...grantedScopes],
+    missingScopes,
+  });
+  if (missingScopes.length) {
+    logger.warn('Meta permissions missing for richer Instagram publishing', {
+      userId,
+      missingScopes,
+    });
+  }
 
   // Get user info
   const meRes = await axios.get(`${FB_API}/me`, {
@@ -182,7 +205,7 @@ const handleFacebookCallback = async (userId, code) => {
       pageName:           page.name,
       accessToken:        page.access_token,  // page-level token
       tokenExpiresAt:     expiresAt,
-      tokenScope:         'pages_manage_posts,pages_read_engagement',
+      tokenScope:         META_REQUESTED_SCOPES.join(','),
       instagramAccountId: igAccountId,
     });
     savedAccounts.push(fbAccount);

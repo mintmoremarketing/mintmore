@@ -2,6 +2,9 @@ const AppError = require('../../utils/AppError');
 
 const PLATFORMS      = ['facebook', 'instagram', 'youtube'];
 const CONTENT_TYPES  = ['text', 'image', 'video', 'carousel', 'reel', 'short', 'story'];
+const CONTENT_RULES  = {
+  instagram: ['image', 'carousel', 'reel'],
+};
 
 const validateCreatePost = (body) => {
   const { caption, content_type, target_platforms, publish_at } = body;
@@ -13,6 +16,16 @@ const validateCreatePost = (body) => {
 
   if (!content_type || !CONTENT_TYPES.includes(content_type)) {
     errors.push(`content_type must be one of: ${CONTENT_TYPES.join(', ')}`);
+  }
+
+  if (content_type && target_platforms) {
+    const targets = Array.isArray(target_platforms) ? target_platforms : [target_platforms];
+    for (const platform of targets) {
+      const allowed = CONTENT_RULES[platform];
+      if (allowed && !allowed.includes(content_type)) {
+        errors.push(`${platform} posts must use one of: ${allowed.join(', ')}`);
+      }
+    }
   }
 
   if (!target_platforms || !Array.isArray(target_platforms) || target_platforms.length === 0) {

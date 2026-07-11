@@ -101,21 +101,29 @@ const addMedia = async (req, res, next) => {
       }
     }
 
-    if (req.file) {
-      const extension = path.extname(req.file.originalname || '').toLowerCase();
-      const filePath = `social/${req.user.sub}/${req.params.postId}/${crypto.randomUUID()}${extension}`;
-      const mediaUrl = await uploadFile(
-        'job-attachments',
-        filePath,
-        req.file.buffer,
-        req.file.mimetype
-      );
-      media_items = [{
-        media_url: mediaUrl,
-        media_type: req.file.mimetype.startsWith('video/') ? 'video' : 'image',
-        mime_type: req.file.mimetype,
-        file_size_bytes: req.file.size,
-      }];
+    const uploadedFiles = Array.isArray(req.files) && req.files.length
+      ? req.files
+      : req.file
+        ? [req.file]
+        : [];
+
+    if (uploadedFiles.length) {
+      media_items = await Promise.all(uploadedFiles.map(async (file) => {
+        const extension = path.extname(file.originalname || '').toLowerCase();
+        const filePath = `social/${req.user.sub}/${req.params.postId}/${crypto.randomUUID()}${extension}`;
+        const mediaUrl = await uploadFile(
+          'job-attachments',
+          filePath,
+          file.buffer,
+          file.mimetype
+        );
+        return {
+          media_url: mediaUrl,
+          media_type: file.mimetype.startsWith('video/') ? 'video' : 'image',
+          mime_type: file.mimetype,
+          file_size_bytes: file.size,
+        };
+      }));
     }
 
     if (!Array.isArray(media_items) || media_items.length === 0) {

@@ -58,7 +58,7 @@ router.get('/posts/:postId', controller.getPost);
 router.post(
   '/posts/:postId/media',
   requireEntitlement('can_use_social'),
-  handleUploadError(upload.single('media')),
+  handleUploadError(upload.array('media', 10)),
   controller.addMedia
 );
 

@@ -128,7 +128,7 @@ const publishGenerationPost = async (req, res, next) => {
     );
     return sendSuccess(res, {
       data: { post },
-      message: 'Post saved as draft. The public feed surface is not built yet.',
+      message: 'Image published to the creations gallery.',
       statusCode: 201,
     });
   } catch (err) { next(err); }

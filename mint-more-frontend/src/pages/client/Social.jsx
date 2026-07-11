@@ -15,6 +15,8 @@ const PLATFORM_META = {
   youtube:   { icon: 'youtube',   label: 'YouTube',    color: '#FF0000' },
 }
 
+const INSTAGRAM_CONTENT_TYPES = ['image', 'carousel', 'reel']
+
 const normalizePlatforms = (value) => {
   if (Array.isArray(value)) return value.filter(Boolean)
   if (!value) return []
@@ -37,11 +39,49 @@ const normalizePlatforms = (value) => {
   return []
 }
 
-function SocialPostPreview({ platform, account, caption, hashtags, contentType, mediaUrl }) {
+function SocialPostPreview({ platform, account, caption, hashtags, contentType, mediaUrls = [] }) {
   const meta = PLATFORM_META[platform] || PLATFORM_META.facebook
   const name = account?.page_name || account?.platform_name || account?.platform_username || 'Your business'
   const handle = account?.platform_username || name
   const text = [caption, hashtags].filter(Boolean).join('\n')
+  const primaryMedia = mediaUrls[0]
+  const isCarousel = contentType === 'carousel' && mediaUrls.length > 1
+
+  const renderMedia = (platformAspect = '1') => {
+    if (!mediaUrls.length) {
+      return (
+        <div style={{ color: 'var(--ink-400)', textAlign: 'center', padding: 20 }}>
+          <Icon name="image" />
+          <div style={{ fontSize: 12, marginTop: 6 }}>Media preview</div>
+        </div>
+      )
+    }
+
+    if (isCarousel) {
+      return (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 4,
+            background: 'var(--paper-tint)',
+          }}
+        >
+          {mediaUrls.slice(0, 4).map((url, index) => (
+            <img key={`${url}-${index}`} src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ))}
+        </div>
+      )
+    }
+
+    return primaryMedia
+      ? (contentType === 'video' || contentType === 'reel'
+        ? <video src={primaryMedia} muted controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <img src={primaryMedia} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />)
+      : null
+  }
 
   if (platform === 'instagram') {
     return (
@@ -56,16 +96,7 @@ function SocialPostPreview({ platform, account, caption, hashtags, contentType, 
           <Icon name="more" size={16} />
         </div>
         <div style={{ aspectRatio: '1', background: 'var(--paper-tint)', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-          {mediaUrl ? (
-            contentType === 'video' || contentType === 'reel'
-              ? <video src={mediaUrl} muted controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <img src={mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <div style={{ color: 'var(--ink-400)', textAlign: 'center', padding: 20 }}>
-              <Icon name="image" />
-              <div style={{ fontSize: 12, marginTop: 6 }}>Media preview</div>
-            </div>
-          )}
+          {renderMedia('1')}
         </div>
         <div style={{ padding: 14 }}>
           <div className="row" style={{ gap: 13, marginBottom: 9 }}>
@@ -85,9 +116,11 @@ function SocialPostPreview({ platform, account, caption, hashtags, contentType, 
     return (
       <div style={{ border: '1px solid var(--hairline)', borderRadius: 16, overflow: 'hidden', background: 'var(--paper)', maxWidth: 420 }}>
         <div style={{ aspectRatio: '16 / 9', background: '#111827', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-          {mediaUrl && (contentType === 'video' || contentType === 'reel')
-            ? <video src={mediaUrl} muted controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <Icon name="youtube" size={38} style={{ color: meta.color }} />}
+          {mediaUrls.length && (contentType === 'video' || contentType === 'reel')
+            ? <video src={primaryMedia} muted controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : isCarousel
+              ? renderMedia('16 / 9')
+              : <Icon name="youtube" size={38} style={{ color: meta.color }} />}
         </div>
         <div style={{ padding: 14 }}>
           <strong style={{ display: 'block', marginBottom: 5 }}>{caption.split('\n')[0] || 'YouTube post preview'}</strong>
@@ -116,11 +149,13 @@ function SocialPostPreview({ platform, account, caption, hashtags, contentType, 
           {text || 'Your caption will appear here.'}
         </p>
       </div>
-      {mediaUrl && (
+      {mediaUrls.length > 0 && (
         <div style={{ maxHeight: 360, background: 'var(--paper-tint)', overflow: 'hidden' }}>
-          {contentType === 'video' || contentType === 'reel'
-            ? <video src={mediaUrl} muted controls style={{ width: '100%', display: 'block' }} />
-            : <img src={mediaUrl} alt="" style={{ width: '100%', display: 'block', objectFit: 'cover' }} />}
+          {isCarousel
+            ? renderMedia('16 / 9')
+            : (contentType === 'video' || contentType === 'reel'
+              ? <video src={primaryMedia} muted controls style={{ width: '100%', display: 'block' }} />
+              : <img src={primaryMedia} alt="" style={{ width: '100%', display: 'block', objectFit: 'cover' }} />)}
         </div>
       )}
       <div className="row between" style={{ borderTop: '1px solid var(--hairline)', padding: '10px 18px', color: 'var(--ink-500)', fontSize: 13 }}>
@@ -199,19 +234,21 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
   const [contentType, setContentType] = useState('text')
   const [selectedPlatforms, setSelectedPlatforms] = useState([])
   const [scheduleDate, setScheduleDate] = useState('')
-  const [mediaFile,   setMediaFile]   = useState(null)
-  const [mintboxMedia, setMintboxMedia] = useState(null)
+  const [mediaFiles,   setMediaFiles]   = useState([])
+  const [mintboxMedia, setMintboxMedia] = useState([])
   const [step,        setStep]        = useState(1)
   const needsMedia = contentType !== 'text'
-  const hasMedia = Boolean(mediaFile || mintboxMedia)
-  const mediaPreviewUrl = useMemo(() => {
-    if (mediaFile) return URL.createObjectURL(mediaFile)
-    return mintboxMedia?.media_url || ''
-  }, [mediaFile, mintboxMedia])
+  const hasMedia = Boolean(mediaFiles.length || mintboxMedia.length)
+  const instagramSelected = selectedPlatforms.includes('instagram')
+  const instagramContentBlocked = instagramSelected && !INSTAGRAM_CONTENT_TYPES.includes(contentType)
+  const mediaPreviewUrls = useMemo(() => {
+    if (mediaFiles.length) return mediaFiles.map(file => URL.createObjectURL(file))
+    return mintboxMedia.map(item => item.media_url)
+  }, [mediaFiles, mintboxMedia])
 
   useEffect(() => () => {
-    if (mediaPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(mediaPreviewUrl)
-  }, [mediaPreviewUrl])
+    mediaPreviewUrls.filter(url => url?.startsWith('blob:')).forEach(url => URL.revokeObjectURL(url))
+  }, [mediaPreviewUrls])
   const { data: mediaLibrary = [] } = useQuery({
     queryKey: ['social-media-library'],
     queryFn: () => socialApi.getMediaLibrary().then(r => r.data.data.media || []),
@@ -226,6 +263,9 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
   const createMutation = useMutation({
     mutationFn: async () => {
       // 1. Create post
+      if (selectedPlatforms.includes('instagram') && !INSTAGRAM_CONTENT_TYPES.includes(contentType)) {
+        throw new Error('Instagram publishing currently supports images, carousels, or reels. Please choose one of those content types.')
+      }
       const postRes = await socialApi.createPost({
         caption,
         hashtags: hashtags.split(' ').filter(Boolean),
@@ -236,19 +276,19 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
       const post = postRes.data.data.post
 
       // 2. Upload media if any
-      if (mintboxMedia) {
+      if (mintboxMedia.length) {
         await socialApi.addMedia(post.id, {
-          media_items: [{
-            media_url: mintboxMedia.media_url,
-            media_type: mintboxMedia.media_type,
-            mime_type: mintboxMedia.mime_type,
-            file_size_bytes: mintboxMedia.size_bytes,
-          }],
+          media_items: mintboxMedia.map(item => ({
+            media_url: item.media_url,
+            media_type: item.media_type,
+            mime_type: item.mime_type,
+            file_size_bytes: item.size_bytes,
+          })),
         })
-      } else if (mediaFile) {
+      } else if (mediaFiles.length) {
         const fd = new FormData()
-        fd.append('media', mediaFile)
-        fd.append('media_type', mediaFile.type.startsWith('video') ? 'video' : 'image')
+        mediaFiles.forEach(file => fd.append('media', file))
+        fd.append('media_type', mediaFiles[0]?.type.startsWith('video') ? 'video' : 'image')
         await socialApi.addMedia(post.id, fd)
       }
 
@@ -263,7 +303,12 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
       onCreated()
       onClose()
     },
-    onError: err => pushToast({ title: 'Failed', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
+    onError: err => pushToast({
+      title: 'Failed',
+      body: err.response?.data?.message || err.message,
+      tone: 'amber',
+      icon: 'x',
+    }),
   })
 
   const connectedPlatforms = accounts.filter(a => a.is_active)
@@ -286,7 +331,7 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
             <button
               className="btn primary"
               onClick={() => createMutation.mutate()}
-              disabled={createMutation.isPending || selectedPlatforms.length === 0 || (needsMedia && !hasMedia)}
+              disabled={createMutation.isPending || selectedPlatforms.length === 0 || (needsMedia && !hasMedia) || instagramContentBlocked}
             >
               {createMutation.isPending ? 'Publishing...' : scheduleDate ? 'Schedule post' : 'Publish now'}
             </button>
@@ -348,29 +393,33 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
                 }}
                 onClick={() => document.getElementById('social-media-upload')?.click()}
               >
-                {mediaFile ? (
-                  <span style={{ fontSize: 13, color: 'var(--ink-700)' }}>
-                    <Icon name="check" size={13} style={{ color: 'var(--mint-600)' }} /> {mediaFile.name}
+                {mediaFiles.length ? (
+                  <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
+                    <Icon name="check" size={13} style={{ color: 'var(--mint-600)' }} /> {mediaFiles.length} file{mediaFiles.length > 1 ? 's' : ''} selected
                   </span>
                 ) : (
                   <div style={{ textAlign: 'center' }}>
                     <Icon name="upload" size={20} />
-                    <div style={{ fontSize: 12, marginTop: 6 }}>Upload a JPG, PNG, or WebP</div>
+                    <div style={{ fontSize: 12, marginTop: 6 }}>
+                      {contentType === 'carousel' ? 'Upload multiple JPG, PNG, or WebP images' : 'Upload a JPG, PNG, or WebP'}
+                    </div>
                   </div>
                 )}
               </div>
               <input
                 id="social-media-upload"
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept={contentType === 'video' || contentType === 'reel' ? 'video/mp4,video/webm,video/quicktime' : 'image/jpeg,image/png,image/webp'}
+                multiple={contentType === 'carousel'}
                 style={{ display: 'none' }}
                 onChange={e => {
-                  setMediaFile(e.target.files?.[0] || null)
-                  setMintboxMedia(null)
+                  const files = Array.from(e.target.files || [])
+                  setMediaFiles(contentType === 'carousel' ? files : files.slice(0, 1))
+                  setMintboxMedia([])
                 }}
               />
               <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 7 }}>
-                Use Mintbox below for videos and larger reusable assets.
+                Use Mintbox below for reusable assets and carousel-ready reference media.
               </div>
               {mediaLibrary.length > 0 && (
                 <div style={{ marginTop: 12 }}>
@@ -382,21 +431,40 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
                         key={item.id}
                         className="btn ghost"
                         onClick={() => {
-                          setMintboxMedia(item)
-                          setMediaFile(null)
+                          if (contentType === 'carousel') {
+                            setMintboxMedia(current =>
+                              current.some(existing => existing.id === item.id)
+                                ? current.filter(existing => existing.id !== item.id)
+                                : [...current, item]
+                            )
+                          } else {
+                            setMintboxMedia([item])
+                          }
+                          setMediaFiles([])
                         }}
                         style={{
                           justifyContent: 'flex-start',
-                          borderColor: mintboxMedia?.id === item.id ? 'var(--mint-500)' : undefined,
+                          borderColor: mintboxMedia.some(existing => existing.id === item.id) ? 'var(--mint-500)' : undefined,
                           minWidth: 0,
                         }}
                         title={`${item.job_title} - ${item.original_name}`}
                       >
                         <Icon name={item.media_type === 'video' ? 'video' : 'image'} size={13} />
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.original_name}</span>
+                        {contentType === 'carousel' && mintboxMedia.some(existing => existing.id === item.id) && <Icon name="check" size={12} style={{ marginLeft: 'auto' }} />}
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+              {contentType === 'carousel' && mediaFiles.length > 1 && (
+                <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 8 }}>
+                  Carousel mode supports up to 10 selected images.
+                </div>
+              )}
+              {instagramSelected && (
+                <div style={{ fontSize: 12, color: instagramContentBlocked ? 'var(--rose)' : 'var(--ink-500)', marginTop: 8 }}>
+                  Instagram-only posts work best as images, carousels, or reels. Pick the Instagram account in step 2 if that is the destination you want.
                 </div>
               )}
             </div>
@@ -502,14 +570,14 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
               ) : selectedPlatforms.map(platform => {
                 const account = connectedPlatforms.find(a => a.platform === platform)
                 return (
-                  <SocialPostPreview
+              <SocialPostPreview
                     key={platform}
                     platform={platform}
                     account={account}
                     caption={caption}
                     hashtags={hashtags}
                     contentType={contentType}
-                    mediaUrl={mediaPreviewUrl}
+                    mediaUrls={mediaPreviewUrls}
                   />
                 )
               })}
@@ -601,6 +669,13 @@ export default function Social() {
               </button>
               <button
                 className="btn ghost"
+                onClick={() => socialApi.connectInstagram(accessToken)}
+              >
+                <Icon name="instagram" size={14} style={{ color: '#E1306C' }} />
+                Connect Instagram only
+              </button>
+              <button
+                className="btn ghost"
                 onClick={() => socialApi.connectYouTube(accessToken)}
               >
                 <Icon name="youtube" size={14} style={{ color: '#FF0000' }} />
@@ -608,7 +683,7 @@ export default function Social() {
               </button>
             </div>
             <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 10 }}>
-              You'll be redirected to connect your own Facebook Pages and Instagram accounts.
+              You'll be redirected to connect your own Facebook Pages, Instagram Business accounts, or YouTube channel.
             </div>
           </div>
 

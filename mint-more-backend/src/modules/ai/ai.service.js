@@ -1245,7 +1245,7 @@ const publishGenerationPost = async (generationId, userId, payload = {}) => {
   const result = await query(
     `INSERT INTO published_posts
        (user_id, generation_id, media_url, caption, tags, share_generation_parameters, status)
-     VALUES ($1,$2,$3,$4,$5,$6,'draft')
+     VALUES ($1,$2,$3,$4,$5,$6,'published')
      RETURNING *`,
     [
       userId,
