@@ -8,6 +8,33 @@ const env = require('../config/env');
  */
 const storage = multer.memoryStorage();
 
+const createUpload = ({
+  allowedFileTypes = env.upload.allowedFileTypes,
+  maxFileSizeMb = env.upload.maxFileSizeMb,
+} = {}) => {
+  const fileFilter = (req, file, cb) => {
+    if (allowedFileTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(
+        new AppError(
+          `File type not allowed. Accepted: ${allowedFileTypes.join(', ')}`,
+          415
+        ),
+        false
+      );
+    }
+  };
+
+  return multer({
+    storage,
+    fileFilter,
+    limits: {
+      fileSize: maxFileSizeMb * 1024 * 1024, // convert MB to bytes
+    },
+  });
+};
+
 const fileFilter = (req, file, cb) => {
   if (env.upload.allowedFileTypes.includes(file.mimetype)) {
     cb(null, true);
@@ -22,13 +49,7 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({
-  storage,
-  fileFilter,
-  limits: {
-    fileSize: env.upload.maxFileSizeMb * 1024 * 1024, // convert MB to bytes
-  },
-});
+const upload = createUpload();
 
 /**
  * Multer error wrapper — converts multer errors to AppError
@@ -49,4 +70,4 @@ const handleUploadError = (uploadMiddleware) => (req, res, next) => {
   });
 };
 
-module.exports = { upload, handleUploadError };
+module.exports = { upload, handleUploadError, createUpload };

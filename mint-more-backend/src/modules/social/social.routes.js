@@ -4,9 +4,20 @@ const { authenticate, authorize } = require('../../middleware/authenticate');
 const { rawBody } = require('../../middleware/rawBody');
 const { verifyWebhook, handleWebhook } = require('./social.webhook');
 const { requireEntitlement } = require('../../middleware/permissions');
-const { upload, handleUploadError } = require('../../middleware/upload');
+const { handleUploadError, createUpload } = require('../../middleware/upload');
 
 const router = Router();
+const socialMediaUpload = createUpload({
+  allowedFileTypes: [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'video/mp4',
+    'video/quicktime',
+    'video/webm',
+    'video/x-matroska',
+  ],
+});
 
 // ── OAuth (GET — browser redirects, no Bearer token) ─────────────────────────
 // Token passed via query param: ?token=ACCESS_TOKEN
@@ -58,7 +69,7 @@ router.get('/posts/:postId', controller.getPost);
 router.post(
   '/posts/:postId/media',
   requireEntitlement('can_use_social'),
-  handleUploadError(upload.array('media', 10)),
+  handleUploadError(socialMediaUpload.array('media', 10)),
   controller.addMedia
 );
 

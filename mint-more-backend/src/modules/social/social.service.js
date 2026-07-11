@@ -28,7 +28,7 @@ const fetchFacebookPageStats = async (account) => {
     const [pageRes, postsRes] = await Promise.all([
       axios.get(`${FB_API}/${account.page_id}`, {
         params: {
-          fields: 'id,name,followers_count,fan_count',
+          fields: 'id,name,followers_count,fan_count,instagram_business_account',
           access_token: account.access_token,
         },
       }),
@@ -42,10 +42,38 @@ const fetchFacebookPageStats = async (account) => {
     ]);
 
     const page = pageRes.data || {};
+    let linkedInstagram = null;
+    const linkedInstagramId = page.instagram_business_account?.id;
+    if (linkedInstagramId) {
+      try {
+        const igRes = await axios.get(`${FB_API}/${linkedInstagramId}`, {
+          params: {
+            fields: 'id,name,username,followers_count,follows_count,media_count,profile_picture_url',
+            access_token: account.access_token,
+          },
+        });
+        linkedInstagram = igRes.data || null;
+      } catch (igErr) {
+        logger.warn('Facebook-linked Instagram stats fetch failed', {
+          accountId: account.id,
+          instagramAccountId: linkedInstagramId,
+          error: igErr.message,
+        });
+      }
+    }
     return {
       followers_count: Number(page.followers_count || page.fan_count || 0),
       page_likes_count: Number(page.fan_count || 0),
       posts_count: postsRes.data?.summary?.total_count ?? null,
+      linked_instagram: linkedInstagram ? {
+        id: linkedInstagram.id || null,
+        name: linkedInstagram.name || null,
+        username: linkedInstagram.username || null,
+        followers_count: linkedInstagram.followers_count ?? null,
+        follows_count: linkedInstagram.follows_count ?? null,
+        media_count: linkedInstagram.media_count ?? null,
+        profile_picture_url: linkedInstagram.profile_picture_url || null,
+      } : null,
     };
   } catch (err) {
     logger.warn('Facebook account stats fetch failed', {
@@ -384,7 +412,7 @@ const getMyAccounts = async (userId) => {
     `SELECT
        id, platform, platform_user_id, platform_username,
        platform_name, platform_avatar_url,
-       page_id, page_name,
+       page_id, page_name, instagram_account_id,
        is_active, last_used_at, last_error,
        token_expires_at,
        -- Days until token expires
@@ -395,7 +423,7 @@ const getMyAccounts = async (userId) => {
          WHEN token_expires_at < NOW() THEN 'expired'
          WHEN token_expires_at < NOW() + INTERVAL '7 days' THEN 'expiring_soon'
          ELSE 'valid'
-       END AS token_status,
+      END AS token_status,
        created_at
      FROM social_accounts
      WHERE user_id = $1 AND is_active = true
@@ -403,7 +431,7 @@ const getMyAccounts = async (userId) => {
     [userId]
   );
 
-  return Promise.all(result.rows.map(async (account) => {
+  let rows = await Promise.all(result.rows.map(async (account) => {
     let stats = null;
 
     if (account.platform === 'facebook') {
@@ -417,6 +445,76 @@ const getMyAccounts = async (userId) => {
       stats,
     };
   }));
+
+  const facebookRowsNeedingSync = rows.filter((account) => {
+    const linkedInstagram = account.stats?.linked_instagram;
+    if (account.platform !== 'facebook' || !linkedInstagram?.id) return false;
+    return !rows.some((other) => other.platform === 'instagram' && other.platform_user_id === linkedInstagram.id);
+  });
+
+  if (facebookRowsNeedingSync.length > 0) {
+    await Promise.all(facebookRowsNeedingSync.map(async (account) => {
+      const linkedInstagram = account.stats?.linked_instagram;
+      if (!linkedInstagram?.id) return;
+      try {
+        await upsertSocialAccount({
+          userId,
+          platform: 'instagram',
+          platformUserId: linkedInstagram.id,
+          platformUsername: linkedInstagram.username || null,
+          platformName: linkedInstagram.name || linkedInstagram.username || null,
+          platformAvatarUrl: linkedInstagram.profile_picture_url || null,
+          pageId: account.page_id || null,
+          pageName: account.page_name || null,
+          instagramAccountId: linkedInstagram.id,
+          accessToken: account.access_token,
+          refreshToken: account.refresh_token,
+          tokenExpiresAt: account.token_expires_at,
+          tokenScope: account.token_scope,
+        });
+      } catch (err) {
+        logger.warn('Failed to sync linked Instagram account', {
+          userId,
+          facebookAccountId: account.id,
+          instagramAccountId: linkedInstagram.id,
+          error: err.message,
+        });
+      }
+    }));
+
+    const refreshed = await query(
+      `SELECT
+         id, platform, platform_user_id, platform_username,
+         platform_name, platform_avatar_url,
+         page_id, page_name, instagram_account_id,
+         is_active, last_used_at, last_error,
+         token_expires_at,
+         GREATEST(0, EXTRACT(DAY FROM (token_expires_at - NOW()))::INTEGER) AS token_days_remaining,
+         CASE
+           WHEN token_expires_at IS NULL THEN 'unknown'
+           WHEN token_expires_at < NOW() THEN 'expired'
+           WHEN token_expires_at < NOW() + INTERVAL '7 days' THEN 'expiring_soon'
+           ELSE 'valid'
+         END AS token_status,
+         created_at
+       FROM social_accounts
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY platform ASC, platform_name ASC`,
+      [userId]
+    );
+
+    rows = await Promise.all(refreshed.rows.map(async (account) => {
+      let stats = null;
+      if (account.platform === 'facebook') {
+        stats = await fetchFacebookPageStats(account);
+      } else if (account.platform === 'instagram') {
+        stats = await fetchInstagramAccountStats(account);
+      }
+      return { ...account, stats };
+    }));
+  }
+
+  return rows;
 };
 
 const disconnectAccount = async (accountId, userId) => {

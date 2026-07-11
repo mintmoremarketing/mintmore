@@ -167,11 +167,12 @@ function SocialPostPreview({ platform, account, caption, hashtags, contentType, 
   )
 }
 
-function AccountCard({ account, onDisconnect }) {
+function AccountCard({ account, onDisconnect, onRefreshMeta }) {
   const meta   = PLATFORM_META[account.platform] || {}
   const isLow  = account.token_status === 'expiring_soon'
   const isExp  = account.token_status === 'expired'
   const stats  = account.stats || {}
+  const linkedInstagram = stats.linked_instagram || null
   const statItems = account.platform === 'instagram'
     ? [
       ['Followers', stats.followers_count],
@@ -205,6 +206,11 @@ function AccountCard({ account, onDisconnect }) {
             <div style={{ fontSize: 12, color: 'var(--ink-500)', textTransform: 'capitalize' }}>
               {meta.label}
             </div>
+            {account.platform === 'instagram' && account.platform_username && (
+              <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 2 }}>
+                @{account.platform_username}
+              </div>
+            )}
           </div>
         </div>
         <button
@@ -234,6 +240,42 @@ function AccountCard({ account, onDisconnect }) {
         </span>
       )}
       </div>
+
+      {account.platform === 'facebook' && (
+        <div style={{
+          marginTop: 12,
+          padding: 12,
+          borderRadius: 12,
+          background: 'var(--paper-tint)',
+          border: '1px solid var(--hairline)',
+          fontSize: 12.5,
+          lineHeight: 1.45,
+          color: 'var(--ink-600)',
+        }}>
+          {linkedInstagram ? (
+            <>
+              <div style={{ fontWeight: 600, color: 'var(--ink-700)', marginBottom: 4 }}>
+                Instagram linked
+              </div>
+              This Page is connected to <strong>@{linkedInstagram.username || linkedInstagram.name || linkedInstagram.id}</strong>.
+              You can publish to Instagram once the Instagram account shows up in the accounts list below.
+            </>
+          ) : (
+            <>
+              <div style={{ fontWeight: 600, color: 'var(--ink-700)', marginBottom: 4 }}>
+                Instagram not linked yet
+              </div>
+              To publish to Instagram, link a professional Instagram account to this Facebook Page inside Meta first.
+              After that, click Refresh from Meta here and the Instagram account should appear automatically.
+              <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                <button className="btn ghost" type="button" onClick={onRefreshMeta}>
+                  Refresh from Meta
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="row wrap" style={{ gap: 8, marginTop: 14 }}>
         {statItems.map(([label, value]) => (
@@ -663,6 +705,10 @@ export default function Social() {
 
   const posts    = postsData?.posts || []
   const summary  = analyticsData?.summary
+  const refreshAccounts = () => {
+    queryClient.invalidateQueries({ queryKey: ['social-accounts'] })
+    pushToast({ title: 'Refreshing connections from Meta', icon: 'refresh' })
+  }
   const accountTotals = useMemo(() => connectedAccounts.reduce((totals, account) => {
     const stats = account.stats || {}
     totals.followers += Number(stats.followers_count || 0)
@@ -722,12 +768,17 @@ export default function Social() {
                 <Icon name="youtube" size={14} style={{ color: '#FF0000' }} />
                 Connect YouTube
               </button>
+              <button className="btn ghost" onClick={refreshAccounts}>
+                <Icon name="refresh" size={14} />
+                Refresh from Meta
+              </button>
             </div>
             <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 10 }}>
               You'll be redirected to connect your own Facebook Pages, Instagram Business accounts, or YouTube channel.
             </div>
             <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 6 }}>
               Follower and post counts are pulled live from Meta once the account is connected.
+              If Instagram is missing, it usually means the Instagram account is not linked to the same Facebook Page yet.
             </div>
           </div>
 
@@ -747,6 +798,7 @@ export default function Social() {
                   key={acc.id}
                   account={acc}
                   onDisconnect={(id) => disconnectMutation.mutate(id)}
+                  onRefreshMeta={refreshAccounts}
                 />
               ))}
             </div>
