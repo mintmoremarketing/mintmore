@@ -21,74 +21,74 @@ const META_REQUIRED_SCOPES = [
 ];
 const META_REQUESTED_SCOPES = [...META_REQUIRED_SCOPES, 'public_profile'];
 
-const fetchFacebookPageStats = async (account) => {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const safeNumber = (value, fallback = null) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const fetchFacebookPageDetails = async (account) => {
   if (!account.page_id) return null;
 
+  const pageRes = await axios.get(`${FB_API}/${account.page_id}`, {
+    params: {
+      fields: 'id,name,fan_count,followers_count,posts.limit(1).summary(true),access_token',
+      access_token: account.access_token,
+    },
+  });
+
+  const page = pageRes.data || {};
+  const pageAccessToken = page.access_token || account.access_token;
+  const fanCount = safeNumber(page.fan_count, 0) || 0;
+  const followersCount = safeNumber(page.followers_count, fanCount) || fanCount;
+  const postsCount = safeNumber(page.posts?.summary?.total_count, null);
+  const insightsAvailable = fanCount >= 100;
+
+  let linkedInstagram = null;
+  let linkedInstagramId = null;
   try {
-    const pageRes = await axios.get(`${FB_API}/${account.page_id}`, {
+    const igLinkRes = await axios.get(`${FB_API}/${account.page_id}`, {
       params: {
-        fields: 'id,name,fan_count',
-        access_token: account.access_token,
+        fields: 'instagram_business_account',
+        access_token: pageAccessToken,
       },
     });
+    linkedInstagramId = igLinkRes.data?.instagram_business_account?.id || null;
+  } catch (linkErr) {
+    logger.debug('Facebook linked Instagram lookup skipped', {
+      accountId: account.id,
+      pageId: account.page_id,
+      error: linkErr.message,
+    });
+  }
 
-    let postsCount = null;
+  if (linkedInstagramId) {
     try {
-      const postsRes = await axios.get(`${FB_API}/${account.page_id}/published_posts`, {
+      const igRes = await axios.get(`${FB_API}/${linkedInstagramId}`, {
         params: {
-          summary: true,
-          limit: 1,
-          access_token: account.access_token,
+          fields: 'id,name,username,followers_count,follows_count,media_count,profile_picture_url',
+          access_token: pageAccessToken,
         },
       });
-      postsCount = postsRes.data?.summary?.total_count ?? null;
-    } catch (postsErr) {
-      logger.debug('Facebook page post count fetch skipped', {
+      linkedInstagram = igRes.data || null;
+    } catch (igErr) {
+      logger.warn('Facebook-linked Instagram stats fetch failed', {
         accountId: account.id,
-        pageId: account.page_id,
-        error: postsErr.message,
+        instagramAccountId: linkedInstagramId,
+        error: igErr.message,
       });
     }
+  }
 
-    const page = pageRes.data || {};
-    let linkedInstagram = null;
-    let linkedInstagramId = null;
-    try {
-      const igLinkRes = await axios.get(`${FB_API}/${account.page_id}`, {
-        params: {
-          fields: 'instagram_business_account',
-          access_token: account.access_token,
-        },
-      });
-      linkedInstagramId = igLinkRes.data?.instagram_business_account?.id || null;
-    } catch (linkErr) {
-      logger.debug('Facebook linked Instagram lookup skipped', {
-        accountId: account.id,
-        pageId: account.page_id,
-        error: linkErr.message,
-      });
-    }
-
-    if (linkedInstagramId) {
-      try {
-        const igRes = await axios.get(`${FB_API}/${linkedInstagramId}`, {
-          params: {
-            fields: 'id,name,username,followers_count,follows_count,media_count,profile_picture_url',
-            access_token: account.access_token,
-          },
-        });
-        linkedInstagram = igRes.data || null;
-      } catch (igErr) {
-        logger.warn('Facebook-linked Instagram stats fetch failed', {
-          accountId: account.id,
-          instagramAccountId: linkedInstagramId,
-          error: igErr.message,
-        });
-      }
-    }
-    return {
-      followers_count: Number(page.followers_count || page.fan_count || 0),
-      page_likes_count: Number(page.fan_count || 0),
+  return {
+    pageAccessToken,
+    page,
+    stats: {
+      insights_available: insightsAvailable,
+      insights_reason: insightsAvailable ? null : 'min_100_followers_required',
+      followers_count: followersCount,
+      page_likes_count: fanCount,
       posts_count: postsCount,
       linked_instagram: linkedInstagram ? {
         id: linkedInstagram.id || null,
@@ -99,7 +99,14 @@ const fetchFacebookPageStats = async (account) => {
         media_count: linkedInstagram.media_count ?? null,
         profile_picture_url: linkedInstagram.profile_picture_url || null,
       } : null,
-    };
+    },
+  };
+};
+
+const fetchFacebookPageStats = async (account) => {
+  try {
+    const details = await fetchFacebookPageDetails(account);
+    return details?.stats || null;
   } catch (err) {
     logger.debug('Facebook account stats fetch unavailable', {
       accountId: account.id,
@@ -107,6 +114,8 @@ const fetchFacebookPageStats = async (account) => {
       error: err.message,
     });
     return {
+      insights_available: false,
+      insights_reason: 'unavailable',
       followers_count: null,
       page_likes_count: null,
       posts_count: null,
@@ -332,6 +341,17 @@ const handleFacebookCallback = async (userId, code) => {
     });
     savedAccounts.push(fbAccount);
 
+    try {
+      await importHistoricalFacebookPosts(userId, fbAccount, page.access_token);
+    } catch (importErr) {
+      logger.warn('Historical Facebook post import skipped during OAuth callback', {
+        userId,
+        accountId: fbAccount.id,
+        pageId: page.id,
+        error: importErr.message,
+      });
+    }
+
     // Save Instagram account if linked
     if (igAccountId) {
       const igInfoRes = await axios.get(`${FB_API}/${igAccountId}`, {
@@ -437,35 +457,160 @@ const upsertSocialAccount = async ({
   return result.rows[0];
 };
 
-const getMyAccounts = async (userId) => {
-  const result = await query(
-    `SELECT
-       id, platform, platform_user_id, platform_username,
-       platform_name, platform_avatar_url,
-       page_id, page_name, instagram_account_id,
-       is_active, last_used_at, last_error,
-       token_expires_at,
-       -- Days until token expires
-       GREATEST(0, EXTRACT(DAY FROM (token_expires_at - NOW()))::INTEGER) AS token_days_remaining,
-       -- Token expiry warning
-       CASE
-         WHEN token_expires_at IS NULL THEN 'unknown'
-         WHEN token_expires_at < NOW() THEN 'expired'
-         WHEN token_expires_at < NOW() + INTERVAL '7 days' THEN 'expiring_soon'
-         ELSE 'valid'
-      END AS token_status,
-       created_at
-     FROM social_accounts
-     WHERE user_id = $1 AND is_active = true
-     ORDER BY platform ASC, platform_name ASC`,
-    [userId]
-  );
+const buildConnectedAccountsQuery = (userId) => query(
+  `SELECT
+     id, platform, platform_user_id, platform_username,
+     platform_name, platform_avatar_url,
+     page_id, page_name, instagram_account_id,
+     is_active, last_used_at, last_error,
+     token_expires_at,
+     GREATEST(0, EXTRACT(DAY FROM (token_expires_at - NOW()))::INTEGER) AS token_days_remaining,
+     CASE
+       WHEN token_expires_at IS NULL THEN 'unknown'
+       WHEN token_expires_at < NOW() THEN 'expired'
+       WHEN token_expires_at < NOW() + INTERVAL '7 days' THEN 'expiring_soon'
+       ELSE 'valid'
+    END AS token_status,
+     created_at
+   FROM social_accounts
+   WHERE user_id = $1 AND is_active = true
+   ORDER BY platform ASC, platform_name ASC`,
+  [userId]
+);
+
+const importHistoricalFacebookPosts = async (userId, account, pageAccessToken) => {
+  if (!account?.page_id || !pageAccessToken) return 0;
+
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  const sinceUnix = Math.floor(since.getTime() / 1000);
+  const result = await axios.get(`${FB_API}/${account.page_id}/posts`, {
+    params: {
+      fields: 'id,message,story,created_time,permalink_url,full_picture,type',
+      since: sinceUnix,
+      limit: 100,
+      access_token: pageAccessToken,
+    },
+  });
+
+  const posts = result.data?.data || [];
+  let imported = 0;
+
+  for (const fbPost of posts) {
+    const existing = await query(
+      `SELECT sp.id
+       FROM social_posts sp
+       JOIN social_post_platforms spp ON spp.post_id = sp.id
+       WHERE sp.user_id = $1
+         AND spp.platform = 'facebook'
+         AND spp.platform_post_id = $2
+       LIMIT 1`,
+      [userId, fbPost.id]
+    );
+
+    if (existing.rows[0]) continue;
+
+    const message = String(fbPost.message || fbPost.story || '').trim();
+    const caption = message || 'Imported Facebook post';
+    const createdAt = fbPost.created_time ? new Date(fbPost.created_time) : new Date();
+    const contentType = fbPost.type === 'video'
+      ? 'video'
+      : fbPost.type === 'photo' || fbPost.full_picture
+        ? 'image'
+        : 'text';
+
+    const postResult = await query(
+      `INSERT INTO social_posts
+         (user_id, title, caption, hashtags, mentions,
+          content_type, target_platforms, publish_at,
+          status, source_job_id, metadata, published_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       RETURNING *`,
+      [
+        userId,
+        fbPost.story || fbPost.message?.slice(0, 80) || 'Imported Facebook post',
+        caption,
+        [],
+        [],
+        contentType,
+        ['facebook'],
+        createdAt,
+        'published',
+        null,
+        JSON.stringify({
+          source: 'historical_import',
+          source_platform: 'facebook',
+          source_external_id: fbPost.id,
+          source_page_id: account.page_id,
+          source_page_name: account.page_name || null,
+        }),
+        createdAt,
+      ]
+    );
+
+    const postId = postResult.rows[0].id;
+
+    await query(
+      `INSERT INTO social_post_platforms
+         (post_id, social_account_id, platform, status, platform_post_id,
+          platform_post_url, platform_title, platform_description,
+          published_at, source)
+       VALUES ($1,$2,'facebook','published',$3,$4,$5,$6,$7,'historical_import')`,
+      [
+        postId,
+        account.id,
+        fbPost.id,
+        fbPost.permalink_url || `https://www.facebook.com/${fbPost.id}`,
+        fbPost.story || fbPost.message?.slice(0, 120) || null,
+        message || null,
+        createdAt,
+      ]
+    );
+
+    if (fbPost.full_picture) {
+      await query(
+        `INSERT INTO social_post_media
+           (post_id, user_id, media_url, media_type, mime_type, sort_order)
+         VALUES ($1,$2,$3,'image','image/jpeg',0)`,
+        [postId, userId, fbPost.full_picture]
+      );
+    }
+
+    imported += 1;
+  }
+
+  if (imported > 0) {
+    logger.info('Historical Facebook posts imported', {
+      userId,
+      pageId: account.page_id,
+      imported,
+    });
+  }
+
+  return imported;
+};
+
+const hydrateConnectedAccounts = async (userId, { importHistoricalPosts = false } = {}) => {
+  const result = await buildConnectedAccountsQuery(userId);
 
   let rows = await Promise.all(result.rows.map(async (account) => {
     let stats = null;
 
     if (account.platform === 'facebook') {
-      stats = await fetchFacebookPageStats(account);
+      const details = await fetchFacebookPageDetails(account);
+      stats = details?.stats || null;
+
+      if (importHistoricalPosts && details?.pageAccessToken) {
+        try {
+          await importHistoricalFacebookPosts(userId, account, details.pageAccessToken);
+        } catch (importErr) {
+          logger.warn('Historical Facebook post import skipped', {
+            userId,
+            accountId: account.id,
+            pageId: account.page_id,
+            error: importErr.message,
+          });
+        }
+      }
     } else if (account.platform === 'instagram') {
       stats = await fetchInstagramAccountStats(account);
     }
@@ -512,31 +657,12 @@ const getMyAccounts = async (userId) => {
       }
     }));
 
-    const refreshed = await query(
-      `SELECT
-         id, platform, platform_user_id, platform_username,
-         platform_name, platform_avatar_url,
-         page_id, page_name, instagram_account_id,
-         is_active, last_used_at, last_error,
-         token_expires_at,
-         GREATEST(0, EXTRACT(DAY FROM (token_expires_at - NOW()))::INTEGER) AS token_days_remaining,
-         CASE
-           WHEN token_expires_at IS NULL THEN 'unknown'
-           WHEN token_expires_at < NOW() THEN 'expired'
-           WHEN token_expires_at < NOW() + INTERVAL '7 days' THEN 'expiring_soon'
-           ELSE 'valid'
-         END AS token_status,
-         created_at
-       FROM social_accounts
-       WHERE user_id = $1 AND is_active = true
-       ORDER BY platform ASC, platform_name ASC`,
-      [userId]
-    );
-
+    const refreshed = await buildConnectedAccountsQuery(userId);
     rows = await Promise.all(refreshed.rows.map(async (account) => {
       let stats = null;
       if (account.platform === 'facebook') {
-        stats = await fetchFacebookPageStats(account);
+        const details = await fetchFacebookPageDetails(account);
+        stats = details?.stats || null;
       } else if (account.platform === 'instagram') {
         stats = await fetchInstagramAccountStats(account);
       }
@@ -546,6 +672,10 @@ const getMyAccounts = async (userId) => {
 
   return rows;
 };
+
+const getMyAccounts = async (userId) => hydrateConnectedAccounts(userId);
+
+const refreshAccountsFromMeta = async (userId) => hydrateConnectedAccounts(userId, { importHistoricalPosts: true });
 
 const disconnectAccount = async (accountId, userId) => {
   const result = await query(
@@ -562,13 +692,13 @@ const disconnectAccount = async (accountId, userId) => {
 /**
  * Refresh a token if it's expiring within 7 days.
  */
-const refreshTokenIfNeeded = async (account) => {
+const refreshTokenIfNeeded = async (account, thresholdDays = 7) => {
   if (!account.token_expires_at) return account;
 
-  const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const thresholdDate = new Date(Date.now() + thresholdDays * 24 * 60 * 60 * 1000);
   const expiresAt        = new Date(account.token_expires_at);
 
-  if (expiresAt > sevenDaysFromNow) return account; // still fresh
+  if (expiresAt > thresholdDate) return account; // still fresh
 
   logger.info('Refreshing expiring token', {
     accountId: account.id,
@@ -673,6 +803,62 @@ const addMediaToPost = async (postId, userId, mediaItems) => {
     inserted.push(res.rows[0]);
   }
   return inserted;
+};
+
+const updatePost = async (postId, userId, data) => {
+  const result = await query(
+    `SELECT * FROM social_posts WHERE id = $1 AND user_id = $2`,
+    [postId, userId]
+  );
+  const post = result.rows[0];
+  if (!post) throw new AppError('Post not found', 404);
+
+  if (!['draft', 'failed', 'scheduled'].includes(post.status)) {
+    throw new AppError(`Post cannot be edited from status: ${post.status}`, 400);
+  }
+
+  const targetPlatforms = normalizeTargetPlatforms(data.target_platforms || post.target_platforms);
+  if (!targetPlatforms.length) {
+    throw new AppError('Choose at least one connected platform', 400);
+  }
+
+  if (post.queue_job_id && ['scheduled', 'draft'].includes(post.status)) {
+    await cancelScheduledPost(post.queue_job_id);
+  }
+
+  await query(
+    `UPDATE social_posts
+     SET title = $1,
+         caption = $2,
+         hashtags = $3,
+         mentions = $4,
+         content_type = $5,
+         target_platforms = $6,
+         publish_at = $7,
+         status = 'draft',
+         queue_job_id = NULL,
+         metadata = COALESCE($8::jsonb, metadata)
+     WHERE id = $9 AND user_id = $10`,
+    [
+      data.title ?? post.title ?? null,
+      data.caption ?? post.caption ?? null,
+      data.hashtags ?? post.hashtags ?? [],
+      data.mentions ?? post.mentions ?? [],
+      data.content_type ?? post.content_type ?? 'text',
+      targetPlatforms,
+      data.publish_at || null,
+      data.metadata ? JSON.stringify(data.metadata) : null,
+      postId,
+      userId,
+    ]
+  );
+
+  await query(
+    `DELETE FROM social_post_platforms WHERE post_id = $1`,
+    [postId]
+  );
+
+  return normalizePostRow((await query('SELECT * FROM social_posts WHERE id = $1', [postId])).rows[0]);
 };
 
 const getMintboxMediaLibrary = async (userId, baseUrl) => {
@@ -1022,14 +1208,15 @@ const getMyPosts = async (userId, { page = 1, limit = 20, status, platform } = {
            'status', spp.status,
            'platform_post_url', spp.platform_post_url,
            'error_message', spp.error_message,
-           'published_at', spp.published_at
+           'published_at', spp.published_at,
+           'source', spp.source
          )
        ) FILTER (WHERE spp.id IS NOT NULL) AS platform_statuses
      FROM social_posts sp
      LEFT JOIN social_post_platforms spp ON spp.post_id = sp.id
      WHERE sp.user_id = $1 ${whereExtra}
      GROUP BY sp.id
-     ORDER BY sp.created_at DESC
+     ORDER BY COALESCE(sp.published_at, sp.created_at) DESC
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset]
   );
@@ -1062,7 +1249,8 @@ const getPostById = async (postId, userId, role) => {
            'error_message', spp.error_message,
            'views_count', spp.views_count,
            'likes_count', spp.likes_count,
-           'published_at', spp.published_at
+           'published_at', spp.published_at,
+           'source', spp.source
          )
        ) FILTER (WHERE spp.id IS NOT NULL) AS platform_statuses,
        array_agg(
@@ -1108,7 +1296,11 @@ const pullAnalytics = async (postId, userId) => {
     let analytics = null;
 
     if (row.platform === 'facebook') {
-      analytics = await getFacebookAnalytics(row, row.platform_post_id);
+      const details = await fetchFacebookPageDetails(row);
+      if (!details?.stats?.insights_available) {
+        continue;
+      }
+      analytics = await getFacebookAnalytics({ ...row, access_token: details.pageAccessToken }, row.platform_post_id);
     } else if (row.platform === 'instagram') {
       analytics = await getInstagramAnalytics(row, row.platform_post_id);
     } else if (row.platform === 'youtube') {
@@ -1139,6 +1331,119 @@ const pullAnalytics = async (postId, userId) => {
   }
 
   return updated;
+};
+
+const refreshExpiringSocialTokens = async () => {
+  const result = await query(
+    `SELECT *
+     FROM social_accounts
+     WHERE is_active = true
+       AND token_expires_at IS NOT NULL
+       AND token_expires_at <= NOW() + INTERVAL '14 days'`
+  );
+
+  const refreshed = [];
+
+  for (const account of result.rows) {
+    try {
+      const updated = await refreshTokenIfNeeded(account, 14);
+      if (updated && updated !== account) {
+        refreshed.push({ accountId: account.id, platform: account.platform });
+      }
+    } catch (err) {
+      logger.warn('Scheduled social token refresh failed', {
+        accountId: account.id,
+        platform: account.platform,
+        error: err.message,
+      });
+    }
+  }
+
+  return refreshed;
+};
+
+const refreshRecentSocialAnalytics = async () => {
+  const refreshed = [];
+
+  const accountsResult = await query(
+    `SELECT DISTINCT sa.*
+     FROM social_accounts sa
+     JOIN social_post_platforms spp ON spp.social_account_id = sa.id
+     JOIN social_posts sp ON sp.id = spp.post_id
+     WHERE sa.is_active = true
+       AND sa.platform = 'facebook'
+       AND spp.status = 'published'
+       AND spp.published_at IS NOT NULL
+       AND spp.published_at >= NOW() - INTERVAL '30 days'
+     ORDER BY sa.id`
+  );
+
+  for (const account of accountsResult.rows) {
+    try {
+      const details = await fetchFacebookPageDetails(account);
+      if (!details?.stats?.insights_available) {
+        continue;
+      }
+
+      const postsResult = await query(
+        `SELECT DISTINCT sp.id AS post_id, sp.user_id, MAX(spp.published_at) AS published_at
+         FROM social_posts sp
+         JOIN social_post_platforms spp ON spp.post_id = sp.id
+         WHERE spp.social_account_id = $1
+           AND spp.status = 'published'
+           AND spp.published_at IS NOT NULL
+           AND spp.published_at >= NOW() - INTERVAL '30 days'
+         GROUP BY sp.id, sp.user_id
+         ORDER BY MAX(spp.published_at) DESC`,
+        [account.id]
+      );
+
+      for (const row of postsResult.rows) {
+        try {
+          const updates = await pullAnalytics(row.post_id, row.user_id);
+          refreshed.push({ postId: row.post_id, updates: updates.length });
+        } catch (err) {
+          logger.warn('Scheduled analytics refresh failed', {
+            postId: row.post_id,
+            userId: row.user_id,
+            accountId: account.id,
+            error: err.message,
+          });
+        }
+        await sleep(1000);
+      }
+    } catch (err) {
+      logger.warn('Scheduled analytics account refresh failed', {
+        accountId: account.id,
+        pageId: account.page_id,
+        error: err.message,
+      });
+    }
+  }
+
+  return refreshed;
+};
+
+
+const getSocialHealth = async () => {
+  const config = {
+    facebookConfigured: Boolean(env.social.facebook.appId && env.social.facebook.appSecret && env.social.facebook.redirectUri),
+    instagramConfigured: Boolean(env.social.facebook.appId && env.social.facebook.appSecret && env.social.facebook.redirectUri),
+    youtubeConfigured: Boolean(env.social.youtube.clientId && env.social.youtube.clientSecret && env.social.youtube.redirectUri),
+  };
+
+  return {
+    configured: config,
+    mode: env.node_env,
+    meta: {
+      facebookRedirectUri: env.social.facebook.redirectUri || null,
+      youtubeRedirectUri: env.social.youtube.redirectUri || null,
+      oauthConfigured: config.facebookConfigured || config.youtubeConfigured,
+      liveModeDetectable: false,
+      currentMode: 'unknown_from_code',
+      note: 'Meta dashboard app mode cannot be read from the backend. Confirm Live mode in Meta manually.',
+    },
+  };
 };
 
 const getAnalyticsSummary = async (userId, requestedDays = null) => {
@@ -1223,6 +1528,11 @@ module.exports = {
   cancelPost,
   getMyPosts,
   getPostById,
+  updatePost,
   pullAnalytics,
+  refreshAccountsFromMeta,
+  refreshRecentSocialAnalytics,
+  refreshExpiringSocialTokens,
+  getSocialHealth,
   getAnalyticsSummary,
 };

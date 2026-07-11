@@ -167,26 +167,61 @@ function SocialPostPreview({ platform, account, caption, hashtags, contentType, 
   )
 }
 
-function AccountCard({ account, onDisconnect, onRefreshMeta }) {
+function ConnectPermissionsModal({ platform, onClose, onConfirm }) {
+  const isInstagramOnly = platform === 'instagram'
+  return (
+    <Modal
+      title={isInstagramOnly ? 'Connect Instagram' : 'Connect Facebook & Instagram'}
+      subtitle="Before we redirect, here's what we're asking Meta for."
+      onClose={onClose}
+      maxWidth={520}
+      footer={(
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" onClick={onConfirm}>
+            Continue <Icon name="arrowRight" />
+          </button>
+        </div>
+      )}
+    >
+      <div className="stack" style={{ gap: 12, lineHeight: 1.55, color: 'var(--ink-700)' }}>
+        <div className="card" style={{ padding: 14, background: 'var(--paper-tint)' }}>
+          We'll be able to post to your Facebook Page, read your post analytics, and post to your linked Instagram account when you connect both channels.
+        </div>
+        <div>
+          <div className="h-eyebrow" style={{ marginBottom: 6 }}>Why we need it</div>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            <li>Publish posts and reels to the account you choose.</li>
+            <li>Read Page and Instagram insights after you've connected them.</li>
+            <li>Refresh the connection when Meta tokens expire.</li>
+          </ul>
+        </div>
+        <div style={{ fontSize: 12.5, color: 'var(--ink-500)' }}>
+          You can disconnect at any time from the Accounts tab.
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function AccountCard({ account, onDisconnect, onRefreshMeta, onOpenInstagramApp }) {
   const meta   = PLATFORM_META[account.platform] || {}
   const isLow  = account.token_status === 'expiring_soon'
   const isExp  = account.token_status === 'expired'
   const stats  = account.stats || {}
   const linkedInstagram = stats.linked_instagram || null
-  const openMetaInstagramSettings = () => {
-    const metaSettingsUrl = 'https://business.facebook.com/login/web/?next=' + encodeURIComponent('https://business.facebook.com/settings/instagram_accounts')
-    window.open(metaSettingsUrl, '_blank', 'noopener,noreferrer')
-  }
   const statItems = account.platform === 'instagram'
     ? [
       ['Followers', stats.followers_count],
       ['Posts', stats.posts_count],
       ['Following', stats.following_count],
+      ['Connection', 'Connected'],
     ]
     : [
       ['Followers', stats.followers_count ?? stats.page_likes_count],
-      ['Posts', stats.posts_count],
       ['Page likes', stats.page_likes_count],
+      ['Posts', stats.posts_count],
+      ['Connection', 'Connected'],
     ]
 
   return (
@@ -226,7 +261,6 @@ function AccountCard({ account, onDisconnect, onRefreshMeta }) {
         </button>
       </div>
 
-      {/* Token status */}
       <div style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{
           width: 7, height: 7, borderRadius: '50%',
@@ -240,12 +274,35 @@ function AccountCard({ account, onDisconnect, onRefreshMeta }) {
           </span>
         ) : (
           <span style={{ color: 'var(--ink-500)' }}>
-          Connected - {account.token_days_remaining ? `${account.token_days_remaining} days remaining` : 'Valid'}
-        </span>
-      )}
+            Connected - {account.token_days_remaining ? `${account.token_days_remaining} days remaining` : 'Valid'}
+          </span>
+        )}
       </div>
 
-      {account.platform === 'facebook' && (
+      {account.platform === 'facebook' && !linkedInstagram && (
+        <div style={{
+          marginTop: 12,
+          padding: 14,
+          borderRadius: 12,
+          background: 'rgba(59,130,246,0.06)',
+          border: '1px solid rgba(59,130,246,0.18)',
+          fontSize: 13,
+          lineHeight: 1.55,
+          color: 'var(--ink-700)',
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>Instagram not linked yet</div>
+          <ol style={{ margin: 0, paddingLeft: 18 }}>
+            <li>Open Instagram on your phone and switch to a professional account if needed.</li>
+            <li>Go to Settings → Account → Linked accounts → Connect to Facebook.</li>
+            <li>Choose <strong>{account.page_name || 'your Facebook Page'}</strong> and then come back here.</li>
+          </ol>
+          <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--ink-500)' }}>
+            Open Instagram on your phone to complete this step.
+          </div>
+        </div>
+      )}
+
+      {account.platform === 'facebook' && linkedInstagram && (
         <div style={{
           marginTop: 12,
           padding: 12,
@@ -256,34 +313,37 @@ function AccountCard({ account, onDisconnect, onRefreshMeta }) {
           lineHeight: 1.45,
           color: 'var(--ink-600)',
         }}>
-          {linkedInstagram ? (
-            <>
-              <div style={{ fontWeight: 600, color: 'var(--ink-700)', marginBottom: 4 }}>
-                Instagram linked
-              </div>
-              This Page is connected to <strong>@{linkedInstagram.username || linkedInstagram.name || linkedInstagram.id}</strong>.
-              You can publish to Instagram once the Instagram account shows up in the accounts list below.
-            </>
-          ) : (
-            <>
-              <div style={{ fontWeight: 600, color: 'var(--ink-700)', marginBottom: 4 }}>
-                Instagram not linked yet
-              </div>
-              To publish to Instagram, link a professional Instagram account to this Facebook Page inside Meta first.
-              After that, click Refresh from Meta and the Instagram account should appear automatically.
-            </>
-          )}
+          <div style={{ fontWeight: 600, color: 'var(--ink-700)', marginBottom: 4 }}>
+            Instagram linked
+          </div>
+          This Page is connected to <strong>@{linkedInstagram.username || linkedInstagram.name || linkedInstagram.id}</strong>.
+          You can publish to Instagram once the account appears in the accounts list below.
         </div>
       )}
 
       {account.platform === 'facebook' && (
         <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          <button className="btn ghost" type="button" onClick={onRefreshMeta}>
+          <button className="btn primary" type="button" onClick={onRefreshMeta}>
             Refresh from Meta
           </button>
-          <button className="btn ghost" type="button" onClick={openMetaInstagramSettings}>
-            Open Instagram settings
+          <button className="btn ghost" type="button" onClick={onOpenInstagramApp}>
+            Open Instagram app
           </button>
+        </div>
+      )}
+
+      {account.platform === 'facebook' && stats.insights_available === false && (
+        <div style={{
+          marginTop: 12,
+          padding: 12,
+          borderRadius: 12,
+          background: 'rgba(245,158,11,0.08)',
+          border: '1px solid rgba(245,158,11,0.24)',
+          color: 'var(--ink-700)',
+          fontSize: 12.8,
+          lineHeight: 1.45,
+        }}>
+          Analytics become available once your Page reaches 100 followers. You currently have {Number(stats.followers_count || 0).toLocaleString('en-IN')} followers.
         </div>
       )}
 
@@ -303,7 +363,7 @@ function AccountCard({ account, onDisconnect, onRefreshMeta }) {
             <div style={{ fontSize: 15, fontWeight: 650, marginTop: 2 }}>
               {typeof value === 'number' && Number.isFinite(value)
                 ? value.toLocaleString('en-IN')
-                : '—'}
+                : String(value || '?')}
             </div>
           </div>
         ))}
@@ -312,81 +372,110 @@ function AccountCard({ account, onDisconnect, onRefreshMeta }) {
   )
 }
 
-function CreatePostModal({ accounts, onClose, onCreated }) {
+function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost = null }) {
   const pushToast   = useUIStore(s => s.pushToast)
   const queryClient = useQueryClient()
-  const [caption,     setCaption]     = useState('')
-  const [hashtags,    setHashtags]    = useState('')
-  const [contentType, setContentType] = useState('text')
-  const [selectedPlatforms, setSelectedPlatforms] = useState([])
-  const [scheduleDate, setScheduleDate] = useState('')
-  const [mediaFiles,   setMediaFiles]   = useState([])
+  const isEditing = Boolean(initialPost?.id)
+  const [step, setStep] = useState(1)
+  const [caption, setCaption] = useState(initialPost?.caption || '')
+  const [hashtags, setHashtags] = useState(Array.isArray(initialPost?.hashtags) ? initialPost.hashtags.join(' ') : '')
+  const [contentType, setContentType] = useState(initialPost?.content_type || 'text')
+  const [selectedPlatforms, setSelectedPlatforms] = useState(normalizePlatforms(initialPost?.target_platforms))
+  const [scheduleDate, setScheduleDate] = useState(initialPost?.publish_at ? new Date(initialPost.publish_at).toISOString().slice(0, 16) : '')
+  const [mediaFiles, setMediaFiles] = useState([])
   const [mintboxMedia, setMintboxMedia] = useState([])
-  const [step,        setStep]        = useState(1)
+  const existingMedia = useMemo(() => Array.isArray(initialPost?.media) ? initialPost.media : [], [initialPost])
+  const existingMediaUrls = useMemo(() => existingMedia.map(item => item.media_url).filter(Boolean), [existingMedia])
+  const [existingMediaTouched, setExistingMediaTouched] = useState(false)
   const needsMedia = contentType !== 'text'
-  const hasMedia = Boolean(mediaFiles.length || mintboxMedia.length)
+  const hasMedia = Boolean(mediaFiles.length || mintboxMedia.length || existingMediaUrls.length)
   const instagramSelected = selectedPlatforms.includes('instagram')
   const instagramContentBlocked = instagramSelected && !INSTAGRAM_CONTENT_TYPES.includes(contentType)
+
   const mediaPreviewUrls = useMemo(() => {
     if (mediaFiles.length) return mediaFiles.map(file => URL.createObjectURL(file))
-    return mintboxMedia.map(item => item.media_url)
-  }, [mediaFiles, mintboxMedia])
+    if (mintboxMedia.length) return mintboxMedia.map(item => item.media_url)
+    if (!existingMediaTouched && existingMediaUrls.length) return existingMediaUrls
+    return []
+  }, [mediaFiles, mintboxMedia, existingMediaUrls, existingMediaTouched])
 
   useEffect(() => () => {
     mediaPreviewUrls.filter(url => url?.startsWith('blob:')).forEach(url => URL.revokeObjectURL(url))
   }, [mediaPreviewUrls])
+
+  useEffect(() => {
+    if (!initialPost) return
+    setCaption(initialPost.caption || '')
+    setHashtags(Array.isArray(initialPost.hashtags) ? initialPost.hashtags.join(' ') : '')
+    setContentType(initialPost.content_type || 'text')
+    setSelectedPlatforms(normalizePlatforms(initialPost.target_platforms))
+    setScheduleDate(initialPost.publish_at ? new Date(initialPost.publish_at).toISOString().slice(0, 16) : '')
+    setMediaFiles([])
+    setMintboxMedia([])
+    setExistingMediaTouched(false)
+    setStep(1)
+  }, [initialPost])
+
   const { data: mediaLibrary = [] } = useQuery({
     queryKey: ['social-media-library'],
     queryFn: () => socialApi.getMediaLibrary().then(r => r.data.data.media || []),
   })
 
+  const connectedPlatforms = accounts.filter(a => a.is_active)
+
   const togglePlatform = (id) => {
-    setSelectedPlatforms(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-    )
+    setSelectedPlatforms(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id])
   }
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      // 1. Create post
-      if (selectedPlatforms.includes('instagram') && !INSTAGRAM_CONTENT_TYPES.includes(contentType)) {
-        throw new Error('Instagram publishing currently supports images, carousels, or reels. Please choose one of those content types.')
-      }
-      const postRes = await socialApi.createPost({
-        caption,
-        hashtags: hashtags.split(' ').filter(Boolean),
-        content_type:     contentType,
-        target_platforms: selectedPlatforms,
-        publish_at: scheduleDate || undefined,
-      })
-      const post = postRes.data.data.post
+  const persistDraft = async ({ publishNow = false } = {}) => {
+    const payload = {
+      caption,
+      hashtags: hashtags.split(' ').filter(Boolean),
+      content_type: contentType,
+      target_platforms: selectedPlatforms,
+      publish_at: publishNow ? null : (scheduleDate || null),
+    }
 
-      // 2. Upload media if any
-      if (mintboxMedia.length) {
-        await socialApi.addMedia(post.id, {
-          media_items: mintboxMedia.map(item => ({
-            media_url: item.media_url,
-            media_type: item.media_type,
-            mime_type: item.mime_type,
-            file_size_bytes: item.size_bytes,
-          })),
-        })
-      } else if (mediaFiles.length) {
-        const fd = new FormData()
-        mediaFiles.forEach(file => fd.append('media', file))
-        fd.append('media_type', mediaFiles[0]?.type.startsWith('video') ? 'video' : 'image')
-        await socialApi.addMedia(post.id, fd)
-      }
-
-      // 3. Publish or schedule
-      await socialApi.publishPost(post.id)
-
-      return post
-    },
-    onSuccess: () => {
-      pushToast({ title: scheduleDate ? 'Post scheduled!' : 'Post published!', icon: 'check' })
+    if (isEditing) {
+      await socialApi.updatePost(initialPost.id, payload)
       queryClient.invalidateQueries({ queryKey: ['social-posts'] })
-      onCreated()
+      if (publishNow) {
+        await socialApi.publishPost(initialPost.id)
+      }
+      return initialPost
+    }
+
+    const postRes = await socialApi.createPost(payload)
+    const post = postRes.data.data.post
+
+    if (mintboxMedia.length) {
+      await socialApi.addMedia(post.id, {
+        media_items: mintboxMedia.map(item => ({
+          media_url: item.media_url,
+          media_type: item.media_type,
+          mime_type: item.mime_type,
+          file_size_bytes: item.size_bytes,
+        })),
+      })
+    } else if (mediaFiles.length) {
+      const fd = new FormData()
+      mediaFiles.forEach(file => fd.append('media', file))
+      fd.append('media_type', mediaFiles[0]?.type.startsWith('video') ? 'video' : 'image')
+      await socialApi.addMedia(post.id, fd)
+    }
+
+    await socialApi.publishPost(post.id)
+
+    return post
+  }
+
+  const actionMutation = useMutation({
+    mutationFn: persistDraft,
+    onSuccess: async () => {
+      pushToast({ title: isEditing ? 'Draft saved' : (scheduleDate ? 'Post scheduled!' : 'Post published!'), icon: 'check' })
+      await queryClient.invalidateQueries({ queryKey: ['social-posts'] })
+      onSaved?.()
+      if (!isEditing) onPublished?.()
       onClose()
     },
     onError: err => pushToast({
@@ -397,33 +486,41 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
     }),
   })
 
-  const connectedPlatforms = accounts.filter(a => a.is_active)
+  const handlePublishNow = () => actionMutation.mutate({ publishNow: true })
+  const handleSaveDraft = () => actionMutation.mutate({ publishNow: false })
+
   return (
     <Modal
-      title="Create post"
-      subtitle={`Step ${step} of 3`}
+      title={isEditing ? 'Edit draft' : 'Create post'}
+      subtitle={isEditing ? 'Update your draft and publish when ready.' : `Step ${step} of 3`}
       onClose={onClose}
-      maxWidth={520}
-      footer={
+      maxWidth={640}
+      footer={(
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          {step > 1 && <button className="btn ghost" onClick={() => setStep(s => s - 1)}>Back</button>}
+          {step > 1 && !isEditing && <button className="btn ghost" onClick={() => setStep(s => s - 1)}>Back</button>}
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          {step < 3 ? (
-            <button className="btn primary" onClick={() => setStep(s => s + 1)}
-              disabled={step === 1 && !caption.trim()}>
+          {isEditing ? (
+            <>
+              <button className="btn ghost" onClick={handleSaveDraft} disabled={actionMutation.isPending}>Save draft</button>
+              <button className="btn primary" onClick={handlePublishNow} disabled={actionMutation.isPending || selectedPlatforms.length === 0 || (needsMedia && !hasMedia) || instagramContentBlocked}>
+                {actionMutation.isPending ? 'Publishing...' : 'Publish now'}
+              </button>
+            </>
+          ) : step < 3 ? (
+            <button className="btn primary" onClick={() => setStep(s => s + 1)} disabled={step === 1 && !caption.trim()}>
               Continue <Icon name="arrowRight" />
             </button>
           ) : (
             <button
               className="btn primary"
-              onClick={() => createMutation.mutate()}
-              disabled={createMutation.isPending || selectedPlatforms.length === 0 || (needsMedia && !hasMedia) || instagramContentBlocked}
+              onClick={() => actionMutation.mutate({ publishNow: !scheduleDate })}
+              disabled={actionMutation.isPending || selectedPlatforms.length === 0 || (needsMedia && !hasMedia) || instagramContentBlocked}
             >
-              {createMutation.isPending ? 'Publishing...' : scheduleDate ? 'Schedule post' : 'Publish now'}
+              {actionMutation.isPending ? 'Publishing...' : scheduleDate ? 'Schedule post' : 'Publish now'}
             </button>
           )}
         </div>
-      }
+      )}
     >
       {step === 1 && (
         <div className="stack" style={{ gap: 16 }}>
@@ -483,6 +580,10 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
                   <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
                     <Icon name="check" size={13} style={{ color: 'var(--mint-600)' }} /> {mediaFiles.length} file{mediaFiles.length > 1 ? 's' : ''} selected
                   </span>
+                ) : existingMediaUrls.length && !existingMediaTouched ? (
+                  <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
+                    <Icon name="image" size={13} /> Existing media attached to this post
+                  </span>
                 ) : (
                   <div style={{ textAlign: 'center' }}>
                     <Icon name="upload" size={20} />
@@ -502,6 +603,7 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
                   const files = Array.from(e.target.files || [])
                   setMediaFiles(contentType === 'carousel' ? files : files.slice(0, 1))
                   setMintboxMedia([])
+                  setExistingMediaTouched(true)
                 }}
               />
               <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 7 }}>
@@ -527,6 +629,7 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
                             setMintboxMedia([item])
                           }
                           setMediaFiles([])
+                          setExistingMediaTouched(true)
                         }}
                         style={{
                           justifyContent: 'flex-start',
@@ -569,7 +672,7 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
             </div>
           ) : (
             connectedPlatforms.map(acc => {
-              const meta    = PLATFORM_META[acc.platform] || {}
+              const meta = PLATFORM_META[acc.platform] || {}
               const selected = selectedPlatforms.includes(acc.platform)
               return (
                 <div
@@ -615,13 +718,13 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
             <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--ink-700)', marginBottom: 10 }}>
               {caption.slice(0, 120)}{caption.length > 120 ? '...' : ''}
             </div>
-            <div className="row" style={{ gap: 8 }}>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               {selectedPlatforms.map(id => {
-              const acc = connectedPlatforms.find(a => a.platform === id)
-              const meta = PLATFORM_META[id] || {}
-              return (
-                <span key={id} className="badge neutral" style={{ fontSize: 12 }}>
-                  <Icon name={meta.icon} size={11} style={{ color: meta.color }} />
+                const acc = connectedPlatforms.find(a => a.platform === id)
+                const meta = PLATFORM_META[id] || {}
+                return (
+                  <span key={id} className="badge neutral" style={{ fontSize: 12 }}>
+                    <Icon name={meta.icon} size={11} style={{ color: meta.color }} />
                     &nbsp;{acc?.page_name || meta.label}
                   </span>
                 )
@@ -656,7 +759,7 @@ function CreatePostModal({ accounts, onClose, onCreated }) {
               ) : selectedPlatforms.map(platform => {
                 const account = connectedPlatforms.find(a => a.platform === platform)
                 return (
-              <SocialPostPreview
+                  <SocialPostPreview
                     key={platform}
                     platform={platform}
                     account={account}
@@ -679,9 +782,12 @@ export default function Social() {
   const { accessToken } = useAuthStore()
   const queryClient     = useQueryClient()
   const pushToast       = useUIStore(s => s.pushToast)
-  const [tab,          setTab]         = useState('analytics')
-  const [showCreate,   setShowCreate]  = useState(false)
-  const [postFilter,   setPostFilter]  = useState('all')
+  const [tab, setTab] = useState('analytics')
+  const [showCreate, setShowCreate] = useState(false)
+  const [editingPost, setEditingPost] = useState(null)
+  const [connectPrompt, setConnectPrompt] = useState(null)
+  const [postFilter, setPostFilter] = useState('all')
+  const [loadingDraftId, setLoadingDraftId] = useState(null)
 
   const { data: accountsData, isLoading: accLoading } = useQuery({
     queryKey: ['social-accounts'],
@@ -713,12 +819,8 @@ export default function Social() {
     },
   })
 
-  const posts    = postsData?.posts || []
-  const summary  = analyticsData?.summary
-  const refreshAccounts = () => {
-    queryClient.invalidateQueries({ queryKey: ['social-accounts'] })
-    pushToast({ title: 'Refreshing connections from Meta', icon: 'refresh' })
-  }
+  const posts = postsData?.posts || []
+  const summary = analyticsData?.summary
   const accountTotals = useMemo(() => connectedAccounts.reduce((totals, account) => {
     const stats = account.stats || {}
     totals.followers += Number(stats.followers_count || 0)
@@ -726,6 +828,68 @@ export default function Social() {
     totals.likes += Number(stats.page_likes_count || 0)
     return totals
   }, { followers: 0, posts: 0, likes: 0 }), [connectedAccounts])
+
+  const facebookThresholdAccount = connectedAccounts.find(account => account.platform === 'facebook' && account.stats?.insights_available === false)
+
+  const refreshAccounts = async () => {
+    try {
+      pushToast({ title: 'Refreshing connections from Meta', icon: 'refresh' })
+      await socialApi.refreshFromMeta()
+      await queryClient.invalidateQueries({ queryKey: ['social-accounts'] })
+    } catch (err) {
+      pushToast({
+        title: 'Refresh failed',
+        body: err.response?.data?.message || err.message,
+        tone: 'amber',
+        icon: 'x',
+      })
+    }
+  }
+
+  const confirmConnect = () => {
+    if (!connectPrompt) return
+    const platform = connectPrompt
+    setConnectPrompt(null)
+    if (platform === 'facebook') return socialApi.connectFacebook(accessToken)
+    if (platform === 'instagram') return socialApi.connectInstagram(accessToken)
+    if (platform === 'youtube') return socialApi.connectYouTube(accessToken)
+  }
+
+  const openInstagramApp = () => {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+    if (isMobile) {
+      window.location.href = 'instagram://app'
+      return
+    }
+    pushToast({
+      title: 'Open Instagram on your phone',
+      body: 'Instagram settings need to be completed on a mobile device.',
+      icon: 'info',
+    })
+  }
+
+  const openDraftEditor = async (postId) => {
+    try {
+      setLoadingDraftId(postId)
+      const res = await socialApi.getPost(postId)
+      setEditingPost(res.data.data.post)
+      setShowCreate(false)
+    } catch (err) {
+      pushToast({
+        title: 'Could not open draft',
+        body: err.response?.data?.message || err.message,
+        tone: 'amber',
+        icon: 'x',
+      })
+    } finally {
+      setLoadingDraftId(null)
+    }
+  }
+
+  const closeComposer = () => {
+    setShowCreate(false)
+    setEditingPost(null)
+  }
 
   return (
     <div className="stack-6">
@@ -738,7 +902,7 @@ export default function Social() {
           </p>
         </div>
         {connectedAccounts.length > 0 && (
-          <button className="btn primary" onClick={() => setShowCreate(true)}>
+          <button className="btn primary" onClick={() => { setEditingPost(null); setShowCreate(true); }}>
             <Icon name="plus" /> Create post
           </button>
         )}
@@ -746,39 +910,28 @@ export default function Social() {
 
       <Tabs value={effectiveTab} onChange={setTab} items={[
         { value: 'analytics', label: 'Analytics' },
-        { value: 'posts',    label: 'Posts' },
+        { value: 'posts', label: 'Posts' },
         { value: 'accounts', label: `Accounts (${connectedAccounts.length})` },
       ]} />
 
-      {/* Accounts tab */}
       {effectiveTab === 'accounts' && (
         <div className="stack" style={{ gap: 14 }}>
-          {/* Connect buttons */}
           <div className="card reveal" style={{ padding: 20 }}>
             <div className="h-eyebrow" style={{ marginBottom: 14 }}>Add account</div>
             <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
-              <button
-                className="btn ghost"
-                onClick={() => socialApi.connectFacebook(accessToken)}
-              >
+              <button className="btn ghost" onClick={() => setConnectPrompt('facebook')}>
                 <Icon name="facebook" size={14} style={{ color: '#1877F2' }} />
                 Connect Facebook &amp; Instagram
               </button>
-              <button
-                className="btn ghost"
-                onClick={() => socialApi.connectInstagram(accessToken)}
-              >
+              <button className="btn ghost" onClick={() => setConnectPrompt('instagram')}>
                 <Icon name="instagram" size={14} style={{ color: '#E1306C' }} />
                 Connect Instagram only
               </button>
-              <button
-                className="btn ghost"
-                onClick={() => socialApi.connectYouTube(accessToken)}
-              >
+              <button className="btn ghost" onClick={() => setConnectPrompt('youtube')}>
                 <Icon name="youtube" size={14} style={{ color: '#FF0000' }} />
                 Connect YouTube
               </button>
-              <button className="btn ghost" onClick={refreshAccounts}>
+              <button className="btn primary" onClick={refreshAccounts}>
                 <Icon name="refresh" size={14} />
                 Refresh from Meta
               </button>
@@ -792,7 +945,6 @@ export default function Social() {
             </div>
           </div>
 
-          {/* Connected accounts */}
           {accLoading ? (
             <SkeletonCard />
           ) : accounts.length === 0 ? (
@@ -809,6 +961,7 @@ export default function Social() {
                   account={acc}
                   onDisconnect={(id) => disconnectMutation.mutate(id)}
                   onRefreshMeta={refreshAccounts}
+                  onOpenInstagramApp={openInstagramApp}
                 />
               ))}
             </div>
@@ -819,6 +972,17 @@ export default function Social() {
       {effectiveTab === 'analytics' && (
         analyticsLoading ? <SkeletonCard /> : (
           <div className="stack" style={{ gap: 14 }}>
+            {facebookThresholdAccount && (
+              <div className="card" style={{ padding: 16, border: '1px solid rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.06)' }}>
+                <div className="h-eyebrow" style={{ marginBottom: 6 }}>Analytics status</div>
+                <div style={{ lineHeight: 1.55, color: 'var(--ink-700)' }}>
+                  Analytics become available once your Page reaches 100 followers. You currently have {Number(facebookThresholdAccount.stats?.followers_count || 0).toLocaleString('en-IN')} followers.
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 8 }}>
+                  We still show your Page likes, post count, and connection status below.
+                </div>
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
               {[
                 ['Published posts', summary?.posts || 0],
@@ -860,7 +1024,7 @@ export default function Social() {
                 <div className="h-eyebrow">Posting queue</div>
                 <div style={{ fontSize: 28, fontWeight: 650, marginTop: 8 }}>{summary?.posts || 0}</div>
                 <p className="muted" style={{ margin: '6px 0 0' }}>published posts counted for this period.</p>
-                <button className="btn primary" style={{ marginTop: 12 }} disabled={!connectedAccounts.length} onClick={() => setShowCreate(true)}>
+                <button className="btn primary" style={{ marginTop: 12 }} disabled={!connectedAccounts.length} onClick={() => { setEditingPost(null); setShowCreate(true); }}>
                   <Icon name="plus" /> Create post
                 </button>
               </div>
@@ -876,18 +1040,17 @@ export default function Social() {
         )
       )}
 
-      {/* Posts tab */}
       {effectiveTab === 'posts' && (
         <div className="stack" style={{ gap: 14 }}>
           <div className="row" style={{ gap: 10 }}>
             <Tabs value={postFilter} onChange={setPostFilter} items={[
-              { value: 'all',       label: 'All' },
-              { value: 'draft',     label: 'Drafts' },
+              { value: 'all', label: 'All' },
+              { value: 'draft', label: 'Drafts' },
               { value: 'scheduled', label: 'Scheduled' },
               { value: 'published', label: 'Published' },
-              { value: 'failed',    label: 'Failed' },
+              { value: 'failed', label: 'Failed' },
             ]} />
-            <button className="btn primary" style={{ marginLeft: 'auto' }} onClick={() => setShowCreate(true)}>
+            <button className="btn primary" style={{ marginLeft: 'auto' }} onClick={() => { setEditingPost(null); setShowCreate(true); }}>
               <Icon name="plus" /> Create post
             </button>
           </div>
@@ -901,55 +1064,90 @@ export default function Social() {
               <div className="empty-glyph"><Icon name="layers" size={22} /></div>
               <h3>No {postFilter !== 'all' ? postFilter : ''} posts</h3>
               <p>Create and schedule posts to your connected accounts.</p>
-              <button className="btn primary" onClick={() => setShowCreate(true)}>
+              <button className="btn primary" onClick={() => { setEditingPost(null); setShowCreate(true); }}>
                 <Icon name="plus" /> Create post
               </button>
             </div>
           ) : (
             <div className="stack" style={{ gap: 10 }}>
-              {posts.map(post => (
-                <div key={post.id} style={{ background: 'var(--paper)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-lg)', padding: 18 }}>
-                  <div className="row between" style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 500, flex: 1, minWidth: 0 }}>
-                      {post.caption?.slice(0, 80)}{post.caption?.length > 80 ? '...' : ''}
-                    </div>
-                    <span className={`badge ${post.status === 'published' ? 'mint' : post.status === 'failed' ? 'rose' : post.status === 'scheduled' ? 'violet' : 'neutral'}`} style={{ flexShrink: 0, marginLeft: 10 }}>
-                      <span className="bdot" />{post.status}
-                    </span>
-                  </div>
-
-                  <div className="row" style={{ gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                    {normalizePlatforms(post.target_platforms).map(p => {
-                      const meta = PLATFORM_META[p] || {}
-                      return (
-                        <span key={p} style={{ fontSize: 12, display: 'flex', gap: 4, alignItems: 'center', color: 'var(--ink-500)' }}>
-                          <Icon name={meta.icon} size={12} style={{ color: meta.color }} />
-                          {meta.label}
+              {posts.map(post => {
+                const isEditable = ['draft', 'scheduled', 'failed'].includes(post.status)
+                const imported = post.metadata?.source === 'historical_import' || post.platform_statuses?.some(s => s.source === 'historical_import')
+                return (
+                  <div
+                    key={post.id}
+                    role={isEditable ? 'button' : undefined}
+                    tabIndex={isEditable ? 0 : -1}
+                    onClick={() => isEditable && openDraftEditor(post.id)}
+                    onKeyDown={(e) => { if (isEditable && (e.key === 'Enter' || e.key === ' ')) openDraftEditor(post.id) }}
+                    style={{
+                      background: 'var(--paper)',
+                      border: '1px solid var(--hairline)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: 18,
+                      cursor: isEditable ? 'pointer' : 'default',
+                    }}
+                  >
+                    <div className="row between" style={{ marginBottom: 10, gap: 12 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 500, flex: 1, minWidth: 0 }}>
+                        {post.caption?.slice(0, 80)}{post.caption?.length > 80 ? '...' : ''}
+                      </div>
+                      <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+                        {imported && <span className="badge neutral">Imported from Facebook</span>}
+                        <span className={`badge ${post.status === 'published' ? 'mint' : post.status === 'failed' ? 'rose' : post.status === 'scheduled' ? 'violet' : 'neutral'}`}>
+                          <span className="bdot" />{post.status}
                         </span>
-                      )
-                    })}
-                  </div>
+                        {isEditable && (
+                          <button className="btn ghost" type="button" onClick={(e) => { e.stopPropagation(); openDraftEditor(post.id); }}>
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
-                  <div style={{ fontSize: 12, color: 'var(--ink-400)' }}>
-                    {post.publish_at
-                      ? `Scheduled: ${new Date(post.publish_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`
-                      : post.published_at
-                      ? `Published: ${timeAgo(post.published_at)}`
-                      : `Created: ${timeAgo(post.created_at)}`
-                    }
+                    <div className="row" style={{ gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                      {normalizePlatforms(post.target_platforms).map(p => {
+                        const meta = PLATFORM_META[p] || {}
+                        return (
+                          <span key={p} style={{ fontSize: 12, display: 'flex', gap: 4, alignItems: 'center', color: 'var(--ink-500)' }}>
+                            <Icon name={meta.icon} size={12} style={{ color: meta.color }} />
+                            {meta.label}
+                          </span>
+                        )
+                      })}
+                    </div>
+
+                    <div style={{ fontSize: 12, color: 'var(--ink-400)' }}>
+                      {post.publish_at
+                        ? `Scheduled: ${new Date(post.publish_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`
+                        : post.published_at
+                        ? `Published: ${timeAgo(post.published_at)}`
+                        : `Created: ${timeAgo(post.created_at)}`
+                      }
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
       )}
 
-      {showCreate && (
+      {(showCreate || editingPost) && (
         <CreatePostModal
           accounts={accounts}
-          onClose={() => setShowCreate(false)}
-          onCreated={() => queryClient.invalidateQueries({ queryKey: ['social-posts'] })}
+          initialPost={editingPost}
+          onClose={closeComposer}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ['social-posts'] })}
+          onPublished={() => queryClient.invalidateQueries({ queryKey: ['social-posts'] })}
+        />
+      )}
+
+      {connectPrompt && (
+        <ConnectPermissionsModal
+          platform={connectPrompt}
+          onClose={() => setConnectPrompt(null)}
+          onConfirm={confirmConnect}
         />
       )}
     </div>

@@ -10,6 +10,7 @@ const { startPublishWorker, closePublishWorker } = require('./src/modules/social
 const { startAIWorker, closeAIWorker } = require('./src/modules/ai/queue/ai.worker');
 const { startFulfillmentWorker, closeFulfillmentWorker } = require('./src/modules/fulfillment/queue/fulfillment.worker');
 const { startOutboxWorker, closeOutboxWorker } = require('./src/modules/events/queue/outbox.worker');
+const { startSocialSchedulers, closeSocialSchedulers } = require('./src/modules/social/social.scheduler');
 const { closePublishQueue } = require('./src/modules/social/queue/publish.queue');
 const { closeAIQueue } = require('./src/modules/ai/queue/ai.queue');
 const { closeFulfillmentQueue } = require('./src/modules/fulfillment/queue/fulfillment.queue');
@@ -50,6 +51,7 @@ const bootstrap = async () => {
       startAIWorker();
       await startFulfillmentWorker();
       await startOutboxWorker();
+      startSocialSchedulers();
     }
 
     server = app.listen(env.port, () => {
@@ -124,6 +126,7 @@ const gracefulShutdown = async (signal) => {
   await safeClose('SSE subscriber', closeSSESubscriber);
   await safeClose('Redis', closeRedis);
   await safeClose('PostgreSQL pool', () => pool.end());
+  await safeClose('Social schedulers', closeSocialSchedulers);
 
   clearTimeout(forceTimer);
   process.exit(0);

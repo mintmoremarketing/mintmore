@@ -48,6 +48,8 @@ router.use(authenticate);
 
 // GET    /api/v1/social/accounts               — list connected accounts
 router.get('/accounts', controller.getMyAccounts);
+router.post('/accounts/refresh', controller.refreshFromMeta);
+router.get('/health', controller.getHealth);
 router.get('/analytics/summary', controller.getAnalyticsSummary);
 router.get('/media-library', requireEntitlement('can_use_social'), controller.getMediaLibrary);
 
@@ -64,6 +66,7 @@ router.post('/posts', requireEntitlement('can_use_social'), controller.createPos
 
 // GET    /api/v1/social/posts/:postId          — get single post
 router.get('/posts/:postId', controller.getPost);
+router.patch('/posts/:postId', requireEntitlement('can_use_social'), controller.updatePost);
 
 // POST   /api/v1/social/posts/:postId/media    — add media to draft
 router.post(

@@ -27,6 +27,7 @@ export const socialApi = {
   listPosts:  (params) => api.get('/social/posts', { params }),
   getPost:    (id)     => api.get(`/social/posts/${id}`),
   createPost: (data)   => api.post('/social/posts', data),
+  updatePost: (id, data) => api.patch(`/social/posts/${id}`, data),
   addMedia:   (id, data) => api.post(
     `/social/posts/${id}/media`,
     data,
@@ -36,5 +37,7 @@ export const socialApi = {
   cancelPost: (id)     => api.post(`/social/posts/${id}/cancel`),
   getAnalytics:(id)    => api.get(`/social/posts/${id}/analytics`),
   getAnalyticsSummary: (params) => api.get('/social/analytics/summary', { params }),
+  refreshFromMeta: () => api.post('/social/accounts/refresh'),
+  getHealth: () => api.get('/social/health'),
   getMediaLibrary: () => api.get('/social/media-library'),
 }

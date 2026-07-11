@@ -54,6 +54,23 @@ const getMyAccounts = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const refreshFromMeta = async (req, res, next) => {
+  try {
+    const accounts = await socialService.refreshAccountsFromMeta(req.user.sub);
+    return sendSuccess(res, {
+      data: { accounts },
+      message: 'Connections refreshed from Meta',
+    });
+  } catch (err) { next(err); }
+};
+
+const getHealth = async (req, res, next) => {
+  try {
+    const health = await socialService.getSocialHealth();
+    return sendSuccess(res, { data: health });
+  } catch (err) { next(err); }
+};
+
 const disconnectAccount = async (req, res, next) => {
   try {
     const result = await socialService.disconnectAccount(
@@ -77,6 +94,16 @@ const createPost = async (req, res, next) => {
       data:       { post },
       message:    'Post created as draft',
       statusCode: 201,
+    });
+  } catch (err) { next(err); }
+};
+
+const updatePost = async (req, res, next) => {
+  try {
+    const post = await socialService.updatePost(req.params.postId, req.user.sub, req.body);
+    return sendSuccess(res, {
+      data: { post },
+      message: 'Post updated',
     });
   } catch (err) { next(err); }
 };
@@ -213,8 +240,11 @@ module.exports = {
   connectPlatform,
   oauthCallback,
   getMyAccounts,
+  refreshFromMeta,
+  getHealth,
   disconnectAccount,
   createPost,
+  updatePost,
   addMedia,
   getMediaLibrary,
   publishPost,

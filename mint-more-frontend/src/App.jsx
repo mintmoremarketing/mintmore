@@ -31,6 +31,8 @@ import Membership        from './pages/client/Membership'
 import Onboarding        from './pages/client/Onboarding'
 import Disputes          from './pages/shared/Disputes'
 import Support           from './pages/shared/Support'
+import Privacy           from './pages/public/Privacy'
+import Terms             from './pages/public/Terms'
 
 // Freelancer pages
 import FreelancerDashboard  from './pages/freelancer/Dashboard'
@@ -180,6 +182,8 @@ export default function App() {
         {/* Public */}
         <Route path="/login"            element={<Login />} />
         <Route path="/register"         element={<Register />} />
+        <Route path="/privacy"          element={<Privacy />} />
+        <Route path="/terms"            element={<Terms />} />
         <Route path="/mintbox/share/:token" element={<Mintbox />} />
         <Route path="/mintbox/share-category/:categoryToken" element={<Mintbox />} />
         <Route path="/mintbox/file/:token" element={<SharedFile />} />
