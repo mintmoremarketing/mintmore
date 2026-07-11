@@ -184,8 +184,16 @@ const buildFacebookCaption = (post) => {
  * Call this before attempting to post.
  */
 const validatePageToken = async (account) => {
+  const pageId = account.page_id;
+  if (!pageId) {
+    return {
+      valid: false,
+      reason: 'No Facebook Page ID found for this account. Please reconnect.',
+    };
+  }
+
   try {
-    const res = await axios.get(`${FB_API}/me`, {
+    const res = await axios.get(`${FB_API}/${pageId}`, {
       params: {
         fields:       'id,name,tasks',
         access_token: account.access_token,
