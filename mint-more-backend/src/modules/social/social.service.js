@@ -28,18 +28,43 @@ const safeNumber = (value, fallback = null) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const resolveFacebookPageAccessToken = async (pageId, candidateToken) => {
+  if (!pageId || !candidateToken) return candidateToken || null;
+
+  try {
+    const tokenRes = await axios.get(`${FB_API}/${pageId}`, {
+      params: {
+        fields: 'access_token',
+        access_token: candidateToken,
+      },
+    });
+
+    return tokenRes.data?.access_token || candidateToken;
+  } catch (err) {
+    logger.debug('Facebook page access token lookup skipped', {
+      pageId,
+      error: err.message,
+    });
+    return candidateToken;
+  }
+};
+
 const fetchFacebookPageDetails = async (account) => {
   if (!account.page_id) return null;
 
+  const pageAccessToken = await resolveFacebookPageAccessToken(
+    account.page_id,
+    account.access_token
+  );
+
   const pageRes = await axios.get(`${FB_API}/${account.page_id}`, {
     params: {
-      fields: 'id,name,fan_count,followers_count,posts.limit(1).summary(true),access_token',
-      access_token: account.access_token,
+      fields: 'id,name,fan_count,followers_count,posts.limit(1).summary(true)',
+      access_token: pageAccessToken,
     },
   });
 
   const page = pageRes.data || {};
-  const pageAccessToken = page.access_token || account.access_token;
   const fanCount = safeNumber(page.fan_count, 0) || 0;
   const followersCount = safeNumber(page.followers_count, fanCount) || fanCount;
   const postsCount = safeNumber(page.posts?.summary?.total_count, null);
@@ -312,13 +337,15 @@ const handleFacebookCallback = async (userId, code) => {
   const savedAccounts = [];
 
   for (const page of pages) {
+    const pageAccessToken = await resolveFacebookPageAccessToken(page.id, page.access_token || longToken);
+
     // Get Instagram Business Account linked to this page
     let igAccountId = null;
     try {
       const igRes = await axios.get(`${FB_API}/${page.id}`, {
         params: {
           fields:       'instagram_business_account',
-          access_token: page.access_token,
+          access_token: pageAccessToken,
         },
       });
       igAccountId = igRes.data.instagram_business_account?.id || null;
@@ -334,7 +361,7 @@ const handleFacebookCallback = async (userId, code) => {
       platformName:       page.name,
       pageId:             page.id,
       pageName:           page.name,
-      accessToken:        page.access_token,  // page-level token
+      accessToken:        pageAccessToken,  // page-level token
       tokenExpiresAt:     expiresAt,
       tokenScope:         META_REQUESTED_SCOPES.join(','),
       instagramAccountId: igAccountId,
@@ -342,7 +369,7 @@ const handleFacebookCallback = async (userId, code) => {
     savedAccounts.push(fbAccount);
 
     try {
-      await importHistoricalFacebookPosts(userId, fbAccount, page.access_token);
+      await importHistoricalFacebookPosts(userId, fbAccount, pageAccessToken);
     } catch (importErr) {
       logger.warn('Historical Facebook post import skipped during OAuth callback', {
         userId,
@@ -357,7 +384,7 @@ const handleFacebookCallback = async (userId, code) => {
       const igInfoRes = await axios.get(`${FB_API}/${igAccountId}`, {
         params: {
           fields:       'id,name,username,profile_picture_url',
-          access_token: page.access_token,
+          access_token: pageAccessToken,
         },
       });
       const igInfo = igInfoRes.data;
@@ -371,7 +398,7 @@ const handleFacebookCallback = async (userId, code) => {
         platformAvatarUrl:  igInfo.profile_picture_url,
         pageId:             page.id,
         instagramAccountId: igAccountId,
-        accessToken:        page.access_token,
+        accessToken:        pageAccessToken,
         tokenExpiresAt:     expiresAt,
       });
       savedAccounts.push(igAccount);
@@ -481,8 +508,7 @@ const buildConnectedAccountsQuery = (userId) => query(
 const importHistoricalFacebookPosts = async (userId, account, pageAccessToken) => {
   if (!account?.page_id || !pageAccessToken) return 0;
 
-  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  const sinceUnix = Math.floor(since.getTime() / 1000);
+  const sinceUnix = Math.floor(Date.now() / 1000) - (90 * 24 * 60 * 60);
   const result = await axios.get(`${FB_API}/${account.page_id}/posts`, {
     params: {
       fields: 'id,message,story,created_time,permalink_url,full_picture,type',
@@ -578,13 +604,11 @@ const importHistoricalFacebookPosts = async (userId, account, pageAccessToken) =
     imported += 1;
   }
 
-  if (imported > 0) {
-    logger.info('Historical Facebook posts imported', {
-      userId,
-      pageId: account.page_id,
-      imported,
-    });
-  }
+  logger.info(`Historical import completed: ${imported} posts fetched`, {
+    userId,
+    pageId: account.page_id,
+    imported,
+  });
 
   return imported;
 };
@@ -596,20 +620,37 @@ const hydrateConnectedAccounts = async (userId, { importHistoricalPosts = false 
     let stats = null;
 
     if (account.platform === 'facebook') {
-      const details = await fetchFacebookPageDetails(account);
-      stats = details?.stats || null;
+      try {
+        const details = await fetchFacebookPageDetails(account);
+        stats = details?.stats || null;
 
-      if (importHistoricalPosts && details?.pageAccessToken) {
-        try {
-          await importHistoricalFacebookPosts(userId, account, details.pageAccessToken);
-        } catch (importErr) {
-          logger.warn('Historical Facebook post import skipped', {
-            userId,
-            accountId: account.id,
-            pageId: account.page_id,
-            error: importErr.message,
-          });
+        if (importHistoricalPosts && details?.pageAccessToken) {
+          try {
+            await importHistoricalFacebookPosts(userId, account, details.pageAccessToken);
+          } catch (importErr) {
+            logger.warn('Historical Facebook post import skipped', {
+              userId,
+              accountId: account.id,
+              pageId: account.page_id,
+              error: importErr.message,
+            });
+          }
         }
+      } catch (err) {
+        logger.warn('Facebook account hydration skipped', {
+          userId,
+          accountId: account.id,
+          pageId: account.page_id,
+          error: err.message,
+        });
+        stats = {
+          insights_available: false,
+          insights_reason: 'unavailable',
+          followers_count: null,
+          page_likes_count: null,
+          posts_count: null,
+          linked_instagram: null,
+        };
       }
     } else if (account.platform === 'instagram') {
       stats = await fetchInstagramAccountStats(account);
@@ -661,8 +702,25 @@ const hydrateConnectedAccounts = async (userId, { importHistoricalPosts = false 
     rows = await Promise.all(refreshed.rows.map(async (account) => {
       let stats = null;
       if (account.platform === 'facebook') {
-        const details = await fetchFacebookPageDetails(account);
-        stats = details?.stats || null;
+        try {
+          const details = await fetchFacebookPageDetails(account);
+          stats = details?.stats || null;
+        } catch (err) {
+          logger.warn('Facebook account refresh hydration skipped', {
+            userId,
+            accountId: account.id,
+            pageId: account.page_id,
+            error: err.message,
+          });
+          stats = {
+            insights_available: false,
+            insights_reason: 'unavailable',
+            followers_count: null,
+            page_likes_count: null,
+            posts_count: null,
+            linked_instagram: null,
+          };
+        }
       } else if (account.platform === 'instagram') {
         stats = await fetchInstagramAccountStats(account);
       }
