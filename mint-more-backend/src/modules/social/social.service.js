@@ -1120,6 +1120,7 @@ const executePublish = async (postId) => {
     `SELECT sp.*, 
        array_agg(
          json_build_object(
+           'id', spm.id,
            'media_url', spm.media_url,
            'media_type', spm.media_type,
            'mime_type', spm.mime_type,
@@ -1141,6 +1142,29 @@ const executePublish = async (postId) => {
   if (!post) throw new Error(`Post ${postId} not found`);
 
   const media = post.media || [];
+
+  // Resolve any internal Mintbox proxy URLs to direct Supabase signed URLs for publishers
+  // This bypasses the Node.js proxy and allows Facebook/Instagram to download long videos directly
+  // with full chunked/range request support.
+  for (const m of media) {
+    if (m.media_url && m.media_url.includes('/api/v1/mintbox/public/files/')) {
+      const match = m.media_url.match(/\/api\/v1\/mintbox\/public\/files\/([^\/]+)\/content/);
+      if (match) {
+        const token = match[1];
+        try {
+          const { getPublicFileStream } = require('../mintbox/mintbox.service');
+          // Give Facebook 24 hours to crawl the video
+          const { signedUrl } = await getPublicFileStream(token, 24 * 60 * 60);
+          if (signedUrl) {
+            m.media_url = signedUrl;
+            logger.debug('Resolved internal Mintbox URL to direct signed URL for social publish', { token });
+          }
+        } catch (e) {
+          logger.warn('Failed to resolve internal Mintbox URL to direct signed URL', { token, error: e.message });
+        }
+      }
+    }
+  }
 
   // Get all retryable per-platform rows.
   // BullMQ retries the same job, so previously failed rows need to be picked up again
@@ -1302,6 +1326,54 @@ const executePublish = async (postId) => {
      WHERE id = $3`,
     [finalStatus, allSuccess ? new Date() : null, postId]
   );
+
+  // --- Video Cleanup Logic ---
+  // If the post is fully published across all its platforms, clean up directly-uploaded videos
+  const checkStatusRes = await query(`SELECT status FROM social_post_platforms WHERE post_id = $1`, [postId]);
+  const allPlatformsPublished = checkStatusRes.rows.every(r => r.status === 'published' || r.status === 'skipped');
+  
+  if (allPlatformsPublished) {
+    try {
+      const { extractThumbnail } = require('../../utils/video.utils');
+      const { uploadFile, deleteFile } = require('../storage/app-storage.provider');
+
+      for (const m of media) {
+        if (m.media_type === 'video' && m.media_url) {
+          // Check if it's a directly uploaded video (not a mintbox file)
+          // Mintbox files originally have /api/v1/mintbox/public/files/ (we mutated it in memory above but we can check if m.id exists and originally had it)
+          // Actually, if it's directly uploaded, the media_url contains 'job-attachments'
+          if (m.media_url.includes('job-attachments')) {
+            logger.info('Extracting thumbnail and cleaning up directly uploaded video', { mediaId: m.id });
+            
+            // 1. Extract thumbnail
+            const thumbBuffer = await extractThumbnail(m.media_url);
+            
+            // 2. Upload thumbnail to storage
+            const thumbPath = `social/${post.user_id}/${postId}/${m.id}_thumbnail.jpg`;
+            const thumbUrl = await uploadFile('job-attachments', thumbPath, thumbBuffer, 'image/jpeg');
+            
+            // 3. Delete original video from storage
+            const urlPathMatch = m.media_url.match(/job-attachments\/(social\/.*)/);
+            if (urlPathMatch && urlPathMatch[1]) {
+              await deleteFile('job-attachments', urlPathMatch[1]);
+              logger.info('Deleted original video to save space', { path: urlPathMatch[1] });
+            }
+
+            // 4. Update DB record
+            await query(
+              `UPDATE social_post_media 
+               SET media_url = NULL, thumbnail_url = $1 
+               WHERE id = $2`,
+              [thumbUrl, m.id]
+            );
+          }
+        }
+      }
+    } catch (cleanupErr) {
+      logger.error('Failed to cleanup video after publishing', { error: cleanupErr.message });
+    }
+  }
+  // ---------------------------
 
   logger.info('executePublish complete', {
     postId,

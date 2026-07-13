@@ -169,8 +169,25 @@ const PostMediaPreview = ({ media = [] }) => {
       )
     }
 
-    return kind === 'video'
-      ? (
+    if (kind === 'video') {
+      if (!item.media_url && item.thumbnail_url) {
+        return (
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <img src={item.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...style }} />
+            <div style={{
+              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              width: 48, height: 48, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Icon name="play" color="white" size={24} />
+            </div>
+            <div style={{
+              position: 'absolute', bottom: 8, right: 8,
+              padding: '4px 8px', borderRadius: 4, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 11
+            }}>Archived (See live post)</div>
+          </div>
+        )
+      }
+      return (
         <video
           src={source}
           controls
@@ -181,7 +198,9 @@ const PostMediaPreview = ({ media = [] }) => {
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#111827', ...style }}
         />
       )
-      : (
+    }
+
+    return (
         <img
           src={source}
           alt=""

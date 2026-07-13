@@ -69,7 +69,17 @@ const streamPublicFile = async (req, res, next) => {
     const upstream = await fetch(signedUrl, {
       headers: range ? { Range: range } : undefined,
     });
-    if (!upstream.ok || !upstream.body) throw new Error('Storage download failed');
+    if (!upstream.ok || !upstream.body) {
+      const logger = require('../../utils/logger');
+      const errText = await upstream.text().catch(() => '');
+      logger.error('Storage download failed in streamPublicFile', {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        range,
+        errText,
+      });
+      throw new Error(`Storage download failed: ${upstream.status} ${upstream.statusText}`);
+    }
 
     const contentLength = upstream.headers.get('content-length') || String(file.size_bytes);
     const contentRange = upstream.headers.get('content-range');

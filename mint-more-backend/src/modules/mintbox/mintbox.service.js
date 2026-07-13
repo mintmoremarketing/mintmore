@@ -636,9 +636,9 @@ const getPublicFile = async (token) => {
   return file;
 };
 
-const getPublicFileStream = async (token) => {
+const getPublicFileStream = async (token, expiresIn = 60) => {
   const file = await getPublicFile(token);
-  const signedUrl = await storage.createDownloadUrl(file.storage_path, 60);
+  const signedUrl = await storage.createDownloadUrl(file.storage_path, expiresIn);
   if (!signedUrl) throw new AppError('File is temporarily unavailable', 503);
   return { file, signedUrl };
 };
