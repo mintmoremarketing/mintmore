@@ -20,7 +20,8 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false, // required for Supabase SSL
   },
-  max: 20,
+  // Keep this below Supabase Session Pooler limits (15) to avoid max-client exhaustion.
+  max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000, // slightly longer for pooler
   maxLifetimeSeconds: 300,
