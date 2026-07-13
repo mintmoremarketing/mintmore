@@ -3,23 +3,34 @@ const logger = require('../../../utils/logger');
 
 const FB_API = 'https://graph.facebook.com/v19.0';
 
+// ── Content-type inference ─────────────────────────────────────────────────────
+
 const inferPublishContentType = (post, media) => {
   const contentType = String(post?.content_type || '').toLowerCase();
   const mediaItems = Array.isArray(media) ? media.filter(Boolean) : [];
   const mediaTypes = mediaItems.map((item) => String(item.media_type || '').toLowerCase());
 
+  // Multi-image = carousel
   if (contentType === 'carousel' || (mediaItems.length > 1 && mediaTypes.every((type) => type === 'image'))) {
     return 'carousel';
   }
+
+  // Explicit reel or short content type
   if (contentType === 'reel' || contentType === 'short') {
     return 'reel';
   }
+
+  // Any video (including content_type='video') → Reel on Instagram.
+  // Instagram deprecated standalone video posts in 2022 — all video posts
+  // must now go through the Reels container endpoint.
   if (mediaTypes.includes('video')) {
-    return mediaItems.length > 1 ? 'carousel' : 'video';
+    return 'reel';
   }
+
   if (mediaItems.length === 1) {
     return 'image';
   }
+
   return contentType || 'image';
 };
 
@@ -30,7 +41,7 @@ const inferPublishContentType = (post, media) => {
  * 1. A Facebook Page connected to the IG Business Account
  * 2. The instagram_business_account_id (stored as instagram_account_id)
  *
- * Flow: Create media container → Publish container
+ * Flow: Create media container → Poll until ready → Publish container
  */
 const publishToInstagram = async (account, post, media) => {
   const igAccountId = account.instagram_account_id;
@@ -46,11 +57,13 @@ const publishToInstagram = async (account, post, media) => {
     );
   }
 
+  logger.info('Instagram publishing', { igAccountId, effectiveContentType, mediaCount: media.length });
+
   try {
     let containerId;
 
     if (effectiveContentType === 'carousel' && media.length > 1) {
-      // ── Carousel ────────────────────────────────────────────────────────────
+      // ── Carousel ──────────────────────────────────────────────────────────────
       // Step 1: Create child containers
       const childIds = await Promise.all(
         media.map(async (m) => {
@@ -86,40 +99,27 @@ const publishToInstagram = async (account, post, media) => {
       containerId = parentRes.data.id;
 
     } else if (effectiveContentType === 'reel' && media.length > 0) {
-      // ── Reel ─────────────────────────────────────────────────────────────────
+      // ── Reel / Video ──────────────────────────────────────────────────────────
+      // Instagram deprecated standalone VIDEO posts in 2022.
+      // All single-video posts (content_type='video' or 'reel') now go through
+      // the REELS container endpoint. share_to_feed=true makes it appear on the grid.
+      logger.info('Instagram publishing video as Reel', { igAccountId, mediaUrl: media[0].media_url });
       const res = await axios.post(
         `${FB_API}/${igAccountId}/media`,
         null,
         {
           params: {
-            media_type:   'REELS',
-            video_url:    media[0].media_url,
-            caption:      buildInstagramCaption(post),
+            media_type:    'REELS',
+            video_url:     media[0].media_url,
+            caption:       buildInstagramCaption(post),
             share_to_feed: true,
-            access_token: accessToken,
+            access_token:  accessToken,
           },
         }
       );
       containerId = res.data.id;
 
-      // Reels need processing time — poll until ready
-      await waitForIgMediaReady(igAccountId, containerId, accessToken);
-
-    } else if (media.length > 0 && media[0].media_type === 'video') {
-      // ── Single video ─────────────────────────────────────────────────────────
-      const res = await axios.post(
-        `${FB_API}/${igAccountId}/media`,
-        null,
-        {
-          params: {
-            media_type:   'VIDEO',
-            video_url:    media[0].media_url,
-            caption:      buildInstagramCaption(post),
-            access_token: accessToken,
-          },
-        }
-      );
-      containerId = res.data.id;
+      // Videos need processing time — poll until status is FINISHED
       await waitForIgMediaReady(igAccountId, containerId, accessToken);
 
     } else if (media.length > 0) {
@@ -141,7 +141,7 @@ const publishToInstagram = async (account, post, media) => {
       throw new Error('Instagram requires at least one media item (image or video)');
     }
 
-    // ── Publish the container ─────────────────────────────────────────────────
+    // ── Publish the container ──────────────────────────────────────────────────
     const publishRes = await axios.post(
       `${FB_API}/${igAccountId}/media_publish`,
       null,
@@ -153,8 +153,8 @@ const publishToInstagram = async (account, post, media) => {
       }
     );
 
-    const mediaId  = publishRes.data.id;
-    const postUrl  = `https://www.instagram.com/p/${await getIgShortcode(mediaId, accessToken)}`;
+    const mediaId = publishRes.data.id;
+    const postUrl = `https://www.instagram.com/p/${await getIgShortcode(mediaId, accessToken)}`;
 
     logger.info('Instagram publish success', { mediaId, igAccountId });
     return { platform_post_id: mediaId, platform_post_url: postUrl };
@@ -171,7 +171,7 @@ const publishToInstagram = async (account, post, media) => {
  * Video processing can take 30s–5min.
  */
 const waitForIgMediaReady = async (igAccountId, containerId, accessToken, maxWaitMs = 300000) => {
-  const startTime   = Date.now();
+  const startTime    = Date.now();
   const pollInterval = 5000; // 5 seconds
 
   while (Date.now() - startTime < maxWaitMs) {
@@ -186,6 +186,8 @@ const waitForIgMediaReady = async (igAccountId, containerId, accessToken, maxWai
     );
 
     const statusCode = res.data.status_code;
+
+    logger.debug('Instagram media container status', { containerId, statusCode });
 
     if (statusCode === 'FINISHED') return true;
     if (statusCode === 'ERROR')    throw new Error('Instagram media processing failed');

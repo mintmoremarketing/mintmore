@@ -15,7 +15,7 @@ const PLATFORM_META = {
   youtube:   { icon: 'youtube',   label: 'YouTube',    color: '#FF0000' },
 }
 
-const INSTAGRAM_CONTENT_TYPES = ['image', 'carousel', 'reel']
+const INSTAGRAM_CONTENT_TYPES = ['image', 'video', 'carousel', 'reel']
 
 const inferContentTypeFromMediaItems = (items = []) => {
   const mediaItems = Array.isArray(items) ? items.filter(Boolean) : []
@@ -802,7 +802,7 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
           <div>
             <label className="field-label" style={{ marginBottom: 8, display: 'block' }}>Content type</label>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              {['text','image','video','carousel','reel'].map(type => (
+              {['text', 'image', 'video', 'carousel'].map(type => (
                 <button
                   key={type}
                   className={`badge ${contentType === type ? 'violet' : 'neutral'}`}
