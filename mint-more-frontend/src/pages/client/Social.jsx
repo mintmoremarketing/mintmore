@@ -32,9 +32,12 @@ const getMediaPreviewKind = (item) => {
   return type.startsWith('video') ? 'video' : 'image'
 }
 
+const getMediaPreviewSource = (item) => item?.thumbnail_url || item?.preview_url || item?.media_url || ''
+
 const MediaTile = ({ item, selected, onClick, compact = false }) => {
+  const [previewFailed, setPreviewFailed] = useState(false)
   const kind = getMediaPreviewKind(item)
-  const previewUrl = item?.media_url
+  const previewUrl = item?.thumbnail_url || item?.preview_url || item?.media_url || ''
   const fileName = item?.original_name || item?.name || 'Media asset'
   const subtitle = [item?.job_title, item?.mime_type || (kind === 'video' ? 'Video' : 'Image')].filter(Boolean).join(' • ')
 
@@ -55,12 +58,12 @@ const MediaTile = ({ item, selected, onClick, compact = false }) => {
       title={fileName}
     >
       <div style={{
-        aspectRatio: compact ? '1 / 1' : '4 / 3',
+        aspectRatio: compact ? '1 / 1' : '4 / 5',
         background: 'var(--paper-tint)',
         position: 'relative',
         overflow: 'hidden',
       }}>
-        {previewUrl ? (
+        {!previewFailed && previewUrl ? (
           kind === 'video' ? (
             <video
               src={previewUrl}
@@ -68,17 +71,32 @@ const MediaTile = ({ item, selected, onClick, compact = false }) => {
               playsInline
               preload="metadata"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              poster={item?.thumbnail_url || undefined}
+              onError={() => setPreviewFailed(true)}
             />
           ) : (
             <img
               src={previewUrl}
               alt={fileName}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              onError={() => setPreviewFailed(true)}
             />
           )
         ) : (
-          <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: 'var(--ink-400)' }}>
-            <Icon name={kind === 'video' ? 'video' : 'image'} />
+          <div style={{
+            width: '100%',
+            height: '100%',
+            display: 'grid',
+            placeItems: 'center',
+            color: 'var(--ink-400)',
+            background: 'linear-gradient(180deg, rgba(248,250,252,0.9), rgba(241,245,249,0.96))',
+            padding: 12,
+            textAlign: 'center',
+          }}>
+            <div>
+              <Icon name={kind === 'video' ? 'video' : 'image'} />
+              <div style={{ fontSize: 11, marginTop: 6, lineHeight: 1.35 }}>Preview unavailable</div>
+            </div>
           </div>
         )}
         {selected && (
@@ -131,9 +149,49 @@ const PostMediaPreview = ({ media = [] }) => {
   const items = Array.isArray(media) ? media.filter(Boolean) : []
   if (!items.length) return null
 
+  const renderItem = (item, style = {}) => {
+    const kind = getMediaPreviewKind(item)
+    const source = getMediaPreviewSource(item)
+
+    if (!source) {
+      return (
+        <div style={{
+          width: '100%',
+          height: '100%',
+          display: 'grid',
+          placeItems: 'center',
+          color: 'var(--ink-400)',
+          background: 'var(--paper-tint)',
+          ...style,
+        }}>
+          <Icon name={kind === 'video' ? 'video' : 'image'} />
+        </div>
+      )
+    }
+
+    return kind === 'video'
+      ? (
+        <video
+          src={source}
+          controls
+          muted
+          playsInline
+          preload="metadata"
+          poster={item?.thumbnail_url || undefined}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#111827', ...style }}
+        />
+      )
+      : (
+        <img
+          src={source}
+          alt=""
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...style }}
+        />
+      )
+  }
+
   if (items.length === 1) {
     const item = items[0]
-    const kind = getMediaPreviewKind(item)
     return (
       <div style={{
         borderRadius: 14,
@@ -142,22 +200,7 @@ const PostMediaPreview = ({ media = [] }) => {
         border: '1px solid var(--hairline)',
         marginBottom: 12,
       }}>
-        {kind === 'video' ? (
-          <video
-            src={item.media_url}
-            controls
-            muted
-            playsInline
-            preload="metadata"
-            style={{ width: '100%', maxHeight: 320, objectFit: 'cover', display: 'block', background: '#111827' }}
-          />
-        ) : (
-          <img
-            src={item.media_url}
-            alt=""
-            style={{ width: '100%', maxHeight: 320, objectFit: 'cover', display: 'block' }}
-          />
-        )}
+        {renderItem(item, { maxHeight: 320 })}
       </div>
     )
   }
@@ -170,7 +213,6 @@ const PostMediaPreview = ({ media = [] }) => {
       marginBottom: 12,
     }}>
       {items.slice(0, 6).map((item, index) => {
-        const kind = getMediaPreviewKind(item)
         return (
           <div
             key={`${item.media_url}-${index}`}
@@ -183,21 +225,7 @@ const PostMediaPreview = ({ media = [] }) => {
               aspectRatio: '1 / 1',
             }}
           >
-            {kind === 'video' ? (
-              <video
-                src={item.media_url}
-                muted
-                playsInline
-                preload="metadata"
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#111827' }}
-              />
-            ) : (
-              <img
-                src={item.media_url}
-                alt=""
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              />
-            )}
+            {renderItem(item)}
             <div style={{
               position: 'absolute',
               left: 8,
@@ -239,16 +267,35 @@ const normalizePlatforms = (value) => {
   return []
 }
 
-function SocialPostPreview({ platform, account, caption, hashtags, contentType, mediaUrls = [] }) {
+function SocialPostPreview({ platform, account, caption, hashtags, contentType, mediaItems = [] }) {
   const meta = PLATFORM_META[platform] || PLATFORM_META.facebook
   const name = account?.page_name || account?.platform_name || account?.platform_username || 'Your business'
   const handle = account?.platform_username || name
   const text = [caption, hashtags].filter(Boolean).join('\n')
-  const primaryMedia = mediaUrls[0]
-  const isCarousel = contentType === 'carousel' && mediaUrls.length > 1
+  const items = Array.isArray(mediaItems) ? mediaItems.filter(Boolean) : []
+  const primaryMedia = items[0]
+  const primaryMediaUrl = getMediaPreviewSource(primaryMedia)
+  const isCarousel = contentType === 'carousel' && items.length > 1
+
+  const renderMediaItem = (item, style = {}) => {
+    const kind = getMediaPreviewKind(item)
+    const source = getMediaPreviewSource(item)
+
+    if (!source) {
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: 'var(--ink-400)', background: 'var(--paper-tint)', ...style }}>
+          <Icon name={kind === 'video' ? 'video' : 'image'} />
+        </div>
+      )
+    }
+
+    return kind === 'video'
+      ? <video src={source} muted controls poster={item?.thumbnail_url || undefined} style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#111827', ...style }} />
+      : <img src={source} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', ...style }} />
+  }
 
   const renderMedia = (platformAspect = '1') => {
-    if (!mediaUrls.length) {
+    if (!items.length) {
       return (
         <div style={{ color: 'var(--ink-400)', textAlign: 'center', padding: 20 }}>
           <Icon name="image" />
@@ -269,17 +316,19 @@ function SocialPostPreview({ platform, account, caption, hashtags, contentType, 
             background: 'var(--paper-tint)',
           }}
         >
-          {mediaUrls.slice(0, 4).map((url, index) => (
-            <img key={`${url}-${index}`} src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {items.slice(0, 4).map((item, index) => (
+            <div key={`${item.media_url}-${index}`} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+              {renderMediaItem(item)}
+            </div>
           ))}
         </div>
       )
     }
 
-    return primaryMedia
+    return primaryMediaUrl
       ? (contentType === 'video' || contentType === 'reel'
-        ? <video src={primaryMedia} muted controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        : <img src={primaryMedia} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />)
+        ? <video src={primaryMediaUrl} muted controls poster={primaryMedia?.thumbnail_url || undefined} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : renderMediaItem(primaryMedia, { width: '100%', height: '100%' }))
       : null
   }
 
@@ -316,8 +365,8 @@ function SocialPostPreview({ platform, account, caption, hashtags, contentType, 
     return (
       <div style={{ border: '1px solid var(--hairline)', borderRadius: 16, overflow: 'hidden', background: 'var(--paper)', maxWidth: 420 }}>
         <div style={{ aspectRatio: '16 / 9', background: '#111827', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-          {mediaUrls.length && (contentType === 'video' || contentType === 'reel')
-            ? <video src={primaryMedia} muted controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {items.length && (contentType === 'video' || contentType === 'reel')
+            ? <video src={primaryMediaUrl} muted controls poster={primaryMedia?.thumbnail_url || undefined} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : isCarousel
               ? renderMedia('16 / 9')
               : <Icon name="youtube" size={38} style={{ color: meta.color }} />}
@@ -349,13 +398,13 @@ function SocialPostPreview({ platform, account, caption, hashtags, contentType, 
           {text || 'Your caption will appear here.'}
         </p>
       </div>
-      {mediaUrls.length > 0 && (
+      {items.length > 0 && (
         <div style={{ maxHeight: 360, background: 'var(--paper-tint)', overflow: 'hidden' }}>
           {isCarousel
             ? renderMedia('16 / 9')
             : (contentType === 'video' || contentType === 'reel'
-              ? <video src={primaryMedia} muted controls style={{ width: '100%', display: 'block' }} />
-              : <img src={primaryMedia} alt="" style={{ width: '100%', display: 'block', objectFit: 'cover' }} />)}
+              ? <video src={primaryMediaUrl} muted controls poster={primaryMedia?.thumbnail_url || undefined} style={{ width: '100%', display: 'block' }} />
+              : renderMediaItem(primaryMedia, { width: '100%', display: 'block', objectFit: 'cover' }))}
         </div>
       )}
       <div className="row between" style={{ borderTop: '1px solid var(--hairline)', padding: '10px 18px', color: 'var(--ink-500)', fontSize: 13 }}>
@@ -592,16 +641,38 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
   const instagramSelected = selectedPlatforms.includes('instagram')
   const instagramContentBlocked = instagramSelected && !INSTAGRAM_CONTENT_TYPES.includes(contentType)
 
-  const mediaPreviewUrls = useMemo(() => {
-    if (mediaFiles.length) return mediaFiles.map(file => URL.createObjectURL(file))
-    if (mintboxMedia.length) return mintboxMedia.map(item => item.media_url)
-    if (!existingMediaTouched && existingMediaUrls.length) return existingMediaUrls
+  const mediaPreviewItems = useMemo(() => {
+    if (mediaFiles.length) {
+      return mediaFiles.map(file => {
+        const objectUrl = URL.createObjectURL(file)
+        return {
+          media_url: objectUrl,
+          preview_url: objectUrl,
+          thumbnail_url: objectUrl,
+          media_type: file.type.startsWith('video') ? 'video' : 'image',
+          mime_type: file.type,
+          original_name: file.name,
+        }
+      })
+    }
+    if (mintboxMedia.length) {
+      return mintboxMedia.map(item => ({
+        ...item,
+        preview_url: item.thumbnail_url || item.preview_url || item.media_url,
+      }))
+    }
+    if (!existingMediaTouched && existingMedia.length) {
+      return existingMedia.map(item => ({
+        ...item,
+        preview_url: item.thumbnail_url || item.preview_url || item.media_url,
+      }))
+    }
     return []
-  }, [mediaFiles, mintboxMedia, existingMediaUrls, existingMediaTouched])
+  }, [mediaFiles, mintboxMedia, existingMedia, existingMediaTouched])
 
   useEffect(() => () => {
-    mediaPreviewUrls.filter(url => url?.startsWith('blob:')).forEach(url => URL.revokeObjectURL(url))
-  }, [mediaPreviewUrls])
+    mediaPreviewItems.filter(item => item?.preview_url?.startsWith('blob:')).forEach(item => URL.revokeObjectURL(item.preview_url))
+  }, [mediaPreviewItems])
 
   useEffect(() => {
     if (!initialPost) return
@@ -819,11 +890,12 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
             {mediaLibrary.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <div className="field-label" style={{ marginBottom: 7 }}>Or choose from Mintbox</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, maxHeight: 260, overflowY: 'auto', paddingRight: 2 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8, maxHeight: 230, overflowY: 'auto', paddingRight: 2 }}>
                   {mediaLibrary.map(item => (
                     <MediaTile
                       key={item.id}
                       item={item}
+                      compact
                       selected={mintboxMedia.some(existing => existing.id === item.id)}
                       onClick={() => {
                         const isAlreadySelected = mintboxMedia.some(existing => existing.id === item.id)
@@ -959,14 +1031,14 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
               ) : selectedPlatforms.map(platform => {
                 const account = connectedPlatforms.find(a => a.platform === platform)
                 return (
-                  <SocialPostPreview
+                    <SocialPostPreview
                     key={platform}
                     platform={platform}
                     account={account}
                     caption={caption}
                     hashtags={hashtags}
                     contentType={contentType}
-                    mediaUrls={mediaPreviewUrls}
+                    mediaItems={mediaPreviewItems}
                   />
                 )
               })}
