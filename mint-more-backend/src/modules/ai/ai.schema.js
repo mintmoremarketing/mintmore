@@ -72,6 +72,8 @@ const ensureAIEngineSchema = async () => {
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       generation_id UUID REFERENCES ai_generations(id) ON DELETE SET NULL,
       media_url TEXT NOT NULL,
+      content_type TEXT NOT NULL DEFAULT 'image',
+      destination_platforms TEXT[] NOT NULL DEFAULT '{}'::text[],
       caption TEXT,
       tags TEXT[] NOT NULL DEFAULT '{}'::text[],
       share_generation_parameters BOOLEAN NOT NULL DEFAULT false,

@@ -1245,6 +1245,36 @@ const cancelPost = async (postId, userId) => {
   return { postId, status: 'cancelled' };
 };
 
+const deletePost = async (postId, userId) => {
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+
+    const postResult = await dbClient.query(
+      'SELECT id, status, queue_job_id FROM social_posts WHERE id = $1 AND user_id = $2',
+      [postId, userId]
+    );
+    const post = postResult.rows[0];
+    if (!post) throw new AppError('Post not found', 404);
+
+    if (post.status === 'scheduled' && post.queue_job_id) {
+      await cancelScheduledPost(post.queue_job_id);
+    }
+
+    await dbClient.query('DELETE FROM social_post_platforms WHERE post_id = $1', [postId]);
+    await dbClient.query('DELETE FROM social_post_media WHERE post_id = $1', [postId]);
+    await dbClient.query('DELETE FROM social_posts WHERE id = $1 AND user_id = $2', [postId, userId]);
+
+    await dbClient.query('COMMIT');
+    return { deleted: true, postId };
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    dbClient.release();
+  }
+};
+
 const getMyPosts = async (userId, { page = 1, limit = 20, status, platform } = {}) => {
   const offset = (page - 1) * limit;
   const params = [userId];
@@ -1584,6 +1614,7 @@ module.exports = {
   publishPost,
   executePublish,
   cancelPost,
+  deletePost,
   getMyPosts,
   getPostById,
   updatePost,

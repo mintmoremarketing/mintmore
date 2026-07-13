@@ -27,6 +27,9 @@ export const aiApi = {
   getGenerations: (params) =>
     api.get('/ai/generations', { params }),
 
+  getPublishedPosts: (params) =>
+    api.get('/ai/published-posts', { params }),
+
   getGeneration: (id) =>
     api.get(`/ai/generations/${id}`),
 
@@ -38,6 +41,9 @@ export const aiApi = {
 
   deleteGenerations: (generation_ids) =>
     api.delete('/ai/generations', { data: { generation_ids } }),
+
+  deletePublishedPost: (id) =>
+    api.delete(`/ai/published-posts/${id}`),
 
   publishGeneration: (id, data) =>
     api.post(`/ai/generations/${id}/publish`, data),

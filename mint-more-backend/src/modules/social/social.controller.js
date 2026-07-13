@@ -185,6 +185,13 @@ const cancelPost = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const deletePost = async (req, res, next) => {
+  try {
+    const result = await socialService.deletePost(req.params.postId, req.user.sub);
+    return sendSuccess(res, { data: result, message: 'Post deleted' });
+  } catch (err) { next(err); }
+};
+
 const getMyPosts = async (req, res, next) => {
   try {
     const { page, limit, status, platform } = req.query;
@@ -249,6 +256,7 @@ module.exports = {
   getMediaLibrary,
   publishPost,
   cancelPost,
+  deletePost,
   getMyPosts,
   getPost,
   pullAnalytics,

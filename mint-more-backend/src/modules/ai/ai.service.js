@@ -1237,26 +1237,91 @@ const deleteGenerations = async (generationIds, userId) => {
 const publishGenerationPost = async (generationId, userId, payload = {}) => {
   const generation = await getGeneration(generationId, userId, 'client');
   if (generation.status !== 'completed' || !generation.result_url) {
-    throw new AppError('Only completed image generations can be published', 400);
+    throw new AppError('Only completed image or video generations can be published', 400);
   }
   const tags = Array.isArray(payload.tags)
     ? payload.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 12)
     : [];
+  const destinationPlatforms = Array.isArray(payload.destination_platforms)
+    ? payload.destination_platforms.map((platform) => String(platform).trim()).filter(Boolean).slice(0, 10)
+    : [];
+  const contentType = generation.tool_type === 'video' ? 'video' : 'image';
   const result = await query(
     `INSERT INTO published_posts
-       (user_id, generation_id, media_url, caption, tags, share_generation_parameters, status)
-     VALUES ($1,$2,$3,$4,$5,$6,'published')
+       (user_id, generation_id, media_url, content_type, destination_platforms, caption, tags, share_generation_parameters, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'published')
      RETURNING *`,
     [
       userId,
       generationId,
       generation.result_url,
+      contentType,
+      destinationPlatforms,
       String(payload.caption || '').trim() || null,
       tags,
       Boolean(payload.share_generation_parameters),
     ]
   );
   return result.rows[0];
+};
+
+const getPublishedPosts = async (userId, { page = 1, limit = 20, search } = {}) => {
+  const offset = (page - 1) * limit;
+  const params = [userId];
+  let searchSql = '';
+
+  if (search && String(search).trim()) {
+    params.push(`%${String(search).trim()}%`);
+    searchSql = `AND (
+      pp.caption ILIKE $${params.length}
+      OR EXISTS (
+        SELECT 1
+        FROM unnest(pp.tags) tag
+        WHERE tag ILIKE $${params.length}
+      )
+    )`;
+  }
+
+  const result = await query(
+    `SELECT pp.*
+     FROM published_posts pp
+     WHERE pp.user_id = $1
+     ${searchSql}
+     ORDER BY pp.created_at DESC
+     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset]
+  );
+
+  const countResult = await query(
+    `SELECT COUNT(*)::int AS count
+     FROM published_posts pp
+     WHERE pp.user_id = $1
+     ${searchSql}`,
+    params
+  );
+
+  return {
+    posts: result.rows,
+    pagination: {
+      page,
+      limit,
+      total: countResult.rows[0].count,
+      pages: Math.ceil(countResult.rows[0].count / limit),
+    },
+  };
+};
+
+const deletePublishedPost = async (publishedPostId, userId) => {
+  const result = await query(
+    `DELETE FROM published_posts
+     WHERE id = $1 AND user_id = $2
+     RETURNING id`,
+    [publishedPostId, userId]
+  );
+  if (!result.rows[0]) {
+    throw new AppError('Published post not found', 404);
+  }
+  return { deleted: true, id: result.rows[0].id };
 };
 
 const getUsageSummary = async (userId) => {
@@ -1296,6 +1361,8 @@ module.exports = {
   setGenerationFavorite,
   deleteGenerations,
   publishGenerationPost,
+  getPublishedPosts,
+  deletePublishedPost,
   getUsageSummary,
   bustModelCache,
 };

@@ -28,6 +28,7 @@ export const socialApi = {
   getPost:    (id)     => api.get(`/social/posts/${id}`),
   createPost: (data)   => api.post('/social/posts', data),
   updatePost: (id, data) => api.patch(`/social/posts/${id}`, data),
+  deletePost: (id) => api.delete(`/social/posts/${id}`),
   addMedia:   (id, data) => api.post(
     `/social/posts/${id}/media`,
     data,

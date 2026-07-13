@@ -18,7 +18,7 @@ const publishToFacebook = async (account, post, media) => {
   try {
     let response;
 
-    if (post.content_type === 'video' && media.length > 0) {
+    if (['video', 'reel', 'short'].includes(post.content_type) && media.length > 0) {
       // ── Video post ──────────────────────────────────────────────────────────
       const videoMedia = media[0];
 

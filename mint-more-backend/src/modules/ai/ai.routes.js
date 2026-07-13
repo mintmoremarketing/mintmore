@@ -33,10 +33,12 @@ router.post('/generate', requireEntitlement('can_use_ai'), controller.generate);
 
 // GET  /api/v1/ai/generations                    — history
 router.get('/generations', controller.getMyGenerations);
+router.get('/published-posts', controller.getPublishedPosts);
 router.patch('/generations/:generationId/favorite', controller.favoriteGeneration);
 router.delete('/generations', controller.deleteGenerations);
 router.delete('/generations/:generationId', controller.deleteGenerations);
 router.post('/generations/:generationId/publish', controller.publishGenerationPost);
+router.delete('/published-posts/:publishedPostId', controller.deletePublishedPost);
 
 // GET  /api/v1/ai/generations/:generationId      — single generation result
 router.get('/generations/:generationId', controller.getGeneration);

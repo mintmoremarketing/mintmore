@@ -94,6 +94,18 @@ const getMyGenerations = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const getPublishedPosts = async (req, res, next) => {
+  try {
+    const { page, limit, search } = req.query;
+    const result = await aiService.getPublishedPosts(req.user.sub, {
+      page:  parseInt(page, 10) || 1,
+      limit: parseInt(limit, 10) || 20,
+      search,
+    });
+    return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
 const favoriteGeneration = async (req, res, next) => {
   try {
     const generation = await aiService.setGenerationFavorite(
@@ -115,6 +127,16 @@ const deleteGenerations = async (req, res, next) => {
     return sendSuccess(res, {
       data: result,
       message: 'Generation deleted',
+    });
+  } catch (err) { next(err); }
+};
+
+const deletePublishedPost = async (req, res, next) => {
+  try {
+    const result = await aiService.deletePublishedPost(req.params.publishedPostId, req.user.sub);
+    return sendSuccess(res, {
+      data: result,
+      message: 'Published post deleted',
     });
   } catch (err) { next(err); }
 };
@@ -255,9 +277,11 @@ module.exports = {
   generateEngineImage,
   getGeneration,
   getMyGenerations,
+  getPublishedPosts,
   favoriteGeneration,
   deleteGenerations,
   publishGenerationPost,
+  deletePublishedPost,
   getUsageSummary,
   adminGetAIStats,
   adminGetModelStats,

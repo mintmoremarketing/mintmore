@@ -82,6 +82,9 @@ router.post('/posts/:postId/publish', requireEntitlement('can_use_social'), cont
 // POST   /api/v1/social/posts/:postId/cancel   — cancel draft or scheduled
 router.post('/posts/:postId/cancel', controller.cancelPost);
 
+// DELETE /api/v1/social/posts/:postId          — delete any owned post
+router.delete('/posts/:postId', controller.deletePost);
+
 // GET    /api/v1/social/posts/:postId/analytics — pull fresh analytics
 router.get('/posts/:postId/analytics', controller.pullAnalytics);
 

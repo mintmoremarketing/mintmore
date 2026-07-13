@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { aiApi } from '../../api/ai'
+import { socialApi } from '../../api/social'
 import { mintboxApi } from '../../api/mintbox'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
@@ -89,6 +90,7 @@ const generationKind = (generation) => generation?.tool_type || 'image'
 const isVideoGeneration = (generation) => generationKind(generation) === 'video'
 const isTextGeneration = (generation) => generationKind(generation) === 'text'
 const isImageGeneration = (generation) => generationKind(generation) === 'image'
+const isPublishableGeneration = (generation) => isImageGeneration(generation) || isVideoGeneration(generation)
 
 const generationDownloadName = (generation) => {
   const base = generation?.id || 'creatyv-generation'
@@ -588,15 +590,44 @@ function ChatWorkspace({
   )
 }
 
-function PublishPostModal({ generation, onClose, onPublish, publishing }) {
+function PublishPostModal({ generation, accounts = [], onClose, onPublish, publishing }) {
   const [caption, setCaption] = useState('')
   const [shareParams, setShareParams] = useState(false)
   const [tags, setTags] = useState('')
+  const [destinationPlatforms, setDestinationPlatforms] = useState([])
   const url = imageUrlFor(generation)
-  const canPublish = isImageGeneration(generation)
+  const canPublishGallery = isPublishableGeneration(generation)
+  const canPublishSocial = destinationPlatforms.length > 0
+  const canPublish = canPublishGallery || canPublishSocial
   const isVideo = isVideoGeneration(generation)
   const isText = isTextGeneration(generation)
   const previewText = generationResultText(generation) || promptFor(generation)
+  const connectedPlatforms = useMemo(() => {
+    const seen = new Set()
+    return (accounts || [])
+      .filter(account => account.is_active)
+      .filter((account) => {
+        if (seen.has(account.platform)) return false
+        seen.add(account.platform)
+        return true
+      })
+  }, [accounts])
+
+  useEffect(() => {
+    if (!connectedPlatforms.length) {
+      setDestinationPlatforms([])
+      return
+    }
+    setDestinationPlatforms((current) => current.filter(platform => connectedPlatforms.some(account => account.platform === platform)))
+  }, [connectedPlatforms])
+
+  const toggleDestination = (platform) => {
+    setDestinationPlatforms((current) =>
+      current.includes(platform)
+        ? current.filter(item => item !== platform)
+        : [...current, platform]
+    )
+  }
 
   return (
     <div className="modal-backdrop creation-modal-backdrop" onClick={onClose}>
@@ -615,15 +646,47 @@ function PublishPostModal({ generation, onClose, onPublish, publishing }) {
           <div className="row between">
             <div>
               <p className="eyebrow">Publish as post</p>
-              <h3>Publish this image</h3>
+              <h3>Publish this {isVideo ? 'video' : isText ? 'post' : 'image'}</h3>
             </div>
             <button className="icon-btn" type="button" onClick={onClose}><Icon name="x" size={14} /></button>
           </div>
-          {!canPublish && (
+          {!canPublishGallery && isText && !canPublishSocial && (
             <p className="creation-note">
-              Publishing is currently image-only. This modal is here so the video and chat tabs do not break the flow, but the actual post save is disabled for these modes.
+              Text generations need at least one social destination selected. Choose Facebook, Instagram, or YouTube below to publish the response.
             </p>
           )}
+          <div className="creation-destination-block">
+            <div className="row between" style={{ marginBottom: 10 }}>
+              <strong>Where should we publish?</strong>
+              <small className="muted">Leave all channels off to save only to Mint AI Published.</small>
+            </div>
+            {connectedPlatforms.length === 0 ? (
+              <div className="creation-note">No connected Facebook, Instagram, or YouTube accounts were found.</div>
+            ) : (
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                {connectedPlatforms.map((account) => {
+                  const meta = {
+                    facebook: { label: 'Facebook', icon: 'facebook', color: '#1877F2' },
+                    instagram: { label: 'Instagram', icon: 'instagram', color: '#E1306C' },
+                    youtube: { label: 'YouTube', icon: 'youtube', color: '#FF0000' },
+                  }[account.platform] || {}
+                  const selected = destinationPlatforms.includes(account.platform)
+                  return (
+                    <button
+                      key={account.platform}
+                      type="button"
+                      className={`badge ${selected ? 'mint' : 'neutral'}`}
+                      style={{ padding: '8px 12px', cursor: 'pointer', border: 'none' }}
+                      onClick={() => toggleDestination(account.platform)}
+                    >
+                      <Icon name={meta.icon} size={12} style={{ color: meta.color }} />
+                      {account.page_name || account.platform_name || meta.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
           <label>
             Caption
             <textarea rows={6} value={caption} onChange={event => setCaption(event.target.value)} placeholder="Write a caption..." />
@@ -649,12 +712,15 @@ function PublishPostModal({ generation, onClose, onPublish, publishing }) {
                 caption,
                 share_generation_parameters: shareParams,
                 tags: tags.split(',').map(tag => tag.trim()).filter(Boolean),
+                destination_platforms: destinationPlatforms,
               })}
             >
-              Publish Post
+              Publish {destinationPlatforms.length ? 'and share' : 'Post'}
             </button>
           </div>
-            <p className="creation-note">This publishes the image, caption, tags, and sharing settings in <code>published_posts</code>.</p>
+            <p className="creation-note">
+              This saves the generation to Mint AI Published, and shares it to the selected channels if you chose any.
+            </p>
         </div>
       </div>
     </div>
@@ -772,7 +838,7 @@ function CreationInspector({ generation, progress, onClose, onFavorite, onDelete
                   )) : <small>No references used.</small>}
                 </div>
                 <div className="creation-inspector-actions">
-                  <button type="button" className="btn dark" onClick={() => onPublish(generation)}>{isImage ? 'Publish Image' : 'Publish as Post'}</button>
+                  <button type="button" className="btn dark" onClick={() => onPublish(generation)}>{isImage ? 'Publish Image' : isVideo ? 'Publish Video' : 'Publish Post'}</button>
                   <button type="button" className="btn ghost" disabled={!isImage} onClick={() => onEditImage(generation)}>{isImage ? 'Edit Image' : 'Image only'}</button>
                   <button type="button" className="btn ghost" onClick={() => alert(isVideo ? 'Video editing is coming soon.' : 'Create Video is coming soon.')}>Create Video</button>
                   <button type="button" className="btn ghost" onClick={() => alert('Save as Template is coming soon.')}>Save as Template</button>
@@ -908,6 +974,7 @@ function CreationsGallery({
   setSeed,
   setFixedSeed,
   setReferences,
+  accounts = [],
   optimisticGenerations,
   setOptimisticGenerations,
 }) {
@@ -922,6 +989,7 @@ function CreationsGallery({
   const [ratioMode, setRatioMode] = useState('original')
   const [size, setSize] = useState('M')
   const [editsMode, setEditsMode] = useState('group')
+  const [galleryTab, setGalleryTab] = useState('creations')
   const [selectedIds, setSelectedIds] = useState([])
   const [inspector, setInspector] = useState(null)
   const [publishTarget, setPublishTarget] = useState(null)
@@ -932,6 +1000,15 @@ function CreationsGallery({
       tool_type: toolType,
       project_id: projectId || undefined,
       favorite: favoriteOnly || undefined,
+      search: search || undefined,
+      limit: 80,
+    }).then(res => res.data.data),
+  })
+
+  const { data: publishedData, isLoading: publishedLoading } = useQuery({
+    queryKey: ['ai-published-posts', search],
+    enabled: galleryTab === 'published',
+    queryFn: () => aiApi.getPublishedPosts({
       search: search || undefined,
       limit: 80,
     }).then(res => res.data.data),
@@ -974,6 +1051,8 @@ function CreationsGallery({
     return true
   })
   const grouped = groupBy(visibleGenerations, item => monthLabel(item.created_at))
+  const publishedPosts = useMemo(() => publishedData?.posts || [], [publishedData?.posts])
+  const groupedPublished = groupBy(publishedPosts, item => monthLabel(item.created_at))
 
   const favoriteMutation = useMutation({
     mutationFn: (generation) => aiApi.favoriteGeneration(generation.id, !generation.is_favorite),
@@ -991,11 +1070,93 @@ function CreationsGallery({
     onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Delete failed' }),
   })
 
-  const publishMutation = useMutation({
-    mutationFn: ({ generation, payload }) => aiApi.publishGeneration(generation.id, payload),
+  const deletePublishedMutation = useMutation({
+    mutationFn: (id) => aiApi.deletePublishedPost(id),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ai-published-posts'] })
+      pushToast?.({ type: 'success', title: 'Published post deleted' })
+    },
+    onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Delete failed' }),
+  })
+
+  const publishMutation = useMutation({
+    mutationFn: async ({ generation, payload }) => {
+      const destinationPlatforms = Array.isArray(payload?.destination_platforms) ? payload.destination_platforms : []
+      const { destination_platforms: _destination_platforms, ...galleryPayload } = payload || {}
+      const canSaveToGallery = isPublishableGeneration(generation)
+      const publishedPost = canSaveToGallery
+        ? (await aiApi.publishGeneration(generation.id, galleryPayload)).data.data.post
+        : null
+
+      if (!canSaveToGallery && !destinationPlatforms.length) {
+        throw new Error('Choose at least one social channel for text-only publishes.')
+      }
+
+      if (destinationPlatforms.length > 0) {
+        try {
+          const mediaUrl = imageUrlFor(generation)
+          const isVideo = isVideoGeneration(generation)
+          const contentType = isVideo
+            ? (destinationPlatforms.includes('instagram') ? 'reel' : 'video')
+            : 'image'
+
+          const socialPostRes = await socialApi.createPost({
+            caption: galleryPayload.caption || generation.caption || promptFor(generation) || '',
+            hashtags: Array.isArray(galleryPayload.tags) ? galleryPayload.tags : [],
+            content_type: contentType,
+            target_platforms: destinationPlatforms,
+            metadata: {
+              source: 'mint_ai',
+              generation_id: generation.id,
+              published_post_id: publishedPost?.id || null,
+            },
+          })
+
+          const socialPost = socialPostRes.data.data.post
+          if (mediaUrl) {
+            await socialApi.addMedia(socialPost.id, {
+              media_items: [{
+                media_url: mediaUrl,
+                media_type: isVideo ? 'video' : 'image',
+                mime_type: isVideo ? 'video/mp4' : 'image/png',
+              }],
+            })
+          }
+          await socialApi.publishPost(socialPost.id)
+          return {
+            publishedPost,
+            sharedToSocial: true,
+          }
+        } catch (socialErr) {
+          if (!publishedPost) {
+            throw socialErr
+          }
+          return {
+            publishedPost,
+            sharedToSocial: false,
+            socialError: socialErr.response?.data?.message || socialErr.message || 'Please try again.',
+          }
+        }
+      }
+
+      return {
+        publishedPost,
+        sharedToSocial: false,
+      }
+    },
+    onSuccess: (result) => {
       setPublishTarget(null)
-      pushToast?.({ type: 'success', title: 'Image published' })
+      queryClient.invalidateQueries({ queryKey: ['ai-published-posts'] })
+      queryClient.invalidateQueries({ queryKey: ['social-posts'] })
+      if (result?.publishedPost && result.sharedToSocial) {
+        pushToast?.({ title: 'Published and shared', body: 'Your creation is now in Mint AI Published and on the selected social channel(s).', icon: 'check' })
+        return
+      }
+      if (result?.publishedPost && !result.sharedToSocial) {
+        pushToast?.({ title: 'Saved to Mint AI', body: result.socialError ? `Social sharing failed: ${result.socialError}` : 'Your creation was saved to the Published tab.', icon: 'check' })
+        return
+      }
+      pushToast?.({ title: 'Shared to social', body: 'Your post was published to the selected channel(s).', icon: 'check' })
     },
     onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Publish failed' }),
   })
@@ -1045,7 +1206,8 @@ function CreationsGallery({
     <aside className={`creations-gallery ${gallerySizeClass}`}>
       <header className="creations-toolbar">
         <div className="creations-tabs">
-          <button className="active">Creations</button>
+          <button className={galleryTab === 'creations' ? 'active' : ''} onClick={() => setGalleryTab('creations')}>Creations</button>
+          <button className={galleryTab === 'published' ? 'active' : ''} onClick={() => setGalleryTab('published')}>Published</button>
           <button disabled>My templates</button>
           <button disabled>Academy</button>
         </div>
@@ -1113,7 +1275,7 @@ function CreationsGallery({
         )}
       </header>
 
-      {selectedIds.length > 0 && (
+      {galleryTab === 'creations' && selectedIds.length > 0 && (
         <div className="creations-bulk-bar">
           <span>{selectedIds.length} selected</span>
           <button className="btn ghost sm" onClick={() => selectedGenerations.forEach(item => downloadFile(imageUrlFor(item), generationDownloadName(item)))}>
@@ -1127,38 +1289,67 @@ function CreationsGallery({
       )}
 
       <div className={`creations-feed ${viewMode} ${ratioMode}`}>
-        {isLoading && <div className="creation-gallery-empty">Loading creations...</div>}
-        {!isLoading && visibleGenerations.length === 0 && (
-          <div className="creation-gallery-empty">
-            <Icon name="image" size={26} />
-            <strong>No creations yet</strong>
-            <span>Generate an image and it will appear here instantly.</span>
-          </div>
+        {galleryTab === 'creations' ? (
+          <>
+            {isLoading && <div className="creation-gallery-empty">Loading creations...</div>}
+            {!isLoading && visibleGenerations.length === 0 && (
+              <div className="creation-gallery-empty">
+                <Icon name="image" size={26} />
+                <strong>No creations yet</strong>
+                <span>Generate an image and it will appear here instantly.</span>
+              </div>
+            )}
+            {Object.entries(grouped).map(([month, items]) => (
+              <section key={month} className="creation-month-group">
+                <h3>{month}</h3>
+                <div className={`creation-grid ${viewMode}`}>
+                  {items.map(generation => (
+                    <CreationCard
+                      key={generation.id}
+                      generation={generation}
+                      progress={aiProgress?.[generation.id]}
+                      selected={selectedIds.includes(generation.id)}
+                      onSelect={toggleSelect}
+                      onOpen={setInspector}
+                      onFavorite={(item) => favoriteMutation.mutate(item)}
+                      onDelete={(id) => deleteMutation.mutate(id)}
+                      onDownload={(item) => downloadFile(imageUrlFor(item), generationDownloadName(item))}
+                      onReuse={reuseGeneration}
+                      onPublish={setPublishTarget}
+                      viewMode={viewMode}
+                      ratioMode={ratioMode}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </>
+        ) : (
+          <>
+            {publishedLoading && <div className="creation-gallery-empty">Loading published posts...</div>}
+            {!publishedLoading && publishedPosts.length === 0 && (
+              <div className="creation-gallery-empty">
+                <Icon name="send" size={26} />
+                <strong>No published posts yet</strong>
+                <span>Publish a creation and it will appear here instantly.</span>
+              </div>
+            )}
+            {Object.entries(groupedPublished).map(([month, items]) => (
+              <section key={month} className="creation-month-group">
+                <h3>{month}</h3>
+                <div className={`creation-grid ${viewMode}`}>
+                  {items.map(post => (
+                    <PublishedCard
+                      key={post.id}
+                      post={post}
+                      onDelete={(id) => deletePublishedMutation.mutate(id)}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </>
         )}
-        {Object.entries(grouped).map(([month, items]) => (
-          <section key={month} className="creation-month-group">
-            <h3>{month}</h3>
-            <div className={`creation-grid ${viewMode}`}>
-              {items.map(generation => (
-                <CreationCard
-                  key={generation.id}
-                  generation={generation}
-                  progress={aiProgress?.[generation.id]}
-                  selected={selectedIds.includes(generation.id)}
-                  onSelect={toggleSelect}
-                  onOpen={setInspector}
-                  onFavorite={(item) => favoriteMutation.mutate(item)}
-                  onDelete={(id) => deleteMutation.mutate(id)}
-                  onDownload={(item) => downloadFile(imageUrlFor(item), generationDownloadName(item))}
-                  onReuse={reuseGeneration}
-                  onPublish={setPublishTarget}
-                  viewMode={viewMode}
-                  ratioMode={ratioMode}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
       </div>
 
       {inspector && (
@@ -1176,6 +1367,7 @@ function CreationsGallery({
       {publishTarget && (
         <PublishPostModal
           generation={publishTarget}
+          accounts={accounts}
           publishing={publishMutation.isPending}
           onClose={() => setPublishTarget(null)}
           onPublish={(payload) => publishMutation.mutate({ generation: publishTarget, payload })}
@@ -1250,6 +1442,15 @@ export default function MintAI() {
   const folders = useMemo(
     () => mintboxData?.folders || mintboxData?.projects || mintboxData?.items || [],
     [mintboxData?.folders, mintboxData?.items, mintboxData?.projects]
+  )
+
+  const { data: socialAccountsData } = useQuery({
+    queryKey: ['social-accounts'],
+    queryFn: () => socialApi.getAccounts().then(res => res.data.data),
+  })
+  const socialAccounts = useMemo(
+    () => socialAccountsData?.accounts || [],
+    [socialAccountsData?.accounts]
   )
 
   useEffect(() => {
@@ -1516,10 +1717,53 @@ export default function MintAI() {
           setSeed={setSeed}
           setFixedSeed={setFixedSeed}
           setReferences={setReferences}
+          accounts={socialAccounts}
           optimisticGenerations={optimisticGenerations}
           setOptimisticGenerations={setOptimisticGenerations}
         />
       </div>
     </div>
+  )
+}
+
+function PublishedCard({ post, onDelete }) {
+  const url = post.media_url
+  const isVideo = post.content_type === 'video'
+  const platforms = Array.isArray(post.destination_platforms) ? post.destination_platforms : []
+
+  return (
+    <article className="creation-card grid">
+      {url ? (
+        isVideo ? (
+          <video src={url} controls playsInline />
+        ) : (
+          <img src={url} alt={post.caption || 'Published creation'} />
+        )
+      ) : (
+        <div className="creation-empty-preview"><Icon name="image" size={22} /></div>
+      )}
+      <div className="creation-card-overlay">
+        <div className="creation-bottom-left">
+          <span>{isVideo ? 'Video' : 'Image'}</span>
+          <span>{platforms.length ? platforms.join(' • ') : 'Gallery'}</span>
+        </div>
+        <div className="creation-bottom-right">
+          <button
+            type="button"
+            className="btn dark sm"
+            onClick={(event) => {
+              event.stopPropagation()
+              onDelete(post.id)
+            }}
+          >
+            <Icon name="trash" size={13} />
+          </button>
+        </div>
+      </div>
+      <div className="creation-list-meta">
+        <strong>{post.caption || 'Published creation'}</strong>
+        <small>{Array.isArray(post.tags) && post.tags.length ? post.tags.join(', ') : 'No tags yet'}</small>
+      </div>
+    </article>
   )
 }

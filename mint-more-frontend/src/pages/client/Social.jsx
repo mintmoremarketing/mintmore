@@ -819,6 +819,23 @@ export default function Social() {
     },
   })
 
+  const deletePostMutation = useMutation({
+    mutationFn: (id) => socialApi.deletePost(id),
+    onSuccess: () => {
+      pushToast({ title: 'Post deleted', icon: 'trash' })
+      queryClient.invalidateQueries({ queryKey: ['social-posts'] })
+      queryClient.invalidateQueries({ queryKey: ['social-analytics-summary'] })
+    },
+    onError: (err) => {
+      pushToast({
+        title: 'Delete failed',
+        body: err.response?.data?.message || err.message,
+        tone: 'amber',
+        icon: 'x',
+      })
+    },
+  })
+
   const posts = postsData?.posts || []
   const summary = analyticsData?.summary
   const accountTotals = useMemo(() => connectedAccounts.reduce((totals, account) => {
@@ -1102,6 +1119,16 @@ export default function Social() {
                             Edit
                           </button>
                         )}
+                        <button
+                          className="btn ghost"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deletePostMutation.mutate(post.id)
+                          }}
+                        >
+                          <Icon name="trash" size={12} />
+                        </button>
                       </div>
                     </div>
 
