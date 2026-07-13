@@ -28,6 +28,26 @@ const safeNumber = (value, fallback = null) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const inferContentTypeFromMedia = (currentType, mediaItems = []) => {
+  const normalizedType = String(currentType || '').toLowerCase();
+  const items = Array.isArray(mediaItems) ? mediaItems.filter(Boolean) : [];
+  const mediaTypes = items.map((item) => String(item.media_type || '').toLowerCase());
+
+  if (normalizedType === 'carousel' || (items.length > 1 && mediaTypes.every((type) => type === 'image'))) {
+    return 'carousel';
+  }
+  if (normalizedType === 'reel' || normalizedType === 'short') {
+    return normalizedType;
+  }
+  if (mediaTypes.includes('video')) {
+    return 'video';
+  }
+  if (items.length === 1) {
+    return mediaTypes[0] === 'video' ? 'video' : 'image';
+  }
+  return normalizedType || 'text';
+};
+
 const resolveFacebookPageAccessToken = async (pageId, candidateToken) => {
   if (!pageId || !candidateToken) return candidateToken || null;
 
@@ -62,16 +82,51 @@ const deleteRemotePublishedPost = async (platformRow) => {
   }
 
   if (platformRow.platform === 'facebook' || platformRow.platform === 'instagram') {
-    try {
-      await axios.delete(`${FB_API}/${platformRow.platform_post_id}`, {
-        params: { access_token: accessToken },
-      });
-    } catch (err) {
-      const metaMessage = err.response?.data?.error?.message || err.message;
-      const metaCode = err.response?.data?.error?.code;
-      throw new Error(`Meta delete failed (${metaCode || 'no-code'}): ${metaMessage}`);
+    const candidateIds = [platformRow.platform_post_id];
+
+    if (platformRow.platform === 'facebook') {
+      try {
+        const nodeRes = await axios.get(`${FB_API}/${platformRow.platform_post_id}`, {
+          params: {
+            fields: 'id,post_id,permalink_url',
+            access_token: accessToken,
+          },
+        });
+        const node = nodeRes.data || {};
+        if (node.post_id && node.post_id !== platformRow.platform_post_id) {
+          candidateIds.unshift(node.post_id);
+        }
+        if (node.id && node.id !== platformRow.platform_post_id) {
+          candidateIds.unshift(node.id);
+        }
+      } catch (lookupErr) {
+        logger.debug('Facebook delete target lookup skipped', {
+          pageId: platformRow.page_id,
+          platformPostId: platformRow.platform_post_id,
+          error: lookupErr.message,
+        });
+      }
     }
-    return;
+
+    let lastError = null;
+    for (const candidateId of [...new Set(candidateIds.filter(Boolean))]) {
+      try {
+        await axios.delete(`${FB_API}/${candidateId}`, {
+          params: { access_token: accessToken },
+        });
+        return;
+      } catch (err) {
+        lastError = err;
+        const metaCode = err.response?.data?.error?.code;
+        if (platformRow.platform !== 'facebook' || metaCode !== 100) {
+          break;
+        }
+      }
+    }
+
+    const metaMessage = lastError?.response?.data?.error?.message || lastError?.message || 'Unknown delete error';
+    const metaCode = lastError?.response?.data?.error?.code;
+    throw new Error(`Meta delete failed (${metaCode || 'no-code'}): ${metaMessage}`);
   }
 
   logger.warn('Remote delete skipped for unsupported platform', {
@@ -849,7 +904,7 @@ const createPost = async (userId, data) => {
 
 const addMediaToPost = async (postId, userId, mediaItems) => {
   const postResult = await query(
-    `SELECT id, status
+    `SELECT id, status, content_type
      FROM social_posts
      WHERE id = $1 AND user_id = $2`,
     [postId, userId]
@@ -891,6 +946,20 @@ const addMediaToPost = async (postId, userId, mediaItems) => {
     );
     inserted.push(res.rows[0]);
   }
+
+  const inferredType = inferContentTypeFromMedia(post.content_type, inserted.map((item) => ({
+    media_type: item.media_type,
+  })));
+
+  if (inferredType && inferredType !== post.content_type) {
+    await query(
+      `UPDATE social_posts
+       SET content_type = $1
+       WHERE id = $2 AND user_id = $3`,
+      [inferredType, postId, userId]
+    );
+  }
+
   return inserted;
 };
 
@@ -1342,20 +1411,41 @@ const getMyPosts = async (userId, { page = 1, limit = 20, status, platform } = {
   const result = await query(
     `SELECT
        sp.*,
-       array_agg(
-         json_build_object(
-           'platform', spp.platform,
-           'status', spp.status,
-           'platform_post_url', spp.platform_post_url,
-           'error_message', spp.error_message,
-           'published_at', spp.published_at,
-           'source', spp.source
+       COALESCE((
+         SELECT json_agg(
+           json_build_object(
+             'platform', spp.platform,
+             'status', spp.status,
+             'platform_post_url', spp.platform_post_url,
+             'error_message', spp.error_message,
+             'published_at', spp.published_at,
+             'source', spp.source
+           )
+           ORDER BY spp.published_at NULLS LAST, spp.id
          )
-       ) FILTER (WHERE spp.id IS NOT NULL) AS platform_statuses
+         FROM social_post_platforms spp
+         WHERE spp.post_id = sp.id
+       ), '[]'::json) AS platform_statuses,
+       COALESCE((
+         SELECT json_agg(
+           json_build_object(
+             'media_url', spm.media_url,
+             'media_type', spm.media_type,
+             'mime_type', spm.mime_type,
+             'duration_seconds', spm.duration_seconds,
+             'width', spm.width,
+             'height', spm.height,
+             'thumbnail_url', spm.thumbnail_url,
+             'alt_text', spm.alt_text,
+             'sort_order', spm.sort_order
+           )
+           ORDER BY spm.sort_order
+         )
+         FROM social_post_media spm
+         WHERE spm.post_id = sp.id
+       ), '[]'::json) AS media
      FROM social_posts sp
-     LEFT JOIN social_post_platforms spp ON spp.post_id = sp.id
      WHERE sp.user_id = $1 ${whereExtra}
-     GROUP BY sp.id
      ORDER BY COALESCE(sp.published_at, sp.created_at) DESC
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset]
@@ -1380,31 +1470,38 @@ const getPostById = async (postId, userId, role) => {
   const result = await query(
     `SELECT
        sp.*,
-       array_agg(
-         json_build_object(
-           'platform', spp.platform,
-           'status', spp.status,
-           'platform_post_id', spp.platform_post_id,
-           'platform_post_url', spp.platform_post_url,
-           'error_message', spp.error_message,
-           'views_count', spp.views_count,
-           'likes_count', spp.likes_count,
-           'published_at', spp.published_at,
-           'source', spp.source
+       COALESCE((
+         SELECT json_agg(
+           json_build_object(
+             'platform', spp.platform,
+             'status', spp.status,
+             'platform_post_id', spp.platform_post_id,
+             'platform_post_url', spp.platform_post_url,
+             'error_message', spp.error_message,
+             'views_count', spp.views_count,
+             'likes_count', spp.likes_count,
+             'published_at', spp.published_at,
+             'source', spp.source
+           )
+           ORDER BY spp.published_at NULLS LAST, spp.id
          )
-       ) FILTER (WHERE spp.id IS NOT NULL) AS platform_statuses,
-       array_agg(
-         json_build_object(
-           'media_url', spm.media_url,
-           'media_type', spm.media_type,
-           'sort_order', spm.sort_order
-         ) ORDER BY spm.sort_order
-       ) FILTER (WHERE spm.id IS NOT NULL) AS media
+         FROM social_post_platforms spp
+         WHERE spp.post_id = sp.id
+       ), '[]'::json) AS platform_statuses,
+       COALESCE((
+         SELECT json_agg(
+           json_build_object(
+             'media_url', spm.media_url,
+             'media_type', spm.media_type,
+             'sort_order', spm.sort_order
+           )
+           ORDER BY spm.sort_order
+         )
+         FROM social_post_media spm
+         WHERE spm.post_id = sp.id
+       ), '[]'::json) AS media
      FROM social_posts sp
-     LEFT JOIN social_post_platforms spp ON spp.post_id = sp.id
-     LEFT JOIN social_post_media spm ON spm.post_id = sp.id
-     WHERE sp.id = $1
-     GROUP BY sp.id`,
+     WHERE sp.id = $1`,
     [postId]
   );
 

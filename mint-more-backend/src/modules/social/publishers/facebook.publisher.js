@@ -3,6 +3,34 @@ const logger = require('../../../utils/logger');
 
 const FB_API = 'https://graph.facebook.com/v19.0';
 
+const inferPublishContentType = (post, media) => {
+  const contentType = String(post?.content_type || '').toLowerCase();
+  const mediaItems = Array.isArray(media) ? media.filter(Boolean) : [];
+  const mediaTypes = mediaItems.map((item) => String(item.media_type || '').toLowerCase());
+
+  if (contentType === 'carousel') {
+    return 'carousel';
+  }
+
+  if (contentType === 'reel' || contentType === 'short') {
+    return contentType;
+  }
+
+  if (mediaItems.length > 1 && mediaTypes.every((type) => type === 'image')) {
+    return 'carousel';
+  }
+
+  if (mediaTypes.includes('video')) {
+    return 'video';
+  }
+
+  if (mediaItems.length === 1) {
+    return mediaTypes[0] === 'video' ? 'video' : 'image';
+  }
+
+  return contentType || 'text';
+};
+
 /**
  * Publish a post to a Facebook Page.
  * Supports: text, single image, single video, link posts.
@@ -10,6 +38,7 @@ const FB_API = 'https://graph.facebook.com/v19.0';
 const publishToFacebook = async (account, post, media) => {
   const pageId    = account.page_id;
   const pageToken = account.access_token;
+  const effectiveContentType = inferPublishContentType(post, media);
 
   if (!pageId) {
     throw new Error('No Facebook Page ID found for this account. Please reconnect.');
@@ -18,7 +47,7 @@ const publishToFacebook = async (account, post, media) => {
   try {
     let response;
 
-    if (['video', 'reel', 'short'].includes(post.content_type) && media.length > 0) {
+    if (['video', 'reel', 'short'].includes(effectiveContentType) && media.length > 0) {
       // ── Video post ──────────────────────────────────────────────────────────
       const videoMedia = media[0];
 
@@ -35,9 +64,12 @@ const publishToFacebook = async (account, post, media) => {
         }
       );
 
-      response = { id: uploadRes.data.id };
+      response = {
+        id: uploadRes.data.id,
+        post_id: uploadRes.data.post_id || uploadRes.data.id,
+      };
 
-    } else if (post.content_type === 'carousel' && media.length > 1) {
+    } else if (effectiveContentType === 'carousel' && media.length > 1) {
       // ── Carousel / multi-image post ─────────────────────────────────────────
       // Step 1: Upload each image as a child
       const childIds = await Promise.all(
@@ -71,7 +103,7 @@ const publishToFacebook = async (account, post, media) => {
       );
       response = res.data;
 
-    } else if (media.length === 1 && post.content_type === 'image') {
+    } else if (media.length === 1 && effectiveContentType === 'image') {
       // ── Single image post ───────────────────────────────────────────────────
       const res = await axios.post(
         `${FB_API}/${pageId}/photos`,
@@ -84,7 +116,10 @@ const publishToFacebook = async (account, post, media) => {
           },
         }
       );
-      response = res.data;
+      response = {
+        ...res.data,
+        post_id: res.data.post_id || res.data.id,
+      };
 
     } else {
       // ── Text / link post ────────────────────────────────────────────────────
@@ -101,7 +136,7 @@ const publishToFacebook = async (account, post, media) => {
       response = res.data;
     }
 
-    const postId  = response.id || response.post_id;
+    const postId  = response.post_id || response.id;
     const postUrl = `https://www.facebook.com/${postId}`;
 
     logger.info('Facebook publish success', { postId, pageId });

@@ -17,6 +17,206 @@ const PLATFORM_META = {
 
 const INSTAGRAM_CONTENT_TYPES = ['image', 'carousel', 'reel']
 
+const inferContentTypeFromMediaItems = (items = []) => {
+  const mediaItems = Array.isArray(items) ? items.filter(Boolean) : []
+  const mediaTypes = mediaItems.map(item => String(item.media_type || '').toLowerCase())
+
+  if (mediaItems.length > 1 && mediaTypes.every(type => type === 'image')) return 'carousel'
+  if (mediaTypes.includes('video')) return 'video'
+  if (mediaItems.length === 1) return mediaTypes[0] === 'video' ? 'video' : 'image'
+  return 'text'
+}
+
+const getMediaPreviewKind = (item) => {
+  const type = String(item?.media_type || '').toLowerCase()
+  return type.startsWith('video') ? 'video' : 'image'
+}
+
+const MediaTile = ({ item, selected, onClick, compact = false }) => {
+  const kind = getMediaPreviewKind(item)
+  const previewUrl = item?.media_url
+  const fileName = item?.original_name || item?.name || 'Media asset'
+  const subtitle = [item?.job_title, item?.mime_type || (kind === 'video' ? 'Video' : 'Image')].filter(Boolean).join(' • ')
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="card"
+      style={{
+        padding: 0,
+        overflow: 'hidden',
+        border: `1px solid ${selected ? 'var(--mint-500)' : 'var(--hairline)'}`,
+        boxShadow: selected ? '0 0 0 1px rgba(34,197,94,0.12)' : 'none',
+        cursor: 'pointer',
+        textAlign: 'left',
+        background: 'var(--paper)',
+      }}
+      title={fileName}
+    >
+      <div style={{
+        aspectRatio: compact ? '1 / 1' : '4 / 3',
+        background: 'var(--paper-tint)',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {previewUrl ? (
+          kind === 'video' ? (
+            <video
+              src={previewUrl}
+              muted
+              playsInline
+              preload="metadata"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <img
+              src={previewUrl}
+              alt={fileName}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          )
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: 'var(--ink-400)' }}>
+            <Icon name={kind === 'video' ? 'video' : 'image'} />
+          </div>
+        )}
+        {selected && (
+          <div style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            background: 'var(--mint-500)',
+            display: 'grid',
+            placeItems: 'center',
+            color: 'white',
+            boxShadow: '0 4px 14px rgba(34,197,94,0.28)',
+          }}>
+            <Icon name="check" size={12} strokeWidth={3} />
+          </div>
+        )}
+        <div style={{
+          position: 'absolute',
+          left: 8,
+          bottom: 8,
+          padding: '4px 7px',
+          borderRadius: 999,
+          background: 'rgba(15,23,42,0.76)',
+          color: 'white',
+          fontSize: 10.5,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+        }}>
+          <Icon name={kind === 'video' ? 'video' : 'image'} size={10} />
+          {kind === 'video' ? 'Video' : 'Image'}
+        </div>
+      </div>
+      <div style={{ padding: compact ? '8px 10px' : '10px 12px' }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {fileName}
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {subtitle}
+        </div>
+      </div>
+    </button>
+  )
+}
+
+const PostMediaPreview = ({ media = [] }) => {
+  const items = Array.isArray(media) ? media.filter(Boolean) : []
+  if (!items.length) return null
+
+  if (items.length === 1) {
+    const item = items[0]
+    const kind = getMediaPreviewKind(item)
+    return (
+      <div style={{
+        borderRadius: 14,
+        overflow: 'hidden',
+        background: 'var(--paper-tint)',
+        border: '1px solid var(--hairline)',
+        marginBottom: 12,
+      }}>
+        {kind === 'video' ? (
+          <video
+            src={item.media_url}
+            controls
+            muted
+            playsInline
+            preload="metadata"
+            style={{ width: '100%', maxHeight: 320, objectFit: 'cover', display: 'block', background: '#111827' }}
+          />
+        ) : (
+          <img
+            src={item.media_url}
+            alt=""
+            style={{ width: '100%', maxHeight: 320, objectFit: 'cover', display: 'block' }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: items.length > 3 ? 'repeat(3, minmax(0, 1fr))' : `repeat(${Math.min(items.length, 2)}, minmax(0, 1fr))`,
+      gap: 8,
+      marginBottom: 12,
+    }}>
+      {items.slice(0, 6).map((item, index) => {
+        const kind = getMediaPreviewKind(item)
+        return (
+          <div
+            key={`${item.media_url}-${index}`}
+            style={{
+              position: 'relative',
+              borderRadius: 12,
+              overflow: 'hidden',
+              background: 'var(--paper-tint)',
+              border: '1px solid var(--hairline)',
+              aspectRatio: '1 / 1',
+            }}
+          >
+            {kind === 'video' ? (
+              <video
+                src={item.media_url}
+                muted
+                playsInline
+                preload="metadata"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#111827' }}
+              />
+            ) : (
+              <img
+                src={item.media_url}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            )}
+            <div style={{
+              position: 'absolute',
+              left: 8,
+              top: 8,
+              padding: '3px 7px',
+              borderRadius: 999,
+              background: 'rgba(15,23,42,0.75)',
+              color: 'white',
+              fontSize: 10.5,
+            }}>
+              {index + 1}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 const normalizePlatforms = (value) => {
   if (Array.isArray(value)) return value.filter(Boolean)
   if (!value) return []
@@ -407,7 +607,11 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
     if (!initialPost) return
     setCaption(initialPost.caption || '')
     setHashtags(Array.isArray(initialPost.hashtags) ? initialPost.hashtags.join(' ') : '')
-    setContentType(initialPost.content_type || 'text')
+    setContentType(
+      initialPost.content_type && initialPost.content_type !== 'text'
+        ? initialPost.content_type
+        : inferContentTypeFromMediaItems(existingMedia)
+    )
     setSelectedPlatforms(normalizePlatforms(initialPost.target_platforms))
     setScheduleDate(initialPost.publish_at ? new Date(initialPost.publish_at).toISOString().slice(0, 16) : '')
     setMediaFiles([])
@@ -564,100 +768,96 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
             />
           </div>
 
-          {contentType !== 'text' && (
-            <div className="field">
-              <label className="field-label">Media</label>
-              <div
-                style={{
-                  height: 100, borderRadius: 'var(--radius-md)',
-                  border: '2px dashed var(--hairline)', background: 'var(--paper-tint)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', color: 'var(--ink-400)',
-                }}
-                onClick={() => document.getElementById('social-media-upload')?.click()}
-              >
-                {mediaFiles.length ? (
-                  <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
-                    <Icon name="check" size={13} style={{ color: 'var(--mint-600)' }} /> {mediaFiles.length} file{mediaFiles.length > 1 ? 's' : ''} selected
-                  </span>
-                ) : existingMediaUrls.length && !existingMediaTouched ? (
-                  <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
-                    <Icon name="image" size={13} /> Existing media attached to this post
-                  </span>
-                ) : (
-                  <div style={{ textAlign: 'center' }}>
-                    <Icon name="upload" size={20} />
-                    <div style={{ fontSize: 12, marginTop: 6 }}>
-                      {contentType === 'carousel' ? 'Upload multiple JPG, PNG, or WebP images' : 'Upload a JPG, PNG, or WebP'}
-                    </div>
+          <div className="field">
+            <label className="field-label">Media</label>
+            <div
+              style={{
+                height: 100, borderRadius: 'var(--radius-md)',
+                border: '2px dashed var(--hairline)', background: 'var(--paper-tint)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', color: 'var(--ink-400)',
+              }}
+              onClick={() => document.getElementById('social-media-upload')?.click()}
+            >
+              {mediaFiles.length ? (
+                <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
+                  <Icon name="check" size={13} style={{ color: 'var(--mint-600)' }} /> {mediaFiles.length} file{mediaFiles.length > 1 ? 's' : ''} selected
+                </span>
+              ) : existingMediaUrls.length && !existingMediaTouched ? (
+                <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
+                  <Icon name="image" size={13} /> Existing media attached to this post
+                </span>
+              ) : (
+                <div style={{ textAlign: 'center' }}>
+                  <Icon name="upload" size={20} />
+                  <div style={{ fontSize: 12, marginTop: 6 }}>
+                    {contentType === 'carousel' ? 'Upload multiple images for a carousel' : 'Upload an image or video'}
                   </div>
-                )}
-              </div>
-              <input
-                id="social-media-upload"
-                type="file"
-                accept={contentType === 'video' || contentType === 'reel' ? 'video/mp4,video/webm,video/quicktime' : 'image/jpeg,image/png,image/webp'}
-                multiple={contentType === 'carousel'}
-                style={{ display: 'none' }}
-                onChange={e => {
-                  const files = Array.from(e.target.files || [])
-                  setMediaFiles(contentType === 'carousel' ? files : files.slice(0, 1))
-                  setMintboxMedia([])
-                  setExistingMediaTouched(true)
-                }}
-              />
-              <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 7 }}>
-                Use Mintbox below for reusable assets and carousel-ready reference media.
-              </div>
-              {mediaLibrary.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <div className="field-label" style={{ marginBottom: 7 }}>Or choose from Mintbox</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 7, maxHeight: 160, overflowY: 'auto' }}>
-                    {mediaLibrary.map(item => (
-                      <button
-                        type="button"
-                        key={item.id}
-                        className="btn ghost"
-                        onClick={() => {
-                          if (contentType === 'carousel') {
-                            setMintboxMedia(current =>
-                              current.some(existing => existing.id === item.id)
-                                ? current.filter(existing => existing.id !== item.id)
-                                : [...current, item]
-                            )
-                          } else {
-                            setMintboxMedia([item])
-                          }
-                          setMediaFiles([])
-                          setExistingMediaTouched(true)
-                        }}
-                        style={{
-                          justifyContent: 'flex-start',
-                          borderColor: mintboxMedia.some(existing => existing.id === item.id) ? 'var(--mint-500)' : undefined,
-                          minWidth: 0,
-                        }}
-                        title={`${item.job_title} - ${item.original_name}`}
-                      >
-                        <Icon name={item.media_type === 'video' ? 'video' : 'image'} size={13} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.original_name}</span>
-                        {contentType === 'carousel' && mintboxMedia.some(existing => existing.id === item.id) && <Icon name="check" size={12} style={{ marginLeft: 'auto' }} />}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {contentType === 'carousel' && mediaFiles.length > 1 && (
-                <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 8 }}>
-                  Carousel mode supports up to 10 selected images.
-                </div>
-              )}
-              {instagramSelected && (
-                <div style={{ fontSize: 12, color: instagramContentBlocked ? 'var(--rose)' : 'var(--ink-500)', marginTop: 8 }}>
-                  Instagram-only posts work best as images, carousels, or reels. Pick the Instagram account in step 2 if that is the destination you want.
                 </div>
               )}
             </div>
-          )}
+            <input
+              id="social-media-upload"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+              multiple={contentType === 'carousel'}
+              style={{ display: 'none' }}
+              onChange={e => {
+                const files = Array.from(e.target.files || [])
+                const picked = contentType === 'carousel' ? files : files.slice(0, 1)
+                setMediaFiles(picked)
+                if (picked.length) {
+                  setContentType(inferContentTypeFromMediaItems(picked))
+                }
+                setMintboxMedia([])
+                setExistingMediaTouched(true)
+              }}
+            />
+            <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 7 }}>
+              Use Mintbox below for reusable assets and carousel-ready reference media.
+            </div>
+            {mediaLibrary.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div className="field-label" style={{ marginBottom: 7 }}>Or choose from Mintbox</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, maxHeight: 260, overflowY: 'auto', paddingRight: 2 }}>
+                  {mediaLibrary.map(item => (
+                    <MediaTile
+                      key={item.id}
+                      item={item}
+                      selected={mintboxMedia.some(existing => existing.id === item.id)}
+                      onClick={() => {
+                        const isAlreadySelected = mintboxMedia.some(existing => existing.id === item.id)
+                        const nextSelection = contentType === 'carousel'
+                          ? (isAlreadySelected
+                            ? mintboxMedia.filter(existing => existing.id !== item.id)
+                            : [...mintboxMedia, item])
+                          : [item]
+
+                        setMintboxMedia(nextSelection)
+                        setContentType(
+                          contentType === 'carousel'
+                            ? inferContentTypeFromMediaItems(nextSelection)
+                            : getMediaPreviewKind(item)
+                        )
+                        setMediaFiles([])
+                        setExistingMediaTouched(true)
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {contentType === 'carousel' && mediaFiles.length > 1 && (
+              <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 8 }}>
+                Carousel mode supports up to 10 selected images.
+              </div>
+            )}
+            {instagramSelected && (
+              <div style={{ fontSize: 12, color: instagramContentBlocked ? 'var(--rose)' : 'var(--ink-500)', marginTop: 8 }}>
+                Instagram-only posts work best as images, carousels, or reels. Pick the Instagram account in step 2 if that is the destination you want.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1090,6 +1290,7 @@ export default function Social() {
               {posts.map(post => {
                 const isEditable = ['draft', 'scheduled', 'failed'].includes(post.status)
                 const imported = post.metadata?.source === 'historical_import' || post.platform_statuses?.some(s => s.source === 'historical_import')
+                const mediaItems = Array.isArray(post.media) ? post.media.filter(Boolean) : []
                 return (
                   <div
                     key={post.id}
@@ -1103,8 +1304,10 @@ export default function Social() {
                       borderRadius: 'var(--radius-lg)',
                       padding: 18,
                       cursor: isEditable ? 'pointer' : 'default',
-                    }}
-                  >
+                      }}
+                    >
+                    <PostMediaPreview media={mediaItems} />
+
                     <div className="row between" style={{ marginBottom: 10, gap: 12 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 500, flex: 1, minWidth: 0 }}>
                         {post.caption?.slice(0, 80)}{post.caption?.length > 80 ? '...' : ''}

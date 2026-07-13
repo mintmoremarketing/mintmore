@@ -3,6 +3,26 @@ const logger = require('../../../utils/logger');
 
 const FB_API = 'https://graph.facebook.com/v19.0';
 
+const inferPublishContentType = (post, media) => {
+  const contentType = String(post?.content_type || '').toLowerCase();
+  const mediaItems = Array.isArray(media) ? media.filter(Boolean) : [];
+  const mediaTypes = mediaItems.map((item) => String(item.media_type || '').toLowerCase());
+
+  if (contentType === 'carousel' || (mediaItems.length > 1 && mediaTypes.every((type) => type === 'image'))) {
+    return 'carousel';
+  }
+  if (contentType === 'reel' || contentType === 'short') {
+    return 'reel';
+  }
+  if (mediaTypes.includes('video')) {
+    return mediaItems.length > 1 ? 'carousel' : 'video';
+  }
+  if (mediaItems.length === 1) {
+    return 'image';
+  }
+  return contentType || 'image';
+};
+
 /**
  * Publish to Instagram Business Account via Facebook Graph API.
  *
@@ -15,6 +35,7 @@ const FB_API = 'https://graph.facebook.com/v19.0';
 const publishToInstagram = async (account, post, media) => {
   const igAccountId = account.instagram_account_id;
   const accessToken = account.access_token;
+  const effectiveContentType = inferPublishContentType(post, media);
 
   if (!igAccountId) {
     throw new Error(
@@ -28,7 +49,7 @@ const publishToInstagram = async (account, post, media) => {
   try {
     let containerId;
 
-    if (post.content_type === 'carousel' && media.length > 1) {
+    if (effectiveContentType === 'carousel' && media.length > 1) {
       // ── Carousel ────────────────────────────────────────────────────────────
       // Step 1: Create child containers
       const childIds = await Promise.all(
@@ -64,7 +85,7 @@ const publishToInstagram = async (account, post, media) => {
       );
       containerId = parentRes.data.id;
 
-    } else if (post.content_type === 'reel' && media.length > 0) {
+    } else if (effectiveContentType === 'reel' && media.length > 0) {
       // ── Reel ─────────────────────────────────────────────────────────────────
       const res = await axios.post(
         `${FB_API}/${igAccountId}/media`,
