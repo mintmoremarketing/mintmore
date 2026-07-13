@@ -52,15 +52,25 @@ const resolveFacebookPageAccessToken = async (pageId, candidateToken) => {
 const deleteRemotePublishedPost = async (platformRow) => {
   if (!platformRow?.platform_post_id) return;
 
-  const accessToken = platformRow.access_token;
+  const accessToken =
+    platformRow.platform === 'facebook'
+      ? await resolveFacebookPageAccessToken(platformRow.page_id, platformRow.access_token)
+      : platformRow.access_token;
+
   if (!accessToken) {
     throw new Error(`Missing access token for ${platformRow.platform} delete`);
   }
 
   if (platformRow.platform === 'facebook' || platformRow.platform === 'instagram') {
-    await axios.delete(`${FB_API}/${platformRow.platform_post_id}`, {
-      params: { access_token: accessToken },
-    });
+    try {
+      await axios.delete(`${FB_API}/${platformRow.platform_post_id}`, {
+        params: { access_token: accessToken },
+      });
+    } catch (err) {
+      const metaMessage = err.response?.data?.error?.message || err.message;
+      const metaCode = err.response?.data?.error?.code;
+      throw new Error(`Meta delete failed (${metaCode || 'no-code'}): ${metaMessage}`);
+    }
     return;
   }
 
@@ -1270,7 +1280,7 @@ const deletePost = async (postId, userId) => {
   const dbClient = await getClient();
   try {
     const platformRowsResult = await dbClient.query(
-      `SELECT spp.platform, spp.platform_post_id, spp.platform_post_url, sa.access_token
+      `SELECT spp.platform, spp.platform_post_id, spp.platform_post_url, sa.access_token, sa.page_id
        FROM social_post_platforms spp
        JOIN social_accounts sa ON sa.id = spp.social_account_id
        WHERE spp.post_id = $1 AND sa.user_id = $2`,
