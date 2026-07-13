@@ -84,6 +84,10 @@ const ensureAIEngineSchema = async () => {
 
     CREATE INDEX IF NOT EXISTS idx_published_posts_user_created
       ON published_posts(user_id, created_at DESC);
+
+    ALTER TABLE published_posts
+      ADD COLUMN IF NOT EXISTS content_type TEXT NOT NULL DEFAULT 'image',
+      ADD COLUMN IF NOT EXISTS destination_platforms TEXT[] NOT NULL DEFAULT '{}'::text[];
   `);
 
   await query(`
