@@ -49,6 +49,27 @@ const resolveFacebookPageAccessToken = async (pageId, candidateToken) => {
   }
 };
 
+const deleteRemotePublishedPost = async (platformRow) => {
+  if (!platformRow?.platform_post_id) return;
+
+  const accessToken = platformRow.access_token;
+  if (!accessToken) {
+    throw new Error(`Missing access token for ${platformRow.platform} delete`);
+  }
+
+  if (platformRow.platform === 'facebook' || platformRow.platform === 'instagram') {
+    await axios.delete(`${FB_API}/${platformRow.platform_post_id}`, {
+      params: { access_token: accessToken },
+    });
+    return;
+  }
+
+  logger.warn('Remote delete skipped for unsupported platform', {
+    platform: platformRow.platform,
+    platformPostId: platformRow.platform_post_id,
+  });
+};
+
 const fetchFacebookPageDetails = async (account) => {
   if (!account.page_id) return null;
 
@@ -1248,7 +1269,13 @@ const cancelPost = async (postId, userId) => {
 const deletePost = async (postId, userId) => {
   const dbClient = await getClient();
   try {
-    await dbClient.query('BEGIN');
+    const platformRowsResult = await dbClient.query(
+      `SELECT spp.platform, spp.platform_post_id, spp.platform_post_url, sa.access_token
+       FROM social_post_platforms spp
+       JOIN social_accounts sa ON sa.id = spp.social_account_id
+       WHERE spp.post_id = $1 AND sa.user_id = $2`,
+      [postId, userId]
+    );
 
     const postResult = await dbClient.query(
       'SELECT id, status, queue_job_id FROM social_posts WHERE id = $1 AND user_id = $2',
@@ -1260,6 +1287,21 @@ const deletePost = async (postId, userId) => {
     if (post.status === 'scheduled' && post.queue_job_id) {
       await cancelScheduledPost(post.queue_job_id);
     }
+
+    const remoteDeleteErrors = [];
+    for (const platformRow of platformRowsResult.rows) {
+      try {
+        await deleteRemotePublishedPost(platformRow);
+      } catch (err) {
+        remoteDeleteErrors.push(`${platformRow.platform}: ${err.message}`);
+      }
+    }
+
+    if (remoteDeleteErrors.length > 0) {
+      throw new AppError(`Could not delete remote post(s): ${remoteDeleteErrors.join('; ')}`, 400);
+    }
+
+    await dbClient.query('BEGIN');
 
     await dbClient.query('DELETE FROM social_post_platforms WHERE post_id = $1', [postId]);
     await dbClient.query('DELETE FROM social_post_media WHERE post_id = $1', [postId]);

@@ -89,7 +89,14 @@ app.post(`/api/${env.apiVersion}/social/webhook/facebook`, rawBody, fbWebhook);
 // ── Standard body parsing ─────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(compression());
+app.use(compression({
+  filter: (req, res) => {
+    if ((req.headers.accept || '').includes('text/event-stream')) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+}));
 app.use(`/api/${env.apiVersion}`, (_req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();

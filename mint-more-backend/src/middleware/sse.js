@@ -3,6 +3,7 @@ const { verifyAccessToken } = require('../utils/jwt');
 const { SSE_CHANNEL } = require('../modules/notifications/notification.service');
 const logger = require('../utils/logger');
 const { AI_PROGRESS_CHANNEL } = require('../modules/ai/ai.service');
+const env = require('../config/env');
 
 /**
  * Active SSE connections map.
@@ -190,6 +191,12 @@ const sseHandler = async (req, res) => {
   }
 
   const userId = decoded.sub;
+  const origin = req.headers.origin;
+  if (origin && env.security.corsOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
 
   // ── SSE Headers ─────────────────────────────────────────────────────────────
   res.setHeader('Content-Type',  'text/event-stream');

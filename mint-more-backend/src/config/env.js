@@ -40,6 +40,7 @@ const normalizeStorageProvider = (value) => {
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 const isProd = nodeEnv === 'production';
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 const looksLikeRazorpayKey = (keyId) => /^rzp_(test|live)_/.test(String(keyId || '').trim());
 const hasUsableRazorpayCredentials = () => {
   const keyId = process.env.RAZORPAY_KEY_ID?.trim();
@@ -97,9 +98,12 @@ const env = {
   },
 
   security: {
-    corsOrigins: process.env.CORS_ORIGINS
-      ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
-      : ['http://localhost:3000'],
+    corsOrigins: Array.from(new Set([
+      ...(process.env.CORS_ORIGINS
+        ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+        : ['http://localhost:3000']),
+      frontendUrl,
+    ])),
     rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 900000,
     rateLimitMax:      parseInt(process.env.RATE_LIMIT_MAX, 10) || 1000,
   },
@@ -203,7 +207,7 @@ const env = {
       clientSecret: process.env.YOUTUBE_CLIENT_SECRET,
       redirectUri:  process.env.YOUTUBE_REDIRECT_URI,
     },
-    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+    frontendUrl,
   },
 
   googleSheets: {
