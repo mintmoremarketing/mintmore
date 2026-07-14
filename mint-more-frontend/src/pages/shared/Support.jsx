@@ -92,18 +92,22 @@ export default function Support() {
   })
 
   return (
-    <div className="stack-6">
-      <div className="row between" style={{ gap: 14, alignItems: 'flex-start' }}>
+    <div className="flex flex-col w-full h-[calc(100vh-64px)] bg-white">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 p-4 md:px-8 border-b border-ink-100 shrink-0">
         <div>
-          <div className="h-eyebrow">Support</div>
-          <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>Tickets</h1>
-          <p className="muted">Ask CREATYV support for help without opening a payment dispute.</p>
+          <div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-1">Support</div>
+          <h1 className="text-3xl font-display font-bold text-ink-900 tracking-tight m-0">Tickets</h1>
+          <p className="text-ink-500 text-sm md:text-base mt-2">Ask CREATYV support for help without opening a payment dispute.</p>
         </div>
-        {role !== 'admin' && <button className="btn primary" onClick={() => setShowNew(true)}><Icon name="plus" /> Raise ticket</button>}
+        {role !== 'admin' && (
+          <button className="bg-ink-950 text-white shadow-md shadow-ink-900/10 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-900 transition-colors" onClick={() => setShowNew(true)}>
+            <Icon name="plus" size={16} /> Raise ticket
+          </button>
+        )}
       </div>
 
-      <div className="dispute-layout">
-        <div className="card" style={{ overflow: 'hidden' }}>
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-[300px_1fr] min-h-0 bg-white">
+        <aside className="border-r border-ink-100 flex flex-col min-w-0 bg-ink-50/30">
           {isLoading ? <div className="muted" style={{ padding: 18 }}>Loading tickets...</div> : tickets.length === 0 ? (
             <div className="empty" style={{ padding: 24 }}><div className="empty-glyph"><Icon name="chat" size={20} /></div><h3>No tickets</h3><p>Support tickets will appear here.</p>{role !== 'admin' && <button className="btn primary" onClick={() => setShowNew(true)}>Raise ticket</button>}</div>
           ) : tickets.map(item => (
@@ -116,10 +120,10 @@ export default function Support() {
               </div>
             </button>
           ))}
-        </div>
+        </aside>
 
         {ticket ? (
-          <div className="stack" style={{ gap: 14 }}>
+          <div className="flex flex-col min-h-0 bg-white p-4 md:p-8">
             <div className="card" style={{ padding: 18 }}>
               <div className="row between" style={{ gap: 12 }}>
                 <div>
@@ -154,7 +158,9 @@ export default function Support() {
             </div>
           </div>
         ) : (
-          <div className="empty"><div className="empty-glyph"><Icon name="chat" size={20} /></div><h3>Select a ticket</h3><p>The support conversation will appear here.</p></div>
+          <div className="flex-1 flex flex-col items-center justify-center min-h-0 bg-white p-8">
+            <div className="empty" style={{ border: 0, padding: 28 }}><div className="empty-glyph"><Icon name="chat" size={20} /></div><h3>Select a ticket</h3><p>The support conversation will appear here.</p></div>
+          </div>
         )}
       </div>
       {showNew && <NewTicketModal onClose={() => setShowNew(false)} />}

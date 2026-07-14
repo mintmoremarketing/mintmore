@@ -190,8 +190,7 @@ function WithdrawModal({ wallet, payoutRules, onClose }) {
 						</div>
 					</div>
 				)}
-
-				{method === 'upi' && (
+				{method === 'upi' && (
 					<div className="field">
 						<label className="field-label">UPI ID</label>
 						<input className="input" value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="name@upi" />
@@ -226,64 +225,89 @@ export default function FreelancerWallet() {
 	const txns = txData?.transactions || []
 
 	return (
-		<div className="stack-6">
-			<div>
-				<div className="h-eyebrow" style={{ marginBottom: 4 }}>Earnings</div>
-				<h1 className="h-display h-1" style={{ margin: 0 }}>Wallet and withdrawals</h1>
+		<div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto">
+			<div className="flex flex-col gap-1">
+				<div className="text-sm font-semibold text-ink-500 tracking-wide uppercase">Earnings</div>
+				<h1 className="text-3xl md:text-4xl font-display font-bold text-ink-950 tracking-tight m-0">Wallet and withdrawals</h1>
 			</div>
 
-			<div className="card-ink" style={{ padding: 26, position: 'relative', overflow: 'hidden' }}>
-				<div
-					style={{
-						position: 'absolute',
-						inset: 0,
-						background: 'radial-gradient(circle at 90% 10%, rgba(247,127,0,0.18), transparent 50%)',
-					}}
-				/>
-				<div style={{ position: 'relative' }}>
-					<div className="row between" style={{ marginBottom: 14 }}>
-						<span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: 0.04 }}>
-							Total earnings wallet
-						</span>
+			<div className="flex flex-col lg:flex-row gap-6 items-stretch w-full">
+				<div className="flex-1 lg:w-2/3 bg-gradient-to-br from-ink-900 via-ink-950 to-black rounded-[32px] p-8 md:p-10 shadow-2xl relative overflow-hidden text-white min-h-[320px] border border-white/10">
+					{/* Decorative card shine and chip */}
+					<div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50" />
+					<div className="absolute top-10 right-10 w-16 h-16 bg-white/5 rounded-full blur-2xl" />
+					<div className="absolute -bottom-10 -right-10 w-40 h-40 bg-mint-500/20 rounded-full blur-3xl" />
+					
+					<div className="relative z-10 flex flex-col h-full justify-between gap-8">
+						<div className="flex justify-between items-start">
+							<div>
+								<div className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/50 mb-4">
+									Total Balance
+								</div>
+								{isLoading ? (
+									<Skeleton width={200} height={48} style={{ background: 'rgba(255,255,255,0.1)' }} />
+								) : (
+									<div className="text-5xl md:text-7xl font-display font-bold leading-none tracking-tight">
+										{rupee((wallet?.balance || 0) + (wallet?.escrow_balance || 0))}
+									</div>
+								)}
+							</div>
+							<div className="hidden sm:flex w-12 h-8 rounded border border-white/20 bg-white/5 items-center justify-center">
+								<div className="w-8 h-4 rounded-sm border border-white/20 bg-white/10" />
+							</div>
+						</div>
+
+						<div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mt-4">
+							<div className="flex items-center gap-8 md:gap-12 text-sm">
+								<div className="flex flex-col gap-1">
+									<div className="text-[11px] uppercase tracking-wider text-white/40 font-semibold">Available</div>
+									<div className="font-mono text-xl text-white">
+										{rupee(wallet?.balance || 0)}
+									</div>
+								</div>
+								<div className="flex flex-col gap-1">
+									<div className="text-[11px] uppercase tracking-wider text-white/40 font-semibold flex items-center gap-1">
+										<Icon name="lock" size={12} /> Escrow
+									</div>
+									<div className="font-mono text-xl text-white">
+										{rupee(wallet?.escrow_balance || 0)}
+									</div>
+								</div>
+							</div>
+
+							<button 
+								className="whitespace-nowrap px-8 py-3.5 bg-white hover:bg-ink-50 text-ink-950 font-bold rounded-full transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:-translate-y-1"
+								onClick={() => setShowWD(true)} 
+								disabled={!wallet || parseFloat(wallet.balance) < 100}
+							>
+								<Icon name="arrowUpRight" size={18} /> Withdraw
+							</button>
+						</div>
 					</div>
-					{isLoading ? (
-						<Skeleton width={180} height={44} style={{ background: 'rgba(255,255,255,0.1)' }} />
-					) : (
-						<div style={{ fontFamily: 'var(--font-display)', fontSize: 46, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1 }}>
-							{rupee((wallet?.balance || 0) + (wallet?.escrow_balance || 0))}
+				</div>
+
+				<div className="w-full lg:w-1/3 bg-white/80 backdrop-blur-md border border-ink-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[32px] p-8 flex flex-col justify-between min-h-[320px] relative overflow-hidden group">
+					<div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-3xl group-hover:bg-orange-500/10 transition-colors duration-500" />
+					<div className="relative z-10">
+						<div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-50 to-orange-100/50 flex items-center justify-center text-orange-600 mb-8 border border-orange-200/50 shadow-sm">
+							<Icon name="zap" size={24} className="drop-shadow-sm" />
 						</div>
-					)}
-					<div className="row" style={{ gap: 24, marginTop: 18, fontSize: 12 }}>
-						<div>
-							<div style={{ color: 'rgba(255,255,255,0.5)' }}>Available</div>
-							<div className="mono" style={{ color: 'white', marginTop: 4, fontSize: 16, fontWeight: 500 }}>
-								{rupee(wallet?.balance || 0)}
-							</div>
-						</div>
-						<div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.1)' }} />
-						<div>
-							<div style={{ color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
-								<Icon name="lock" size={10} /> In escrow
-							</div>
-							<div className="mono" style={{ color: 'white', marginTop: 4, fontSize: 16, fontWeight: 500 }}>
-								{rupee(wallet?.escrow_balance || 0)}
-							</div>
-						</div>
+						<h3 className="text-2xl font-display font-bold text-ink-950 mb-3">Fast payouts</h3>
+						<p className="text-sm text-ink-600 leading-relaxed font-medium">
+							Choose between our free weekly scheduled payouts, or get your funds instantly for a small flat fee.
+						</p>
 					</div>
-					<div className="row" style={{ marginTop: 22, gap: 10 }}>
-						<button className="btn mint" onClick={() => setShowWD(true)} disabled={!wallet || parseFloat(wallet.balance) < 100}>
-							<Icon name="download" /> Withdraw funds
-						</button>
-						{wallet && parseFloat(wallet.balance) < 100 && (
-							<span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Min. withdrawal: Rs100</span>
-						)}
+					<div className="mt-8 pt-6 border-t border-ink-100/80 flex items-center gap-3 text-sm text-ink-500 font-semibold relative z-10">
+						<div className="w-8 h-8 rounded-full bg-mint-50 flex items-center justify-center">
+							<Icon name="shieldCheck" size={14} className="text-mint-600" />
+						</div>
+						Secured by Escrow
 					</div>
 				</div>
 			</div>
-
-			<div className="stack">
-				<div className="row between" style={{ flexWrap: 'wrap', gap: 10 }}>
-					<h2 className="h-display h-3" style={{ margin: 0 }}>Transactions</h2>
+			<div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200">
+				<div className="flex flex-wrap items-center justify-between gap-4">
+					<h2 className="text-xl md:text-2xl font-display font-bold text-ink-950 m-0">Transactions</h2>
 					<Tabs value={filter} onChange={setFilter} items={[
 						{ value: 'all', label: 'All' },
 						{ value: 'escrow_release', label: 'Earnings' },
@@ -291,75 +315,63 @@ export default function FreelancerWallet() {
 					]} />
 				</div>
 
-				<div className="card-flat">
-					<table style={{ width: '100%', borderCollapse: 'collapse' }}>
-						<thead>
-							<tr style={{ background: 'var(--paper-tint)', borderBottom: '1px solid var(--hairline)' }}>
-								{['Date', 'Type', 'Description', 'Amount', 'Balance after'].map((h, i) => (
-									<th
-										key={h}
-										style={{
-											padding: '10px 14px',
-											fontSize: 11,
-											fontWeight: 500,
-											textTransform: 'uppercase',
-											letterSpacing: 0.04,
-											color: 'var(--ink-500)',
-											textAlign: i >= 3 ? 'right' : 'left',
-										}}
-									>
-										{h}
-									</th>
-								))}
-							</tr>
-						</thead>
-						<tbody>
-							{txns.length === 0 ? (
+				<div className="bg-white/60 backdrop-blur-sm border border-ink-200/60 rounded-3xl overflow-hidden shadow-[0_4px_20px_rgb(0,0,0,0.02)]">
+					<div className="overflow-x-auto">
+						<table className="w-full text-left border-collapse min-w-[700px]">
+							<thead>
 								<tr>
-									<td colSpan={5} style={{ padding: '32px 0', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13 }}>
-										No transactions yet
-									</td>
+									{['Date', 'Type', 'Description', 'Amount', 'Balance after'].map((h, i) => (
+										<th
+											key={h}
+											className={`py-4 px-6 text-[11px] font-bold tracking-[0.15em] uppercase text-ink-400 border-b border-ink-100/80 ${i >= 3 ? 'text-right' : 'text-left'}`}
+										>
+											{h}
+										</th>
+									))}
 								</tr>
-							) : (
-								txns.map((t, i) => (
-									<tr key={t.id} style={{ borderBottom: i === txns.length - 1 ? 0 : '1px solid var(--hairline)' }}>
-										<td style={{ padding: '12px 14px', fontSize: 13 }}>
-											<span className="mono" style={{ color: 'var(--ink-700)' }}>
-												{new Date(t.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-											</span>
-										</td>
-										<td style={{ padding: '12px 14px', fontSize: 13 }}>
-											<span
-												className={`badge ${
-													t.type === 'escrow_release'
-														? 'mint'
-														: t.type === 'withdrawal'
-															? 'violet'
-															: 'neutral'
-												}`}
-											>
-												<span className="bdot" /> {t.type.replace(/_/g, ' ')}
-											</span>
-										</td>
-										<td style={{ padding: '12px 14px', fontSize: 13, color: 'var(--ink-800)' }}>
-											{t.description}
-										</td>
-										<td style={{ padding: '12px 14px', fontSize: 13, textAlign: 'right' }}>
-											<span
-												className="mono"
-												style={{ color: t.amount >= 0 ? 'var(--mint-700)' : 'var(--ink-950)', fontWeight: 500 }}
-											>
-												{t.amount >= 0 ? '+' : ''}{rupee(t.amount)}
-											</span>
-										</td>
-										<td style={{ padding: '12px 14px', fontSize: 13, textAlign: 'right' }}>
-											<span className="mono" style={{ color: 'var(--ink-500)' }}>{rupee(t.balance_after)}</span>
+							</thead>
+							<tbody className="divide-y divide-ink-100/50">
+								{txns.length === 0 ? (
+									<tr>
+										<td colSpan={5} className="py-16 text-center text-ink-400 font-medium text-sm">
+											No transactions yet
 										</td>
 									</tr>
-								))
-							)}
-						</tbody>
-					</table>
+								) : (
+									txns.map((t) => (
+										<tr key={t.id} className="hover:bg-ink-50/50 transition-colors group">
+											<td className="py-4 px-6 text-sm font-mono text-ink-500 whitespace-nowrap">
+												{new Date(t.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+											</td>
+											<td className="py-4 px-6 whitespace-nowrap">
+												<span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
+													t.type === 'escrow_release' ? 'bg-mint-50/80 text-mint-700 border border-mint-200/50' :
+													t.type === 'withdrawal' ? 'bg-violet-50/80 text-violet-700 border border-violet-200/50' : 'bg-ink-50/80 text-ink-700 border border-ink-200/50'
+												}`}>
+													<div className={`w-1.5 h-1.5 rounded-full ${
+														t.type === 'escrow_release' ? 'bg-mint-500 shadow-[0_0_8px_rgba(247,127,0,0.5)]' :
+														t.type === 'withdrawal' ? 'bg-violet-500 shadow-[0_0_8px_rgba(109,40,217,0.5)]' : 'bg-ink-400'
+													}`} />
+													{t.type.replace(/_/g, ' ')}
+												</span>
+											</td>
+											<td className="py-4 px-6 text-sm text-ink-800 font-medium">
+												{t.description}
+											</td>
+											<td className="py-4 px-6 text-sm text-right whitespace-nowrap">
+												<span className={`font-mono font-bold text-base ${t.amount >= 0 ? 'text-mint-600' : 'text-ink-950'}`}>
+													{t.amount >= 0 ? '+' : ''}{rupee(t.amount)}
+												</span>
+											</td>
+											<td className="py-4 px-6 text-sm font-mono text-ink-400 font-medium text-right whitespace-nowrap">
+												{rupee(t.balance_after)}
+											</td>
+										</tr>
+									))
+								)}
+							</tbody>
+						</table>
+					</div>
 				</div>
 			</div>
 

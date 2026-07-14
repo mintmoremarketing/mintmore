@@ -38,65 +38,45 @@ export default function FreelancerDashboard() {
 	const wallet = walletData?.wallet
 
 	return (
-		<div className="stack-6">
-			<div className="reveal">
-				<div className="h-eyebrow" style={{ marginBottom: 4 }}>
+		<div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto">
+			<div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+				<div className="text-sm font-semibold text-ink-500 mb-1 tracking-wide">
 					{new Date().toLocaleDateString('en-IN', {
 						weekday: 'long',
 						day: 'numeric',
 						month: 'long',
 					})}
 				</div>
-				<h1 className="h-display" style={{ fontSize: 30, margin: 0, lineHeight: 1.15 }}>
-					{greeting}, {user?.full_name?.split(' ')[0]}.
+				<h1 className="text-3xl md:text-4xl font-display font-bold text-ink-950 tracking-tight m-0 leading-tight">
+					{greeting}, {user?.full_name?.split(' ')[0] || 'Freelancer'}.
 				</h1>
 			</div>
 
 			{newMatches.length > 0 && (
-				<div className="card-ink reveal" style={{ padding: 20, position: 'relative', overflow: 'hidden' }}>
-					<div
-						style={{
-							position: 'absolute',
-							inset: 0,
-							background:
-								'radial-gradient(circle at 90% 50%, rgba(247,127,0,0.2), transparent 60%)',
-						}}
-					/>
-					<div style={{ position: 'relative', display: 'flex', gap: 14, alignItems: 'center' }}>
-						<div
-							style={{
-								width: 44,
-								height: 44,
-								borderRadius: '50%',
-								background: 'rgba(247,127,0,0.2)',
-								color: 'var(--mint-300)',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								flexShrink: 0,
-							}}
-						>
-							<Icon name="zap" size={20} />
-						</div>
-						<div style={{ flex: 1 }}>
-							<div style={{ fontWeight: 600, fontSize: 15, color: 'white' }}>
-								{newMatches.length} new brief{newMatches.length > 1 ? 's' : ''} matched to you
+				<div className="bg-ink-950 rounded-2xl p-6 md:p-8 shadow-lg relative overflow-hidden text-white animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
+					<div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_50%,_rgba(247,127,0,0.22),_transparent_60%)]" />
+					<div className="relative z-10 flex flex-col md:flex-row gap-6 md:items-center justify-between">
+						<div className="flex gap-4 items-center">
+							<div className="w-12 h-12 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
+								<Icon name="zap" size={24} />
 							</div>
-							<div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
-								Review and initiate negotiation before another creative does.
+							<div>
+								<div className="text-lg md:text-xl font-semibold text-white">
+									{newMatches.length} new brief{newMatches.length > 1 ? 's' : ''} matched to you
+								</div>
+								<div className="text-sm text-white/70 mt-1">
+									Review and initiate negotiation before another creative does.
+								</div>
 							</div>
 						</div>
-						<button className="btn mint" onClick={() => navigate('/jobs')}>
-							View briefs <Icon name="arrowRight" />
+						<button className="whitespace-nowrap px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-full transition-all flex items-center gap-2 group shrink-0 shadow-lg shadow-orange-500/20" onClick={() => navigate('/jobs')}>
+							View briefs <Icon name="arrowRight" className="group-hover:translate-x-1 transition-transform" />
 						</button>
 					</div>
 				</div>
 			)}
 
-			<div
-				style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}
-				className="reveal"
-			>
+			<div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150">
 				{[
 					{
 						label: 'Available balance',
@@ -116,7 +96,7 @@ export default function FreelancerDashboard() {
 						label: 'Completed jobs',
 						value: user?.jobs_completed_count || 0,
 						sub: user?.average_rating
-							? `* ${Number(user.average_rating).toFixed(1)} avg`
+							? `★ ${Number(user.average_rating).toFixed(1)} avg`
 							: 'No ratings yet',
 						icon: 'star',
 						onClick: null,
@@ -125,109 +105,66 @@ export default function FreelancerDashboard() {
 					<button
 						key={stat.label}
 						onClick={stat.onClick}
-						style={{
-							background: 'var(--paper)',
-							border: '1px solid var(--hairline)',
-							borderRadius: 'var(--radius-lg)',
-							padding: 18,
-							textAlign: 'left',
-							cursor: stat.onClick ? 'pointer' : 'default',
-							transition: 'all 0.12s ease',
-						}}
-						onMouseEnter={(e) =>
-							stat.onClick && (e.currentTarget.style.borderColor = 'var(--ink-300)')
-						}
-						onMouseLeave={(e) =>
-							stat.onClick && (e.currentTarget.style.borderColor = 'var(--hairline)')
-						}
+						className={`bg-white border border-ink-200 rounded-2xl p-6 text-left transition-all ${stat.onClick ? 'hover:border-ink-300 hover:shadow-md group cursor-pointer' : 'cursor-default'}`}
 					>
-						<div
-							style={{
-								width: 32,
-								height: 32,
-								borderRadius: 10,
-								background: 'var(--paper-tint)',
-								color: 'var(--ink-600)',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								marginBottom: 12,
-							}}
-						>
-							<Icon name={stat.icon} size={15} />
+						<div className="w-12 h-12 rounded-xl bg-ink-50 text-ink-700 flex items-center justify-center mb-4 group-hover:bg-ink-100 transition-colors">
+							<Icon name={stat.icon} size={20} />
 						</div>
-						<div
-							style={{
-								fontSize: 11.5,
-								color: 'var(--ink-500)',
-								marginBottom: 4,
-								textTransform: 'uppercase',
-								letterSpacing: 0.04,
-							}}
-						>
+						<div className="text-[11px] font-bold tracking-wider uppercase text-ink-500 mb-1">
 							{stat.label}
 						</div>
-						<div
-							style={{
-								fontFamily: 'var(--font-display)',
-								fontSize: 24,
-								fontWeight: 500,
-								letterSpacing: '-0.02em',
-								color: 'var(--ink-950)',
-							}}
-						>
+						<div className="text-3xl font-display font-bold text-ink-950 mb-1">
 							{stat.value}
 						</div>
-						<div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 3 }}>
+						<div className="text-sm text-ink-500">
 							{stat.sub}
 						</div>
 					</button>
 				))}
 			</div>
 
-			<div className="stack reveal">
-				<div className="row between" style={{ alignItems: 'flex-end' }}>
-					<h2 className="h-display h-3" style={{ margin: 0 }}>
+			<div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200">
+				<div className="flex items-end justify-between">
+					<h2 className="text-xl md:text-2xl font-display font-bold text-ink-950 m-0">
 						Active work
 					</h2>
-					<button className="btn link sm" onClick={() => navigate('/jobs')}>
-						All briefs <Icon name="arrowRight" size={12} />
+					<button className="text-sm font-medium text-ink-600 hover:text-ink-900 flex items-center gap-1 group transition-colors" onClick={() => navigate('/jobs')}>
+						All briefs <Icon name="arrowRight" size={12} className="group-hover:translate-x-0.5 transition-transform" />
 					</button>
 				</div>
 
 				{isLoading ? (
-					<div className="stack" style={{ gap: 10 }}>
+					<div className="flex flex-col gap-3">
 						<SkeletonCard />
 						<SkeletonCard />
 					</div>
 				) : activeJobs.length === 0 ? (
-					<div className="empty">
-						<div className="empty-glyph">
-							<Icon name="briefcase" size={22} />
+					<div className="border border-ink-200 border-dashed rounded-2xl flex flex-col items-center justify-center p-12 text-center bg-ink-50/50">
+						<div className="w-12 h-12 rounded-full bg-ink-100 flex items-center justify-center text-ink-400 mb-3">
+							<Icon name="briefcase" size={24} />
 						</div>
-						<h3>No active work</h3>
-						<p>When a client's brief is matched to you, it appears here.</p>
+						<h3 className="text-lg font-semibold text-ink-950 mb-1">No active work</h3>
+						<p className="text-sm text-ink-500 max-w-sm">When a client's brief is matched to you, it appears here.</p>
 					</div>
 				) : (
-					<div className="stack" style={{ gap: 10 }}>
+					<div className="flex flex-col gap-3">
 						{activeJobs.slice(0, 4).map((j) => (
 							<button
 								key={j.id}
-								className="job-card"
-								style={{ padding: 16 }}
+								className="bg-white border border-ink-200 hover:border-ink-300 hover:shadow-md rounded-xl p-5 text-left transition-all group flex flex-col cursor-pointer"
 								onClick={() => navigate(`/jobs/${j.id}`)}
 							>
-								<div className="row between">
-									<div className="row" style={{ gap: 8 }}>
-										<span className="badge neutral">{j.category?.name || 'General'}</span>
+								<div className="flex justify-between items-center w-full mb-3">
+									<div className="flex items-center gap-2">
+										<span className="px-2.5 py-1 bg-ink-100 text-ink-700 text-xs font-medium rounded-md">{j.category?.name || 'General'}</span>
 										<StatusChip status={j.status} />
 									</div>
-									<Icon name="chevronRight" size={13} style={{ color: 'var(--ink-400)' }} />
+									<Icon name="chevronRight" size={16} className="text-ink-300 group-hover:text-ink-600 transition-colors group-hover:translate-x-0.5" />
 								</div>
-								<div style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink-950)', marginTop: 8 }}>
+								<div className="font-semibold text-base text-ink-950">
 									{j.title}
 								</div>
-								<div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 4 }}>
+								<div className="text-sm text-ink-500 mt-1">
 									{j.status === 'matching'
 										? 'Awaiting your negotiation'
 										: j.status === 'negotiating'
@@ -242,10 +179,7 @@ export default function FreelancerDashboard() {
 				)}
 			</div>
 
-			<div
-				style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}
-				className="reveal"
-			>
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-300">
 				{[
 					{
 						icon: 'user',
@@ -275,45 +209,14 @@ export default function FreelancerDashboard() {
 					<button
 						key={a.route}
 						onClick={() => navigate(a.route)}
-						style={{
-							background: 'var(--paper)',
-							border: '1px solid var(--hairline)',
-							borderRadius: 'var(--radius-md)',
-							padding: '14px 16px',
-							textAlign: 'left',
-							cursor: 'pointer',
-							display: 'flex',
-							gap: 12,
-							alignItems: 'center',
-							transition: 'all 0.12s',
-						}}
-						onMouseEnter={(e) => {
-							e.currentTarget.style.borderColor = 'var(--ink-300)'
-							e.currentTarget.style.transform = 'translateY(-1px)'
-						}}
-						onMouseLeave={(e) => {
-							e.currentTarget.style.borderColor = 'var(--hairline)'
-							e.currentTarget.style.transform = 'none'
-						}}
+						className="bg-white border border-ink-200 hover:border-ink-300 hover:shadow-md rounded-xl p-4 flex items-center gap-4 text-left cursor-pointer transition-all group"
 					>
-						<div
-							style={{
-								width: 36,
-								height: 36,
-								borderRadius: 10,
-								background: 'var(--paper-tint)',
-								color: 'var(--ink-700)',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								flexShrink: 0,
-							}}
-						>
-							<Icon name={a.icon} size={16} />
+						<div className="w-10 h-10 rounded-lg bg-ink-50 text-ink-600 flex items-center justify-center shrink-0 group-hover:bg-ink-100 group-hover:text-ink-900 transition-colors">
+							<Icon name={a.icon} size={20} />
 						</div>
 						<div>
-							<div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--ink-950)' }}>{a.label}</div>
-							<div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>{a.sub}</div>
+							<div className="text-[14px] font-semibold text-ink-950 group-hover:text-orange-500 transition-colors">{a.label}</div>
+							<div className="text-xs text-ink-500 mt-0.5">{a.sub}</div>
 						</div>
 					</button>
 				))}

@@ -1200,18 +1200,18 @@ export default function Social() {
   }
 
   return (
-    <div className="stack-6">
-      <div className="row between reveal">
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div>
-          <div className="h-eyebrow" style={{ marginBottom: 4 }}>Social media</div>
-          <h1 className="h-display h-1" style={{ margin: 0 }}>Insights &amp; publishing</h1>
-          <p className="muted" style={{ margin: '8px 0 0' }}>
+          <div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-2">Social media</div>
+          <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">Insights &amp; publishing</h1>
+          <p className="text-ink-500 text-sm md:text-base mt-2">
             Track reach first, then plan posts for every connected channel from one place.
           </p>
         </div>
         {connectedAccounts.length > 0 && (
-          <button className="btn primary" onClick={() => { setEditingPost(null); setShowCreate(true); }}>
-            <Icon name="plus" /> Create post
+          <button className="bg-ink-950 text-white shadow-md shadow-ink-900/10 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-900 transition-colors" onClick={() => { setEditingPost(null); setShowCreate(true); }}>
+            <Icon name="plus" size={16} /> Create post
           </button>
         )}
       </div>

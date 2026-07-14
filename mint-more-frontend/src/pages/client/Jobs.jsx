@@ -151,17 +151,17 @@ export default function Jobs() {
   }
 
   return (
-    <div className="stack-6">
-      <div className="row between reveal">
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div>
-          <div className="h-eyebrow" style={{ marginBottom: 4 }}>Requests</div>
-          <h1 className="h-display h-1" style={{ margin: 0 }}>My creatives</h1>
-          <p className="muted" style={{ margin: '8px 0 0' }}>
+          <div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-2">Requests</div>
+          <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">My creatives</h1>
+          <p className="text-ink-500 text-sm md:text-base mt-2">
             Calendar picks and custom design requests handled by CREATYV.
           </p>
         </div>
-        <button className="btn primary" onClick={() => navigate('/jobs/new')}>
-          <Icon name="plus" /> New custom request
+        <button className="bg-ink-950 text-white shadow-md shadow-ink-900/10 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-900 transition-colors" onClick={() => navigate('/jobs/new')}>
+          <Icon name="plus" size={16} /> New custom request
         </button>
       </div>
 
@@ -177,7 +177,7 @@ export default function Jobs() {
         ]}
       />
 
-      <div className="stack" style={{ gap: 10 }}>
+      <div className="flex flex-col border border-ink-200 rounded-xl overflow-hidden bg-white shadow-sm">
         {isLoading ? (
           [1, 2, 3].map((i) => <SkeletonCard key={i} />)
         ) : filtered.length === 0 ? (
@@ -208,8 +208,7 @@ export default function Jobs() {
               return (
             <div
               key={`${item.type}-${item.id}`}
-              className="job-card task-card-shell"
-              style={{ padding: 16, '--task-status-color': statusAccent(item.status) }}
+              className="group flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border-b border-ink-100 last:border-b-0 hover:bg-ink-50 transition-colors cursor-pointer bg-white"
               role="button"
               tabIndex={0}
               onClick={() => navigate(targetPath)}
@@ -220,85 +219,72 @@ export default function Jobs() {
                 }
               }}
             >
-              <div className="row between">
-                <div className="row" style={{ gap: 10 }}>
-                  <span className="badge neutral">{item.type === 'calendar' ? 'Calendar' : item.type === 'task' ? 'Production' : item.type === 'draft' ? 'Draft' : 'Custom'}</span>
+              <div className="flex flex-col md:flex-row md:items-center gap-4 flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs font-medium bg-ink-100 text-ink-600 px-2 py-0.5 rounded-md">
+                    {item.type === 'calendar' ? 'Calendar' : item.type === 'task' ? 'Production' : item.type === 'draft' ? 'Draft' : 'Custom'}
+                  </span>
                   {['assigned', 'in_progress', 'delivered', 'revision', 'blocked'].includes(item.status)
                     ? <StatusBadge status={item.status} />
-                    : <span className={`badge ${badgeTone(item.status)}`}>{statusLabel(item.status)}</span>}
+                    : <span className={`text-xs font-medium px-2 py-0.5 rounded-md capitalize ${item.status === 'completed' ? 'bg-sky-50 text-sky-700' : 'bg-ink-100 text-ink-700'}`}>{statusLabel(item.status)}</span>}
                 </div>
-                {item.type !== 'draft' && item.job_id && (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="btn ghost sm"
-                    onClick={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      navigate(`/messages?job=${item.job_id}`)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
+                
+                <div className="flex flex-col min-w-0">
+                  <div className="text-sm font-semibold text-ink-900 truncate group-hover:text-orange-600 transition-colors">{item.title}</div>
+                  <div className="text-xs text-ink-500 truncate">{item.description}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between md:justify-end gap-6 flex-shrink-0">
+                <div className="flex items-center gap-4 text-xs text-ink-500">
+                  <DateBadge value={item.date} />
+                  <span className="font-mono font-medium text-ink-700">
+                    {item.type === 'draft' ? 'Resume request' : `${Number(item.coin_cost || 0)} MintCoin${Number(item.coin_cost || 0) === 1 ? '' : 's'}`}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                  {item.type !== 'draft' && item.job_id && (
+                    <button
+                      className="text-ink-500 hover:text-ink-900 hover:bg-ink-100 p-1.5 rounded-lg transition-colors"
+                      onClick={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
                         navigate(`/messages?job=${item.job_id}`)
-                      }
-                    }}
-                  >
-                    <Icon name="chat" size={12} /> Messages
-                  </span>
-                )}
-                {item.type === 'draft' ? (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="btn ghost sm"
-                    onClick={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      if (window.confirm('Delete this draft request?')) deleteDraft.mutate(item.id)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
+                      }}
+                      title="Messages"
+                    >
+                      <Icon name="chat" size={14} />
+                    </button>
+                  )}
+                  {item.type === 'draft' ? (
+                    <button
+                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+                      onClick={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
                         if (window.confirm('Delete this draft request?')) deleteDraft.mutate(item.id)
-                      }
-                    }}
-                  >
-                    <Icon name="trash" size={12} /> Delete
-                  </span>
-                ) : canCancel ? (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="btn ghost sm"
-                    onClick={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      if (window.confirm('Cancel this creative? This removes it from your active work and returns reserved MintCoins when applicable.')) cancelCreative.mutate(item)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
+                      }}
+                      title="Delete"
+                    >
+                      <Icon name="trash" size={14} />
+                    </button>
+                  ) : canCancel ? (
+                    <button
+                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+                      onClick={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
-                        if (window.confirm('Cancel this creative?')) cancelCreative.mutate(item)
-                      }
-                    }}
-                  >
-                    <Icon name="x" size={12} /> Cancel
-                  </span>
-                ) : (
-                  <Icon name="chevronRight" size={14} className="muted" />
-                )}
-              </div>
-              <div className="title" style={{ marginTop: 8 }}>{item.title}</div>
-              <div className="description">{item.description}</div>
-              <div className="row" style={{ marginTop: 12, gap: 18, fontSize: 11.5, color: 'var(--ink-500)' }}>
-                <DateBadge value={item.date} />
-                <span className="mono" style={{ color: 'var(--ink-900)', fontWeight: 500 }}>
-                  {item.type === 'draft' ? 'Resume request' : `${Number(item.coin_cost || 0)} MintCoin${Number(item.coin_cost || 0) === 1 ? '' : 's'}`}
-                </span>
+                        if (window.confirm('Cancel this creative? This removes it from your active work and returns reserved MintCoins when applicable.')) cancelCreative.mutate(item)
+                      }}
+                      title="Cancel"
+                    >
+                      <Icon name="x" size={14} />
+                    </button>
+                  ) : (
+                    <Icon name="chevronRight" size={16} className="text-ink-400" />
+                  )}
+                </div>
               </div>
             </div>
               )

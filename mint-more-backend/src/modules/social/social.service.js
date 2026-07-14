@@ -1341,8 +1341,8 @@ const executePublish = async (postId) => {
         if (m.media_type === 'video' && m.media_url) {
           // Check if it's a directly uploaded video (not a mintbox file)
           // Mintbox files originally have /api/v1/mintbox/public/files/ (we mutated it in memory above but we can check if m.id exists and originally had it)
-          // Actually, if it's directly uploaded, the media_url contains 'job-attachments'
-          if (m.media_url.includes('job-attachments')) {
+          // Actually, if it's directly uploaded, the media_url contains '/social/'
+          if (m.media_url.includes('/social/')) {
             logger.info('Extracting thumbnail and cleaning up directly uploaded video', { mediaId: m.id });
             
             // 1. Extract thumbnail
@@ -1353,7 +1353,7 @@ const executePublish = async (postId) => {
             const thumbUrl = await uploadFile('job-attachments', thumbPath, thumbBuffer, 'image/jpeg');
             
             // 3. Delete original video from storage
-            const urlPathMatch = m.media_url.match(/job-attachments\/(social\/.*)/);
+            const urlPathMatch = m.media_url.match(/\/(social\/.*)/);
             if (urlPathMatch && urlPathMatch[1]) {
               await deleteFile('job-attachments', urlPathMatch[1]);
               logger.info('Deleted original video to save space', { path: urlPathMatch[1] });

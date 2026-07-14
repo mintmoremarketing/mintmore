@@ -51,52 +51,48 @@ function PackageEditor({ type, pkg, onSave, onDelete, isPending }) {
     })
   }
 
-  const TIER_COLORS = { basic: 'var(--ink-400)', standard: 'var(--mint-600)', premium: '#8B5CF6' }
-  const TIER_BG    = { basic: 'var(--paper-tint)', standard: 'rgba(247,127,0,0.08)', premium: 'rgba(139,92,246,0.08)' }
+  const TIER_COLORS = { basic: 'bg-ink-900', standard: 'bg-mint-600', premium: 'bg-violet-600' }
+  const TIER_TEXT = { basic: 'text-ink-900', standard: 'text-mint-600', premium: 'text-violet-600' }
+  const TIER_BG    = { basic: 'bg-ink-50/50', standard: 'bg-mint-50/50', premium: 'bg-violet-50/50' }
 
   return (
-    <div style={{
-      background: 'var(--paper)', border: '1px solid var(--hairline)',
-      borderRadius: 'var(--radius-lg)', padding: 22,
-      borderTop: `3px solid ${TIER_COLORS[type]}`,
-    }}>
+    <div className={`flex flex-col bg-white border border-ink-200/60 shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl p-6 md:p-8 transition-all duration-300 relative overflow-hidden group`}>
+      <div className={`absolute top-0 left-0 right-0 h-1.5 ${TIER_COLORS[type]}`} />
+      
       {/* Header */}
-      <div className="row between" style={{ marginBottom: 18 }}>
+      <div className="flex justify-between items-start mb-6 pt-2">
         <div>
-          <span style={{
-            fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
-            letterSpacing: 0.06, color: TIER_COLORS[type],
-          }}>
+          <span className={`text-xs font-bold uppercase tracking-widest ${TIER_TEXT[type]}`}>
             {type}
           </span>
           {pkg && (
-            <div style={{ fontSize: 13, color: 'var(--ink-500)', marginTop: 2 }}>
+            <div className="text-sm font-medium text-ink-500 mt-1">
               {rupee(pkg.price)} · {pkg.delivery_days} days
             </div>
           )}
         </div>
         {pkg && (
-          <button className="btn ghost" style={{ fontSize: 12, color: 'var(--rose)' }} onClick={() => onDelete(type)}>
-            <Icon name="trash" size={12} /> Remove
+          <button className="text-xs font-medium text-rose-500 hover:text-rose-600 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors" onClick={() => onDelete(type)}>
+            <Icon name="trash" size={14} /> Remove
           </button>
         )}
       </div>
 
-      <div className="stack" style={{ gap: 14 }}>
-        <div className="field">
-          <label className="field-label">Package name</label>
+      <div className="flex flex-col gap-5 flex-1">
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-ink-900">Package name</label>
           <input
-            className="input"
+            className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all"
             value={form.name}
             onChange={e => update('name', e.target.value)}
             placeholder={`${type.charAt(0).toUpperCase() + type.slice(1)} package`}
           />
         </div>
 
-        <div className="field">
-          <label className="field-label">Description</label>
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-ink-900">Description</label>
           <textarea
-            className="textarea"
+            className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all resize-none"
             rows={3}
             value={form.description}
             onChange={e => update('description', e.target.value)}
@@ -104,93 +100,101 @@ function PackageEditor({ type, pkg, onSave, onDelete, isPending }) {
           />
         </div>
 
-        <div className="grid-2" style={{ gap: 10 }}>
-          <div className="field">
-            <label className="field-label">Price (₹)</label>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-ink-900">Price (₹)</label>
             <input
-              className="input"
+              className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all"
               type="number"
               value={form.price}
               onChange={e => update('price', e.target.value)}
               placeholder="e.g. 5000"
             />
           </div>
-          <div className="field">
-            <label className="field-label">Delivery (days)</label>
-            <input
-              className="input"
-              type="number"
-              value={form.delivery_days}
-              onChange={e => update('delivery_days', e.target.value)}
-              placeholder="e.g. 3"
-            />
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-ink-900">Delivery</label>
+            <div className="relative">
+              <input
+                className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 pr-12 text-sm transition-all"
+                type="number"
+                value={form.delivery_days}
+                onChange={e => update('delivery_days', e.target.value)}
+                placeholder="e.g. 3"
+              />
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-ink-400 pointer-events-none">days</div>
+            </div>
           </div>
         </div>
 
-        <div className="field">
-          <label className="field-label">Revisions</label>
-          <select className="select" value={form.revisions} onChange={e => update('revisions', e.target.value)}>
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-ink-900">Revisions</label>
+          <select 
+            className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all" 
+            value={form.revisions} 
+            onChange={e => update('revisions', e.target.value)}
+          >
             <option value="Unlimited">Unlimited</option>
             {[1,2,3,5].map(n => <option key={n} value={String(n)}>{n} revision{n > 1 ? 's' : ''}</option>)}
           </select>
         </div>
 
         {/* Inclusions */}
-        <div>
-          <label className="field-label" style={{ marginBottom: 8, display: 'block' }}>
+        <div className="flex flex-col gap-2 mt-2">
+          <label className="text-sm font-semibold text-ink-900">
             What's included
           </label>
           {Object.keys(form.inclusions).length > 0 && (
-            <div className="stack" style={{ gap: 6, marginBottom: 10 }}>
+            <div className="flex flex-col gap-2 mb-3">
               {Object.entries(form.inclusions).map(([k, v]) => (
-                <div key={k} style={{
-                  display: 'flex', gap: 8, alignItems: 'center',
-                  padding: '7px 10px', background: 'var(--paper-tint)',
-                  border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)',
-                }}>
-                  <Icon name="check" size={12} style={{ color: 'var(--mint-600)', flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: 13, color: 'var(--ink-800)' }}>
-                    <strong>{k}</strong>
+                <div key={k} className="flex items-center gap-3 px-3 py-2 bg-ink-50 border border-ink-200 rounded-lg">
+                  <Icon name="check" size={14} className="text-mint-600 shrink-0" />
+                  <span className="flex-1 text-sm text-ink-800 truncate">
+                    <strong className="font-semibold">{k}</strong>
                     {typeof v !== 'boolean' && v ? `: ${v}` : ''}
                   </span>
                   <button
                     type="button"
                     onClick={() => removeInclusion(k)}
-                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--ink-400)' }}
+                    className="text-ink-400 hover:text-ink-600 transition-colors p-1 rounded-md hover:bg-white"
                   >
-                    <Icon name="x" size={11} />
+                    <Icon name="x" size={14} />
                   </button>
                 </div>
               ))}
             </div>
           )}
-          <div className="row" style={{ gap: 8 }}>
+          <div className="flex gap-2">
             <input
-              className="input"
-              style={{ flex: 2 }}
+              className="flex-[2] min-w-0 bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-3 py-2 text-sm transition-all"
               placeholder="e.g. Source file"
               value={inclKey}
               onChange={e => setInclKey(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addInclusion()}
             />
             <input
-              className="input"
-              style={{ flex: 1 }}
-              placeholder="Value (optional)"
+              className="flex-[1] min-w-0 bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-3 py-2 text-sm transition-all"
+              placeholder="Value"
               value={inclVal}
               onChange={e => setInclVal(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addInclusion()}
             />
-            <button type="button" className="btn ghost" onClick={addInclusion} style={{ flexShrink: 0 }}>
-              <Icon name="plus" size={14} />
+            <button 
+              type="button" 
+              className="shrink-0 w-10 h-[38px] bg-ink-100 hover:bg-ink-200 text-ink-700 rounded-xl flex items-center justify-center transition-colors" 
+              onClick={addInclusion}
+            >
+              <Icon name="plus" size={16} />
             </button>
           </div>
         </div>
       </div>
 
       <button
-        className="btn primary block"
-        style={{ marginTop: 18 }}
+        className={`w-full mt-8 py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center ${
+          isPending || !form.name || !form.price || !form.delivery_days 
+            ? 'bg-ink-100 text-ink-400 cursor-not-allowed' 
+            : 'bg-ink-950 text-white hover:bg-ink-900 shadow-md hover:shadow-lg hover:-translate-y-0.5'
+        }`}
         onClick={() => onSave(type, form)}
         disabled={isPending || !form.name || !form.price || !form.delivery_days}
       >
@@ -241,26 +245,25 @@ export default function Packages() {
   }
 
   if (isLoading) return (
-    <div className="stack-6">
-      <div className="skeleton" style={{ width: 200, height: 20, borderRadius: 6 }} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
-        {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 380, borderRadius: 12 }} />)}
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto">
+      <div className="animate-pulse w-48 h-6 bg-ink-200 rounded-md" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {[1,2,3].map(i => <div key={i} className="animate-pulse bg-ink-100 h-[600px] rounded-3xl" />)}
       </div>
     </div>
   )
 
   return (
-    <div className="stack-6">
-      <div className="reveal">
-        <div className="h-eyebrow" style={{ marginBottom: 4 }}>Marketplace</div>
-        <h1 className="h-display h-1" style={{ margin: 0 }}>Packages</h1>
-        <p className="muted" style={{ marginTop: 6, fontSize: 13.5 }}>
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto">
+      <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="text-sm font-semibold text-ink-500 mb-1 tracking-wide uppercase">Marketplace</div>
+        <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-950 tracking-tight m-0 leading-tight">Packages</h1>
+        <p className="text-ink-600 mt-2 text-sm md:text-base">
           Set up Basic, Standard, and Premium packages. Clients see these on your profile.
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}
-        className="reveal">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-start animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
         {PACKAGE_TYPES.map(type => {
           const existing = packages.find(p => p.package_type === type)
           return (

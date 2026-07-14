@@ -15,8 +15,8 @@ const monthKey = (date = today()) => String(date || today()).slice(0, 7)
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: 'grid', gap: 6 }}>
-      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-600)' }}>{label}</span>
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-bold text-ink-600 uppercase tracking-widest">{label}</span>
       {children}
     </label>
   )
@@ -263,64 +263,69 @@ export default function AdminOperations() {
   const workSlots = ['morning', 'evening', 'night']
 
   return (
-    <div className="stack-6">
-      <div className="reveal">
-        <div className="row between" style={{ gap: 14, alignItems: 'flex-start' }}>
-          <div>
-            <div className="h-eyebrow" style={{ marginBottom: 4 }}>Operations</div>
-            <h1 className="h-display h-1" style={{ margin: 0 }}>Internal creative production</h1>
-            <p className="muted" style={{ margin: '8px 0 0' }}>
-              Manage calendar creatives, custom requests, and CREATYV team workload.
-            </p>
-          </div>
-          <div className="row wrap" style={{ gap: 8, justifyContent: 'flex-end' }}>
-            <button className="btn ghost" onClick={() => openCsv(tasks)} disabled={!tasks.length}>
-              <Icon name="eye" /> Open CSV
-            </button>
-            <button className="btn ghost" onClick={() => downloadCsv(tasks)} disabled={!tasks.length}>
-              <Icon name="download" /> Export CSV
-            </button>
-            <button className="btn primary" onClick={() => syncSheet.mutate()} disabled={syncSheet.isPending || !tasks.length}>
-              <Icon name="refresh" /> {syncSheet.isPending ? 'Syncing...' : 'Sync sheet'}
-            </button>
-          </div>
+    <div className="flex flex-col gap-8 md:gap-10 p-4 md:p-8 w-full max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex flex-col gap-1">
+          <div className="text-sm font-semibold text-ink-500 tracking-wide uppercase">Operations</div>
+          <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-950 tracking-tight m-0">Internal creative production</h1>
+          <p className="text-ink-600 font-medium">Manage calendar creatives, custom requests, and CREATYV team workload.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button className="px-5 py-2.5 rounded-full border border-ink-200 hover:bg-ink-50 text-ink-700 font-bold text-sm transition-colors flex items-center gap-2" onClick={() => openCsv(tasks)} disabled={!tasks.length}>
+            <Icon name="eye" size={16} /> Open CSV
+          </button>
+          <button className="px-5 py-2.5 rounded-full border border-ink-200 hover:bg-ink-50 text-ink-700 font-bold text-sm transition-colors flex items-center gap-2" onClick={() => downloadCsv(tasks)} disabled={!tasks.length}>
+            <Icon name="download" size={16} /> Export CSV
+          </button>
+          <button className="px-6 py-2.5 rounded-full bg-ink-950 hover:bg-ink-900 text-white font-bold text-sm transition-colors flex items-center gap-2 disabled:opacity-50" onClick={() => syncSheet.mutate()} disabled={syncSheet.isPending || !tasks.length}>
+            <Icon name="refresh" size={16} /> {syncSheet.isPending ? 'Syncing...' : 'Sync sheet'}
+          </button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { label: 'Tasks', value: tasks.length, icon: 'briefcase' },
           { label: 'Custom review', value: requests.length, icon: 'edit' },
           { label: 'Calendar review', value: selections.filter(s => s.status === 'pending_review').length, icon: 'calendar' },
           { label: 'Designers', value: designers.length, icon: 'user' },
         ].map(stat => (
-          <div className="card" key={stat.label} style={{ padding: 18 }}>
-            <Icon name={stat.icon} size={16} />
-            <div className="h-eyebrow" style={{ marginTop: 12 }}>{stat.label}</div>
-            <div className="mono" style={{ fontSize: 28, fontWeight: 700 }}>{stat.value}</div>
+          <div key={stat.label} className="group relative overflow-hidden bg-ink-950 border border-ink-800 rounded-[2rem] p-6 md:p-8 shadow-sm flex flex-col justify-between transition-all duration-500 hover:border-ink-700 hover:shadow-2xl hover:shadow-ink-900/20 hover:-translate-y-1">
+            <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full blur-[64px] opacity-30 transition-opacity duration-700 group-hover:opacity-60 bg-ink-400" />
+            <div className="relative z-10 flex items-start justify-between mb-8">
+              <div className="text-xs font-bold tracking-[0.2em] uppercase text-ink-400">{stat.label}</div>
+              <div className="w-10 h-10 rounded-2xl bg-ink-900 border border-ink-800 text-ink-400 flex items-center justify-center shadow-inner">
+                <Icon name={stat.icon} size={18} />
+              </div>
+            </div>
+            <div className="relative z-10 font-display text-4xl md:text-5xl font-bold text-white tracking-tight leading-none">{stat.value}</div>
           </div>
         ))}
       </div>
 
-      <div className="card" style={{ padding: 16 }}>
-        <div className="row between" style={{ gap: 14, alignItems: 'flex-start' }}>
-          <div>
-            <div className="h-eyebrow">Design team</div>
-            <h3 style={{ margin: '4px 0 4px' }}>Add CREATYV designer</h3>
-            <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
+      {/* Designer Add */}
+      <div className="bg-white border border-ink-200/60 rounded-3xl p-6 md:p-8 shadow-sm">
+        <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6">
+          <div className="max-w-xl">
+            <div className="text-xs font-bold tracking-widest uppercase text-ink-400 mb-2">Design team</div>
+            <h3 className="text-xl font-display font-bold text-ink-950 mb-2">Add CREATYV designer</h3>
+            <p className="text-sm font-medium text-ink-600 leading-relaxed">
               Designers get their own login, see only assigned production tasks, and upload deliverables into client Mintbox folders.
             </p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '160px 210px 150px auto', gap: 8, alignItems: 'center' }}>
-            <input className="input" value={designerForm.full_name} onChange={e => setDesignerForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Designer name" />
-            <input className="input" value={designerForm.email} onChange={e => setDesignerForm(f => ({ ...f, email: e.target.value }))} placeholder="email@CREATYV..." />
-            <input className="input" type="password" value={designerForm.password} onChange={e => setDesignerForm(f => ({ ...f, password: e.target.value }))} placeholder="Temp password" autoComplete="new-password" />
+          <div className="flex flex-wrap md:flex-nowrap items-center gap-3 w-full lg:w-auto">
+            <input className="input flex-1 min-w-[160px]" value={designerForm.full_name} onChange={e => setDesignerForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Designer name" />
+            <input className="input flex-1 min-w-[200px]" value={designerForm.email} onChange={e => setDesignerForm(f => ({ ...f, email: e.target.value }))} placeholder="email@CREATYV..." />
+            <input className="input flex-1 min-w-[150px]" type="password" value={designerForm.password} onChange={e => setDesignerForm(f => ({ ...f, password: e.target.value }))} placeholder="Temp password" autoComplete="new-password" />
             <button
-              className="btn primary"
+              className="px-6 py-2.5 bg-ink-950 text-white font-bold rounded-full disabled:opacity-50 transition-colors whitespace-nowrap flex items-center gap-2"
               disabled={createDesigner.isPending || !designerForm.full_name || !designerForm.email || designerForm.password.length < 8}
               onClick={() => createDesigner.mutate()}
             >
-              <Icon name="plus" /> Add
+              <Icon name="plus" size={16} /> Add
             </button>
           </div>
         </div>
@@ -337,237 +342,259 @@ export default function AdminOperations() {
         ]}
       />
 
-      {tab === 'calendar' && (
-        <div className="grid-2" style={{ gap: 16, alignItems: 'start' }}>
-          <div className="card" style={{ padding: 18 }}>
-            <div className="row between" style={{ marginBottom: 12 }}>
-              <div className="h-eyebrow">{editingEventId ? 'Edit calendar event' : 'Publish calendar event'}</div>
-              {editingEventId && <button className="btn ghost sm" onClick={clearEventForm}>Cancel edit</button>}
-            </div>
-            <div className="stack" style={{ gap: 12 }}>
-              <Field label="Title"><input className="input" value={eventForm.title} onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))} placeholder="Father's Day creative" /></Field>
-              <div className="grid-2" style={{ gap: 10 }}>
-                <Field label="Date"><input className="input" type="date" value={eventForm.event_date} onChange={e => setEventForm(f => ({ ...f, event_date: e.target.value }))} /></Field>
-                <Field label="MintCoins"><input className="input" type="number" min="0" value={eventForm.coin_cost} onChange={e => setEventForm(f => ({ ...f, coin_cost: e.target.value }))} /></Field>
+      <div className="mt-4">
+        {tab === 'calendar' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="lg:col-span-5 bg-white border border-ink-200/60 rounded-3xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div className="font-bold text-lg text-ink-950">{editingEventId ? 'Edit calendar event' : 'Publish calendar event'}</div>
+                {editingEventId && <button className="text-sm font-bold text-ink-500 hover:text-ink-900 transition-colors" onClick={clearEventForm}>Cancel edit</button>}
               </div>
-              <Field label="Asset type"><input className="input" value={eventForm.asset_type} onChange={e => setEventForm(f => ({ ...f, asset_type: e.target.value }))} placeholder="social_post" /></Field>
-              <Field label="Description"><textarea className="textarea" rows={4} value={eventForm.description} onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))} /></Field>
-              <Field label="Tags"><input className="input" value={eventForm.tags} onChange={e => setEventForm(f => ({ ...f, tags: e.target.value }))} placeholder="festival, offer, local" /></Field>
-              <button className="btn primary" disabled={createEvent.isPending} onClick={() => createEvent.mutate()}>
-                <Icon name={editingEventId ? 'check' : 'plus'} /> {editingEventId ? 'Save changes' : 'Publish event'}
-              </button>
-            </div>
-          </div>
-          <div className="stack" style={{ gap: 10 }}>
-            <div className="card" style={{ padding: 16 }}>
-              <div className="row between" style={{ gap: 12 }}>
-                <div>
-                  <div className="h-eyebrow">Google + AI suggestions</div>
-                  <p className="muted" style={{ margin: '5px 0 0', fontSize: 12 }}>
-                    Pull important days for {monthKey(eventForm.event_date)} and add selected events at once.
-                  </p>
+              <div className="flex flex-col gap-5">
+                <Field label="Title"><input className="input" value={eventForm.title} onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))} placeholder="Father's Day creative" /></Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Date"><input className="input" type="date" value={eventForm.event_date} onChange={e => setEventForm(f => ({ ...f, event_date: e.target.value }))} /></Field>
+                  <Field label="MintCoins"><input className="input" type="number" min="0" value={eventForm.coin_cost} onChange={e => setEventForm(f => ({ ...f, coin_cost: e.target.value }))} /></Field>
                 </div>
-                <button className="btn" disabled={suggestEvents.isPending} onClick={() => suggestEvents.mutate()}>
-                  <Icon name="sparkles" /> {suggestEvents.isPending ? 'Finding...' : 'Suggest'}
+                <Field label="Asset type"><input className="input" value={eventForm.asset_type} onChange={e => setEventForm(f => ({ ...f, asset_type: e.target.value }))} placeholder="social_post" /></Field>
+                <Field label="Description"><textarea className="textarea min-h-[100px]" value={eventForm.description} onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))} /></Field>
+                <Field label="Tags"><input className="input" value={eventForm.tags} onChange={e => setEventForm(f => ({ ...f, tags: e.target.value }))} placeholder="festival, offer, local" /></Field>
+                <button className="w-full py-3 bg-mint-500 hover:bg-mint-600 text-white font-bold rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-50 mt-2" disabled={createEvent.isPending} onClick={() => createEvent.mutate()}>
+                  <Icon name={editingEventId ? 'check' : 'plus'} size={18} /> {editingEventId ? 'Save changes' : 'Publish event'}
                 </button>
               </div>
-              {suggestedEvents.length > 0 && (
-                <div className="stack" style={{ gap: 8, marginTop: 14 }}>
-                  <div className="row between">
-                    <span className="muted" style={{ fontSize: 12 }}>{selectedSuggestions.length} selected</span>
-                    <button
-                      className="btn primary small"
-                      disabled={!selectedSuggestions.length || publishSuggestions.isPending}
-                      onClick={() => publishSuggestions.mutate()}
-                    >
-                      <Icon name="check" /> Publish selected
-                    </button>
-                  </div>
-                  {suggestedEvents.map((event, index) => {
-                    const selected = selectedSuggestions.includes(index)
-                    return (
-                      <button
-                        key={`${event.title}-${event.event_date}-${index}`}
-                        type="button"
-                        onClick={() => setSelectedSuggestions(prev => selected ? prev.filter(i => i !== index) : [...prev, index])}
-                        style={{
-                          textAlign: 'left',
-                          padding: 12,
-                          borderRadius: 10,
-                          border: `1px solid ${selected ? 'var(--mint-300)' : 'var(--hairline)'}`,
-                          background: selected ? 'var(--mint-50)' : 'var(--paper)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <div className="row between" style={{ gap: 8 }}>
-                          <strong>{event.title}</strong>
-                          <span className="badge neutral">{event.source?.replace(/_/g, ' ') || 'suggested'}</span>
-                        </div>
-                        <div className="row wrap" style={{ gap: 8, marginTop: 6 }}>
-                          <DateBadge value={event.event_date} />
-                          <span className="muted" style={{ fontSize: 12 }}>{event.description}</span>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
             </div>
-            {events.map(event => (
-              <div key={event.id} className="card" style={{ padding: 14 }}>
-                <div className="row between">
+            
+            <div className="lg:col-span-7 flex flex-col gap-4">
+              <div className="bg-white border border-mint-200/50 bg-gradient-to-br from-mint-50/50 to-white rounded-3xl p-6 shadow-sm">
+                <div className="flex items-start justify-between gap-6">
                   <div>
-                    <strong>{event.title}</strong>
-                    <div className="row wrap" style={{ gap: 8, marginTop: 6 }}>
+                    <div className="flex items-center gap-2 font-bold text-mint-900 mb-2">
+                      <Icon name="sparkles" size={18} className="text-mint-500" />
+                      Google + AI suggestions
+                    </div>
+                    <p className="text-sm font-medium text-mint-700/80">
+                      Pull important days for {monthKey(eventForm.event_date)} and add selected events at once.
+                    </p>
+                  </div>
+                  <button className="px-5 py-2.5 bg-mint-100 hover:bg-mint-200 text-mint-800 font-bold text-sm rounded-full transition-colors whitespace-nowrap" disabled={suggestEvents.isPending} onClick={() => suggestEvents.mutate()}>
+                    {suggestEvents.isPending ? 'Finding...' : 'Suggest'}
+                  </button>
+                </div>
+
+                {suggestedEvents.length > 0 && (
+                  <div className="mt-6 flex flex-col gap-3 border-t border-mint-100 pt-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-mint-600 uppercase tracking-wider">{selectedSuggestions.length} selected</span>
+                      <button
+                        className="px-4 py-2 bg-mint-500 hover:bg-mint-600 text-white font-bold text-xs rounded-full disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                        disabled={!selectedSuggestions.length || publishSuggestions.isPending}
+                        onClick={() => publishSuggestions.mutate()}
+                      >
+                        <Icon name="check" size={14} /> Publish selected
+                      </button>
+                    </div>
+                    {suggestedEvents.map((event, index) => {
+                      const selected = selectedSuggestions.includes(index)
+                      return (
+                        <button
+                          key={`${event.title}-${event.event_date}-${index}`}
+                          type="button"
+                          onClick={() => setSelectedSuggestions(prev => selected ? prev.filter(i => i !== index) : [...prev, index])}
+                          className={`flex flex-col gap-2 p-4 rounded-2xl border transition-all text-left ${selected ? 'bg-mint-50 border-mint-300' : 'bg-white border-ink-100 hover:border-mint-200'}`}
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <strong className="text-ink-950 font-bold">{event.title}</strong>
+                            <span className="px-2.5 py-1 bg-ink-100 text-ink-600 text-[10px] font-bold uppercase tracking-wider rounded-full">{event.source?.replace(/_/g, ' ') || 'suggested'}</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <DateBadge value={event.event_date} />
+                            <span className="text-sm font-medium text-ink-500">{event.description}</span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {events.map(event => (
+                <div key={event.id} className="bg-white border border-ink-200/60 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <strong className="text-ink-950 font-bold text-lg">{event.title}</strong>
+                    <div className="flex flex-wrap items-center gap-3 mt-2">
                       <DateBadge value={event.event_date} />
-                      <span className="tag-slate">{event.asset_type}</span>
+                      <span className="px-2.5 py-1 bg-ink-50 text-ink-600 text-xs font-bold rounded-md">{event.asset_type}</span>
                     </div>
                   </div>
-                  <div className="row" style={{ gap: 8 }}>
-                    <span className="badge mint">{Number(event.coin_cost || 0)} coin</span>
-                    <button className="btn ghost sm" onClick={() => startEditEvent(event)}>
-                      <Icon name="edit" size={12} /> Edit
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1.5 bg-mint-50 text-mint-700 font-bold text-xs rounded-full whitespace-nowrap">{Number(event.coin_cost || 0)} coin</span>
+                    <button className="w-10 h-10 rounded-full flex items-center justify-center text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" onClick={() => startEditEvent(event)}>
+                      <Icon name="edit" size={16} />
                     </button>
                     <button
-                      className="btn ghost sm"
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                       disabled={deleteEvent.isPending}
                       onClick={() => {
                         if (window.confirm(`Remove "${event.title}" from the calendar?`)) {
                           deleteEvent.mutate(event.id)
                         }
                       }}
-                      style={{ color: '#be123c' }}
                     >
-                      <Icon name="trash" size={12} /> Remove
+                      <Icon name="trash" size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tab === 'requests' && (
+          <div className="flex flex-col gap-4">
+            {requests.length === 0 ? (
+              <div className="bg-ink-50/50 border border-ink-100 rounded-3xl p-12 text-center">
+                <h3 className="text-ink-500 font-bold text-lg m-0">No custom requests waiting</h3>
+              </div>
+            ) : requests.map(request => (
+              <div key={request.id} className="bg-white border border-ink-200/60 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="flex-1">
+                    <div className="text-xs font-bold tracking-widest uppercase text-ink-400 mb-2">{request.client_name}</div>
+                    <h3 className="text-xl font-display font-bold text-ink-950 mb-2">{request.title}</h3>
+                    <p className="text-sm font-medium text-ink-600">{request.description || 'No extra details.'}</p>
+                  </div>
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 shrink-0">
+                    <button
+                      className="px-6 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-full transition-colors disabled:opacity-50"
+                      disabled={rejectRequest.isPending || approveRequest.isPending}
+                      onClick={() => {
+                        const note = window.prompt('Why are we rejecting this request?', 'Not suitable for this month')
+                        if (note !== null) rejectRequest.mutate({ id: request.id, admin_note: note })
+                      }}
+                    >
+                      Reject
+                    </button>
+                    <button 
+                      className="px-6 py-2.5 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-colors flex items-center gap-2 disabled:opacity-50" 
+                      disabled={approveRequest.isPending || rejectRequest.isPending} 
+                      onClick={() => approveRequest.mutate({ id: request.id, coin_cost: request.coin_cost || 1 })}
+                    >
+                      <Icon name="check" size={16} /> Approve {Number(request.coin_cost || 1)} coin
                     </button>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {tab === 'requests' && (
-        <div className="stack" style={{ gap: 10 }}>
-          {requests.length === 0 ? <div className="empty"><h3>No custom requests waiting</h3></div> : requests.map(request => (
-            <div key={request.id} className="card" style={{ padding: 18 }}>
-              <div className="row between" style={{ gap: 12 }}>
-                <div>
-                  <div className="h-eyebrow">{request.client_name}</div>
-                  <h3 style={{ margin: '4px 0' }}>{request.title}</h3>
-                  <p className="muted" style={{ margin: 0 }}>{request.description || 'No extra details.'}</p>
-                </div>
-                <div className="row wrap" style={{ gap: 8, justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn ghost"
-                    disabled={rejectRequest.isPending || approveRequest.isPending}
-                    onClick={() => {
-                      const note = window.prompt('Why are we rejecting this request?', 'Not suitable for this month')
-                      if (note !== null) rejectRequest.mutate({ id: request.id, admin_note: note })
-                    }}
-                    style={{ color: '#be123c' }}
-                  >
-                    Reject
-                  </button>
-                  <button className="btn primary" disabled={approveRequest.isPending || rejectRequest.isPending} onClick={() => approveRequest.mutate({ id: request.id, coin_cost: request.coin_cost || 1 })}>
-                    <Icon name="check" /> Approve {Number(request.coin_cost || 1)} coin
-                  </button>
-                </div>
+        {tab === 'tasks' && (
+          <div className="flex flex-col gap-4">
+            {isLoading ? (
+              <div className="bg-white border border-ink-200/60 rounded-3xl p-8 text-ink-500 font-medium">Loading tasks...</div>
+            ) : tasks.length === 0 ? (
+              <div className="bg-ink-50/50 border border-ink-100 rounded-3xl p-12 text-center">
+                <h3 className="text-ink-500 font-bold text-lg m-0">No tasks yet</h3>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {tab === 'tasks' && (
-        <div className="stack" style={{ gap: 10 }}>
-          {isLoading ? <div className="card" style={{ padding: 20 }}>Loading tasks...</div> : tasks.length === 0 ? <div className="empty"><h3>No tasks yet</h3></div> : tasks.map(task => (
-            <div key={task.id} className="card task-card-shell" style={{ padding: 18, '--task-status-color': statusAccent(task.status) }}>
-              <div className="row between" style={{ gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ flex: 1 }}>
-                  <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
-                    <span className="tag-slate">{task.source_type?.replace(/_/g, ' ')}</span>
-                    <StatusBadge status={task.status} />
-                    <span className="task-client-line"><strong>{task.client_name}</strong></span>
-                    <span className={task.work_slot ? 'badge neutral' : 'slot-missing'}>{task.work_slot || 'slot not set'}</span>
-                    <DateBadge value={task.due_date} fallback="no due date" />
+            ) : tasks.map(task => (
+              <div key={task.id} className="bg-white border border-ink-200/60 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow overflow-hidden relative" style={{ '--task-status-color': statusAccent(task.status) }}>
+                {/* Accent line on left */}
+                <div className="absolute top-0 left-0 w-1.5 h-full opacity-60" style={{ background: 'var(--task-status-color, var(--ink-200))' }} />
+                
+                <div className="flex flex-col lg:flex-row justify-between gap-8 pl-2">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2.5 mb-4">
+                      <span className="px-2.5 py-1 bg-ink-50 text-ink-600 text-[10px] font-bold uppercase tracking-wider rounded-md">{task.source_type?.replace(/_/g, ' ')}</span>
+                      <StatusBadge status={task.status} />
+                      <span className="px-2.5 py-1 bg-ink-900 text-white text-xs font-bold rounded-md">{task.client_name}</span>
+                      <span className={`px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md ${task.work_slot ? 'bg-ink-100 text-ink-600' : 'border border-dashed border-rose-300 text-rose-500'}`}>
+                        {task.work_slot || 'slot not set'}
+                      </span>
+                      <DateBadge value={task.due_date} fallback="no due date" />
+                    </div>
+                    <h3 className="text-lg font-bold text-ink-950 mb-2">{task.title}</h3>
+                    <p className="text-sm font-medium text-ink-500 line-clamp-2">{task.description || task.client_status}</p>
                   </div>
-                  <h3 style={{ margin: '0 0 6px' }}>{task.title}</h3>
-                  <p className="muted" style={{ margin: 0 }}>{task.description || task.client_status}</p>
-                </div>
-                <div style={{ minWidth: 480 }}>
-                  <div className="grid-2" style={{ gap: 8 }}>
-                    <select className="input" value={task.assigned_to || ''} onChange={e => updateTask.mutate({ id: task.id, payload: { assigned_to: e.target.value || null } })}>
-                      <option value="">Assign designer</option>
-                      {designers.map(designer => <option key={designer.id} value={designer.id}>{designer.full_name}</option>)}
-                    </select>
-                    <StatusSelect
-                      value={task.status || 'assigned'}
-                      onChange={status => updateTask.mutate({ id: task.id, payload: { status } })}
-                    />
-                    <select className="input" value={task.work_slot || ''} onChange={e => updateTask.mutate({ id: task.id, payload: { work_slot: e.target.value || null } })}>
-                      <option value="">Set work slot</option>
-                      {workSlots.map(slot => <option key={slot} value={slot}>{slot}</option>)}
-                    </select>
-                    <input
-                      className="input"
-                      type="date"
-                      value={task.due_date ? String(task.due_date).slice(0, 10) : ''}
-                      onChange={e => updateTask.mutate({ id: task.id, payload: { due_date: e.target.value || null } })}
-                    />
+                  
+                  <div className="w-full lg:w-[480px] shrink-0 bg-ink-50/50 p-4 rounded-2xl border border-ink-100/50">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <select className="input bg-white text-sm" value={task.assigned_to || ''} onChange={e => updateTask.mutate({ id: task.id, payload: { assigned_to: e.target.value || null } })}>
+                        <option value="">Assign designer</option>
+                        {designers.map(designer => <option key={designer.id} value={designer.id}>{designer.full_name}</option>)}
+                      </select>
+                      <StatusSelect
+                        value={task.status || 'assigned'}
+                        onChange={status => updateTask.mutate({ id: task.id, payload: { status } })}
+                      />
+                      <select className="input bg-white text-sm" value={task.work_slot || ''} onChange={e => updateTask.mutate({ id: task.id, payload: { work_slot: e.target.value || null } })}>
+                        <option value="">Set work slot</option>
+                        {workSlots.map(slot => <option key={slot} value={slot}>{slot}</option>)}
+                      </select>
+                      <input
+                        className="input bg-white text-sm"
+                        type="date"
+                        value={task.due_date ? String(task.due_date).slice(0, 10) : ''}
+                        onChange={e => updateTask.mutate({ id: task.id, payload: { due_date: e.target.value || null } })}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {tab === 'selections' && (
-        <div className="stack" style={{ gap: 10 }}>
-          {selections.map(selection => (
-            <div key={selection.id} className="card" style={{ padding: 16 }}>
-              <div className="row between">
-                <div>
-                  <strong>{selection.title}</strong>
-                  <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
-                    <span className="task-client-line"><strong>{selection.client_name}</strong></span>
-                    <DateBadge value={selection.event_date} />
+        {tab === 'selections' && (
+          <div className="flex flex-col gap-4">
+            {selections.length === 0 ? (
+              <div className="bg-ink-50/50 border border-ink-100 rounded-3xl p-12 text-center">
+                <h3 className="text-ink-500 font-bold text-lg m-0">No selections yet</h3>
+              </div>
+            ) : selections.map(selection => (
+              <div key={selection.id} className="bg-white border border-ink-200/60 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <strong className="text-lg font-bold text-ink-950 block mb-3">{selection.title}</strong>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="px-3 py-1 bg-ink-900 text-white text-xs font-bold rounded-md">{selection.client_name}</span>
+                      <DateBadge value={selection.event_date} />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {selection.status === 'delivered'
+                      ? <StatusBadge status="delivered" />
+                      : selection.status === 'in_production'
+                        ? <StatusBadge status="in_progress">In production</StatusBadge>
+                        : selection.status === 'revision'
+                          ? <StatusBadge status="revision" />
+                          : <span className="px-3 py-1 bg-ink-100 text-ink-600 text-xs font-bold uppercase tracking-wider rounded-md">{selection.status?.replace(/_/g, ' ')}</span>}
+                    
+                    {selection.status === 'pending_review' && (
+                      <>
+                        <button
+                          className="px-5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-sm rounded-full transition-colors disabled:opacity-50"
+                          disabled={rejectSelection.isPending}
+                          onClick={() => rejectSelection.mutate({ id: selection.id })}
+                        >
+                          Reject
+                        </button>
+                        <button
+                          className="px-5 py-2.5 bg-ink-950 hover:bg-ink-900 text-white font-bold text-sm rounded-full transition-colors flex items-center gap-2 disabled:opacity-50"
+                          disabled={approveSelection.isPending}
+                          onClick={() => approveSelection.mutate({ id: selection.id, coin_cost: selection.coin_cost || 1 })}
+                        >
+                          <Icon name="check" size={16} /> Approve {Number(selection.coin_cost || 1)} coin
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
-                <div className="row" style={{ gap: 8 }}>
-                  {selection.status === 'delivered'
-                    ? <StatusBadge status="delivered" />
-                    : selection.status === 'in_production'
-                      ? <StatusBadge status="in_progress">In production</StatusBadge>
-                      : selection.status === 'revision'
-                        ? <StatusBadge status="revision" />
-                        : <span className="badge neutral">{selection.status?.replace(/_/g, ' ')}</span>}
-                  {selection.status === 'pending_review' && (
-                    <>
-                      <button
-                        className="btn small"
-                        disabled={rejectSelection.isPending}
-                        onClick={() => rejectSelection.mutate({ id: selection.id })}
-                      >
-                        Reject
-                      </button>
-                      <button
-                        className="btn primary small"
-                        disabled={approveSelection.isPending}
-                        onClick={() => approveSelection.mutate({ id: selection.id, coin_cost: selection.coin_cost || 1 })}
-                      >
-                        <Icon name="check" /> Approve {Number(selection.coin_cost || 1)} coin
-                      </button>
-                    </>
-                  )}
-                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

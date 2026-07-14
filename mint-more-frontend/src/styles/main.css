@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ============================================================
    CREATYV — design tokens & base
    Production CSS: desktop + tablet + mobile
@@ -85,7 +89,7 @@
 
   --font-sans: "Geist", "Geist Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
-  --font-display: "Geist", "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Creatyv Hero", sans-serif;
   --font-landing-sans: "Inter", "Creatyv Public Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-landing-nav: "Inter", "Creatyv Public Sans", ui-sans-serif, system-ui, sans-serif;
   --font-landing-display: "Creatyv Public Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -110,7 +114,7 @@ body {
   font-size: 14px;
   line-height: 1.5;
   width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: auto;
@@ -2511,13 +2515,18 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 /* ── Auth ────────────────────────────────────────────────────── */
 
 .auth-shell {
-  min-height: 100vh;
+  height: 100vh;
   display: grid;
   grid-template-columns: 1fr 1fr;
   background: var(--paper);
+  overflow: hidden;
 }
 .auth-shell.mobile {
+  position: relative;
   grid-template-columns: 1fr;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
 }
 .auth-aside {
   background: var(--ink-950);
@@ -2574,17 +2583,75 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   color: var(--mint-500);
 }
 .auth-shell.mobile .auth-aside {
+  display: flex;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  padding: 16px;
+}
+@media (max-width: 767px) {
+  .auth-shell.mobile .auth-aside {
+    display: none;
+  }
+}
+.auth-shell.mobile .auth-aside > div:first-child {
   display: none;
 }
 .auth-form-wrap {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   padding: 40px 32px;
+  overflow-y: auto;
+  max-height: 100vh;
+  justify-content: center;
+}
+.auth-shell.mobile .auth-form-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: transparent;
+  align-items: center;
+}
+@media (max-width: 767px) {
+  .auth-shell.mobile .auth-form-wrap {
+    background: var(--paper);
+    padding: 24px 20px;
+  }
+}
+@media (min-width: 1536px) {
+  .auth-form-wrap {
+    padding: 80px 64px;
+  }
 }
 .auth-form {
   width: 100%;
   max-width: 380px;
+  margin: auto;
+}
+.auth-shell.mobile .auth-form {
+  background: var(--paper);
+  padding: 40px 32px;
+  border-radius: var(--radius-2xl);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+@media (max-width: 767px) {
+  .auth-shell.mobile .auth-form {
+    box-shadow: none;
+    padding: 0;
+  }
+}
+@media (min-width: 768px) {
+  .auth-shell.mobile .auth-form {
+    max-width: 480px;
+    padding: 64px 48px;
+  }
+}
+@media (min-width: 1536px) {
+  .auth-form {
+    max-width: 520px;
+  }
 }
 
 .role-card {
@@ -3469,7 +3536,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   column-gap: 12px;
 }
 
-.creations-gallery.size-s .creation-grid { column-count: 3; }
+.creations-gallery.size-s .creation-grid { column-count: 4; }
 .creations-gallery.size-m .creation-grid { column-count: 2; }
 .creations-gallery.size-l .creation-grid,
 .creations-gallery.size-xl .creation-grid { column-count: 1; }
@@ -3489,7 +3556,6 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   overflow: hidden;
   background: var(--paper-tint);
   cursor: pointer;
-  min-height: 180px;
 }
 
 .creation-card.grid img {
@@ -3535,6 +3601,15 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 
 .creation-list-meta small {
   color: var(--ink-500);
+}
+
+.creation-card.list .creation-list-meta {
+  position: relative;
+  z-index: 5;
+}
+
+.creation-card.list .creation-bottom-left {
+  display: none;
 }
 
 .creation-select {
@@ -3679,12 +3754,14 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 
 .creation-inspector,
 .creation-publish-modal {
-  width: min(760px, calc(100vw - 360px));
+  width: min(1000px, calc(100vw - 36px));
   max-height: calc(100vh - 28px);
   overflow: hidden;
   border-radius: 24px;
   background: var(--paper);
   box-shadow: 0 24px 90px rgba(15, 23, 42, 0.28);
+  display: flex;
+  flex-direction: column;
 }
 
 .creation-inspector-tabs {
@@ -3698,7 +3775,8 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 .creation-inspector-body {
   display: grid;
   grid-template-columns: minmax(0, 1.18fr) minmax(300px, 0.82fr);
-  max-height: calc(100vh - 92px);
+  flex: 1;
+  min-height: 0;
 }
 
 .creation-preview-pane {
@@ -3769,6 +3847,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   display: grid;
   align-content: start;
   gap: 14px;
+  min-height: 0;
 }
 
 .creation-action-row {
@@ -4204,9 +4283,11 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   }
 
   .creation-grid,
-  .creations-gallery.size-s .creation-grid,
   .creations-gallery.size-m .creation-grid {
     column-count: 1;
+  }
+  .creations-gallery.size-s .creation-grid {
+    column-count: 2;
   }
 
   .creation-card.list {
@@ -4294,9 +4375,11 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 
 @media (max-width: 640px) {
   .creation-grid,
-  .creations-gallery.size-s .creation-grid,
   .creations-gallery.size-m .creation-grid {
     column-count: 1;
+  }
+  .creations-gallery.size-s .creation-grid {
+    column-count: 2;
   }
 
   .creation-card.list {

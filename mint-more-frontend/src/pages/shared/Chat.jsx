@@ -99,21 +99,26 @@ export default function Chat() {
 			: item.client_name || 'Client'
 
 	return (
-		<div className="reveal chat-workspace" style={{ display: 'grid', gridTemplateColumns: '300px minmax(0, 1fr)', minHeight: 'calc(100vh - 130px)', border: '1px solid var(--hairline)', background: 'var(--paper)' }}>
-			<aside className="chat-room-list" style={{ borderRight: '1px solid var(--hairline)', minWidth: 0 }}>
-				<div style={{ padding: 16, borderBottom: '1px solid var(--hairline)' }}>
-					<div className="row between" style={{ marginBottom: 12 }}>
-						<div>
-							<div className="h-eyebrow">{role === 'admin' ? 'Admin' : 'Workspace'}</div>
-							<h1 className="h-display h-2" style={{ margin: '4px 0 0' }}>{role === 'admin' ? 'All chats' : 'Messages'}</h1>
-						</div>
-						<span className="badge neutral">{rooms.length}</span>
-					</div>
-					<div style={{ position: 'relative' }}>
-						<Icon name="search" size={13} style={{ position: 'absolute', left: 11, top: 11, color: 'var(--ink-500)' }} />
-						<input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search conversations" style={{ paddingLeft: 32 }} />
-					</div>
+		<div className="flex flex-col w-full h-[calc(100vh-64px)] bg-white">
+			<div className="flex flex-col md:flex-row md:items-start justify-between gap-4 p-4 md:px-8 border-b border-ink-100 shrink-0">
+				<div>
+					<div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-1">{role === 'admin' ? 'Admin' : 'Workspace'}</div>
+					<h1 className="text-3xl font-display font-bold text-ink-900 tracking-tight m-0">{role === 'admin' ? 'All chats' : 'Messages'}</h1>
 				</div>
+			</div>
+
+			<div className="flex-1 grid grid-cols-1 md:grid-cols-[300px_1fr] min-h-0">
+				<aside className="border-r border-ink-100 flex flex-col min-w-0 bg-ink-50/30">
+					<div className="p-4 border-b border-ink-100 bg-white">
+						<div className="flex items-center justify-between mb-3">
+							<span className="text-sm font-bold text-ink-900">Conversations</span>
+							<span className="bg-ink-100 text-ink-600 text-[11px] font-bold px-2 py-0.5 rounded-full">{rooms.length}</span>
+						</div>
+						<div className="relative">
+							<Icon name="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+							<input className="w-full bg-ink-50 border border-ink-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-ink-400 focus:bg-white transition-colors" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search conversations..." />
+						</div>
+					</div>
 				<div style={{ maxHeight: 'calc(100vh - 245px)', overflowY: 'auto' }}>
 					{roomsLoading ? <div className="muted" style={{ padding: 18 }}>Loading chats...</div> : filteredRooms.length === 0 ? (
 						<div className="empty" style={{ border: 0, padding: 28 }}><h3>No chats yet</h3><p>Chats appear once a project begins.</p></div>
@@ -242,6 +247,7 @@ export default function Chat() {
 					</>
 				)}
 			</section>
+		</div>
 		</div>
 	)
 }

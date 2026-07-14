@@ -340,35 +340,35 @@ export default function AdminWallet() {
   const withdrawals = wdData?.withdrawals || []
 
   return (
-    <div className="stack-6">
-      <div className="reveal">
-        <div className="h-eyebrow" style={{ marginBottom: 4 }}>Admin</div>
-        <h1 className="h-display h-1" style={{ margin: 0 }}>Platform wallet</h1>
+    <div className="flex flex-col gap-8 md:gap-12 w-full max-w-[1600px] mx-auto p-6 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col gap-2">
+        <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Admin</div>
+        <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Platform wallet</h1>
       </div>
 
       {/* Platform stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }} className="reveal">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { label: 'Total in platform',   value: funds.total_platform_funds != null ? rupee(funds.total_platform_funds) : funds.total_balance != null ? rupee(funds.total_balance) : '—' },
-          { label: 'Total escrowed',      value: funds.total_escrowed != null ? rupee(funds.total_escrowed) : funds.total_escrow != null ? rupee(funds.total_escrow) : '—' },
-          { label: 'Pending withdrawals', value: pendingWd.total != null ? rupee(pendingWd.total) : pendingWd.count != null ? `${pendingWd.count} requests` : '—' },
+          { label: 'Total in platform',   value: funds.total_platform_funds != null ? rupee(funds.total_platform_funds) : funds.total_balance != null ? rupee(funds.total_balance) : '—', color: 'text-mint-700' },
+          { label: 'Total escrowed',      value: funds.total_escrowed != null ? rupee(funds.total_escrowed) : funds.total_escrow != null ? rupee(funds.total_escrow) : '—', color: 'text-amber-600' },
+          { label: 'Pending withdrawals', value: pendingWd.total != null ? rupee(pendingWd.total) : pendingWd.count != null ? `${pendingWd.count} requests` : '—', color: 'text-ink-950' },
         ].map(s => (
-          <div key={s.label} style={{ padding: 20, background: 'var(--paper)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-lg)' }}>
-            <div style={{ fontSize: 11.5, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: 0.04, marginBottom: 8 }}>{s.label}</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em' }}>{s.value}</div>
+          <div key={s.label} className="bg-white border border-ink-200/60 rounded-[2rem] p-6 shadow-sm flex flex-col justify-center min-h-[140px]">
+            <div className="text-xs font-bold text-ink-500 uppercase tracking-widest mb-2">{s.label}</div>
+            <div className={`font-mono font-bold text-4xl tracking-tight ${s.color}`}>{s.value}</div>
           </div>
         ))}
       </div>
 
       {/* User wallet adjustment section */}
-      <div className="reveal">
+      <div className="bg-white border border-ink-200/60 rounded-[2rem] p-6 md:p-8 shadow-sm">
         <UserWalletSearch />
       </div>
 
       {/* Withdrawals */}
-      <div className="stack">
-        <div className="row between">
-          <h2 className="h-display h-3" style={{ margin: 0 }}>Withdrawal requests</h2>
+      <div className="bg-white border border-ink-200/60 rounded-[2rem] p-6 md:p-8 shadow-sm flex flex-col gap-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <h2 className="text-2xl md:text-3xl font-display font-bold text-ink-950 m-0">Withdrawal requests</h2>
           <Tabs value={tab} onChange={setTab} items={[
             { value: 'pending',  label: 'Pending' },
             { value: 'approved', label: 'Approved' },
@@ -377,72 +377,82 @@ export default function AdminWallet() {
         </div>
 
         {isLoading ? <SkeletonCard /> : withdrawals.length === 0 ? (
-          <div className="card" style={{ padding: 28, textAlign: 'center' }}>
-            <div style={{ color: 'var(--ink-400)', fontSize: 13 }}>No {tab} withdrawal requests</div>
+          <div className="border border-dashed border-ink-200 rounded-2xl p-12 text-center flex flex-col items-center justify-center min-h-[200px]">
+            <Icon name="check" size={32} className="text-ink-300 mb-4" />
+            <div className="text-ink-500 font-medium text-lg">No {tab} withdrawal requests</div>
+            <p className="text-ink-400 text-sm mt-2">You're all caught up.</p>
           </div>
         ) : (
-          <div className="stack" style={{ gap: 12 }}>
+          <div className="flex flex-col gap-4">
             {withdrawals.map(w => (
-              <div key={w.id} style={{ background: 'var(--paper)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-lg)', padding: 20 }}>
-                <div className="row between" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <Avatar name={w.user?.full_name || 'F'} size="sm" />
+              <div key={w.id} className="bg-ink-50/50 border border-ink-200/60 rounded-2xl p-6 transition-all hover:shadow-md hover:border-ink-300">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                  <div className="flex gap-4 items-center">
+                    <Avatar name={w.user?.full_name || 'F'} size="md" />
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 15 }}>{w.user?.full_name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>
-                        {w.user?.email} · {timeAgo(w.created_at)}
+                      <div className="font-bold text-ink-950 text-lg">{w.user?.full_name}</div>
+                      <div className="text-sm font-medium text-ink-500 mt-1">
+                        {w.user?.email} <span className="mx-2 text-ink-300">•</span> {timeAgo(w.created_at)}
                       </div>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div className="mono" style={{ fontSize: 22, fontWeight: 600 }}>{rupee(w.net_amount ?? w.amount)}</div>
-                    <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
+                  <div className="text-left md:text-right">
+                    <div className="font-mono font-bold text-2xl text-ink-950">{rupee(w.net_amount ?? w.amount)}</div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-ink-500 mt-2 bg-ink-200/50 px-2.5 py-1 rounded-md inline-block">
                       {w.payout_mode === 'instant' ? 'Instant payout' : 'Scheduled payout'}
                       {Number(w.fee_amount || 0) > 0 ? ` · ${rupee(w.fee_amount)} fee` : ''}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ padding: 12, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)', marginBottom: 14 }}>
-                  <div className="row" style={{ gap: 20, fontSize: 13, flexWrap: 'wrap' }}>
+                <div className="bg-white border border-ink-200 rounded-xl p-5 mb-6 shadow-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
                     <div>
-                      <div style={{ color: 'var(--ink-500)', marginBottom: 2 }}>Account name</div>
-                      <div style={{ fontWeight: 500 }}>{w.account_name}</div>
+                      <div className="font-bold text-ink-500 uppercase tracking-widest text-[10px] mb-1.5">Account name</div>
+                      <div className="font-semibold text-ink-900">{w.account_name}</div>
                     </div>
                     {w.account_number && (
                       <div>
-                        <div style={{ color: 'var(--ink-500)', marginBottom: 2 }}>Account no.</div>
-                        <div className="mono">{w.account_number}</div>
+                        <div className="font-bold text-ink-500 uppercase tracking-widest text-[10px] mb-1.5">Account no.</div>
+                        <div className="font-mono font-medium text-ink-900">{w.account_number}</div>
                       </div>
                     )}
                     {w.ifsc_code && (
                       <div>
-                        <div style={{ color: 'var(--ink-500)', marginBottom: 2 }}>IFSC</div>
-                        <div className="mono">{w.ifsc_code}</div>
+                        <div className="font-bold text-ink-500 uppercase tracking-widest text-[10px] mb-1.5">IFSC</div>
+                        <div className="font-mono font-medium text-ink-900">{w.ifsc_code}</div>
                       </div>
                     )}
                     {w.upi_id && (
                       <div>
-                        <div style={{ color: 'var(--ink-500)', marginBottom: 2 }}>UPI ID</div>
-                        <div className="mono">{w.upi_id}</div>
+                        <div className="font-bold text-ink-500 uppercase tracking-widest text-[10px] mb-1.5">UPI ID</div>
+                        <div className="font-mono font-medium text-ink-900">{w.upi_id}</div>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {tab === 'pending' && (
-                  <div className="stack" style={{ gap: 10 }}>
-                    <input className="input" placeholder="Admin note (optional)" value={notes[w.id] || ''}
-                      onChange={e => setNotes(n => ({ ...n, [w.id]: e.target.value }))} style={{ fontSize: 12 }} />
-                    <div className="row" style={{ gap: 8 }}>
-                      <button className="btn primary"
+                  <div className="flex flex-col gap-4">
+                    <input 
+                      className="w-full px-4 py-3 bg-white border border-ink-200 rounded-xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all text-sm" 
+                      placeholder="Admin note (optional)" 
+                      value={notes[w.id] || ''}
+                      onChange={e => setNotes(n => ({ ...n, [w.id]: e.target.value }))} 
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button 
+                        className="px-6 py-2.5 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
                         onClick={() => processMutation.mutate({ id: w.id, action: 'approve' })}
-                        disabled={processMutation.isPending}>
-                        <Icon name="check" size={13} /> Approve & mark paid
+                        disabled={processMutation.isPending}
+                      >
+                        <Icon name="check" size={16} /> Approve & mark paid
                       </button>
-                      <button className="btn ghost" style={{ color: 'var(--rose)' }}
+                      <button 
+                        className="px-6 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-full transition-all flex items-center gap-2 disabled:opacity-50"
                         onClick={() => processMutation.mutate({ id: w.id, action: 'reject' })}
-                        disabled={processMutation.isPending}>
+                        disabled={processMutation.isPending}
+                      >
                         Reject
                       </button>
                     </div>
@@ -450,7 +460,9 @@ export default function AdminWallet() {
                 )}
 
                 {w.admin_note && tab !== 'pending' && (
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-600)', marginTop: 8 }}>Note: {w.admin_note}</div>
+                  <div className="text-sm font-medium text-ink-600 mt-4 bg-ink-100/50 p-3 rounded-lg border border-ink-200/50">
+                    <span className="font-bold text-ink-900 mr-2">Note:</span> {w.admin_note}
+                  </div>
                 )}
               </div>
             ))}

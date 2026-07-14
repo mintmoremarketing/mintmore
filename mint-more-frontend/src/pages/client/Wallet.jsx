@@ -30,7 +30,7 @@ export default function Wallet() {
 	const txns = txData?.transactions || []
 
 	return (
-		<div className="stack-6">
+		<div className="stack-6 p-4 md:p-8 w-full max-w-[1600px] mx-auto">
 			<div>
 				<div className="h-eyebrow" style={{ marginBottom: 4 }}>Wallet</div>
 				<h1 className="h-display h-1" style={{ margin: 0 }}>Balance &amp; transactions</h1>

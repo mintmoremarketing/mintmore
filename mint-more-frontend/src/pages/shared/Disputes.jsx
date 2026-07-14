@@ -79,15 +79,17 @@ export default function Disputes() {
   const active = selected && ['open', 'under_review'].includes(selected.status)
 
   return (
-    <div className="stack-6">
-      <div>
-        <div className="h-eyebrow">{role === 'admin' ? 'Support' : 'Project support'}</div>
-        <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>Disputes</h1>
-        <p className="muted">Escrow stays locked while support reviews the project history and messages.</p>
+    <div className="flex flex-col w-full h-[calc(100vh-64px)] bg-white">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 p-4 md:px-8 border-b border-ink-100 shrink-0">
+        <div>
+          <div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-1">{role === 'admin' ? 'Support' : 'Project support'}</div>
+          <h1 className="text-3xl font-display font-bold text-ink-900 tracking-tight m-0">Disputes</h1>
+          <p className="text-ink-500 text-sm md:text-base mt-2">Escrow stays locked while support reviews the project history and messages.</p>
+        </div>
       </div>
 
       {jobId && role !== 'admin' && (
-        <div className="card" style={{ padding: 20 }}>
+        <div className="card" style={{ padding: 20, margin: '16px 32px' }}>
           <div className="h-eyebrow" style={{ marginBottom: 12 }}>Open a dispute</div>
           <div className="grid-2" style={{ gap: 12 }}>
             <div className="field">
@@ -105,8 +107,8 @@ export default function Disputes() {
         </div>
       )}
 
-      <div className="dispute-layout">
-        <div className="card" style={{ overflow: 'hidden' }}>
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-[300px_1fr] min-h-0 bg-white">
+        <aside className="border-r border-ink-100 flex flex-col min-w-0 bg-ink-50/30">
           {isLoading ? <div className="muted" style={{ padding: 18 }}>Loading disputes...</div> : disputes.length === 0 ? (
             <div className="empty" style={{ padding: 24 }}><div className="empty-glyph"><Icon name="shield" size={20} /></div><h3>No disputes</h3><p>Active support cases will appear here.</p></div>
           ) : disputes.map(dispute => (
@@ -118,10 +120,10 @@ export default function Disputes() {
               </div>
             </button>
           ))}
-        </div>
+        </aside>
 
         {selected ? (
-          <div className="stack" style={{ gap: 14 }}>
+          <div className="flex flex-col min-h-0 bg-white p-4 md:p-8" style={{ gap: 14, overflowY: 'auto' }}>
             <div className="card" style={{ padding: 20 }}>
               <div className="row between" style={{ gap: 12, flexWrap: 'wrap' }}>
                 <div><div style={{ fontWeight: 700, fontSize: 18 }}>{selected.job_title}</div><div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>Opened by {selected.opened_by_name} · {selected.reason}</div></div>
@@ -159,7 +161,11 @@ export default function Disputes() {
               </div>
             )}
           </div>
-        ) : <div className="empty"><div className="empty-glyph"><Icon name="shield" size={20} /></div><h3>Select a dispute</h3><p>The case conversation and escrow decision will appear here.</p></div>}
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center min-h-0 bg-white p-8">
+            <div className="empty" style={{ border: 0, padding: 28 }}><div className="empty-glyph"><Icon name="shield" size={20} /></div><h3>Select a dispute</h3><p>The case conversation and escrow decision will appear here.</p></div>
+          </div>
+        )}
       </div>
     </div>
   )

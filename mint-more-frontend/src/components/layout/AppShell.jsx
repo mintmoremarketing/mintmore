@@ -88,7 +88,7 @@ export default function AppShell() {
   if (!isAuthed && !isGuest) return <Navigate to="/login" replace />
 
   return (
-    <div className={`app${isMobile ? ' mobile' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+    <div className="flex min-h-screen bg-mint-50/20 text-ink-900 font-sans">
       {/* Desktop sidebar — hidden on mobile */}
       {!isMobile && (
         <Sidebar
@@ -98,8 +98,10 @@ export default function AppShell() {
         />
       )}
 
-      {/* Main column */}
-      <main>
+      {/* Topbar fixed to viewport */}
+      <div className={`fixed top-0 right-0 z-30 bg-white/80 backdrop-blur-md border-b border-ink-200/50 transition-all duration-200 ease-out ${
+        !isMobile ? (sidebarCollapsed ? 'left-16' : 'left-56') : 'left-0'
+      }`}>
         <Topbar
           isMobile={isMobile}
           onMenuClick={() => setDrawerOpen(true)}
@@ -111,10 +113,16 @@ export default function AppShell() {
           notifUnread={unreadCount > 0}
           unreadCount={unreadCount}
         />
+      </div>
+
+      {/* Main column */}
+      <main className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ease-out pt-[64px] ${
+        !isMobile ? (sidebarCollapsed ? 'ml-16' : 'ml-56') : ''
+      } ${isMobile ? 'pb-16' : ''}`}>
 
         <GuestBanner />
 
-        <div className="page">
+        <div className="flex-1 flex flex-col w-full h-full relative">
           <Outlet />
         </div>
 

@@ -149,10 +149,12 @@ const referencesFor = (generation) => {
 
 const downloadFile = (url, name = 'creatyv-image') => {
   if (!url) return
+  const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'
+  const proxyUrl = `${BASE}/public/proxy-download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`
+  
   const link = document.createElement('a')
-  link.href = url
+  link.href = proxyUrl
   link.download = name
-  link.target = '_blank'
   document.body.appendChild(link)
   link.click()
   link.remove()
@@ -424,17 +426,13 @@ function PromptBox({
         <div className="engine-ref-autocomplete">
           {references.map(ref => (
             <button key={ref.id} type="button" onClick={() => insertAlias(ref.alias)}>
+
               <img src={ref.preview_url} alt="" />
               <span>{ref.alias}</span>
             </button>
           ))}
         </div>
       )}
-      <div className="engine-utility-row">
-        <button type="button" title="Open larger editor" onClick={() => setShowEditor(true)}><Icon name="edit" size={14} /></button>
-        <button type="button" title="Upload media shortcut"><Icon name="upload" size={14} /></button>
-        <button type="button" title="More prompt tools" onClick={() => alert('Tell me what this third utility should do, and I will wire it intentionally.')}><Icon name="sparkles" size={14} /></button>
-      </div>
       <div className="engine-prompt-options">
         <div className="engine-prompt-option">
           <Toggle checked={aiPrompt} onChange={setAiPrompt} />
@@ -930,13 +928,14 @@ function CreationCard({
         <div className="creation-bottom-right">
           <button
             type="button"
-            className="btn dark sm"
+            className="bg-white text-ink-900 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm hover:bg-ink-50 transition-colors flex items-center gap-1.5"
             onClick={(event) => {
               event.stopPropagation()
               setMenuOpen(v => !v)
             }}
           >
-            Use
+            <Icon name="more-horizontal" size={14} />
+            Options
           </button>
           {menuOpen && (
             <div className="creation-use-menu" onClick={event => event.stopPropagation()}>
@@ -1191,6 +1190,7 @@ function CreationsGallery({
     setReferences(current => [
       ...current,
       {
+
         id: `generated-${generation.id}`,
         alias: `img${current.length + 1}`,
         preview_url: url,
@@ -1198,114 +1198,142 @@ function CreationsGallery({
     ].slice(0, 4))
     pushToast?.({ type: 'success', title: 'Image added as a reference' })
   }
-
   const selectedGenerations = generations.filter(item => selectedIds.includes(item.id))
   const gallerySizeClass = `size-${size.toLowerCase()}`
 
+  const gridCols = size === 'S' ? 'columns-1 sm:columns-2 lg:columns-3 2xl:columns-4' 
+                 : size === 'M' ? 'columns-1 sm:columns-2 xl:columns-3' 
+                 : size === 'L' ? 'columns-1 xl:columns-2'
+                 : 'columns-1'
+
   return (
-    <aside className={`creations-gallery ${gallerySizeClass}`}>
-      <header className="creations-toolbar">
-        <div className="creations-tabs">
-          <button className={galleryTab === 'creations' ? 'active' : ''} onClick={() => setGalleryTab('creations')}>Creations</button>
-          <button className={galleryTab === 'published' ? 'active' : ''} onClick={() => setGalleryTab('published')}>Published</button>
-          <button disabled>My templates</button>
-          <button disabled>Academy</button>
-        </div>
-        <div className="creations-filter-icons">
-          {['All', 'Image'].map(item => (
-            <button
-              key={item}
-              className={typeFilter === item ? 'active' : ''}
-              disabled={!['All', 'Image'].includes(item)}
-              onClick={() => setTypeFilter(item)}
-            >
-              {item === 'All' ? <Icon name="grid" size={14} /> : <Icon name={item.toLowerCase() === '3d' ? 'layers' : item.toLowerCase()} size={14} />}
-              <span>{item}</span>
+    <div className="flex flex-col h-full w-full bg-ink-50 relative">
+      <header className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-ink-100 p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-4 flex-wrap relative">
+          <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar">
+            <button className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${galleryTab === 'creations' ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`} onClick={() => setGalleryTab('creations')}>Creations</button>
+            <button className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${galleryTab === 'published' ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`} onClick={() => setGalleryTab('published')}>Published</button>
+          </div>
+          
+          <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar">
+            {['All', 'Image', 'Video'].map(item => (
+              <button
+                key={item}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${typeFilter === item ? 'bg-ink-100 text-ink-900' : 'text-ink-500 hover:text-ink-900'}`}
+                disabled={!['All', 'Image', 'Video'].includes(item)}
+                onClick={() => setTypeFilter(item)}
+              >
+                {item === 'All' ? <Icon name="grid" size={14} /> : <Icon name={item.toLowerCase() === '3d' ? 'layers' : item.toLowerCase()} size={14} />}
+                <span>{item}</span>
+              </button>
+            ))}
+            <div className="w-px h-4 bg-ink-200 mx-1" />
+            <button className={`p-1.5 rounded-md transition-colors ${favoriteOnly ? 'text-mint-500 bg-mint-50' : 'text-ink-500 hover:text-ink-900 hover:bg-ink-100'}`} onClick={() => setFavoriteOnly(v => !v)} title="Favorites">
+              <Icon name="heart" size={16} />
             </button>
-          ))}
-          <button className={favoriteOnly ? 'active' : ''} onClick={() => setFavoriteOnly(v => !v)} title="Favorites">
-            <Icon name="heart" size={14} />
-          </button>
-          <button className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')} title="Row">
-            <Icon name="list" size={14} />
-          </button>
-          <button className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode('grid')} title="Grid">
-            <Icon name="grid" size={14} />
-          </button>
-          <button onClick={() => setLayoutOpen(v => !v)} title="Layout Options">
-            <Icon name="sliders" size={14} />
-          </button>
-        </div>
-        <label className="creations-search">
-          <Icon name="search" size={14} />
-          <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search prompt..." />
-        </label>
+            <div className="w-px h-4 bg-ink-200 mx-1" />
+            <button className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-ink-100 text-ink-900' : 'text-ink-500 hover:bg-ink-100'}`} onClick={() => viewMode === 'list' ? setViewMode('grid') : setViewMode('list')} title="Toggle View">
+              <Icon name={viewMode === 'list' ? 'grid' : 'list'} size={16} />
+            </button>
+            <button className={`p-1.5 rounded-md transition-colors ${layoutOpen ? 'bg-ink-100 text-ink-900' : 'text-ink-500 hover:bg-ink-100'}`} onClick={() => setLayoutOpen(v => !v)} title="Layout Options">
+              <Icon name="sliders" size={16} />
+            </button>
+          </div>
         {layoutOpen && (
-          <div className="creations-layout-panel">
+          <div className="absolute top-full right-0 mt-2 z-20 w-[300px] bg-white border border-ink-200 rounded-xl shadow-xl p-4 flex flex-col gap-4">
             <section>
-              <span>Ratio</span>
-              <div className="segmented compact">
+              <span className="text-[10px] font-bold text-ink-500 uppercase tracking-wider block mb-2">Ratio</span>
+              <div className="flex bg-ink-50 rounded-lg p-1">
                 {['original', 'square'].map(item => (
-                  <button key={item} className={ratioMode === item ? 'active' : ''} onClick={() => setRatioMode(item)}>
+                  <button 
+                    key={item} 
+                    className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${ratioMode === item ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-600 hover:text-ink-900'}`}
+                    onClick={() => { setRatioMode(item); setLayoutOpen(false); }}
+                  >
                     {item === 'original' ? 'Original' : 'Square'}
                   </button>
                 ))}
               </div>
             </section>
             <section>
-              <span>Size</span>
-              <div className="segmented compact">
+              <span className="text-[10px] font-bold text-ink-500 uppercase tracking-wider block mb-2">Size</span>
+              <div className="flex bg-ink-50 rounded-lg p-1">
                 {['S', 'M', 'L', 'XL'].map(item => (
-                  <button key={item} className={size === item ? 'active' : ''} onClick={() => setSize(item)}>{item}</button>
+                  <button 
+                    key={item} 
+                    className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${size === item ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-600 hover:text-ink-900'}`}
+                    onClick={() => { setSize(item); setLayoutOpen(false); }}
+                  >
+                    {item}
+                  </button>
                 ))}
               </div>
             </section>
             <section>
-              <span>Edits</span>
-              <div className="segmented compact">
+              <span className="text-[10px] font-bold text-ink-500 uppercase tracking-wider block mb-2">Edits</span>
+              <div className="flex bg-ink-50 rounded-lg p-1 mb-2">
                 {['group', 'ungroup'].map(item => (
-                  <button key={item} className={editsMode === item ? 'active' : ''} onClick={() => setEditsMode(item)}>
+                  <button 
+                    key={item} 
+                    className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${editsMode === item ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-600 hover:text-ink-900'}`}
+                    onClick={() => { setEditsMode(item); setLayoutOpen(false); }}
+                  >
                     {item === 'group' ? 'Group' : 'Ungroup'}
                   </button>
                 ))}
               </div>
-              <small>{editsMode === 'group' ? 'Batch variations stay bundled when backend grouping data is available.' : 'Each variation can be shown separately in a future batch view.'}</small>
+              <p className="text-xs text-ink-500 leading-relaxed">
+                {editsMode === 'group' ? 'Batch variations stay bundled when backend grouping data is available.' : 'Each variation can be shown separately in a future batch view.'}
+              </p>
             </section>
           </div>
         )}
+        </div>
+
+        <div className="flex items-center gap-2 px-3 py-2 bg-ink-100/50 border border-ink-100 rounded-lg">
+          <Icon name="search" size={14} className="text-ink-400" />
+          <input 
+            value={search} 
+            onChange={event => setSearch(event.target.value)} 
+            placeholder="Search prompt..." 
+            className="flex-1 bg-transparent border-none outline-none text-sm text-ink-900 placeholder:text-ink-400"
+          />
+        </div>
       </header>
 
       {galleryTab === 'creations' && selectedIds.length > 0 && (
-        <div className="creations-bulk-bar">
-          <span>{selectedIds.length} selected</span>
-          <button className="btn ghost sm" onClick={() => selectedGenerations.forEach(item => downloadFile(imageUrlFor(item), generationDownloadName(item)))}>
-            <Icon name="download" size={13} /> Download
+        <div className="mx-4 mt-4 p-3 bg-mint-50 border border-mint-200 rounded-xl flex items-center gap-3 flex-wrap shadow-sm">
+          <span className="font-bold text-mint-900 text-sm mr-auto">{selectedIds.length} selected</span>
+          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-mint-700 text-sm font-medium rounded-lg hover:bg-mint-100 transition-colors" onClick={() => selectedGenerations.forEach(item => downloadFile(imageUrlFor(item), generationDownloadName(item)))}>
+            <Icon name="download" size={14} /> Download
           </button>
-          <button className="btn ghost sm" onClick={() => deleteMutation.mutate(selectedIds)}>
-            <Icon name="trash" size={13} /> Delete
+          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors" onClick={() => deleteMutation.mutate(selectedIds)}>
+            <Icon name="trash" size={14} /> Delete
           </button>
-          <button className="btn ghost sm" onClick={() => setSelectedIds([])}>Clear</button>
+          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-transparent text-ink-600 text-sm font-medium rounded-lg hover:bg-black/5 transition-colors" onClick={() => setSelectedIds([])}>
+            Clear
+          </button>
         </div>
       )}
 
-      <div className={`creations-feed ${viewMode} ${ratioMode}`}>
+      <div className="flex-1 overflow-y-auto p-4 lg:p-6 pb-24">
         {galleryTab === 'creations' ? (
           <>
-            {isLoading && <div className="creation-gallery-empty">Loading creations...</div>}
+            {isLoading && <div className="text-center py-20 text-ink-500 font-medium">Loading creations...</div>}
             {!isLoading && visibleGenerations.length === 0 && (
-              <div className="creation-gallery-empty">
-                <Icon name="image" size={26} />
-                <strong>No creations yet</strong>
-                <span>Generate an image and it will appear here instantly.</span>
+              <div className="flex flex-col items-center justify-center py-32 text-center max-w-sm mx-auto">
+                <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-ink-100 flex items-center justify-center mb-6 text-ink-400">
+                  <Icon name="image" size={32} />
+                </div>
+                <strong className="text-xl font-bold text-ink-900 mb-2">No creations yet</strong>
+                <p className="text-ink-500">Generate an image using the panel on the left and it will appear here instantly.</p>
               </div>
             )}
-            {Object.entries(grouped).map(([month, items]) => (
-              <section key={month} className="creation-month-group">
-                <h3>{month}</h3>
-                <div className={`creation-grid ${viewMode}`}>
-                  {items.map(generation => (
+            {viewMode === 'grid' ? (
+              <div className={`gap-4 ${gridCols}`}>
+                {visibleGenerations.map(generation => (
+                  <div key={generation.id} className="mb-4 break-inside-avoid">
                     <CreationCard
-                      key={generation.id}
                       generation={generation}
                       progress={aiProgress?.[generation.id]}
                       selected={selectedIds.includes(generation.id)}
@@ -1319,35 +1347,77 @@ function CreationsGallery({
                       viewMode={viewMode}
                       ratioMode={ratioMode}
                     />
-                  ))}
-                </div>
-              </section>
-            ))}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              Object.entries(grouped).map(([month, items]) => (
+                <section key={month} className="mb-10">
+                  <h3 className="text-xs font-bold text-ink-400 uppercase tracking-wider mb-4">{month}</h3>
+                  <div className="flex flex-col gap-4">
+                    {items.map(generation => (
+                      <div key={generation.id} className="mb-4 break-inside-avoid">
+                        <CreationCard
+                          generation={generation}
+                          progress={aiProgress?.[generation.id]}
+                          selected={selectedIds.includes(generation.id)}
+                          onSelect={toggleSelect}
+                          onOpen={setInspector}
+                          onFavorite={(item) => favoriteMutation.mutate(item)}
+                          onDelete={(id) => deleteMutation.mutate(id)}
+                          onDownload={(item) => downloadFile(imageUrlFor(item), generationDownloadName(item))}
+                          onReuse={reuseGeneration}
+                          onPublish={setPublishTarget}
+                          viewMode={viewMode}
+                          ratioMode={ratioMode}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))
+            )}
           </>
         ) : (
           <>
-            {publishedLoading && <div className="creation-gallery-empty">Loading published posts...</div>}
+            {publishedLoading && <div className="text-center py-20 text-ink-500 font-medium">Loading published posts...</div>}
             {!publishedLoading && publishedPosts.length === 0 && (
-              <div className="creation-gallery-empty">
-                <Icon name="send" size={26} />
-                <strong>No published posts yet</strong>
-                <span>Publish a creation and it will appear here instantly.</span>
+              <div className="flex flex-col items-center justify-center py-32 text-center max-w-sm mx-auto">
+                <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-ink-100 flex items-center justify-center mb-6 text-ink-400">
+                  <Icon name="send" size={32} />
+                </div>
+                <strong className="text-xl font-bold text-ink-900 mb-2">No published posts yet</strong>
+                <p className="text-ink-500">Publish a creation and it will appear here instantly.</p>
               </div>
             )}
-            {Object.entries(groupedPublished).map(([month, items]) => (
-              <section key={month} className="creation-month-group">
-                <h3>{month}</h3>
-                <div className={`creation-grid ${viewMode}`}>
-                  {items.map(post => (
+            {viewMode === 'grid' ? (
+              <div className={`gap-4 ${gridCols}`}>
+                {publishedPosts.map(post => (
+                  <div key={post.id} className="mb-4 break-inside-avoid">
                     <PublishedCard
-                      key={post.id}
                       post={post}
                       onDelete={(id) => deletePublishedMutation.mutate(id)}
                     />
-                  ))}
-                </div>
-              </section>
-            ))}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              Object.entries(groupedPublished).map(([month, items]) => (
+                <section key={month} className="mb-10">
+                  <h3 className="text-xs font-bold text-ink-400 uppercase tracking-wider mb-4">{month}</h3>
+                  <div className="flex flex-col gap-4">
+                    {items.map(post => (
+                      <div key={post.id} className="mb-4 break-inside-avoid">
+                        <PublishedCard
+                          post={post}
+                          onDelete={(id) => deletePublishedMutation.mutate(id)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))
+            )}
           </>
         )}
       </div>
@@ -1373,7 +1443,7 @@ function CreationsGallery({
           onPublish={(payload) => publishMutation.mutate({ generation: publishTarget, payload })}
         />
       )}
-    </aside>
+    </div>
   )
 }
 
@@ -1398,6 +1468,7 @@ export default function MintAI() {
   const [thinking, setThinking] = useState('fast')
   const [googleSearch, setGoogleSearch] = useState(false)
   const [optimisticGenerations, setOptimisticGenerations] = useState([])
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
   const currentToolType = modeToolType(activeMode)
 
   const { data: modelData, isLoading: modelsLoading } = useQuery({
@@ -1568,6 +1639,7 @@ export default function MintAI() {
       queryClient.invalidateQueries({ queryKey: ['ai-chat-history'] })
     },
     onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Generation failed' }),
+    onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Generation failed' }),
   })
 
   const cost = tierCost(selectedModel, resolution)
@@ -1576,54 +1648,184 @@ export default function MintAI() {
   const promptReferences = activeMode === 'chat' ? [] : references
 
   return (
-    <div className="mint-ai-page">
-      <div className="engine-workspace">
-      <section className="engine-panel">
-        <header className="engine-header">
-          <div>
-            <p className="eyebrow">Mint AI</p>
-            <h1>{modeLabel}</h1>
-          </div>
-          <select value={projectId} onChange={event => setProjectId(event.target.value)}>
-            <option value="">No project folder selected</option>
-            {folders.map(folder => (
-              <option key={folder.id || folder.job_id} value={folder.job_id || folder.id}>
-                {folder.title || folder.name || folder.job_title || 'Untitled project'}
-              </option>
-            ))}
-          </select>
-        </header>
+    <div className="flex flex-col lg:flex-row h-full max-h-[100dvh] lg:max-h-[calc(100vh-64px)] overflow-hidden bg-ink-50 relative">
+      
+      {/* Mobile Sidebar Overlay */}
+      {mobilePanelOpen && (
+        <div 
+          className="fixed inset-0 bg-ink-950/20 z-40 lg:hidden backdrop-blur-sm" 
+          onClick={() => setMobilePanelOpen(false)} 
+        />
+      )}
 
-        <div className="engine-modality-tabs">
+      {/* Sidebar Panel */}
+      <section className={`
+        fixed inset-y-0 left-0 z-50 lg:z-0 w-[85vw] max-w-[360px] bg-white border-r border-ink-200 flex flex-col transition-transform duration-300 shadow-xl lg:shadow-none lg:static lg:w-[340px] lg:flex-shrink-0 lg:translate-x-0 overflow-y-auto
+        ${mobilePanelOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="lg:hidden absolute top-4 right-4 z-10">
+           <button onClick={() => setMobilePanelOpen(false)} className="p-2 bg-ink-100 rounded-full text-ink-600">
+             <Icon name="x" size={16} />
+           </button>
+        </div>
+
+        <div className="flex gap-1 p-3 overflow-x-auto hide-scrollbar border-b border-ink-100 shrink-0">
           {MODALITIES.map(tab => (
             <button
               key={tab.value}
-              className={activeMode === tab.value ? 'active' : ''}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                activeMode === tab.value 
+                  ? 'bg-ink-900 text-white' 
+                  : 'bg-ink-100 text-ink-600 hover:bg-ink-200'
+              } ${tab.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={Boolean(tab.disabled)}
               onClick={() => {
                 if (tab.disabled) return
                 setActiveMode(tab.value)
               }}
             >
-              <Icon name={tab.icon} size={14} />
+              <Icon name={tab.icon} size={12} />
               {tab.label}
             </button>
           ))}
         </div>
 
-        <ModelSelector
-          models={models}
-          selected={selectedModel}
-          onSelect={setSelectedModel}
-          resolution={resolution}
-          multiple={modelMulti}
-          setMultiple={setModelMulti}
-          thinking={thinking}
-          setThinking={setThinking}
-          googleSearch={googleSearch}
-          setGoogleSearch={setGoogleSearch}
-        />
+        <header className="px-6 py-4 border-b border-ink-100 shrink-0">
+          <div>
+            <p className="text-[10px] font-bold text-mint-500 uppercase tracking-wider mb-1">Mint AI</p>
+            <h1 className="text-xl font-bold text-ink-900 tracking-tight">{modeLabel}</h1>
+          </div>
+          {activeMode !== 'chat' && (
+            <select 
+              value={projectId} 
+              onChange={event => setProjectId(event.target.value)}
+              className="mt-3 w-full px-3 py-2 bg-ink-50 border border-ink-200 rounded-lg text-xs text-ink-700 outline-none focus:border-mint-500 focus:ring-1 focus:ring-mint-500 transition-shadow appearance-none"
+            >
+              <option value="">No project folder selected</option>
+              {folders.map(folder => (
+                <option key={folder.id || folder.job_id} value={folder.job_id || folder.id}>
+                  {folder.title || folder.name || folder.job_title || 'Untitled project'}
+                </option>
+              ))}
+            </select>
+          )}
+        </header>
 
+        {activeMode !== 'chat' && (
+          <div className="p-4 border-b border-ink-100 shrink-0">
+            <ModelSelector
+              models={models}
+              selected={selectedModel}
+              onSelect={setSelectedModel}
+              resolution={resolution}
+              multiple={modelMulti}
+              setMultiple={setModelMulti}
+              thinking={thinking}
+              setThinking={setThinking}
+              googleSearch={googleSearch}
+              setGoogleSearch={setGoogleSearch}
+            />
+          </div>
+        )}
+
+        <div className="flex-1 p-4 flex flex-col gap-6 shrink-0">
+          {activeMode === 'chat' ? (
+            <div className="flex flex-col gap-4">
+              <h3 className="text-xs font-bold text-ink-500 uppercase tracking-wider">Chat History</h3>
+              {chatGenerations.length === 0 ? (
+                <p className="text-sm text-ink-400">No previous chats found.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {chatGenerations.map(chat => (
+                    <button key={chat.id} className="text-left text-sm text-ink-700 hover:bg-ink-100 p-2 rounded-lg truncate transition-colors">
+                      {chat.prompt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <ReferencesBlock
+                styles={styles}
+                selectedStyle={selectedStyle}
+                setSelectedStyle={setSelectedStyle}
+                references={references}
+                uploading={uploadMutation.isPending}
+                uploadReference={(file) => uploadMutation.mutate(file)}
+              />
+
+              <PromptBox
+                value={prompt}
+                setValue={setPrompt}
+                references={promptReferences}
+                aiPrompt={aiPrompt}
+                setAiPrompt={setAiPrompt}
+                fixedSeed={fixedSeed}
+                setFixedSeed={setFixedSeed}
+                seed={seed}
+                setSeed={setSeed}
+                mode={activeMode}
+              />
+
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center bg-ink-100 rounded-lg">
+                    <button className="px-3 py-1 text-ink-600 hover:text-ink-900" onClick={() => setBatchCount(v => Math.max(1, v - 1))}>-</button>
+                    <span className="text-sm font-medium w-4 text-center">{batchCount}</span>
+                    <button className="px-3 py-1 text-ink-600 hover:text-ink-900" onClick={() => setBatchCount(v => Math.min(4, v + 1))}>+</button>
+                  </div>
+                  <select 
+                    value={aspectRatio} 
+                    onChange={event => setAspectRatio(event.target.value)}
+                    className="flex-1 bg-ink-100 border-none rounded-lg text-sm px-3 py-1.5 outline-none appearance-none font-medium"
+                  >
+                    {ASPECT_RATIOS.map(item => <option key={item.value} value={item.value}>{item.icon} • {item.label}</option>)}
+                  </select>
+                </div>
+                
+                <div className="flex gap-1 p-1 bg-ink-100 rounded-lg">
+                  {['1K', '2K', '4K'].map(tier => {
+                    const tierMeta = tierCost(selectedModel, tier)
+                    return (
+                      <button 
+                        key={tier} 
+                        className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all flex flex-col items-center ${resolution === tier ? 'bg-ink-900 text-white shadow-sm' : 'text-ink-600 hover:text-ink-900'}`} 
+                        onClick={() => setResolution(tier)}
+                      >
+                        <span>{tier}</span>
+                        <small className="opacity-60 text-[10px]">{tierMeta.unlimited ? '∞' : tierMeta.cost}</small>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {activeMode !== 'chat' && (
+          <div className="p-4 border-t border-ink-100 bg-ink-50/50 flex flex-col gap-3 shrink-0">
+            <button
+              className="w-full py-3 px-4 bg-ink-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-ink-800 transition-colors"
+              disabled={!prompt.trim() || !selectedModel || modelsLoading || generateMutation.isPending}
+              onClick={() => {
+                generateMutation.mutate();
+                if (window.innerWidth < 1024) setMobilePanelOpen(false);
+              }}
+            >
+              <Icon name="sparkles" size={16} />
+              {generateMutation.isPending ? 'Generating...' : 'Generate'}
+            </button>
+            <footer className="text-center text-xs text-ink-500">
+              {cost.unlimited ? '∞ Unlimited generations' : `Uses ${totalCost} MintCoins • ${Math.max(0, balance - totalCost)} remaining`}
+            </footer>
+          </div>
+        )}
+      </section>
+
+      {/* Main Gallery Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-ink-50 relative pb-20 lg:pb-0">
         {activeMode === 'chat' ? (
           <ChatWorkspace
             prompt={prompt}
@@ -1645,83 +1847,38 @@ export default function MintAI() {
             progressMap={aiProgress}
           />
         ) : (
-          <>
-            <ReferencesBlock
-              styles={styles}
-              selectedStyle={selectedStyle}
-              setSelectedStyle={setSelectedStyle}
-              references={references}
-              uploading={uploadMutation.isPending}
-              uploadReference={(file) => uploadMutation.mutate(file)}
-            />
-
-            <PromptBox
-              value={prompt}
-              setValue={setPrompt}
-              references={promptReferences}
-              aiPrompt={aiPrompt}
-              setAiPrompt={setAiPrompt}
-              fixedSeed={fixedSeed}
-              setFixedSeed={setFixedSeed}
-              seed={seed}
-              setSeed={setSeed}
-              mode={activeMode}
-            />
-
-            <div className="engine-config-row">
-              <div className="engine-stepper">
-                <button onClick={() => setBatchCount(v => Math.max(1, v - 1))}>-</button>
-                <span>{batchCount}</span>
-                <button onClick={() => setBatchCount(v => Math.min(4, v + 1))}>+</button>
-              </div>
-              <select value={aspectRatio} onChange={event => setAspectRatio(event.target.value)}>
-                {ASPECT_RATIOS.map(item => <option key={item.value} value={item.value}>{item.icon} • {item.label}</option>)}
-              </select>
-              <div className="segmented">
-                {['1K', '2K', '4K'].map(tier => {
-                  const tierMeta = tierCost(selectedModel, tier)
-                  return (
-                    <button key={tier} className={resolution === tier ? 'active' : ''} onClick={() => setResolution(tier)}>
-                      {tier} <small>{tierMeta.unlimited ? '∞' : tierMeta.cost}</small>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <button
-              className="engine-generate"
-              disabled={!prompt.trim() || !selectedModel || modelsLoading || generateMutation.isPending}
-              onClick={() => generateMutation.mutate()}
-            >
-              <Icon name="sparkles" size={16} />
-              {generateMutation.isPending ? 'Generating...' : 'Generate'}
-            </button>
-            <footer className="engine-status-footer">
-              {cost.unlimited ? '∞ Unlimited generations' : `Uses ${totalCost} MintCoins • ${Math.max(0, balance - totalCost)} remaining`}
-            </footer>
-          </>
+          <CreationsGallery
+            projectId={projectId}
+            mode={activeMode}
+            toolType={currentToolType}
+            models={models}
+            setMode={setActiveMode}
+            setSelectedModel={setSelectedModel}
+            setPrompt={setPrompt}
+            setAspectRatio={setAspectRatio}
+            setResolution={setResolution}
+            setSeed={setSeed}
+            setFixedSeed={setFixedSeed}
+            setReferences={setReferences}
+            accounts={socialAccounts}
+            optimisticGenerations={optimisticGenerations}
+            setOptimisticGenerations={setOptimisticGenerations}
+          />
         )}
-      </section>
-
-        <CreationsGallery
-          projectId={projectId}
-          mode={activeMode}
-          toolType={currentToolType}
-          models={models}
-          setMode={setActiveMode}
-          setSelectedModel={setSelectedModel}
-          setPrompt={setPrompt}
-          setAspectRatio={setAspectRatio}
-          setResolution={setResolution}
-          setSeed={setSeed}
-          setFixedSeed={setFixedSeed}
-          setReferences={setReferences}
-          accounts={socialAccounts}
-          optimisticGenerations={optimisticGenerations}
-          setOptimisticGenerations={setOptimisticGenerations}
-        />
-      </div>
+        
+        {/* Mobile floating generate button */}
+        {activeMode !== 'chat' && !mobilePanelOpen && (
+          <div className="lg:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] shadow-2xl">
+            <button 
+              className="bg-ink-950 hover:bg-black text-white shadow-xl shadow-ink-950/30 px-6 py-3.5 rounded-full font-bold flex items-center gap-2 transition-transform active:scale-95"
+              onClick={() => setMobilePanelOpen(true)}
+            >
+              <Icon name="sparkles" size={18} />
+              Generate
+            </button>
+          </div>
+        )}
+      </main>
     </div>
   )
 }

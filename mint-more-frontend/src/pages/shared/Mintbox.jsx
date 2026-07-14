@@ -497,21 +497,23 @@ export default function Mintbox() {
 	)
 
 	if (isOverview) return (
-		<div className="stack-6">
-			<div className="row between reveal" style={{ alignItems: 'flex-start', gap: 16 }}>
+		<div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
+			<div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 				<div>
-					<div className="h-eyebrow" style={{ marginBottom: 4 }}>Mintbox</div>
-					<h1 className="h-display h-1" style={{ margin: 0 }}>Project storage</h1>
-					<p className="muted" style={{ marginTop: 6 }}>
+					<div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-2">Mintbox</div>
+					<h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">Project storage</h1>
+					<p className="text-ink-500 text-sm md:text-base mt-2">
 						Every project gets its own folder for submissions, revisions, and final files.
 					</p>
 				</div>
-				<button className="btn primary" onClick={() => navigate('/jobs')}>
-					<Icon name="briefcase" size={13} /> View jobs
+				<button className="bg-ink-950 text-white shadow-md shadow-ink-900/10 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-900 transition-colors" onClick={() => navigate('/jobs')}>
+					<Icon name="briefcase" size={16} /> View jobs
 				</button>
 			</div>
 
-			<StorageBar quota={quota} />
+			<div className="animate-in fade-in slide-in-from-bottom-6 duration-700">
+				<StorageBar quota={quota} />
+			</div>
 
 			{storagePlans.length > 0 && (
 				<div className="card reveal" style={{ padding: 18 }}>
@@ -597,46 +599,61 @@ export default function Mintbox() {
 	)
 
 	return (
-		<div className="stack-6">
-			<div className="row between reveal" style={{ alignItems: 'flex-start', gap: 16 }}>
+		<div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
+			<div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 				<div>
-					<button className="btn link sm" style={{ padding: 0, color: 'var(--ink-500)', fontSize: 12 }} onClick={() => navigate(`/jobs/${folder.job_id}`)}>
-						<Icon name="arrowLeft" size={12} /> Project
+					<button className="flex items-center gap-1.5 text-ink-500 hover:text-ink-900 transition-colors text-xs font-semibold uppercase tracking-wider mb-2" onClick={() => navigate(`/jobs/${folder.job_id}`)}>
+						<Icon name="arrowLeft" size={14} /> Back to Project
 					</button>
-					<div className="h-eyebrow" style={{ marginTop: 14, marginBottom: 4 }}>Mintbox</div>
-					<h1 className="h-display h-1" style={{ margin: 0 }}>{folder.name}</h1>
-					<p className="muted" style={{ marginTop: 6 }}>
+					<h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">{folder.name}</h1>
+					<p className="text-ink-500 text-sm md:text-base mt-2">
 						Project files, submissions, and revisions in one folder.
 					</p>
 				</div>
-				<div className="row" style={{ gap: 8 }}>
+				<div className="flex items-center gap-2 flex-wrap">
 					{jobId && ['client', 'freelancer', 'designer'].includes(role) && (
-						<button className="btn ghost" onClick={() => navigate(`/disputes?jobId=${folder.job_id}`)}>
-							<Icon name="shield" size={13} /> Get support
+						<button className="bg-white border border-ink-200 text-ink-700 shadow-sm px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-50 transition-colors" onClick={() => navigate(`/disputes?jobId=${folder.job_id}`)}>
+							<Icon name="shield" size={16} /> Get support
 						</button>
 					)}
 					{shareUrl && <>
-					<button className="btn ghost" onClick={copyShare}>
-						<Icon name="copy" size={13} />
-						Copy folder link
+					<button className="bg-white border border-ink-200 text-ink-700 shadow-sm px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-50 transition-colors" onClick={copyShare}>
+						<Icon name="copy" size={16} />
+						Copy link
 					</button>
-					{role === 'client' && <button className="icon-btn" onClick={() => revokeShareMutation.mutate({ scope: 'folder', id: folder.id })} title="Revoke folder share link"><Icon name="x" size={12} /></button>}
+					{role === 'client' && (
+						<button 
+							className="bg-red-50 text-red-600 border border-red-200 shadow-sm px-3 py-2 rounded-xl text-sm font-bold flex items-center justify-center hover:bg-red-100 transition-colors" 
+							onClick={() => revokeShareMutation.mutate({ scope: 'folder', id: folder.id })} 
+							title="Revoke folder share link"
+						>
+							<Icon name="x" size={16} />
+						</button>
+					)}
 					</>}
-					{role === 'client' && !shareUrl && <button className="btn ghost" onClick={() => rotateShareMutation.mutate({ scope: 'folder', id: folder.id })}><Icon name="refresh" size={13} /> Create folder link</button>}
+					{role === 'client' && !shareUrl && (
+						<button className="bg-white border border-ink-200 text-ink-700 shadow-sm px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-50 transition-colors" onClick={() => rotateShareMutation.mutate({ scope: 'folder', id: folder.id })}>
+							<Icon name="refresh" size={16} /> Create folder link
+						</button>
+					)}
 					{canDeleteMintboxContent && (
 						<button
-							className="btn ghost"
+							className="bg-red-50 text-red-600 border border-red-200 shadow-sm px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-red-100 transition-colors"
 							onClick={() => {
 								if (window.confirm('Delete all files in this project Mintbox? This removes them from the project view and revokes share links.')) deleteProjectMutation.mutate()
 							}}
 						>
-							<Icon name="trash" size={13} /> Delete project files
+							<Icon name="trash" size={16} /> Delete all
 						</button>
 					)}
 				</div>
 			</div>
 
-			{quota && <StorageBar quota={quota} />}
+			{quota && (
+				<div className="animate-in fade-in slide-in-from-bottom-6 duration-700">
+					<StorageBar quota={quota} />
+				</div>
+			)}
 
 			{revisions && <div className="card reveal" style={{ padding: 18 }}>
 				<div className="row between" style={{ gap: 14, marginBottom: 14 }}>

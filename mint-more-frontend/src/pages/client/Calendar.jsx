@@ -115,22 +115,22 @@ export default function Calendar() {
   }
 
   return (
-    <div className="stack-6 creative-calendar-page">
-      <div className="row between reveal calendar-page-head" style={{ gap: 16 }}>
-        <div>
-          <div className="h-eyebrow" style={{ marginBottom: 4 }}>Creative calendar</div>
-          <h1 className="h-display h-1" style={{ margin: 0 }}>Plan this month&apos;s creatives</h1>
-          <p className="muted" style={{ margin: '8px 0 0' }}>
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="max-w-2xl">
+          <div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-2">Creative calendar</div>
+          <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">Plan this month&apos;s creatives</h1>
+          <p className="text-ink-500 text-sm md:text-base mt-2">
             Pick moments first, review the list, then confirm once.
           </p>
         </div>
-        <div className="card" style={{ padding: '12px 16px', minWidth: 190 }}>
-          <div className="h-eyebrow">Available coins</div>
-          <div className="mono" style={{ fontSize: 26, fontWeight: 700 }}>{balance.toLocaleString('en-IN')}</div>
+        <div className="bg-white rounded-xl border border-ink-200 p-4 shadow-sm min-w-[190px]">
+          <div className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-1">Available coins</div>
+          <div className="text-2xl font-bold font-mono text-ink-900">{balance.toLocaleString('en-IN')}</div>
         </div>
       </div>
 
-      <div className="card reveal" style={{ padding: 16 }}>
+      <div className="bg-white rounded-xl border border-ink-200 p-4 shadow-sm">
         <div className="row between calendar-toolbar" style={{ gap: 12, alignItems: 'center' }}>
           <input
             className="input"

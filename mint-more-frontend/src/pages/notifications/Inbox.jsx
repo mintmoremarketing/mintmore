@@ -188,7 +188,7 @@ export default function NotificationsInbox() {
 
 	if (isLoading) {
 		return (
-			<div className="stack-6">
+			<div className="flex flex-col gap-6 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
 				<SkeletonCard />
 				<SkeletonCard />
 			</div>
@@ -196,26 +196,30 @@ export default function NotificationsInbox() {
 	}
 
 	return (
-		<div className="stack-6">
-			<div className="row between reveal" style={{ gap: 16, alignItems: 'flex-start' }}>
+		<div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
+			<div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 				<div>
-					<div className="h-eyebrow" style={{ marginBottom: 4 }}>Inbox</div>
-					<h1 className="h-display h-1" style={{ margin: 0 }}>Notifications</h1>
-					<p className="muted" style={{ marginTop: 6 }}>
+					<div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-2">Inbox</div>
+					<h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">Notifications</h1>
+					<p className="text-ink-500 text-sm md:text-base mt-2">
 						{counts.unread > 0 ? (
-							<>You have <strong style={{ color: 'var(--ink-900)' }}>{counts.unread} unread</strong> · live sync via CREATYV</>
+							<>You have <strong className="text-ink-900 font-bold">{counts.unread} unread</strong> · live sync via CREATYV</>
 						) : (
 							<>You're all caught up · live sync via CREATYV</>
 						)}
 					</p>
 				</div>
-				<button className="btn ghost" onClick={() => markAllRead.mutate()} disabled={counts.unread === 0 || markAllRead.isPending}>
-					<Icon name="check" size={13} />
+				<button 
+					className="bg-white text-ink-900 border border-ink-200 shadow-sm px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" 
+					onClick={() => markAllRead.mutate()} 
+					disabled={counts.unread === 0 || markAllRead.isPending}
+				>
+					<Icon name="check" size={14} />
 					{markAllRead.isPending ? 'Marking...' : 'Mark all read'}
 				</button>
 			</div>
 
-			<div className="row between reveal" style={{ flexWrap: 'wrap', gap: 8 }}>
+			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-6 duration-700">
 				<Tabs
 					value={filter}
 					onChange={setFilter}
@@ -227,18 +231,20 @@ export default function NotificationsInbox() {
 						{ value: 'system', label: 'System', count: counts.system },
 					]}
 				/>
-				<div className="row" style={{ gap: 8, fontSize: 12, color: 'var(--ink-500)' }}>
-					<span className="pulse-dot" style={{ width: 6, height: 6 }} />
-					<span className="mono">Live</span>
+				<div className="flex items-center gap-2 text-xs font-mono text-ink-500">
+					<span className="w-1.5 h-1.5 bg-mint-500 rounded-full animate-pulse" />
+					<span>Live</span>
 				</div>
 			</div>
 
-			<div className="card reveal" style={{ padding: 0, overflow: 'hidden' }}>
+			<div className="bg-white rounded-2xl border border-ink-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
 				{filtered.length === 0 ? (
-					<div className="empty" style={{ border: 0, padding: 48 }}>
-						<div className="empty-glyph"><Icon name="bell" /></div>
-						<h3>No notifications</h3>
-						<p>Nothing in this filter right now.</p>
+					<div className="flex flex-col items-center justify-center p-12 md:p-24 text-center">
+						<div className="w-12 h-12 rounded-full bg-ink-50 flex items-center justify-center text-ink-400 mb-4">
+							<Icon name="bell" size={20} />
+						</div>
+						<h3 className="text-lg font-bold text-ink-900 mb-1">No notifications</h3>
+						<p className="text-ink-500 text-sm">Nothing in this filter right now.</p>
 					</div>
 				) : (
 					filtered.map((n, i) => {
@@ -248,36 +254,38 @@ export default function NotificationsInbox() {
 							<button
 								key={n.id}
 								onClick={() => openNotification(n)}
-								style={{
-									display: 'flex',
-									gap: 14,
-									alignItems: 'flex-start',
-									padding: '14px 18px',
-									width: '100%',
-									textAlign: 'left',
-									background: n.is_read ? 'transparent' : 'var(--mint-50)',
-									border: 0,
-									borderTop: i === 0 ? 0 : '1px solid var(--hairline)',
-									cursor: target ? 'pointer' : 'default',
-									transition: 'background 0.12s ease',
-									position: 'relative',
-									fontFamily: 'inherit',
-								}}
+								className={`
+									w-full flex items-start gap-4 p-4 md:p-5 text-left transition-colors relative
+									${n.is_read ? 'bg-transparent hover:bg-ink-50/50' : 'bg-mint-50/30 hover:bg-mint-50/70'}
+									${i === 0 ? '' : 'border-t border-ink-100'}
+									${target ? 'cursor-pointer' : 'cursor-default'}
+								`}
 							>
 								{!n.is_read && (
-									<span style={{ position: 'absolute', left: 8, top: '50%', width: 4, height: 4, borderRadius: '50%', background: 'var(--mint-600)', transform: 'translateY(-50%)' }} />
+									<span className="absolute left-1.5 md:left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-mint-500" />
 								)}
-								<div style={{ width: 34, height: 34, borderRadius: '50%', background: `${color}18`, color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-									<Icon name={notifIcon(n.type)} size={14} />
+								<div 
+									className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" 
+									style={{ background: `${color}18`, color }}
+								>
+									<Icon name={notifIcon(n.type)} size={16} />
 								</div>
-								<div style={{ flex: 1, minWidth: 0 }}>
-									<div style={{ fontSize: 13.5, fontWeight: n.is_read ? 500 : 600, color: 'var(--ink-950)' }}>{cleanNotifTitle(n.title)}</div>
-									{n.body && <div style={{ fontSize: 12.5, color: 'var(--ink-600)', marginTop: 2, lineHeight: 1.45 }}>{cleanNotifBody(n.body)}</div>}
-									<div style={{ fontSize: 11, color: 'var(--ink-400)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>{timeAgo(n.created_at)}</div>
+								<div className="flex-1 min-w-0">
+									<div className={`text-sm ${n.is_read ? 'font-medium' : 'font-semibold'} text-ink-950`}>
+										{cleanNotifTitle(n.title)}
+									</div>
+									{n.body && (
+										<div className="text-[13px] text-ink-600 mt-0.5 leading-relaxed">
+											{cleanNotifBody(n.body)}
+										</div>
+									)}
+									<div className="text-[11px] text-ink-400 mt-1.5 font-mono">
+										{timeAgo(n.created_at)}
+									</div>
 								</div>
 								{target && (
-									<span style={{ fontSize: 11, color: 'var(--ink-500)', alignSelf: 'center' }}>
-										<Icon name="arrowRight" size={12} />
+									<span className="text-ink-300 self-center hidden md:block">
+										<Icon name="arrowRight" size={14} />
 									</span>
 								)}
 							</button>

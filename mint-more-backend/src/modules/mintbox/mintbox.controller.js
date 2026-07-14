@@ -104,6 +104,7 @@ const streamPublicFile = async (req, res, next) => {
       res.destroy(err);
       return;
     }
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     next(err);
   }
 };

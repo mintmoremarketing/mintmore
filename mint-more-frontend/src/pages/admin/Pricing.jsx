@@ -141,29 +141,29 @@ export default function AdminPricing() {
   ]
 
   return (
-    <div className="stack-6">
-      <div className="reveal">
-        <div className="h-eyebrow" style={{ marginBottom: 4 }}>Admin</div>
-        <div className="row between" style={{ gap: 16, alignItems: 'flex-start' }}>
-          <div>
-            <h1 className="h-display h-1" style={{ margin: 0 }}>Market price ranges</h1>
-            <p className="muted" style={{ marginTop: 6, fontSize: 13.5 }}>
-              Control freelancer offer limits by category and level.
-            </p>
-          </div>
-          <button className="btn primary" onClick={() => saveRange.mutate()} disabled={!canSave || saveRange.isPending}>
-            <Icon name="check" size={13} />
-            {saveRange.isPending ? 'Saving...' : selectedRange ? 'Save range' : 'Create range'}
-          </button>
+    <div className="flex flex-col gap-8 md:gap-12 w-full max-w-[1600px] mx-auto p-6 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex flex-col gap-2">
+          <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Admin</div>
+          <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Market price ranges</h1>
+          <p className="text-ink-600 font-medium">Control freelancer offer limits by category and level.</p>
         </div>
+        <button
+          className="px-6 py-2.5 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+          onClick={() => saveRange.mutate()}
+          disabled={!canSave || saveRange.isPending}
+        >
+          <Icon name="check" size={16} />
+          {saveRange.isPending ? 'Saving...' : selectedRange ? 'Save range' : 'Create range'}
+        </button>
       </div>
 
-      <div className="card reveal" style={{ padding: 20 }}>
-        <div className="grid-2" style={{ gap: 14, alignItems: 'end', marginBottom: 14 }}>
-          <div className="field">
-            <label className="field-label">Category</label>
+      <div className="bg-white border border-ink-200/60 rounded-[2rem] p-6 md:p-8 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 border-b border-ink-200/50 pb-8">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-ink-600 uppercase tracking-widest">Category</label>
             <select
-              className="input"
+              className="w-full px-4 py-3 bg-ink-50 border border-ink-200 rounded-xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all font-medium"
               value={effectiveCategoryId}
               onChange={e => setSelectedCategoryId(e.target.value)}
               disabled={isLoading}
@@ -173,10 +173,10 @@ export default function AdminPricing() {
               ))}
             </select>
           </div>
-          <div className="field">
-            <label className="field-label">Admin note</label>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-ink-600 uppercase tracking-widest">Admin note</label>
             <input
-              className="input"
+              className="w-full px-4 py-3 bg-white border border-ink-200 rounded-xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all"
               value={form.notes}
               onChange={e => updateField('notes', e.target.value)}
               placeholder="Optional internal note"
@@ -184,15 +184,15 @@ export default function AdminPricing() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {bands.map(band => (
-            <div key={band.key} style={{ border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)', padding: 14 }}>
-              <div className="h-eyebrow" style={{ marginBottom: 12 }}>{band.label}</div>
-              <div className="grid-2" style={{ gap: 8 }}>
-                <div className="field">
-                  <label className="field-label">Min</label>
+            <div key={band.key} className="bg-ink-50/50 border border-ink-200/60 rounded-2xl p-6">
+              <div className="text-sm font-bold tracking-[0.1em] uppercase text-ink-950 mb-6">{band.label}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-ink-500 uppercase tracking-widest">Min</label>
                   <input
-                    className="input"
+                    className="w-full px-4 py-3 bg-white border border-ink-200 rounded-xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all font-mono"
                     type="number"
                     min="0"
                     value={form[band.min]}
@@ -200,10 +200,10 @@ export default function AdminPricing() {
                     placeholder="0"
                   />
                 </div>
-                <div className="field">
-                  <label className="field-label">Max</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-ink-500 uppercase tracking-widest">Max</label>
                   <input
-                    className="input"
+                    className="w-full px-4 py-3 bg-white border border-ink-200 rounded-xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all font-mono"
                     type="number"
                     min="0"
                     value={form[band.max]}
@@ -217,54 +217,58 @@ export default function AdminPricing() {
         </div>
       </div>
 
-      <div className="card reveal" style={{ padding: 20 }}>
-        <div className="row between" style={{ gap: 16, alignItems: 'flex-start', marginBottom: 16 }}>
+      <div className="bg-white border border-ink-200/60 rounded-[2rem] p-6 md:p-8 shadow-sm">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
-            <div className="h-eyebrow" style={{ marginBottom: 6 }}>Mintbox storage add-ons</div>
-            <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>
-              Control how much extra storage clients can buy and what each plan costs.
-            </p>
+            <h2 className="text-xl font-display font-bold text-ink-950 m-0 mb-1">Mintbox storage add-ons</h2>
+            <p className="text-ink-600 font-medium">Control how much extra storage clients can buy and what each plan costs.</p>
           </div>
-          <button className="btn primary" onClick={() => saveStoragePlan.mutate()} disabled={!storageForm.name || !storageForm.price || !storageForm.storage_gb || saveStoragePlan.isPending}>
-            <Icon name="check" size={13} />
+          <button
+            className="px-6 py-2.5 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+            onClick={() => saveStoragePlan.mutate()}
+            disabled={!storageForm.name || !storageForm.price || !storageForm.storage_gb || saveStoragePlan.isPending}
+          >
+            <Icon name="check" size={16} />
             {saveStoragePlan.isPending ? 'Saving...' : storageForm.id ? 'Update add-on' : 'Create add-on'}
           </button>
         </div>
 
-        <div className="grid-3" style={{ gap: 10, marginBottom: 14 }}>
-          <div className="field">
-            <label className="field-label">Name</label>
-            <input className="input" value={storageForm.name} onChange={e => updateStorageField('name', e.target.value)} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8 border-b border-ink-200/50 pb-8">
+          <div className="flex flex-col gap-2 lg:col-span-2">
+            <label className="text-xs font-bold text-ink-600 uppercase tracking-widest">Name</label>
+            <input className="w-full px-4 py-3 bg-white border border-ink-200 rounded-xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all" value={storageForm.name} onChange={e => updateStorageField('name', e.target.value)} />
           </div>
-          <div className="field">
-            <label className="field-label">Price</label>
-            <input className="input" type="number" min="0" value={storageForm.price} onChange={e => updateStorageField('price', e.target.value)} />
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-ink-600 uppercase tracking-widest">Price (₹)</label>
+            <input className="w-full px-4 py-3 bg-white border border-ink-200 rounded-xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all font-mono" type="number" min="0" value={storageForm.price} onChange={e => updateStorageField('price', e.target.value)} />
           </div>
-          <div className="field">
-            <label className="field-label">Extra GB</label>
-            <input className="input" type="number" min="1" value={storageForm.storage_gb} onChange={e => updateStorageField('storage_gb', e.target.value)} />
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-ink-600 uppercase tracking-widest">Extra GB</label>
+            <input className="w-full px-4 py-3 bg-white border border-ink-200 rounded-xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all font-mono" type="number" min="1" value={storageForm.storage_gb} onChange={e => updateStorageField('storage_gb', e.target.value)} />
           </div>
-          <div className="field">
-            <label className="field-label">Duration days</label>
-            <input className="input" type="number" min="1" value={storageForm.duration_days} onChange={e => updateStorageField('duration_days', e.target.value)} />
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-ink-600 uppercase tracking-widest">Duration (days)</label>
+            <input className="w-full px-4 py-3 bg-white border border-ink-200 rounded-xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all font-mono" type="number" min="1" value={storageForm.duration_days} onChange={e => updateStorageField('duration_days', e.target.value)} />
           </div>
-          <div className="field">
-            <label className="field-label">Description</label>
-            <input className="input" value={storageForm.description} onChange={e => updateStorageField('description', e.target.value)} />
+          
+          <div className="flex flex-col gap-2 lg:col-span-3">
+            <label className="text-xs font-bold text-ink-600 uppercase tracking-widest">Description</label>
+            <input className="w-full px-4 py-3 bg-white border border-ink-200 rounded-xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all" value={storageForm.description} onChange={e => updateStorageField('description', e.target.value)} />
           </div>
-          <div className="row" style={{ gap: 14, alignItems: 'center', paddingTop: 24 }}>
-            <label className="row" style={{ gap: 6, fontSize: 13 }}>
-              <input type="checkbox" checked={storageForm.is_featured} onChange={e => updateStorageField('is_featured', e.target.checked)} />
-              Featured
+          
+          <div className="flex items-center gap-6 lg:col-span-2 pt-4">
+            <label className="flex items-center gap-3 text-sm font-bold text-ink-950 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded border-ink-300 text-ink-950 focus:ring-ink-950" checked={storageForm.is_featured} onChange={e => updateStorageField('is_featured', e.target.checked)} />
+              Featured add-on
             </label>
-            <label className="row" style={{ gap: 6, fontSize: 13 }}>
-              <input type="checkbox" checked={storageForm.is_active} onChange={e => updateStorageField('is_active', e.target.checked)} />
+            <label className="flex items-center gap-3 text-sm font-bold text-ink-950 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded border-ink-300 text-ink-950 focus:ring-ink-950" checked={storageForm.is_active} onChange={e => updateStorageField('is_active', e.target.checked)} />
               Active
             </label>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {storagePlans.map(plan => (
             <button
               key={plan.id}
@@ -278,14 +282,18 @@ export default function AdminPricing() {
                 is_featured: Boolean(plan.is_featured),
                 is_active: Boolean(plan.is_active),
               })}
-              style={{ border: '1px solid var(--hairline)', background: 'var(--paper)', borderRadius: 'var(--radius-md)', padding: 14, textAlign: 'left', cursor: 'pointer' }}
+              className="group text-left bg-ink-50/50 hover:bg-white border border-ink-200/60 hover:border-ink-400 rounded-2xl p-6 transition-all hover:shadow-md"
             >
-              <div className="row between" style={{ marginBottom: 8 }}>
-                <strong>{plan.name}</strong>
-                <span className={`badge ${plan.is_active ? 'mint' : 'neutral'}`}>{plan.is_active ? 'Active' : 'Hidden'}</span>
+              <div className="flex justify-between items-start mb-4">
+                <strong className="font-bold text-ink-950 text-lg group-hover:text-mint-600 transition-colors">{plan.name}</strong>
+                <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${plan.is_active ? 'bg-mint-100 text-mint-700' : 'bg-ink-200 text-ink-600'}`}>
+                  {plan.is_active ? 'Active' : 'Hidden'}
+                </span>
               </div>
-              <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>{rupee(plan.price)}</div>
-              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{plan.storage_gb} GB - {plan.duration_days} days - {plan.active_subscribers || 0} active</div>
+              <div className="font-mono font-bold text-2xl text-ink-950 mb-2">{rupee(plan.price)}</div>
+              <div className="text-sm text-ink-500 font-medium">
+                {plan.storage_gb} GB · {plan.duration_days} days · <span className="text-ink-800">{plan.active_subscribers || 0} active</span>
+              </div>
             </button>
           ))}
         </div>

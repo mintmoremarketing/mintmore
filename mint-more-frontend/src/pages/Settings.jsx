@@ -148,7 +148,7 @@ export default function Settings() {
   const kyc = kycData || {}
 
   if (isLoading) return (
-    <div className="stack-6"><SkeletonCard /><SkeletonCard /></div>
+    <div className="flex flex-col gap-6 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16"><SkeletonCard /><SkeletonCard /></div>
   )
 
   const sections = [
@@ -160,19 +160,19 @@ export default function Settings() {
   ]
 
   return (
-    <div className="settings-shell">
-      <aside className="settings-nav">
-        <div className="h-eyebrow">Settings</div>
+    <div className="flex flex-col md:flex-row gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
+      <aside className="w-full md:w-64 shrink-0 flex flex-col gap-1 md:sticky md:top-24 self-start">
+        <div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-2 px-3">Settings</div>
         {sections.map(([id, icon, label]) => (
-          <button key={id} className={section === id ? 'active' : ''} onClick={() => setSearchParams({ section: id })}>
-            <Icon name={icon} /> {label}
+          <button key={id} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${section === id ? 'bg-white shadow-sm border border-ink-200 text-ink-900' : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'}`} onClick={() => setSearchParams({ section: id })}>
+            <Icon name={icon} size={16} /> {label}
           </button>
         ))}
       </aside>
-      <div className="stack-6 settings-content">
-      <div className="reveal">
-        <div className="h-eyebrow" style={{ marginBottom: 4 }}>Settings</div>
-        <h1 className="h-display h-1" style={{ margin: 0 }}>{sections.find(([id]) => id === section)?.[2] || 'Account settings'}</h1>
+      <div className="flex-1 flex flex-col gap-6 min-w-0">
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-2">Settings</div>
+        <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">{sections.find(([id]) => id === section)?.[2] || 'Account settings'}</h1>
       </div>
 
       {/* Avatar */}

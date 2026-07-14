@@ -676,102 +676,103 @@ export default function AdminUsers() {
   const users = data?.users || []
 
   return (
-    <div className="stack-6">
-      <div className="reveal">
-        <div className="h-eyebrow" style={{ marginBottom: 4 }}>Admin</div>
-        <div className="row between" style={{ gap: 12 }}>
-          <h1 className="h-display h-1" style={{ margin: 0 }}>Users</h1>
-          <button className="btn primary" onClick={() => setShowCreateAdmin(true)}>
-            <Icon name="plus" size={13} />
-            Create admin
-          </button>
+    <div className="flex flex-col gap-8 md:gap-12 w-full max-w-[1600px] mx-auto p-6 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex flex-col gap-2">
+          <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Admin</div>
+          <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Users</h1>
         </div>
+        <button className="px-6 py-2.5 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-all flex items-center gap-2 shadow-sm" onClick={() => setShowCreateAdmin(true)}>
+          <Icon name="plus" size={16} />
+          Create admin
+        </button>
       </div>
 
       {/* Search + filter */}
-      <div className="row" style={{ gap: 10 }}>
-        <div style={{ position: 'relative', flex: 1 }}>
-          <Icon name="search" size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-400)', pointerEvents: 'none' }} />
+      <div className="flex flex-col md:flex-row gap-4 items-center">
+        <div className="relative flex-1 w-full">
+          <Icon name="search" size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
           <input
-            className="input"
-            style={{ paddingLeft: 34 }}
+            className="w-full pl-11 pr-4 py-3 bg-white border border-ink-200/60 rounded-2xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 shadow-sm transition-all"
             placeholder="Search by name or email…"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <Tabs
-          value={roleFilter}
-          onChange={setRoleFilter}
-          items={[
-            { value: 'all',        label: 'All' },
-            { value: 'client',     label: 'Clients' },
-            { value: 'freelancer', label: 'Freelancers' },
-            { value: 'admin',      label: 'Admins' },
-          ]}
-        />
+        <div className="w-full md:w-auto">
+          <Tabs
+            value={roleFilter}
+            onChange={setRoleFilter}
+            items={[
+              { value: 'all',        label: 'All' },
+              { value: 'client',     label: 'Clients' },
+              { value: 'freelancer', label: 'Freelancers' },
+              { value: 'admin',      label: 'Admins' },
+            ]}
+          />
+        </div>
       </div>
 
       {/* Table */}
-      <div className="card-flat">
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'var(--paper-tint)', borderBottom: '1px solid var(--hairline)' }}>
-              {['User','Role','KYC','Approval','Joined',''].map((h, i) => (
-                <th key={i} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.04, color: 'var(--ink-500)', textAlign: 'left' }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--ink-500)' }}>Loading…</td></tr>
-            ) : users.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: 32, textAlign: 'center', color: 'var(--ink-500)', fontSize: 13 }}>No users found</td></tr>
-            ) : (
-              users.map((u, i) => (
-                <tr
-                  key={u.id}
-                  style={{ borderBottom: i === users.length - 1 ? 0 : '1px solid var(--hairline)', cursor: 'pointer' }}
-                  onClick={() => setSelectedUser(u.id)}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--paper-tint)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <td style={{ padding: '12px 14px' }}>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <Avatar name={u.full_name} size="sm" />
-                      <div>
-                        <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--ink-950)' }}>{u.full_name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>{u.email}</div>
+      <div className="bg-white border border-ink-200/60 rounded-[2rem] shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-ink-50/50 border-b border-ink-200/60">
+                {['User','Role','KYC','Approval','Joined',''].map((h, i) => (
+                  <th key={i} className="px-6 py-4 text-xs font-bold tracking-[0.15em] uppercase text-ink-500">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-ink-500 font-medium">Loading…</td></tr>
+              ) : users.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-ink-500 font-medium bg-ink-50/30">No users found</td></tr>
+              ) : (
+                users.map((u, i) => (
+                  <tr
+                    key={u.id}
+                    className={`group cursor-pointer hover:bg-ink-50/50 transition-colors ${i === users.length - 1 ? '' : 'border-b border-ink-200/50'}`}
+                    onClick={() => setSelectedUser(u.id)}
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={u.full_name} size="md" />
+                        <div>
+                          <div className="text-sm font-bold text-ink-950">{u.full_name}</div>
+                          <div className="text-xs text-ink-500 font-medium mt-0.5">{u.email}</div>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 14px' }}>
-                    <span className="badge neutral" style={{ textTransform: 'capitalize' }}>{u.role}</span>
-                  </td>
-                  <td style={{ padding: '12px 14px' }}>
-                    <span style={{ fontSize: 12.5, textTransform: 'capitalize', color: u.kyc_status === 'approved' ? 'var(--mint-700)' : 'var(--ink-500)' }}>
-                      {u.kyc_status || 'None'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 14px' }}>
-                    <span className={`badge ${u.is_approved ? 'mint' : 'amber'}`} style={{ fontSize: 11 }}>
-                      <span className="bdot" />
-                      {u.is_approved ? 'Approved' : 'Pending'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 14px', fontSize: 12.5, color: 'var(--ink-500)' }}>
-                    {timeAgo(u.created_at)}
-                  </td>
-                  <td style={{ padding: '12px 14px' }}>
-                    <Icon name="chevronRight" size={13} style={{ color: 'var(--ink-400)' }} />
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-3 py-1 bg-ink-100 text-ink-700 text-xs font-bold uppercase tracking-wider rounded-md">{u.role}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`text-xs font-bold uppercase tracking-wider ${u.kyc_status === 'approved' ? 'text-mint-600' : 'text-ink-400'}`}>
+                        {u.kyc_status || 'None'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${u.is_approved ? 'bg-mint-50 text-mint-700' : 'bg-amber-50 text-amber-700'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${u.is_approved ? 'bg-mint-500' : 'bg-amber-500 animate-pulse'}`} />
+                        {u.is_approved ? 'Approved' : 'Pending'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-ink-500">
+                      {timeAgo(u.created_at)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Icon name="chevronRight" size={16} className="text-ink-300 group-hover:text-ink-600 transition-colors inline-block" />
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {selectedUser && (

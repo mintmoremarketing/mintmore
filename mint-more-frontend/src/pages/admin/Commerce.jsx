@@ -462,35 +462,42 @@ export default function AdminCommerce() {
   const tabSettings = (currentTab.keys || []).map(key => settingsByKey[key]).filter(Boolean)
 
   return (
-    <div className="stack-6">
-      <div>
-        <div className="h-eyebrow">Admin</div>
-        <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>Commercial controls</h1>
-        <p className="muted">Manage pricing and platform rules without touching application code.</p>
+    <div className="flex flex-col gap-8 md:gap-12 w-full max-w-[1600px] mx-auto p-6 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col gap-2">
+        <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Admin</div>
+        <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Commercial controls</h1>
+        <p className="text-ink-600 font-medium">Manage pricing and platform rules without touching application code.</p>
       </div>
-      <div className="tabs" style={{ display: 'flex', flexWrap: 'wrap', width: 'fit-content' }}>
+      
+      <div className="flex flex-wrap gap-2 pb-2">
         {COMMERCE_TABS.map(tab => (
           <button
             key={tab.id}
             type="button"
-            className={`tab${activeTab === tab.id ? ' active' : ''}`}
+            className={`px-5 py-2.5 rounded-full font-bold text-sm transition-all ${
+              activeTab === tab.id 
+                ? 'bg-ink-950 text-white shadow-md' 
+                : 'bg-white border border-ink-200 text-ink-600 hover:bg-ink-50 hover:text-ink-900'
+            }`}
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.label}
           </button>
         ))}
       </div>
-      <div className="card" style={{ padding: 16 }}>
-        <div className="h-eyebrow">{currentTab.label}</div>
-        <p className="muted" style={{ margin: '5px 0 0' }}>{currentTab.description}</p>
+      
+      <div className="bg-ink-50/50 border border-ink-200/60 rounded-2xl p-6">
+        <div className="text-sm font-bold tracking-[0.1em] uppercase text-ink-950 mb-1">{currentTab.label}</div>
+        <p className="text-ink-600 font-medium m-0">{currentTab.description}</p>
       </div>
-      {isLoading ? <div className="muted">Loading controls...</div> : (
+      
+      {isLoading ? <div className="text-ink-500 font-medium px-4">Loading controls...</div> : (
         <div className="commerce-grid">
           {activeTab === 'danger'
             ? <DangerZone />
             : tabSettings.length
             ? tabSettings.map(renderCommerceSetting)
-            : <div className="card commerce-card commerce-card-wide"><p className="muted">No controls found for this section yet.</p></div>}
+            : <div className="bg-white border border-ink-200/60 rounded-[2rem] p-8 text-center"><p className="text-ink-500 font-medium m-0">No controls found for this section yet.</p></div>}
         </div>
       )}
     </div>

@@ -14,32 +14,37 @@ function StatCard({ icon, label, value, sub, tone, onClick }) {
   return (
     <button
       onClick={onClick}
-      style={{
-        background: 'var(--paper)',
-        border: '1px solid var(--hairline)',
-        borderRadius: 'var(--radius-lg)',
-        padding: 20, textAlign: 'left',
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'all 0.12s', width: '100%',
-      }}
-      onMouseEnter={e => onClick && (e.currentTarget.style.borderColor = 'var(--ink-300)')}
-      onMouseLeave={e => onClick && (e.currentTarget.style.borderColor = 'var(--hairline)')}
+      className={`group w-full relative overflow-hidden bg-ink-950 border border-ink-800 rounded-[2rem] p-6 md:p-8 text-left transition-all duration-500 hover:border-ink-700 hover:shadow-2xl hover:shadow-ink-900/20 ${onClick ? 'cursor-pointer hover:-translate-y-1' : 'cursor-default'}`}
     >
-      <div style={{
-        width: 34, height: 34, borderRadius: 10,
-        background: tone === 'mint' ? 'var(--mint-100)' : tone === 'amber' ? 'rgba(217,119,6,0.1)' : 'var(--paper-tint)',
-        color: tone === 'mint' ? 'var(--mint-700)' : tone === 'amber' ? 'var(--amber)' : 'var(--ink-600)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
-      }}>
-        <Icon name={icon} size={16} />
+      <div className={`absolute -top-10 -right-10 w-48 h-48 rounded-full blur-[64px] opacity-30 transition-opacity duration-700 group-hover:opacity-60 ${
+        tone === 'mint' ? 'bg-mint-500' : tone === 'amber' ? 'bg-amber-500' : 'bg-ink-400'
+      }`} />
+      
+      <div className="relative z-10 flex flex-col h-full justify-between">
+        <div className="flex items-start justify-between mb-8">
+          <div className="text-xs font-bold tracking-[0.2em] uppercase text-ink-400">
+            {label}
+          </div>
+          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-inner border ${
+            tone === 'mint' ? 'bg-mint-950 border-mint-800 text-mint-400' : 
+            tone === 'amber' ? 'bg-amber-950 border-amber-800 text-amber-400' : 
+            'bg-ink-900 border-ink-800 text-ink-400'
+          }`}>
+            <Icon name={icon} size={18} />
+          </div>
+        </div>
+        
+        <div>
+          <div className="font-display text-4xl md:text-5xl font-bold text-white tracking-tight leading-none mb-3">
+            {displayValue ?? '—'}
+          </div>
+          {sub && (
+            <div className={`text-sm font-medium ${tone === 'amber' ? 'text-amber-400' : tone === 'mint' ? 'text-mint-400' : 'text-ink-500'}`}>
+              {sub}
+            </div>
+          )}
+        </div>
       </div>
-      <div style={{ fontSize: 11.5, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: 0.04, marginBottom: 6 }}>
-        {label}
-      </div>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 500, letterSpacing: '-0.02em', color: 'var(--ink-950)', lineHeight: 1 }}>
-        {displayValue ?? '—'}
-      </div>
-      {sub && <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 6 }}>{sub}</div>}
     </button>
   )
 }
@@ -49,14 +54,12 @@ export default function AdminDashboard() {
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
 
-  // Fetch dashboard stats — handle both { data: stats } and { data: { stats } }
+  // Fetch dashboard stats
   const { data: dashData, isLoading } = useQuery({
     queryKey: ['admin-dashboard'],
     queryFn: async () => {
       const res = await api.get('/admin/dashboard')
       const d   = res.data
-      // Backend returns: { success, data: { stats: {...}, recent_jobs: [], ... } }
-      // or flat: { success, data: { total_users, ... } }
       return d?.data?.stats || d?.data || {}
     },
   })
@@ -100,160 +103,193 @@ export default function AdminDashboard() {
   })
 
   const stats = dashData || {}
-  const deals = dealsData?.negotiations || dealsData?.pending || []
-  const kycs  = kycData?.submissions    || kycData?.kyc_submissions || []
-  const wds   = wdData?.withdrawals     || []
-  const disputes = disputesData?.disputes || []
+  const totalUsers = Number(stats.users?.total_clients || 0) + Number(stats.users?.total_freelancers || 0)
+  const newUsers = Number(stats.users?.new_this_week || 0)
+  const activeJobs = Number(stats.jobs?.active_jobs || 0)
+  const pendingDeals = Number(stats.operations?.pending_deals || 0)
 
-  const userStats = stats.users || {}
-  const jobStats = stats.jobs || {}
-  const totalClients = Number(userStats.total_clients ?? stats.total_clients ?? 0)
-  const totalFreelancers = Number(userStats.total_freelancers ?? stats.total_freelancers ?? 0)
-  const totalAdmins = Number(userStats.total_admins ?? stats.total_admins ?? 0)
-  const totalUsers = totalClients + totalFreelancers + totalAdmins
-  const activeJobs =
-    Number(jobStats.open_jobs ?? 0) +
-    Number(jobStats.matching_jobs ?? 0) +
-    Number(jobStats.assigned_jobs ?? 0) +
-    Number(jobStats.active_jobs ?? stats.active_jobs ?? 0)
-
-  // Pending count
-  const pendingCount = Number(stats.operations?.pending_actions ?? (deals.length + kycs.length + wds.length + disputes.length))
+  const deals = Array.isArray(dealsData?.negotiations) ? dealsData.negotiations : (Array.isArray(dealsData) ? dealsData : [])
+  const kycs  = Array.isArray(kycData?.submissions) ? kycData.submissions : (Array.isArray(kycData?.kycs) ? kycData.kycs : (Array.isArray(kycData) ? kycData : []))
+  const wds   = Array.isArray(wdData?.withdrawals) ? wdData.withdrawals : (Array.isArray(wdData) ? wdData : [])
+  const disputes = Array.isArray(disputesData?.disputes) ? disputesData.disputes : (Array.isArray(disputesData) ? disputesData : [])
 
   return (
-    <div className="stack-6">
-      <div className="reveal">
-        <div className="h-eyebrow" style={{ marginBottom: 4 }}>Admin</div>
-        <h1 className="h-display h-1" style={{ margin: 0 }}>Platform overview</h1>
+    <div className="flex flex-col gap-8 md:gap-12 w-full max-w-[1600px] mx-auto p-6 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col gap-2">
+        <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Admin Overview</div>
+        <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Command Center</h1>
       </div>
 
-      {/* KPI grid — safe fallbacks for every field */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }} className="reveal">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           icon="user" label="Total users"
           value={totalUsers}
-          sub={`${totalFreelancers} freelancers · ${totalClients} clients`}
+          sub={newUsers ? `+${newUsers} this week` : 'All time'}
           onClick={() => navigate('/admin/users')}
         />
         <StatCard
-          icon="briefcase" label="Active jobs"
+          icon="briefcase" label="Active deals"
           value={activeJobs}
-          sub="matching / in progress"
+          sub={pendingDeals ? `${pendingDeals} pending approval` : 'In progress'}
+          tone={pendingDeals > 0 ? 'amber' : null}
+          onClick={() => navigate('/admin/approvals')}
         />
         <StatCard
-          icon="zap" label="Pending actions"
-          value={isLoading ? '…' : pendingCount}
-          tone="amber"
-          sub={Number(stats.operations?.reconciliation_issues || 0) > 0
-            ? `${stats.operations.reconciliation_issues} financial reconciliation issue(s)`
-            : 'deals + KYC + withdrawals + disputes'}
+          icon="shield" label="Open disputes"
+          value={disputes.length}
+          tone={disputes.length > 0 ? 'amber' : null}
+          sub="Requires admin review"
           onClick={() => navigate(disputes.length ? '/disputes' : '/admin/approvals')}
         />
         <StatCard
           icon="wallet" label="Platform escrow"
           value={stats.total_escrow != null ? rupee(stats.total_escrow) : stats.escrow != null ? rupee(stats.escrow) : '—'}
           tone="mint"
-          sub="funds securely held"
+          sub="Funds securely held"
           onClick={() => navigate('/admin/wallet')}
         />
       </div>
 
-      {/* Two column */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
-
+      <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* Pending deals */}
-        <div className="stack" style={{ gap: 14 }}>
-          <div className="row between">
-            <h2 className="h-display h-3" style={{ margin: 0 }}>Deals pending approval</h2>
+        <div className="flex-1 w-full flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-display font-bold text-ink-950 m-0">Deals pending approval</h2>
             {deals.length > 0 && (
-              <span style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 500 }}>
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                 {deals.length} waiting
               </span>
             )}
           </div>
 
           {isLoading ? <SkeletonCard /> : deals.length === 0 ? (
-            <div className="card" style={{ padding: 24, textAlign: 'center' }}>
-              <div style={{ color: 'var(--ink-400)', fontSize: 13 }}>No deals pending approval ✓</div>
+            <div className="bg-ink-50/50 border border-ink-200/50 rounded-[2rem] p-16 text-center">
+              <div className="w-20 h-20 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-6 text-mint-500">
+                <Icon name="checkCircle" size={32} />
+              </div>
+              <div className="text-ink-600 font-bold text-lg">No deals pending approval</div>
+              <p className="text-ink-500 mt-2">All deals have been reviewed and escrowed.</p>
             </div>
           ) : (
-            deals.map(deal => (
-              <div key={deal.negotiation_id || deal.id || deal.job_id} style={{
-                background: 'var(--paper)', border: '1.5px solid rgba(217,119,6,0.3)',
-                borderRadius: 'var(--radius-lg)', padding: 20,
-              }}>
-                <div className="row between" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 15 }}>{deal.job?.title || deal.title || 'Job'}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--ink-500)', marginTop: 2 }}>
-                      {deal.client?.full_name || deal.client_name || 'Client'} → {deal.freelancer?.full_name || deal.freelancer_name || 'Freelancer'}
+            <div className="flex flex-col gap-6">
+              {deals.map(deal => (
+                <div key={deal.negotiation_id || deal.id || deal.job_id} className="bg-white border border-ink-200/60 rounded-[2rem] p-6 md:p-8 shadow-sm transition-all hover:shadow-xl hover:border-ink-300 relative overflow-hidden group flex flex-col md:flex-row gap-8 items-center">
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-amber-400 to-amber-500" />
+                  
+                  <div className="flex-1 w-full">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider rounded-full">Requires Approval</div>
+                    </div>
+                    <div className="font-display font-bold text-2xl text-ink-950 mb-4">{deal.job?.title || deal.title || 'Job'}</div>
+                    
+                    <div className="flex items-center gap-4 bg-ink-50 rounded-2xl p-4 w-fit">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={deal.client?.full_name || deal.client_name || 'C'} size="sm" />
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-ink-400">Client</div>
+                          <div className="text-sm font-bold text-ink-900">{deal.client?.full_name || deal.client_name || 'Client'}</div>
+                        </div>
+                      </div>
+                      <Icon name="arrowRight" size={16} className="text-ink-300" />
+                      <div className="flex items-center gap-3">
+                        <Avatar name={deal.freelancer?.full_name || deal.freelancer_name || 'F'} size="sm" />
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-ink-400">Freelancer</div>
+                          <div className="text-sm font-bold text-ink-900">{deal.freelancer?.full_name || deal.freelancer_name || 'Freelancer'}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <span className="badge amber"><span className="bdot" /> Pending</span>
-                </div>
 
-                <div style={{
-                  display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
-                  padding: '12px 14px', background: 'var(--paper-tint)',
-                  borderRadius: 'var(--radius-md)', marginBottom: 16, fontSize: 13,
-                }}>
-                  <div>
-                    <div style={{ color: 'var(--ink-500)', marginBottom: 2 }}>Agreed price</div>
-                    <div className="mono" style={{ fontWeight: 600, fontSize: 15 }}>{rupee(deal.agreed_price || 0)}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: 'var(--ink-500)', marginBottom: 2 }}>Delivery</div>
-                    <div style={{ fontWeight: 500 }}>{deal.agreed_days} days</div>
-                  </div>
-                  <div>
-                    <div style={{ color: 'var(--ink-500)', marginBottom: 2 }}>Rounds</div>
-                    <div style={{ fontWeight: 500 }}>{deal.current_round || 0} of {deal.max_rounds || 4}</div>
+                  <div className="w-full md:w-[320px] shrink-0 flex flex-col gap-6 bg-ink-50/50 rounded-3xl p-6 border border-ink-100">
+                    <div className="flex justify-between items-end border-b border-ink-200/50 pb-4">
+                      <div className="text-xs font-bold tracking-widest uppercase text-ink-500">Agreed Price</div>
+                      <div className="font-mono font-bold text-3xl text-ink-950">{rupee(deal.agreed_price || 0)}</div>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <div className="text-ink-500 font-medium">Delivery timeline</div>
+                      <div className="font-bold text-ink-900">{deal.agreed_days} days</div>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <div className="text-ink-500 font-medium">Revision rounds</div>
+                      <div className="font-bold text-ink-900">{deal.current_round || 0} of {deal.max_rounds || 4}</div>
+                    </div>
+                    
+                    <div className="flex flex-col gap-2 pt-2">
+                      <button className="w-full py-3.5 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md hover:shadow-lg"
+                        onClick={() => approveDeal.mutate({ jobId: deal.job_id, note: 'Approved' })}
+                        disabled={approveDeal.isPending}>
+                        <Icon name="check" size={18} />
+                        {approveDeal.isPending ? 'Approving…' : 'Approve & Escrow'}
+                      </button>
+                      <button className="w-full py-3.5 bg-transparent hover:bg-rose-50 text-rose-600 font-bold rounded-full transition-all disabled:opacity-50"
+                        onClick={() => rejectDeal.mutate({ jobId: deal.job_id, note: 'Rejected by admin' })}
+                        disabled={rejectDeal.isPending}>
+                        Reject terms
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <div className="row" style={{ gap: 10 }}>
-                  <button className="btn primary"
-                    onClick={() => approveDeal.mutate({ jobId: deal.job_id, note: 'Approved' })}
-                    disabled={approveDeal.isPending}>
-                    <Icon name="check" size={13} />
-                    {approveDeal.isPending ? 'Approving…' : 'Approve deal'}
-                  </button>
-                  <button className="btn ghost" style={{ color: 'var(--rose)' }}
-                    onClick={() => rejectDeal.mutate({ jobId: deal.job_id, note: 'Rejected by admin' })}
-                    disabled={rejectDeal.isPending}>
-                    Reject
-                  </button>
-                </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
 
         {/* Right sidebar */}
-        <div className="stack" style={{ gap: 14 }}>
+        <div className="w-full lg:w-[420px] flex flex-col gap-8">
+          {/* Quick nav */}
+          <div className="bg-white border border-ink-200/60 rounded-[2rem] p-6 shadow-sm">
+            <div className="text-xs font-bold tracking-widest uppercase text-ink-400 mb-6 px-2">Admin Modules</div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { icon: 'calendar', label: 'Operations',       route: '/admin/operations' },
+                { icon: 'user',     label: 'Manage users',     route: '/admin/users' },
+                { icon: 'zap',      label: 'Approve deals',    route: '/admin/approvals' },
+                { icon: 'wallet',   label: 'Platform wallet',  route: '/admin/wallet' },
+                { icon: 'shield',   label: 'Disputes',         route: '/admin/disputes' },
+                { icon: 'sparkles', label: 'Mint AI',          route: '/admin/ai' },
+              ].map(item => (
+                <button key={item.route} className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-ink-50 hover:bg-ink-950 hover:text-white transition-all group border border-transparent hover:border-ink-800 hover:shadow-xl" onClick={() => navigate(item.route)}>
+                  <Icon name={item.icon} size={24} className="text-ink-500 group-hover:text-mint-400 transition-colors" />
+                  <span className="font-bold text-sm text-ink-900 group-hover:text-white transition-colors text-center">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* KYC queue */}
-          <div className="card" style={{ padding: 18 }}>
-            <div className="row between" style={{ marginBottom: 14 }}>
-              <div className="h-eyebrow">KYC queue</div>
-              {kycs.length > 0 && <span style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 500 }}>{kycs.length} pending</span>}
+          <div className="bg-white border border-ink-200/60 rounded-[2rem] p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-ink-50 text-ink-600 flex items-center justify-center">
+                  <Icon name="checkCircle" size={18} />
+                </div>
+                <div className="text-sm font-bold tracking-widest uppercase text-ink-950">KYC Queue</div>
+              </div>
+              {kycs.length > 0 && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full uppercase tracking-wider">{kycs.length} pending</span>}
             </div>
             {kycs.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--ink-500)' }}>All caught up ✓</div>
+              <div className="text-sm font-medium text-ink-500 bg-ink-50 rounded-2xl p-4 text-center">
+                All accounts verified.
+              </div>
             ) : (
-              <div className="stack" style={{ gap: 10 }}>
+              <div className="flex flex-col gap-4">
                 {kycs.slice(0, 4).map(k => (
-                  <div key={k.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <Avatar name={k.full_name || 'U'} size="sm" />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{k.full_name}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--ink-500)', textTransform: 'capitalize' }}>{k.level} · {timeAgo(k.created_at)}{k.role === 'freelancer' ? ` · ${k.portfolio_count || 0} samples` : ''}</div>
+                  <div key={k.id} className="flex items-center gap-4 bg-ink-50/50 p-3 pr-4 rounded-2xl border border-ink-100 hover:border-ink-200 transition-colors">
+                    <Avatar name={k.full_name || 'U'} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-ink-950 truncate">{k.full_name}</div>
+                      <div className="text-xs text-ink-500 capitalize truncate">{k.level} · {timeAgo(k.created_at)}</div>
                     </div>
-                    <button className="btn ghost" style={{ fontSize: 12 }} onClick={() => navigate('/admin/users')}>Review</button>
+                    <button className="px-4 py-2 bg-white border border-ink-200 hover:border-ink-300 hover:bg-ink-50 text-ink-900 font-bold text-xs rounded-xl transition-all shadow-sm" onClick={() => navigate('/admin/users')}>
+                      Review
+                    </button>
                   </div>
                 ))}
                 {kycs.length > 4 && (
-                  <button className="btn link sm" onClick={() => navigate('/admin/users')} style={{ fontSize: 12 }}>
-                    +{kycs.length - 4} more
+                  <button className="text-xs font-bold text-mint-600 hover:text-mint-700 mt-2 text-center w-full py-2" onClick={() => navigate('/admin/users')}>
+                    View {kycs.length - 4} more requests
                   </button>
                 )}
               </div>
@@ -261,47 +297,36 @@ export default function AdminDashboard() {
           </div>
 
           {/* Withdrawals queue */}
-          <div className="card" style={{ padding: 18 }}>
-            <div className="row between" style={{ marginBottom: 14 }}>
-              <div className="h-eyebrow">Withdrawals</div>
-              {wds.length > 0 && <span style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 500 }}>{wds.length} pending</span>}
+          <div className="bg-white border border-ink-200/60 rounded-[2rem] p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-ink-50 text-ink-600 flex items-center justify-center">
+                  <Icon name="rupee" size={18} />
+                </div>
+                <div className="text-sm font-bold tracking-widest uppercase text-ink-950">Withdrawals</div>
+              </div>
+              {wds.length > 0 && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full uppercase tracking-wider">{wds.length} pending</span>}
             </div>
             {wds.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--ink-500)' }}>None pending ✓</div>
+              <div className="text-sm font-medium text-ink-500 bg-ink-50 rounded-2xl p-4 text-center">
+                No pending withdrawals.
+              </div>
             ) : (
-              <div className="stack" style={{ gap: 10 }}>
+              <div className="flex flex-col gap-4">
                 {wds.slice(0, 4).map(w => (
-                  <div key={w.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <Avatar name={w.user?.full_name || 'F'} size="sm" />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{w.user?.full_name}</div>
-                      <div className="mono" style={{ fontSize: 12, color: 'var(--ink-600)' }}>{rupee(w.amount)}</div>
+                  <div key={w.id} className="flex items-center gap-4 bg-ink-50/50 p-3 pr-4 rounded-2xl border border-ink-100 hover:border-ink-200 transition-colors">
+                    <Avatar name={w.user?.full_name || 'F'} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-ink-950 truncate">{w.user?.full_name}</div>
+                      <div className="font-mono text-xs text-ink-600 font-medium">{rupee(w.amount)}</div>
                     </div>
-                    <button className="btn ghost" style={{ fontSize: 12 }} onClick={() => navigate('/admin/wallet')}>Process</button>
+                    <button className="px-4 py-2 bg-ink-950 text-white hover:bg-ink-900 font-bold text-xs rounded-xl transition-all shadow-sm" onClick={() => navigate('/admin/wallet')}>
+                      Pay
+                    </button>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Quick nav */}
-          <div className="card" style={{ padding: 18 }}>
-            <div className="h-eyebrow" style={{ marginBottom: 12 }}>Admin tools</div>
-            <div className="stack" style={{ gap: 6 }}>
-              {[
-                { icon: 'calendar', label: 'Operations',       route: '/admin/operations' },
-                { icon: 'user',     label: 'Manage users',     route: '/admin/users' },
-                { icon: 'zap',      label: 'Approve deals',    route: '/admin/approvals' },
-                { icon: 'wallet',   label: 'Platform wallet',  route: '/admin/wallet' },
-                { icon: 'sparkles', label: 'Mint AI panel',    route: '/admin/ai' },
-              ].map(item => (
-                <button key={item.route} className="nav-item" onClick={() => navigate(item.route)}>
-                  <Icon name={item.icon} size={14} />
-                  <span style={{ fontSize: 13 }}>{item.label}</span>
-                  <Icon name="arrowRight" size={12} style={{ marginLeft: 'auto', color: 'var(--ink-400)' }} />
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>

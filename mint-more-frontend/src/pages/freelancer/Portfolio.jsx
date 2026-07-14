@@ -76,12 +76,12 @@ function PortfolioItemModal({ item, onClose, onSaved }) {
     <Modal
       title={isEdit ? 'Edit portfolio item' : 'Add portfolio item'}
       onClose={onClose}
-      maxWidth={520}
+      maxWidth={600}
       footer={
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn ghost" onClick={onClose} disabled={isPending}>Cancel</button>
+        <div className="flex gap-3 justify-end w-full">
+          <button className="px-5 py-2.5 rounded-xl font-semibold text-ink-600 hover:bg-ink-100 transition-colors" onClick={onClose} disabled={isPending}>Cancel</button>
           <button
-            className="btn primary"
+            className="px-5 py-2.5 rounded-xl font-semibold bg-ink-950 text-white hover:bg-ink-900 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => isEdit ? updateMutation.mutate() : createMutation.mutate()}
             disabled={isPending || !title || (!isEdit && !coverFile)}
           >
@@ -90,80 +90,69 @@ function PortfolioItemModal({ item, onClose, onSaved }) {
         </div>
       }
     >
-      <div className="stack" style={{ gap: 14 }}>
+      <div className="flex flex-col gap-6 p-1">
         {/* Cover image */}
-        <div>
-          <label className="field-label" style={{ marginBottom: 8, display: 'block' }}>
-            Cover image {!isEdit && <span style={{ color: 'var(--rose)' }}>*</span>}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-ink-900">
+            Cover image {!isEdit && <span className="text-rose-500">*</span>}
           </label>
           <div
             onClick={() => fileRef.current?.click()}
-            style={{
-              height: 160, borderRadius: 'var(--radius-md)',
-              border: `2px dashed ${coverPreview ? 'transparent' : 'var(--hairline)'}`,
-              background: 'var(--paper-tint)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', overflow: 'hidden', position: 'relative',
-            }}
+            className={`h-48 rounded-2xl border-2 border-dashed ${coverPreview ? 'border-transparent' : 'border-ink-200'} bg-ink-50/50 hover:bg-ink-50 flex items-center justify-center cursor-pointer overflow-hidden relative group transition-colors`}
           >
             {coverPreview ? (
-              <img src={coverPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={coverPreview} alt="" className="w-full h-full object-cover" />
             ) : (
-              <div style={{ textAlign: 'center', color: 'var(--ink-400)' }}>
-                <Icon name="upload" size={24} />
-                <div style={{ fontSize: 13, marginTop: 8 }}>Click to upload cover image</div>
+              <div className="text-center text-ink-400 group-hover:text-ink-600 transition-colors">
+                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-3">
+                  <Icon name="upload" size={20} />
+                </div>
+                <div className="text-sm font-medium">Click to upload cover image</div>
               </div>
             )}
             {coverPreview && (
-              <div style={{
-                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                opacity: 0, transition: 'opacity 0.15s',
-              }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '0'}
-              >
-                <div style={{ color: 'white', fontSize: 13, fontWeight: 500 }}>Change image</div>
+              <div className="absolute inset-0 bg-ink-950/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+                <div className="px-4 py-2 bg-white/20 backdrop-blur-md rounded-full text-white text-sm font-semibold">Change image</div>
               </div>
             )}
           </div>
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
         </div>
 
-        <div className="field">
-          <label className="field-label">Title <span style={{ color: 'var(--rose)' }}>*</span></label>
-          <input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Transport & Logistics Logo Design" />
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-ink-900">Title <span className="text-rose-500">*</span></label>
+          <input className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Transport & Logistics Logo Design" />
         </div>
 
-        <div className="field">
-          <label className="field-label">Description</label>
-          <textarea className="textarea" rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the project…" />
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-ink-900">Description</label>
+          <textarea className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all resize-y" rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the project…" />
         </div>
 
-        <div className="grid-2" style={{ gap: 10 }}>
-          <div className="field">
-            <label className="field-label">Min cost (₹)</label>
-            <input className="input" type="number" value={costMin} onChange={e => setCostMin(e.target.value)} placeholder="e.g. 8000" />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-ink-900">Min cost (₹)</label>
+            <input className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all" type="number" value={costMin} onChange={e => setCostMin(e.target.value)} placeholder="e.g. 8000" />
           </div>
-          <div className="field">
-            <label className="field-label">Max cost (₹)</label>
-            <input className="input" type="number" value={costMax} onChange={e => setCostMax(e.target.value)} placeholder="e.g. 16000" />
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-ink-900">Max cost (₹)</label>
+            <input className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all" type="number" value={costMax} onChange={e => setCostMax(e.target.value)} placeholder="e.g. 16000" />
           </div>
         </div>
 
-        <div className="field">
-          <label className="field-label">Project duration</label>
-          <input className="input" value={duration} onChange={e => setDuration(e.target.value)} placeholder="e.g. 1-7 days" />
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-ink-900">Project duration</label>
+          <input className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all" value={duration} onChange={e => setDuration(e.target.value)} placeholder="e.g. 1-7 days" />
         </div>
 
-        <div className="field">
-          <label className="field-label">Tags (comma-separated)</label>
-          <input className="input" value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. Logo Design, Branding, Transport" />
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-ink-900">Tags (comma-separated)</label>
+          <input className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all" value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. Logo Design, Branding, Transport" />
         </div>
 
-        <div className="field">
-          <label className="field-label">Tools used (comma-separated)</label>
-          <input className="input" value={tools} onChange={e => setTools(e.target.value)} placeholder="e.g. Illustrator, Photoshop" />
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-ink-900">Tools used (comma-separated)</label>
+          <input className="w-full bg-ink-50 border border-ink-200 focus:border-mint-500 focus:ring-4 focus:ring-mint-500/10 rounded-xl px-4 py-3 text-sm transition-all" value={tools} onChange={e => setTools(e.target.value)} placeholder="e.g. Illustrator, Photoshop" />
         </div>
       </div>
     </Modal>
@@ -192,74 +181,73 @@ export default function Portfolio() {
   const items = data || []
 
   return (
-    <div className="stack-6">
-      <div className="row between reveal">
+    <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div>
-          <div className="h-eyebrow" style={{ marginBottom: 4 }}>Marketplace</div>
-          <h1 className="h-display h-1" style={{ margin: 0 }}>Portfolio</h1>
+          <div className="text-sm font-semibold text-ink-500 mb-1 tracking-wide uppercase">Marketplace</div>
+          <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-950 tracking-tight m-0 leading-tight">Portfolio</h1>
         </div>
-        <button className="btn primary" onClick={() => { setEditItem(null); setShowModal(true) }}>
-          <Icon name="plus" /> Add item
+        <button 
+          className="px-6 py-3 bg-ink-950 hover:bg-ink-900 text-white font-semibold rounded-full shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2" 
+          onClick={() => { setEditItem(null); setShowModal(true) }}
+        >
+          <Icon name="plus" size={18} /> Add item
         </button>
       </div>
 
       {isLoading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
-          {[1,2,3].map(i => <SkeletonCard key={i} />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[1,2,3,4].map(i => <div key={i} className="animate-pulse bg-ink-100 aspect-square rounded-3xl" />)}
         </div>
       ) : items.length === 0 ? (
-        <div className="empty">
-          <div className="empty-glyph"><Icon name="image" size={22} /></div>
-          <h3>No portfolio items yet</h3>
-          <p>Add your best work to attract the right clients.</p>
-          <button className="btn primary" onClick={() => { setEditItem(null); setShowModal(true) }}>
-            <Icon name="plus" /> Add first item
+        <div className="border border-ink-200 border-dashed rounded-3xl flex flex-col items-center justify-center p-16 text-center bg-ink-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
+          <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center text-ink-400 mb-6">
+            <Icon name="image" size={32} />
+          </div>
+          <h3 className="text-xl font-display font-bold text-ink-950 mb-2">No portfolio items yet</h3>
+          <p className="text-base text-ink-500 max-w-md mb-8">Add your best work to attract the right clients and showcase your creative skills.</p>
+          <button className="px-6 py-3 bg-ink-950 hover:bg-ink-900 text-white font-semibold rounded-full shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 flex items-center gap-2" onClick={() => { setEditItem(null); setShowModal(true) }}>
+            <Icon name="plus" size={18} /> Add first item
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}
-          className="reveal">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
           {items.map(item => (
             <div
               key={item.id}
-              style={{
-                background: 'var(--paper)', border: '1px solid var(--hairline)',
-                borderRadius: 'var(--radius-lg)', overflow: 'hidden',
-              }}
+              className="group bg-white border border-ink-200/60 shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1"
             >
               {/* Cover */}
-              <div style={{ aspectRatio: '4/3', background: 'var(--paper-tint)', overflow: 'hidden', position: 'relative' }}>
+              <div className="aspect-[4/3] bg-ink-100 overflow-hidden relative">
                 {item.cover_image_url ? (
-                  <img src={item.cover_image_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={item.cover_image_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--ink-300)' }}>
-                    <Icon name="image" size={28} />
+                  <div className="flex items-center justify-center w-full h-full text-ink-300">
+                    <Icon name="image" size={32} />
                   </div>
                 )}
+                <div className="absolute inset-0 bg-gradient-to-t from-ink-950/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </div>
 
               {/* Info */}
-              <div style={{ padding: '12px 14px' }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-950)', marginBottom: 4 }}>
+              <div className="p-5 flex-1 flex flex-col">
+                <div className="text-lg font-bold text-ink-950 mb-2 line-clamp-2">
                   {item.title}
                 </div>
                 {(item.project_cost_min || item.project_cost_max) && (
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-500)' }}>
+                  <div className="text-sm font-medium text-ink-600 mb-4 flex items-center gap-1.5">
+                    <Icon name="rupee" size={14} className="text-ink-400" />
                     {item.project_cost_min && item.project_cost_max
-                      ? `${rupee(item.project_cost_min)}–${rupee(item.project_cost_max)}`
-                      : rupee(item.project_cost_min || item.project_cost_max)
+                      ? `${item.project_cost_min}–${item.project_cost_max}`
+                      : (item.project_cost_min || item.project_cost_max)
                     }
-                    {item.project_duration && ` · ${item.project_duration}`}
+                    {item.project_duration && <span className="text-ink-400 font-normal">· {item.project_duration}</span>}
                   </div>
                 )}
                 {item.tags?.length > 0 && (
-                  <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
+                  <div className="flex flex-wrap gap-2 mt-auto pt-2">
                     {item.tags.slice(0, 3).map(t => (
-                      <span key={t} style={{
-                        fontSize: 11, padding: '2px 7px',
-                        background: 'var(--paper-tint)', border: '1px solid var(--hairline)',
-                        borderRadius: 20, color: 'var(--ink-600)',
-                      }}>
+                      <span key={t} className="text-xs font-medium px-2.5 py-1 bg-ink-50 border border-ink-100 rounded-lg text-ink-600">
                         {t}
                       </span>
                     ))}
@@ -268,25 +256,20 @@ export default function Portfolio() {
               </div>
 
               {/* Actions */}
-              <div style={{
-                padding: '10px 14px', borderTop: '1px solid var(--hairline)',
-                display: 'flex', gap: 8,
-              }}>
+              <div className="p-4 border-t border-ink-100/50 flex items-center gap-3 bg-ink-50/30">
                 <button
-                  className="btn ghost"
-                  style={{ flex: 1, fontSize: 12 }}
+                  className="flex-1 px-4 py-2 bg-white border border-ink-200 hover:border-ink-300 rounded-xl text-sm font-medium text-ink-700 transition-colors flex items-center justify-center gap-2"
                   onClick={() => { setEditItem(item); setShowModal(true) }}
                 >
-                  <Icon name="edit" size={12} /> Edit
+                  <Icon name="edit" size={14} /> Edit
                 </button>
                 <button
-                  className="btn ghost"
-                  style={{ flex: 1, fontSize: 12, color: 'var(--rose)' }}
+                  className="flex-1 px-4 py-2 bg-white border border-ink-200 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 rounded-xl text-sm font-medium text-ink-700 transition-colors flex items-center justify-center gap-2"
                   onClick={() => {
                     if (window.confirm('Delete this portfolio item?')) remove(item.id)
                   }}
                 >
-                  <Icon name="trash" size={12} /> Delete
+                  <Icon name="trash" size={14} /> Delete
                 </button>
               </div>
             </div>

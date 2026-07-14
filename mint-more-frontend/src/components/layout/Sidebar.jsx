@@ -24,7 +24,9 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
 
   return (
     <nav
-      className={`sidebar${collapsed ? ' collapsed' : ''}${hovered ? ' hover-expanded' : ''}`}
+      className={`fixed top-0 left-0 h-screen bg-ink-950 text-white flex flex-col border-r border-ink-800 transition-all duration-200 ease-out z-40 ${
+        expanded ? 'w-56' : 'w-16'
+      }`}
       onMouseEnter={() => collapsed && setHovered(true)}
       onMouseLeave={() => {
         setHovered(false)
@@ -33,82 +35,100 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
     >
       <button
         type="button"
-        className="sidebar-collapse-toggle"
+        className="absolute -right-3 top-6 bg-ink-800 border border-ink-700 text-ink-300 hover:text-white rounded-full p-1 z-50 flex items-center justify-center transition-colors"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         onClick={() => onCollapsedChange?.(!collapsed)}
       >
         <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} size={14} />
       </button>
+      
       {/* Logo */}
-      <div className="sidebar-logo" onClick={() => navigate(homeRoute)}>
-        <span className="sidebar-logo-mark">C</span>
+      <div 
+        className="flex items-center h-16 px-4 cursor-pointer mb-4 shrink-0 transition-opacity hover:opacity-80" 
+        onClick={() => navigate(homeRoute)}
+      >
+        <div className="w-8 h-8 rounded-lg bg-mint-500 text-white flex items-center justify-center font-display font-bold shrink-0">
+          C
+        </div>
         {expanded && (
-          <span className="sidebar-logo-word">
-            CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
+          <span className="ml-3 font-display text-lg tracking-wide whitespace-nowrap overflow-hidden">
+            CREAT<span className="text-mint-500 font-bold">YV</span>
           </span>
         )}
       </div>
 
       {/* Main nav */}
-      <div className="sidebar-nav" style={{ flex: 1 }}>
-        {items.map(item => (
-          <button
-            key={item.route}
-            className={`nav-item ${location.pathname === item.route || location.pathname.startsWith(`${item.route}/`) ? 'active' : ''}`}
-            onClick={() => navigate(item.route)}
-          >
-            <Icon name={item.icon || 'briefcase'} size={15} />
-            {expanded && <span>{item.label}</span>}
-            {expanded && item.showCount && unreadCount > 0 && (
-              <span
-                className="mono"
-                style={{
-                  marginLeft: 'auto',
-                  minWidth: 18,
-                  height: 18,
-                  borderRadius: 9,
-                  background: 'var(--mint-100)',
-                  color: 'var(--mint-700)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                }}
-              >
-                {unreadCount > 9 ? '9+' : unreadCount}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 flex flex-col gap-1 custom-scrollbar">
+        {items.map(item => {
+          const isActive = (item.route === '/admin' || item.route === '/dashboard') 
+            ? location.pathname === item.route 
+            : (location.pathname === item.route || location.pathname.startsWith(`${item.route}/`))
+          return (
+            <button
+              key={item.route}
+              className={`flex items-center rounded-lg transition-colors px-3 h-10 w-full shrink-0 group ${
+                isActive ? 'bg-mint-500/15 text-mint-400' : 'text-ink-300 hover:bg-ink-800 hover:text-white'
+              } ${expanded ? 'justify-start' : 'justify-center'}`}
+              onClick={() => navigate(item.route)}
+              title={!expanded ? item.label : undefined}
+            >
+              <span className="shrink-0 flex items-center justify-center w-5">
+                <Icon name={item.icon || 'briefcase'} size={18} />
               </span>
-            )}
-          </button>
-        ))}
+              {expanded && (
+                <span className="ml-3 text-sm font-medium whitespace-nowrap overflow-hidden">
+                  {item.label}
+                </span>
+              )}
+              {expanded && item.showCount && unreadCount > 0 && (
+                <span
+                  className="ml-auto min-w-[20px] h-5 rounded-full bg-mint-500 text-white flex items-center justify-center text-[10px] font-bold px-1"
+                >
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Bottom: settings + user */}
-      <div>
-        {!isGuest && <button
-          className={`nav-item ${location.pathname === '/settings' ? 'active' : ''}`}
-          onClick={() => navigate('/settings')}
-        >
-          <Icon name="settings" size={15} />
-          {expanded && <span>Settings</span>}
-        </button>}
+      <div className="p-3 shrink-0 border-t border-ink-800 flex flex-col gap-1 relative">
+        {!isGuest && (
+          <button
+            className={`flex items-center rounded-lg transition-colors px-3 h-10 w-full shrink-0 group ${
+              location.pathname === '/settings' ? 'bg-mint-500/15 text-mint-400' : 'text-ink-300 hover:bg-ink-800 hover:text-white'
+            } ${expanded ? 'justify-start' : 'justify-center'}`}
+            onClick={() => navigate('/settings')}
+            title={!expanded ? 'Settings' : undefined}
+          >
+            <span className="shrink-0 flex items-center justify-center w-5">
+              <Icon name="settings" size={18} />
+            </span>
+            {expanded && <span className="ml-3 text-sm font-medium whitespace-nowrap">Settings</span>}
+          </button>
+        )}
 
-        <button className="sidebar-user sidebar-user-button" onClick={() => setProfileOpen(open => !open)}>
-          <div className="avatar sm">
+        <button 
+          className={`flex items-center rounded-lg transition-colors h-12 w-full mt-1 ${
+            expanded ? 'px-2 hover:bg-ink-800' : 'justify-center'
+          }`}
+          onClick={() => setProfileOpen(open => !open)}
+        >
+          <div className="w-8 h-8 rounded-full bg-ink-700 text-ink-200 border border-ink-600 flex items-center justify-center text-xs font-medium shrink-0">
             {(user?.full_name || 'U').split(' ').map(p => p[0]).slice(0, 2).join('')}
           </div>
-          {expanded && <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize: 12.5, fontWeight: 500, color: 'var(--ink-950)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {user?.full_name}
+          {expanded && (
+            <div className="ml-3 flex-1 min-w-0 text-left">
+              <div className="text-sm font-medium text-white truncate">
+                {user?.full_name}
+              </div>
+              <div className="text-xs text-ink-400 capitalize truncate">
+                {user?.role}
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--ink-500)', textTransform: 'capitalize' }}>
-              {user?.role}
-            </div>
-          </div>}
-          {expanded && <Icon name="chevronRight" size={13} />}
+          )}
+          {expanded && <Icon name="chevronRight" size={14} className="text-ink-500 shrink-0" />}
         </button>
         {profileOpen && <ProfilePopover onClose={() => setProfileOpen(false)} />}
       </div>
