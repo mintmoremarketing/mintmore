@@ -11,17 +11,13 @@ const inferPublishContentType = (post, media) => {
   const mediaItems = Array.isArray(media) ? media.filter(Boolean) : [];
   const mediaTypes = mediaItems.map((item) => String(item.media_type || '').toLowerCase());
 
-  if (contentType === 'carousel') {
+  if (contentType === 'carousel' || mediaItems.length > 1) {
     return 'carousel';
   }
 
   // Reel is an explicit user choice — respect it
   if (contentType === 'reel' || contentType === 'short') {
     return 'reel';
-  }
-
-  if (mediaItems.length > 1 && mediaTypes.every((type) => type === 'image')) {
-    return 'carousel';
   }
 
   if (mediaTypes.includes('video')) {
@@ -213,6 +209,9 @@ const publishToFacebook = async (account, post, media) => {
       };
 
     } else if (effectiveContentType === 'carousel' && media.length > 1) {
+      if (media.some((m) => String(m?.media_type || '').toLowerCase() === 'video')) {
+        throw new Error('Facebook carousels only support images. Remove the video or publish the video separately.');
+      }
       // ── Carousel / multi-image post ────────────────────────────────────────
       // Step 1: Upload each image as an unpublished child
       const childIds = await Promise.all(

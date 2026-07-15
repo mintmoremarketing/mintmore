@@ -74,7 +74,7 @@ const getUsers = async ({ page = 1, limit = 20, role, is_approved, search } = {}
  * Get single user detail (admin view — all fields).
  */
 const getUserById = async (userId) => {
-  const [result, walletResult, creditsResult, kycResult, portfolioResult] = await Promise.all([
+  const [result, walletResult, creditsResult, kycResult, portfolioResult, membershipResult] = await Promise.all([
     query(
     `SELECT
        id, email, phone, full_name, role, avatar_url,
@@ -109,6 +109,13 @@ const getUserById = async (userId) => {
        FROM portfolio_items WHERE freelancer_id=$1 ORDER BY created_at DESC`,
       [userId]
     ),
+    query(
+      `SELECT m.*, t.name as tier_name 
+       FROM memberships m
+       LEFT JOIN subscription_tiers t ON m.tier_id = t.id
+       WHERE m.user_id=$1`,
+      [userId]
+    ),
   ]);
 
   if (!result.rows[0]) throw new AppError('User not found', 404);
@@ -118,7 +125,32 @@ const getUserById = async (userId) => {
     mint_credit_account: creditsResult.rows[0] || null,
     kyc_submissions: sanitizeSubmissions(kycResult.rows),
     portfolio_items: portfolioResult.rows,
+    membership: membershipResult.rows[0] || null,
   };
+};
+
+/**
+ * Set User Tier Manually
+ */
+const setUserTier = async (userId, adminId, { tier_id }) => {
+  if (!tier_id) {
+    await query(`UPDATE memberships SET status = 'cancelled', updated_at = NOW() WHERE user_id = $1`, [userId]);
+    return null;
+  }
+  
+  const tierRes = await query('SELECT * FROM subscription_tiers WHERE id = $1', [tier_id]);
+  if (!tierRes.rows[0]) throw new AppError('Tier not found', 404);
+  
+  const result = await query(`
+    INSERT INTO memberships (user_id, tier_id, status, current_period_end)
+    VALUES ($1, $2, 'active', NOW() + INTERVAL '1 month')
+    ON CONFLICT (user_id) 
+    DO UPDATE SET tier_id = EXCLUDED.tier_id, status = 'active', current_period_end = NOW() + INTERVAL '1 month', updated_at = NOW()
+    RETURNING *
+  `, [userId, tier_id]);
+  
+  logger.info('Admin updated user tier', { userId, adminId, tier_id });
+  return result.rows[0];
 };
 
 /**
@@ -799,4 +831,5 @@ module.exports = {
   getDashboardStats,
   upsertCategoryPriceRange,
   getAllCategoryPriceRanges,
+  setUserTier,
 };

@@ -4,12 +4,14 @@ export const CLIENT_NAV = [
   { route: '/notifications', icon: 'inbox', label: 'Inbox', showCount: true },
   { route: '/jobs', icon: 'requests', label: 'Requests', flag: 'custom_requests' },
   { route: '/mintbox', icon: 'mintbox', label: 'Mintbox', flag: 'mintbox' },
-  { route: '/wallet', icon: 'wallet', label: 'Wallet', flag: 'wallet_ui' },
-  { route: '/membership', icon: 'shield', label: 'Membership', flag: 'wallet_ui' },
   { route: '/freelancers', icon: 'marketplace', label: 'Marketplace', flag: 'marketplace' },
-  { route: '/social', icon: 'insights', label: 'Insights', flag: 'social_insights' },
+  { route: '/insights', icon: 'insights', label: 'Social Insights', flag: 'social_insights' },
+  { route: '/posts', icon: 'layers', label: 'Social Posting', flag: 'posting' },
   { route: '/ai', icon: 'mint_ai', label: 'Mint AI', flag: 'mint_ai' },
-  { route: '/chat', icon: 'chats', label: 'Messages', flag: 'chat' },
+  { route: '/chat', icon: 'chats', label: 'AI Chat', flag: 'chat' },
+  { route: '#mintcoin', event: 'open-mintcoin-modal', icon: 'coin', label: 'Buy MintCoins' },
+  { route: '/wallet', icon: 'wallet', label: 'Wallet', flag: 'wallet_ui' },
+  { route: '/membership', icon: 'shield', label: 'Membership' },
   { route: '/support', icon: 'support_tickets', label: 'Support' },
 ]
 
@@ -43,9 +45,10 @@ export const ADMIN_NAV = [
   { route: '/chat', icon: 'chats', label: 'Chats', permission: 'support.manage' },
   { route: '/support', icon: 'support_tickets', label: 'Support tickets', permission: 'support.manage' },
   { route: '/disputes', icon: 'disputes', label: 'Disputes', permission: 'support.manage' },
-  { route: '/admin/pricing', icon: 'pricing', label: 'Pricing', permission: 'pricing.manage' },
-  { route: '/admin/commerce', icon: 'commercial_rules', label: 'Commercial rules', permission: 'pricing.manage' },
-  { route: '/admin/wallet', icon: 'platform_wallet', label: 'Platform wallet', permission: 'payments.manage' },
+  { route: '/admin/pricing', icon: 'pricing', label: 'Freelancer models', permission: 'pricing.manage' },
+  { route: '/admin/ai', icon: 'mint_ai', label: 'AI Generation limits', permission: 'pricing.manage' },
+  { route: '/admin/tiers', icon: 'layer', label: 'Subscription Tiers', permission: 'pricing.manage' },
+  { route: '/admin/commerce', icon: 'settings', label: 'Platform settings', permission: 'pricing.manage' },
   { route: '/admin/ai', icon: 'mint_ai', label: 'Mint AI', permission: 'pricing.manage' },
   { route: '/admin/audit', icon: 'audit', label: 'Audit records', permission: 'audit.read' },
 ]
@@ -56,6 +59,13 @@ export const DEFAULT_FEATURE_FLAGS = {
   freelancer_portal: false,
   freelancer_matching: false,
   negotiation: false,
+  mint_ai: false,
+  chat: false,
+  social_insights: false,
+  posting: false,
+  custom_requests: false,
+  calendar_creatives: false,
+  mintbox: false,
 }
 
 export function navForRole(role) {

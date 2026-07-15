@@ -67,6 +67,10 @@ import {
     RiMoreFill,
     RiMicFill,
     RiCoinsFill,
+    RiFacebookCircleFill,
+    RiInstagramFill,
+    RiYoutubeFill,
+    RiWhatsappFill,
 } from '@remixicon/react'
 
 const ICONS = {
@@ -150,6 +154,10 @@ const ICONS = {
     download: RiDownload2Fill,
     more: RiMoreFill,
     microphone: RiMicFill,
+    facebook: RiFacebookCircleFill,
+    instagram: RiInstagramFill,
+    youtube: RiYoutubeFill,
+    whatsapp: RiWhatsappFill,
 }
 
 const BRAND_PATHS = {

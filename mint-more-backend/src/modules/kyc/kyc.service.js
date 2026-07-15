@@ -368,7 +368,7 @@ const reviewSubmission = async (submissionId, adminId, { status, admin_note }) =
       }
       await client.query(
         `UPDATE users
-         SET kyc_level = 'address', kyc_status = 'verified'
+         SET kyc_level = $3, kyc_status = 'verified'
          WHERE id = $1`,
         [submission.user_id]
       );

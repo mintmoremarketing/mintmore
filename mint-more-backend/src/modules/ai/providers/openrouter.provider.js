@@ -64,10 +64,17 @@ const generateText = async (openrouterId, prompt, params = {}, systemPromptOverr
   const {
     temperature = 0.7,
     max_tokens  = 2000,
+    chat_history = [],
   } = params;
 
   const systemPrompt = systemPromptOverride ||
     'You are a helpful creative assistant for CREATYV, an Indian creative services platform. Be concise, professional, and culturally relevant for Indian businesses.';
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...chat_history,
+    { role: 'user',   content: prompt },
+  ];
 
   const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
     method:  'POST',
@@ -79,10 +86,7 @@ const generateText = async (openrouterId, prompt, params = {}, systemPromptOverr
     },
     body: JSON.stringify({
       model:       openrouterId,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: prompt },
-      ],
+      messages,
       temperature,
       max_tokens,
     }),

@@ -17,9 +17,9 @@ const ASPECT_RATIO_DIMENSIONS = {
 };
 
 const RESOLUTION_SCALE = {
-  '1K': 1,
-  '2K': 1.25,
-  '4K': 1.5,
+  '1K': 1,     // 1024x1024
+  '2K': 2,     // 2048x2048
+  '4K': 3.75,  // 3840x3840
 };
 
 const normalizeModel = (modelId) => {
@@ -31,8 +31,8 @@ const getDimensions = ({ aspect_ratio = 'Auto', resolution_tier = '1K' } = {}) =
   const [baseWidth, baseHeight] = ASPECT_RATIO_DIMENSIONS[aspect_ratio] || ASPECT_RATIO_DIMENSIONS.Auto;
   const scale = RESOLUTION_SCALE[resolution_tier] || 1;
   return {
-    width: Math.min(1536, Math.round(baseWidth * scale)),
-    height: Math.min(1536, Math.round(baseHeight * scale)),
+    width: Math.min(3840, Math.round(baseWidth * scale)),
+    height: Math.min(3840, Math.round(baseHeight * scale)),
   };
 };
 

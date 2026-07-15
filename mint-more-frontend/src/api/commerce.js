@@ -10,4 +10,8 @@ export const commerceApi = {
   adminSettings: () => api.get('/commerce/admin/settings'),
   updateSetting: (key, value) => api.put(`/commerce/admin/settings/${encodeURIComponent(key)}`, { value }),
   audit: (params) => api.get('/commerce/admin/audit', { params }),
+  getTiers: () => api.get('/commerce/tiers'),
+  createTier: (payload) => api.post('/commerce/admin/tiers', payload),
+  updateTier: (id, payload) => api.put(`/commerce/admin/tiers/${id}`, payload),
+  deleteTier: (id) => api.delete(`/commerce/admin/tiers/${id}`),
 }

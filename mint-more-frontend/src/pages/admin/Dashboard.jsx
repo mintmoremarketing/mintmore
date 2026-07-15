@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
@@ -5,6 +6,7 @@ import { negotiationsApi } from '../../api/negotiations'
 import { disputesApi } from '../../api/disputes'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
+import KYCReviewModal from '../../components/admin/KYCReviewModal'
 import Avatar from '../../components/ui/Avatar'
 import { rupee, timeAgo } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
@@ -109,7 +111,14 @@ export default function AdminDashboard() {
   const pendingDeals = Number(stats.operations?.pending_deals || 0)
 
   const deals = Array.isArray(dealsData?.negotiations) ? dealsData.negotiations : (Array.isArray(dealsData) ? dealsData : [])
-  const kycs  = Array.isArray(kycData?.submissions) ? kycData.submissions : (Array.isArray(kycData?.kycs) ? kycData.kycs : (Array.isArray(kycData) ? kycData : []))
+  const [kycs, setKycs] = useState([])
+  useEffect(() => {
+    if (kycData?.submissions) setKycs(kycData.submissions)
+    else if (kycData?.kycs) setKycs(kycData.kycs)
+    else if (Array.isArray(kycData)) setKycs(kycData)
+  }, [kycData])
+  const [selectedKyc, setSelectedKyc] = useState(null)
+
   const wds   = Array.isArray(wdData?.withdrawals) ? wdData.withdrawals : (Array.isArray(wdData) ? wdData : [])
   const disputes = Array.isArray(disputesData?.disputes) ? disputesData.disputes : (Array.isArray(disputesData) ? disputesData : [])
 
@@ -236,6 +245,50 @@ export default function AdminDashboard() {
           )}
         </div>
 
+        {/* KYC pending approval */}
+        <div className="flex-1 w-full flex flex-col gap-6 mt-12 lg:mt-0">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-display font-bold text-ink-950 m-0">KYC pending approval</h2>
+            {kycs.length > 0 && (
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                {kycs.length} waiting
+              </span>
+            )}
+          </div>
+
+          {isLoading ? <SkeletonCard /> : kycs.length === 0 ? (
+            <div className="bg-ink-50/50 border border-ink-200/50 rounded-[2rem] p-16 text-center">
+              <div className="w-20 h-20 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-6 text-mint-500">
+                <Icon name="checkCircle" size={32} />
+              </div>
+              <div className="text-ink-600 font-bold text-lg">No KYC pending</div>
+              <p className="text-ink-500 mt-2">All accounts have been verified.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {kycs.map(k => (
+                <div key={k.id} className="bg-white border border-ink-200/60 rounded-[2rem] p-6 shadow-sm flex items-center justify-between gap-6 hover:shadow-md transition-all">
+                  <div className="flex items-center gap-4">
+                    <Avatar name={k.full_name || 'U'} size="lg" />
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-ink-400 mb-1">{k.level} Verification</div>
+                      <div className="text-lg font-bold text-ink-950">{k.full_name}</div>
+                      <div className="text-sm text-ink-500">{k.email}</div>
+                    </div>
+                  </div>
+                  <button 
+                    className="px-6 py-3 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-all shadow-md"
+                    onClick={() => setSelectedKyc(k)}
+                  >
+                    Review
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Right sidebar */}
         <div className="w-full lg:w-[420px] flex flex-col gap-8">
           {/* Quick nav */}
@@ -330,6 +383,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      {selectedKyc && <KYCReviewModal submission={selectedKyc} onClose={() => setSelectedKyc(null)} />}
     </div>
   )
 }

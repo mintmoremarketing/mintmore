@@ -50,6 +50,7 @@ function ModelModal({ model, models, onClose }) {
   const [resolutions,  setResolutions]  = useState((model?.resolution_labels || []).join(', '))
   const [description,  setDescription]  = useState(model?.description || '')
   const [isTrending,   setIsTrending]   = useState(model?.is_trending || false)
+  const [mintcoinCosts, setMintcoinCosts] = useState(model?.mintcoin_costs || {})
 
   const toggleTool = (tool) => {
     setTools(prev => prev.includes(tool) ? prev.filter(t => t !== tool) : [...prev, tool])
@@ -65,7 +66,7 @@ function ModelModal({ model, models, onClose }) {
           failover_model_id: failoverId || null,
           resolution_labels: resolutions.split(',').map(value => value.trim()).filter(Boolean),
           margin_alert_below_pct: Number(marginAlert || 0),
-          description, is_trending: isTrending,
+          description, is_trending: isTrending, mintcoin_costs: mintcoinCosts, mintcoin_costs: mintcoinCosts,
         })
       : aiApi.addModel({
           openrouter_id: openrouterId, name, provider_name: provider,
@@ -75,7 +76,7 @@ function ModelModal({ model, models, onClose }) {
           failover_model_id: failoverId || null,
           resolution_labels: resolutions.split(',').map(value => value.trim()).filter(Boolean),
           margin_alert_below_pct: Number(marginAlert || 0),
-          description, is_trending: isTrending,
+          description, is_trending: isTrending, mintcoin_costs: mintcoinCosts, mintcoin_costs: mintcoinCosts,
         }),
     onSuccess: () => {
       pushToast({ title: isEdit ? 'Model updated!' : 'Model added!', icon: 'check' })
@@ -206,6 +207,34 @@ function ModelModal({ model, models, onClose }) {
             ))}
           </div>
         </div>
+        
+        {(tools.includes('image') || tools.includes('video')) && (
+          <div className="field" style={{ background: 'var(--paper-tint)', padding: 12, borderRadius: 8, border: '1px solid var(--hairline)' }}>
+            <label className="field-label" style={{ marginBottom: 12, display: 'block', color: 'var(--ink-950)' }}>
+              Mintcoin Costs (Tokens per generation)
+            </label>
+            <div className="grid-3" style={{ gap: 10, marginBottom: tools.includes('video') ? 10 : 0 }}>
+              {tools.includes('image') && ['1K', '2K', '4K'].map(res => (
+                <div key={res} className="field">
+                  <label className="field-label" style={{ fontSize: 11 }}>Image {res}</label>
+                  <input className="input" type="number" min="0" value={mintcoinCosts[res] || ''}
+                    onChange={e => setMintcoinCosts({...mintcoinCosts, [res]: Number(e.target.value)})}
+                    placeholder={res === '1K' ? '5' : res === '2K' ? '10' : '20'} />
+                </div>
+              ))}
+            </div>
+            <div className="grid-2" style={{ gap: 10 }}>
+              {tools.includes('video') && ['normal', '2560p'].map(res => (
+                <div key={res} className="field">
+                  <label className="field-label" style={{ fontSize: 11 }}>Video {res}</label>
+                  <input className="input" type="number" min="0" value={mintcoinCosts[res] || ''}
+                    onChange={e => setMintcoinCosts({...mintcoinCosts, [res]: Number(e.target.value)})}
+                    placeholder={res === 'normal' ? '50' : '100'} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="field">
           <label className="field-label">Description (optional)</label>
@@ -355,6 +384,24 @@ export default function AdminAIPanel() {
     onError: err => pushToast({ title: 'Failed', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (modelId) => aiApi.deleteModel(modelId),
+    onSuccess: (data) => {
+      pushToast({ title: data.data?.message || 'Model deleted', icon: 'trash' })
+      queryClient.invalidateQueries({ queryKey: ['ai-models'] })
+    },
+    onError: err => pushToast({ title: 'Failed to delete', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
+  })
+
+  const syncMutation = useMutation({
+    mutationFn: () => aiApi.syncOpenRouter(),
+    onSuccess: (data) => {
+      pushToast({ title: 'Sync successful', body: data.data?.message, icon: 'check' })
+      queryClient.invalidateQueries({ queryKey: ['ai-models'] })
+    },
+    onError: err => pushToast({ title: 'Sync failed', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
+  })
+
   const stats  = statsData || {}
   const models = modelsData?.models || []
   const existingIds = models.map(m => m.openrouter_id)
@@ -380,6 +427,17 @@ export default function AdminAIPanel() {
           <p className="text-ink-500 font-medium mt-1">Manage models, usage analytics, and AI routing configurations.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 mt-4 md:mt-0">
+          <button
+            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-ink-200 rounded-xl text-sm font-bold text-ink-700 hover:bg-ink-50 hover:text-ink-900 transition-all shadow-sm"
+            onClick={() => {
+              if (confirm('Are you sure you want to sync free models from OpenRouter? This may add multiple new models.')) {
+                syncMutation.mutate()
+              }
+            }}
+            disabled={syncMutation.isPending}
+          >
+            <Icon name={syncMutation.isPending ? 'loader' : 'refresh-cw'} size={16} className={syncMutation.isPending ? 'animate-spin' : ''} /> Sync OpenRouter
+          </button>
           <button className="flex items-center gap-2 px-5 py-2.5 bg-white border border-ink-200 rounded-xl text-sm font-bold text-ink-700 hover:bg-ink-50 hover:text-ink-900 transition-all shadow-sm" onClick={() => setShowBrowse(true)}>
             <Icon name="search" size={16} /> Browse OpenRouter
           </button>
@@ -470,6 +528,17 @@ export default function AdminAIPanel() {
                           <div className="h-4 w-px bg-ink-200 mx-1"></div>
                           <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-ink-600 hover:text-ink-950 hover:bg-ink-100 rounded-lg transition-colors" onClick={() => setEditModel(model)}>
                             <Icon name="edit" size={14} /> Edit
+                          </button>
+                          <button
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors"
+                            onClick={() => {
+                              if (confirm('Are you sure you want to delete this model?')) {
+                                deleteMutation.mutate(model.id)
+                              }
+                            }}
+                            disabled={deleteMutation.isPending}
+                          >
+                            <Icon name="trash" size={14} /> Delete
                           </button>
                           <button
                             onClick={() => toggleMutation.mutate(model.id)}

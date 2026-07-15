@@ -51,29 +51,34 @@ const buildEnhancementMessages = ({
 } = {}) => {
   const aliases = formatReferenceAliases(references);
   const contextLines = buildBusinessContextLines({ businessContext, projectContext });
+  
   const referenceInstruction = aliases
-    ? `The user supplied these reference assets: ${aliases}. Treat them as source images to preserve/edit/build from, not loose inspiration.`
-    : 'No reference image was supplied; create a practical business creative from the text brief.';
+    ? `IMPORTANT: The user supplied reference images (${aliases}). 
+If the user's prompt explicitly mentions these aliases (e.g. "@img1"), integrate them exactly as requested.
+If the user DOES NOT explicitly mention the aliases in their prompt, you MUST assume the core subject/product of the request IS the reference image. The prompt must strongly emphasize preserving the exact identity, branding, and details of the reference image, making it the focal point of the generated image.`
+    : 'No reference image was supplied; create a highly detailed original visual from the text brief.';
 
   return {
     system: [
-      'You are CREATYV prompt intelligence for Indian SMB creative work.',
-      'Rewrite image requests into one production-quality image prompt.',
-      'Return plain text only.',
-      'No markdown, no bullet list, no preamble, no explanation, no reasoning, no self-talk.',
-      'Do not mention that you are rewriting or planning the prompt.',
+      'You are CREATYV, a master prompt engineer for state-of-the-art AI image generators (like Midjourney v6, OpenRouter, and Pollinations).',
+      'Rewrite user requests into ONE highly detailed, professional, Midjourney-style image prompt.',
+      'You MUST ALWAYS output a highly detailed prompt of at least 40-50 words.',
+      'Return plain text only. No markdown, no bullet lists, no preamble, no explanation, no self-talk.',
       'Start directly with the final prompt text.',
-      'Preserve the user intent and never add fake claims, fake discounts, or unsupported facts.',
+      'Structure the prompt professionally: [Main Subject/Action], [Environment/Background], [Lighting/Atmosphere], [Camera/Lens details], [Art Style/Medium].',
+      'Use rich, descriptive keywords (e.g., cinematic lighting, 8k resolution, shallow depth of field, photorealistic, intricate details).',
+      'Make sure the prompt is EXTREMELY detailed. Do NOT write simple or short prompts. If the client request is short, you must expand it with high-quality creative details.',
+      'Example of a good prompt format: "A professional T-shirt mockup featuring a local Indian taxi driver in Kolkata, wearing a crisp white shirt, standing confidently beside his vibrant yellow Ambassador taxi in front of an old heritage building, golden hour sunlight, sharp focus, 85mm lens, photorealistic, ultra-detailed --ar 4:5".',
+      'If aspect ratio or styling parameters are provided, append them at the very end of the prompt (e.g., --ar 4:5 --v 6.0).',
     ].join(' '),
     user: [
       `Client request: ${safeText(rawPrompt, 900)}`,
       referenceInstruction,
       styleModifier ? `Style direction: ${safeText(styleModifier, 420)}` : '',
       contextLines.length ? `Business context: ${contextLines.join(' | ')}` : '',
-      aspectRatio ? `Aspect ratio: ${aspectRatio}` : '',
-      resolutionTier ? `Resolution tier: ${resolutionTier}` : '',
-      'Write one concise but detailed prompt that states the commercial objective, the subject to preserve, the visual style, composition, lighting, background, text/layout guidance if relevant, and quality constraints.',
-      'Keep it under 120 words.',
+      aspectRatio ? `Aspect ratio: Append --ar ${aspectRatio.replace(':', ':')} to the end of the prompt.` : '',
+      resolutionTier ? `Resolution constraint: Ensure high fidelity suitable for ${resolutionTier}.` : '',
+      'Write the ultimate, highly detailed image generation prompt now.',
     ].filter(Boolean).join('\n'),
   };
 };

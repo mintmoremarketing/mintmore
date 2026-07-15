@@ -49,8 +49,10 @@ router.get('/usage', controller.getUsageSummary);
 router.get('/admin/stats', authorize('admin'), requirePermission('pricing.manage'), controller.adminGetAIStats);
 router.get('/admin/models/:modelId/stats', authorize('admin'), requirePermission('pricing.manage'), controller.adminGetModelStats);
 router.get('/admin/openrouter/browse', authorize('admin'), requirePermission('pricing.manage'), controller.adminBrowseOpenRouterModels);
+router.post('/admin/openrouter/sync', authorize('admin'), requirePermission('pricing.manage'), controller.adminSyncOpenRouterModels);
 router.post('/admin/models', authorize('admin'), requirePermission('pricing.manage'), controller.adminAddModel);
 router.patch('/admin/models/:modelId', authorize('admin'), requirePermission('pricing.manage'), controller.adminUpdateModel);
 router.patch('/admin/models/:modelId/toggle', authorize('admin'), requirePermission('pricing.manage'), controller.adminToggleModel);
+router.delete('/admin/models/:modelId', authorize('admin'), requirePermission('pricing.manage'), controller.adminDeleteModel);
 
 module.exports = router;

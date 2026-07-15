@@ -2605,7 +2605,6 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   padding: 40px 32px;
   overflow-y: auto;
   max-height: 100vh;
-  justify-content: center;
 }
 .auth-shell.mobile .auth-form-wrap {
   position: absolute;
@@ -4032,8 +4031,6 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   border-radius: 24px;
   background: linear-gradient(180deg, #fff 0%, var(--paper-tint) 100%);
   padding: 18px;
-  display: grid;
-  gap: 16px;
 }
 
 .engine-chat-hero {
@@ -4073,7 +4070,6 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 }
 
 .mint-ai-thread {
-  max-height: 380px;
   border: 1px solid var(--hairline);
   border-radius: 20px;
   background: #f8fafc;
@@ -4086,8 +4082,11 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 }
 
 .engine-chat-composer {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  flex-shrink: 0;
+  margin-top: 16px;
 }
 
 .engine-chat-chips {
@@ -4111,21 +4110,78 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   background: var(--mint-50);
 }
 
-.engine-chat-composer textarea {
-  min-height: 128px;
+.engine-chat-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
   border: 1px solid var(--hairline);
   border-radius: 18px;
   background: var(--paper);
-  padding: 14px 15px;
+  padding: 8px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.engine-chat-input-wrapper textarea {
+  flex: 1;
+  min-height: 50px;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
   color: var(--ink-900);
   resize: vertical;
   font: inherit;
   line-height: 1.6;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+  box-shadow: none;
+  outline: none;
 }
 
-.engine-chat-composer textarea::placeholder {
+.engine-chat-input-wrapper textarea::placeholder {
   color: var(--ink-500);
+}
+
+.engine-chat-attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: var(--ink-500);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.engine-chat-attach:hover {
+  background: var(--ink-100);
+  color: var(--ink-700);
+}
+
+.engine-chat-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: white;
+  background: var(--ink-950);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.engine-chat-send:hover:not(:disabled) {
+  background: var(--mint-600);
+}
+
+.engine-chat-send:disabled {
+  background: var(--ink-200);
+  color: var(--ink-400);
+  cursor: not-allowed;
 }
 
 .engine-chat-actions {
@@ -5327,13 +5383,13 @@ kbd {
 
 /* Public landing - clean editorial SaaS surface */
 .landing-page {
-  --landing-accent: #ffb21a;
-  --landing-accent-hover: #ffc247;
-  --landing-accent-deep: #8a4e05;
-  --landing-accent-ink: #4a2a05;
-  --landing-accent-wash: rgba(255,178,26,.1);
-  --landing-accent-glow: rgba(255,178,26,.18);
-  --landing-line: rgba(21,18,15,.09);
+  --landing-accent: #F77F00;
+  --landing-accent-hover: #FF8F1C;
+  --landing-accent-deep: #B25900;
+  --landing-accent-ink: #FFFFFF;
+  --landing-accent-wash: rgba(247, 127, 0, 0.1);
+  --landing-accent-glow: rgba(247, 127, 0, 0.25);
+  --landing-line: rgba(21, 18, 15, 0.09);
   --landing-muted: #69645d;
   min-height: 100vh;
   overflow-x: hidden;

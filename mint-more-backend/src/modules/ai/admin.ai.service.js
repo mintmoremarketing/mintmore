@@ -101,7 +101,7 @@ const updateModel = async (modelId, adminId, updates) => {
     'name', 'description', 'supported_tools', 'tier',
     'cost_per_1k_tokens', 'provider_cost_per_1k_tokens', 'user_price_per_1k_tokens',
     'failover_model_id', 'resolution_labels', 'margin_alert_below_pct', 'tags', 'is_trending',
-    'is_active', 'sort_order', 'system_prompts', 'context_window',
+    'is_active', 'sort_order', 'system_prompts', 'context_window', 'mintcoin_costs',
   ];
 
   const normalizedUpdates = { ...updates };
@@ -135,9 +135,43 @@ const updateModel = async (modelId, adminId, updates) => {
   return result.rows[0];
 };
 
-/**
- * Toggle a model active/inactive.
- */
+const deleteModel = async (modelId) => {
+  const genCheck = await query('SELECT 1 FROM ai_generations WHERE ai_model_id = $1 LIMIT 1', [modelId]);
+  if (genCheck.rows.length > 0) {
+    await query('UPDATE ai_models SET is_active = false WHERE id = $1', [modelId]);
+    bustModelCache();
+    return { type: 'soft_delete' };
+  } else {
+    await query('DELETE FROM ai_models WHERE id = $1', [modelId]);
+    bustModelCache();
+    return { type: 'hard_delete' };
+  }
+};
+
+const syncOpenRouterModels = async (adminId) => {
+  const models = await fetchOpenRouterModels();
+  let added = 0;
+  for (const m of models) {
+    const existing = await query('SELECT id FROM ai_models WHERE openrouter_id = $1', [m.openrouter_id]);
+    if (existing.rows.length === 0) {
+      await addModel(adminId, {
+        openrouter_id: m.openrouter_id,
+        name: m.name,
+        description: m.description,
+        provider_name: 'OpenRouter',
+        supported_tools: ['text'],
+        tier: 'free',
+        provider_cost_per_1k_tokens: parseFloat(m.pricing?.prompt || 0),
+        user_price_per_1k_tokens: parseFloat(m.pricing?.prompt || 0),
+        context_window: m.context_length || 8192,
+      });
+      added++;
+    }
+  }
+  bustModelCache();
+  return { added, total: models.length };
+};
+
 const toggleModel = async (modelId, adminId) => {
   const result = await query(
     `UPDATE ai_models SET is_active = NOT is_active WHERE id = $1 RETURNING *`,
@@ -277,6 +311,7 @@ const getAdminAIStats = async ({ days = 7 } = {}) => {
   };
 };
 
+
 /**
  * Get detailed stats for a single model.
  */
@@ -334,6 +369,8 @@ module.exports = {
   addModel,
   updateModel,
   toggleModel,
+  deleteModel,
+  syncOpenRouterModels,
   getAdminAIStats,
   getModelStats,
 };

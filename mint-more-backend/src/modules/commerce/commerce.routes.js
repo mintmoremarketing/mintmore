@@ -22,4 +22,9 @@ router.put('/admin/settings/:key', authorize('admin'), requirePermission('pricin
 router.post('/admin/credits/:userId/adjust', authorize('admin'), requirePermission('pricing.manage'), controller.adjustCredits);
 router.get('/admin/audit', authorize('admin'), requirePermission('audit.read'), controller.audit);
 
+router.get('/tiers', controller.getTiers);
+router.post('/admin/tiers', authorize('admin'), requirePermission('pricing.manage'), controller.createTier);
+router.put('/admin/tiers/:id', authorize('admin'), requirePermission('pricing.manage'), controller.updateTier);
+router.delete('/admin/tiers/:id', authorize('admin'), requirePermission('pricing.manage'), controller.deleteTier);
+
 module.exports = router;

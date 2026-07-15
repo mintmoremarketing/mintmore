@@ -10,8 +10,8 @@ const inferPublishContentType = (post, media) => {
   const mediaItems = Array.isArray(media) ? media.filter(Boolean) : [];
   const mediaTypes = mediaItems.map((item) => String(item.media_type || '').toLowerCase());
 
-  // Multi-image = carousel
-  if (contentType === 'carousel' || (mediaItems.length > 1 && mediaTypes.every((type) => type === 'image'))) {
+  // Multi-item selection = carousel
+  if (contentType === 'carousel' || mediaItems.length > 1) {
     return 'carousel';
   }
 

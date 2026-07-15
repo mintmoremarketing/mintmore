@@ -58,6 +58,10 @@ const isUnlimitedForResolution = (model, resolutionTier = '1K') => {
 
 const modelResolutionCost = (model, resolutionTier = '1K') => {
   if (isUnlimitedForResolution(model, resolutionTier)) return 0;
+  const customCosts = parseJsonObject(model.mintcoin_costs);
+  if (customCosts && customCosts[resolutionTier] !== undefined) {
+    return Number(customCosts[resolutionTier] || 0);
+  }
   const multiplier = RESOLUTION_MULTIPLIERS[resolutionTier] || 1;
   return Math.max(0, Math.ceil(userPrice(model) * multiplier));
 };
@@ -119,7 +123,7 @@ const buildPrompt = (toolType, userPrompt, params = {}, modelSystemPrompts = {})
     text: {
       system: customSystemPrompt ||
         'You are a practical creative assistant for Indian businesses. Follow the requested format exactly. If the user asks for a caption, headline, tagline, or short copy, keep it short instead of writing an article.',
-      user: `Create the requested content:\n${userPrompt}\n\nTone: ${params.tone || 'clear and useful'}\nLength: ${params.length || 'as short as the request naturally needs'}\n${params.keywords ? `Keywords to include: ${params.keywords}` : ''}\n\nWrite directly without preamble. Do not add unrelated marketing theory.`,
+      user: params.session_id ? userPrompt : `Create the requested content:\n${userPrompt}\n\nTone: ${params.tone || 'clear and useful'}\nLength: ${params.length || 'as short as the request naturally needs'}\n${params.keywords ? `Keywords to include: ${params.keywords}` : ''}\n\nWrite directly without preamble. Do not add unrelated marketing theory.`,
     },
     caption: {
       system: customSystemPrompt ||
@@ -237,7 +241,7 @@ const assertIncludedQuota = async (userId, toolType, model) => {
 
 // ── Credit Deduction ──────────────────────────────────────────────────────────
 
-const deductCredits = async (userId, generationId, creditCost) => {
+const deductCredits = async (userId, generationId, creditCost, isMintcoinOnly = false) => {
   if (creditCost <= 0) return;
 
   await expireCreditsForUser(userId);
@@ -268,6 +272,10 @@ const deductCredits = async (userId, generationId, creditCost) => {
     if (cashSpend <= 0) {
       await dbClient.query('COMMIT');
       return;
+    }
+    
+    if (isMintcoinOnly) {
+      throw new AppError('Insufficient Mintcoins for this generation', 402);
     }
 
     const wallet = await getWalletByUserId(userId, dbClient, true);
@@ -418,7 +426,24 @@ const createGeneration = async (userId, {
   await checkRateLimit(userId);
 
   // Credit preflight check
-  const preflightCost = engineCost > 0 ? engineCost : userPrice(model);
+  let preflightCost = engineCost > 0 ? engineCost : userPrice(model);
+  let isMintcoinPayment = false;
+  
+  if (tool_type === 'image' || tool_type === 'video') {
+    isMintcoinPayment = true;
+    const resKey = tool_type === 'video' 
+      ? (normalizedParameters.resolution_tier || 'normal')
+      : (normalizedParameters.resolution_tier || '1K');
+      
+    const mintcoinCosts = model.mintcoin_costs || {};
+    if (mintcoinCosts[resKey]) {
+      preflightCost = Number(mintcoinCosts[resKey]);
+    } else {
+      // Default fallback if not set in admin
+      preflightCost = tool_type === 'image' ? 5 : 50;
+    }
+  }
+
   if (!engineUnlimited && preflightCost > 0) {
     await expireCreditsForUser(userId);
     const walletResult = await query(
@@ -429,13 +454,23 @@ const createGeneration = async (userId, {
        WHERE c.user_id = $1`,
       [userId]
     );
-    const minRequired = preflightCost;
-    const available = Number(walletResult.rows[0]?.cash_balance || 0) + Number(walletResult.rows[0]?.credit_balance || 0);
-    if (available < minRequired) {
-      throw new AppError(
-        `Insufficient wallet balance. This model costs ₹${(minRequired / 100).toFixed(2)} per 1K tokens. Add credits to continue.`,
-        402
-      );
+    
+    if (isMintcoinPayment) {
+      const availableMintcoins = Number(walletResult.rows[0]?.credit_balance || 0);
+      if (availableMintcoins < preflightCost) {
+        throw new AppError(
+          `INSUFFICIENT_MINTCOINS: You need ${preflightCost} Mintcoins to generate this ${tool_type}.`,
+          402
+        );
+      }
+    } else {
+      const available = Number(walletResult.rows[0]?.cash_balance || 0) + Number(walletResult.rows[0]?.credit_balance || 0);
+      if (available < preflightCost) {
+        throw new AppError(
+          `Insufficient wallet balance. This model costs ₹${(preflightCost / 100).toFixed(2)} per 1K tokens. Add credits to continue.`,
+          402
+        );
+      }
     }
   }
 
@@ -682,11 +717,18 @@ const processGeneration = async (generationId) => {
       // Cost: per second of output video
       // Admin sets cost in model metadata - we use a flat per-second rate
       // Default: free models = 0 credits, paid = cost_per_1k_tokens as flat credit
-      const creditCost = userPrice(model) > 0
+      let creditCost = userPrice(model) > 0
         ? userPrice(model) * (result.duration_seconds || 5)
         : 0;
+      const resKey = params.resolution_tier || 'normal';
+      const mintcoinCosts = model.mintcoin_costs || {};
+      if (mintcoinCosts[resKey]) {
+        creditCost = Number(mintcoinCosts[resKey]);
+      } else {
+        creditCost = 50; // fallback
+      }
 
-      if (creditCost > 0) await deductCredits(generation.user_id, generationId, creditCost);
+      if (creditCost > 0) await deductCredits(generation.user_id, generationId, creditCost, true);
 
       await query(
         `UPDATE ai_generations
@@ -713,6 +755,26 @@ const processGeneration = async (generationId) => {
     } else {
       // ── Text generation ─────────────────────────────────────────────────────
       try {
+        // Fetch chat history for context memory (last 10 interactions)
+        let chat_history = [];
+        if (params.session_id) {
+          const historyResult = await query(
+            `SELECT raw_prompt, result_metadata FROM ai_generations 
+             WHERE parameters->>'session_id' = $1 AND status = 'completed' AND id != $2
+             ORDER BY created_at DESC LIMIT 10`,
+            [params.session_id, generationId]
+          );
+          chat_history = historyResult.rows.reverse().flatMap(row => {
+            const assistantText = typeof row.result_metadata === 'string' ? JSON.parse(row.result_metadata).text : row.result_metadata?.text;
+            if (!assistantText) return [];
+            return [
+              { role: 'user', content: row.raw_prompt },
+              { role: 'assistant', content: assistantText }
+            ];
+          });
+        }
+        params.chat_history = chat_history;
+
         result = await generateText(openrouterId, generation.prompt, params, systemPrompt);
       } catch (primaryErr) {
         logger.warn('Primary model failed — failover', {
@@ -731,6 +793,15 @@ const processGeneration = async (generationId) => {
         if (!bestFree) {
           const freeModels = await getFreeModels(generation.tool_type);
           bestFree = await getBestFreeModel(freeModels);
+        }
+        
+        // If no free models available, aggressively fallback to any active model for the tool type
+        if (!bestFree) {
+          const allToolModels = await query(
+            `SELECT * FROM ai_models WHERE is_active=true AND $1::text = ANY(supported_tools) AND openrouter_id != $2 LIMIT 1`,
+            [generation.tool_type, openrouterId]
+          );
+          bestFree = allToolModels.rows[0] || null;
         }
 
         if (bestFree && bestFree.openrouter_id !== openrouterId) {
@@ -1067,72 +1138,79 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
   const finalPrompt = promptOrchestration.providerPrompt;
 
   const safeBatchCount = Math.max(1, Math.min(4, Number(batch_count || 1)));
-  const usedSeed = fixed_seed
-    ? Number(seed || 123456789)
-    : Math.floor(Math.random() * 2147483647);
   const allowedThinkingLevel = model.supports_thinking_level ? (thinking_level || null) : null;
   const allowedGoogleSearch = Boolean(model.supports_google_search && google_search_enabled);
-  const creditCost = modelResolutionCost(model, resolution_tier) * safeBatchCount;
+  const creditCostPerItem = modelResolutionCost(model, resolution_tier);
   const unlimited = isUnlimitedForResolution(model, resolution_tier);
+  const totalCreditCost = creditCostPerItem * safeBatchCount;
 
-  const generation = await createGeneration(userId, {
-    tool_type: 'image',
-    model_id,
-    prompt: finalPrompt,
-    source_job_id: project_id || null,
-    parameters: {
-      aspect_ratio,
-      resolution_tier,
-      batch_count: safeBatchCount,
-      seed: usedSeed,
-      reference_asset_ids: references.map((item) => item.id),
-      reference_aliases: references.map((item) => item.alias),
-      style_preset_id: stylePreset?.id || null,
-      thinking_level: allowedThinkingLevel,
-      google_search_enabled: allowedGoogleSearch,
-      _system: promptOrchestration.systemPrompt,
-      _raw_prompt: rawPrompt,
-      _enhanced_prompt: enhancedPrompt,
-      _provider_prompt: finalPrompt,
-      _prompt_profile_version: promptOrchestration.profileVersion,
-      _reference_policy: promptOrchestration.referencePolicy,
-      _engine_credit_cost: unlimited ? 0 : creditCost,
-      _engine_unlimited: unlimited,
-      _engine_deduct_before_enqueue: !unlimited && creditCost > 0,
-      engine_metadata: {
-        project_id: project_id || null,
-        prompt_orchestration: {
-          profile_version: promptOrchestration.profileVersion,
-          reference_policy: promptOrchestration.referencePolicy,
-          has_business_context: Boolean(
-            promptContext.businessContext?.business_name ||
-            promptContext.businessContext?.business_type ||
-            promptContext.businessContext?.customer_profile
-          ),
-          has_project_context: Boolean(
-            promptContext.projectContext?.title ||
-            promptContext.projectContext?.description
-          ),
+  const results = [];
+  for (let i = 0; i < safeBatchCount; i++) {
+    const usedSeed = fixed_seed
+      ? Number(seed || 123456789)
+      : Math.floor(Math.random() * 2147483647);
+
+    const generation = await createGeneration(userId, {
+      tool_type: 'image',
+      model_id,
+      prompt: finalPrompt,
+      source_job_id: project_id || null,
+      parameters: {
+        aspect_ratio,
+        resolution_tier,
+        batch_count: 1, // each row represents 1 item
+        seed: usedSeed,
+        reference_asset_ids: references.map((item) => item.id),
+        reference_aliases: references.map((item) => item.alias),
+        style_preset_id: stylePreset?.id || null,
+        thinking_level: allowedThinkingLevel,
+        google_search_enabled: allowedGoogleSearch,
+        _system: promptOrchestration.systemPrompt,
+        _raw_prompt: rawPrompt,
+        _enhanced_prompt: enhancedPrompt,
+        _provider_prompt: finalPrompt,
+        _prompt_profile_version: promptOrchestration.profileVersion,
+        _reference_policy: promptOrchestration.referencePolicy,
+        _engine_credit_cost: unlimited ? 0 : creditCostPerItem,
+        _engine_unlimited: unlimited,
+        _engine_deduct_before_enqueue: !unlimited && creditCostPerItem > 0,
+        engine_metadata: {
+          project_id: project_id || null,
+          prompt_orchestration: {
+            profile_version: promptOrchestration.profileVersion,
+            reference_policy: promptOrchestration.referencePolicy,
+            has_business_context: Boolean(
+              promptContext.businessContext?.business_name ||
+              promptContext.businessContext?.business_type ||
+              promptContext.businessContext?.customer_profile
+            ),
+            has_project_context: Boolean(
+              promptContext.projectContext?.title ||
+              promptContext.projectContext?.description
+            ),
+          },
+          references: references.map((item) => ({
+            id: item.id,
+            alias: item.alias,
+            bucket: item.storage_bucket,
+            path: item.storage_path,
+            mime_type: item.mime_type,
+          })),
         },
-        references: references.map((item) => ({
-          id: item.id,
-          alias: item.alias,
-          bucket: item.storage_bucket,
-          path: item.storage_path,
-          mime_type: item.mime_type,
-        })),
       },
-    },
-  });
+    });
 
-  return {
-    ...generation,
-    seed: usedSeed,
-    cost: unlimited ? 0 : creditCost,
-    unlimited,
-    raw_prompt: rawPrompt,
-    enhanced_prompt: enhancedPrompt,
-  };
+    results.push({
+      ...generation,
+      seed: usedSeed,
+      cost: unlimited ? 0 : creditCostPerItem,
+      unlimited,
+      raw_prompt: rawPrompt,
+      enhanced_prompt: enhancedPrompt,
+    });
+  }
+
+  return results;
 };
 
 const generationSelect = `

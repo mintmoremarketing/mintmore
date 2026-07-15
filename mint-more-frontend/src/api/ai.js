@@ -70,4 +70,10 @@ export const aiApi = {
 
   toggleModel: (modelId) =>
     api.patch(`/ai/admin/models/${modelId}/toggle`),
+
+  deleteModel: (modelId) =>
+    api.delete(`/ai/admin/models/${modelId}`),
+
+  syncOpenRouter: () =>
+    api.post('/ai/admin/openrouter/sync'),
 }

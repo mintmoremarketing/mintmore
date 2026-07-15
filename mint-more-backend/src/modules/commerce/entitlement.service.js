@@ -4,13 +4,14 @@ const { getSetting } = require('./settings.service');
 const { expireCreditsForUser } = require('./credits.service');
 
 const DEFAULT_FEATURE_FLAGS = {
-  calendar_creatives: true,
+  calendar_creatives: false,
   internal_ops: true,
-  custom_requests: true,
-  mintbox: true,
-  chat: true,
-  social_insights: true,
-  mint_ai: true,
+  custom_requests: false,
+  mintbox: false,
+  chat: false,
+  social_insights: false,
+  mint_ai: false,
+  posting: false,
   wallet_ui: false,
   marketplace: false,
   freelancer_portal: false,
@@ -65,7 +66,12 @@ const getEntitlements = async (userId) => {
   ]);
 
   const [membershipResult, passResult, activeOrders, creditsResult, membershipConfig] = await Promise.all([
-    query('SELECT * FROM memberships WHERE user_id = $1', [userId]),
+    query(`
+      SELECT m.*, t.features as tier_features
+      FROM memberships m
+      LEFT JOIN subscription_tiers t ON t.id = m.tier_id
+      WHERE m.user_id = $1
+    `, [userId]),
     query(
       `SELECT * FROM access_passes
        WHERE user_id = $1 AND status = 'active' AND ends_at > NOW()
@@ -117,7 +123,12 @@ const getEntitlements = async (userId) => {
     needs_kyc_for_paid_order: !kycVerified,
     base_storage_gb: Number(membershipConfig.mintbox_gb || 10),
     overrides: user.admin_overrides || {},
-    feature_flags: featureFlags || {},
+    feature_flags: {
+      ...featureFlags,
+      ...(membershipValid && membership.tier_features ? 
+          membership.tier_features.reduce((acc, feat) => ({...acc, [feat]: true}), {})
+          : {})
+    },
   };
 };
 

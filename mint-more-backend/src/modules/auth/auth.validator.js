@@ -56,4 +56,23 @@ const validateLogin = (body) => {
   }
 };
 
-module.exports = { validateRegister, validateLogin };
+const validateResetPassword = (body) => {
+  const { email, newPassword } = body;
+  const errors = [];
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.push('A valid email is required');
+  }
+
+  if (!newPassword || newPassword.length < 8) {
+    errors.push('Password must be at least 8 characters');
+  }
+
+  if (errors.length > 0) {
+    const err = new AppError('Validation failed', 422);
+    err.errors = errors;
+    throw err;
+  }
+};
+
+module.exports = { validateRegister, validateLogin, validateResetPassword };

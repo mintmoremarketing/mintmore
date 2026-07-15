@@ -49,13 +49,27 @@ const getMembership = async (userId) => {
   return result.rows[0] || null;
 };
 
-const createCheckout = async (userId, { kind = 'membership', days } = {}) => {
+const createCheckout = async (userId, { kind = 'membership', days, tier_id } = {}) => {
   const config = await getSetting(kind === 'access_pass' ? 'access_passes' : 'membership.monthly', {});
-  const pass = kind === 'access_pass'
-    ? (config || []).find((entry) => Number(entry.days) === Number(days))
-    : null;
-  if (kind === 'access_pass' && !pass) throw new AppError('Access pass is unavailable', 400);
-  const amount = kind === 'access_pass' ? Number(pass.price) : Number(config.price || 999);
+  let pass = null;
+  let amount = 0;
+  let razorpayPlanId = null;
+
+  if (kind === 'access_pass') {
+    pass = (config || []).find((entry) => Number(entry.days) === Number(days));
+    if (!pass) throw new AppError('Access pass is unavailable', 400);
+    amount = Number(pass.price);
+  } else if (tier_id) {
+    const tierResult = await query('SELECT * FROM subscription_tiers WHERE id = $1', [tier_id]);
+    const tier = tierResult.rows[0];
+    if (!tier) throw new AppError('Tier not found', 404);
+    amount = Number(tier.price);
+    razorpayPlanId = tier.razorpay_plan_id;
+  } else {
+    amount = Number(config.price || 999);
+    razorpayPlanId = config.razorpay_plan_id;
+  }
+
   const membership = await getMembership(userId);
   if (env.payments.mockCheckout) {
     const dbClient = await getClient();
@@ -71,7 +85,7 @@ const createCheckout = async (userId, { kind = 'membership', days } = {}) => {
           userId,
           kind,
           amount,
-          JSON.stringify({ days: pass?.days || null, mock_checkout: true }),
+          JSON.stringify({ days: pass?.days || null, mock_checkout: true, tier_id }),
         ]
       );
       const payment = result.rows[0];
@@ -95,16 +109,16 @@ const createCheckout = async (userId, { kind = 'membership', days } = {}) => {
   }
 
   assertRazorpayConfigured();
-  if (kind === 'membership' && config.razorpay_plan_id) {
-    if (membership?.razorpay_subscription_id && membership.auto_renew && membership.status === 'active') {
-      throw new AppError('Your recurring membership is already active', 409);
+  if (kind === 'membership' && razorpayPlanId) {
+    if (membership?.razorpay_subscription_id && membership.auto_renew && membership.status === 'active' && membership.tier_id === tier_id) {
+      throw new AppError('Your recurring membership for this tier is already active', 409);
     }
     const subscription = await callRazorpay('subscriptions.create', () => razorpay.subscriptions.create({
-      plan_id: config.razorpay_plan_id,
+      plan_id: razorpayPlanId,
       total_count: Number(config.subscription_cycles || 120),
       quantity: 1,
       customer_notify: true,
-      notes: { user_id: userId, purpose: 'membership' },
+      notes: { user_id: userId, purpose: 'membership', tier_id: tier_id || '' },
     }));
     await query(
       `UPDATE memberships
@@ -137,7 +151,7 @@ const createCheckout = async (userId, { kind = 'membership', days } = {}) => {
   const order = await callRazorpay('orders.create', () => razorpay.orders.create({
     amount: Math.round(amount * 100),
     currency: 'INR',
-    notes: { user_id: userId, purpose: kind, days: pass?.days || '' },
+    notes: { user_id: userId, purpose: kind, days: pass?.days || '', tier_id: tier_id || '' },
   }));
   const result = await query(
     `INSERT INTO membership_payments
@@ -185,13 +199,15 @@ const activatePayment = async (dbClient, payment, paymentId) => {
     const isRenewal = Boolean(priorPayment.rows[0]);
     const creditAmount = Number(isRenewal ? config.renewal_credits : config.welcome_credits);
     const expiryDays = Number(isRenewal ? config.renewal_expiry_days : config.welcome_expiry_days);
+    const tierId = payment.metadata?.tier_id;
     await dbClient.query(
       `UPDATE memberships
        SET status='active', current_period_start=NOW(),
            current_period_end=GREATEST(COALESCE(current_period_end,NOW()),NOW()) + INTERVAL '30 days',
            paused_at=NULL, auto_renew=true
+           ${tierId ? ', tier_id = $2' : ''}
        WHERE id=$1`,
-      [membership.id]
+      tierId ? [membership.id, tierId] : [membership.id]
     );
     await recordCreditTransaction(dbClient, {
       userId: payment.user_id,

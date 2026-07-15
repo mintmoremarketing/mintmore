@@ -21,6 +21,7 @@ router.post('/users/designer',          requirePermission('ops.manage'), control
 router.patch('/users/:userId/admin-permissions', requirePermission('admins.manage'), controller.setAdminPermissions);
 router.get('/users/:userId',            requirePermission('users.manage'), controller.getUserById);
 router.patch('/users/:userId/approval', requirePermission('users.manage'), controller.setUserApproval);
+router.patch('/users/:userId/tier',     requirePermission('users.manage'), controller.setUserTier);
 router.patch('/users/:userId/level',    requirePermission('matching.manage'), controller.setFreelancerLevel);
 router.delete('/users/:userId',         requirePermission('users.manage'), controller.deleteUserData);
 

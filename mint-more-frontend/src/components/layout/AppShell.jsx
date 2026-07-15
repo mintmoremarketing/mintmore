@@ -14,6 +14,7 @@ import MobileDrawer from './MobileDrawer'
 import { ToastHost } from '../ui/Toast'
 import NotifPanel from '../shared/NotifPanel'
 import TopUpModal from '../shared/TopUpModal'
+import MintcoinModal from '../shared/MintcoinModal'
 import GuestBanner from '../shared/GuestBanner'
 import { useEntitlements } from '../../hooks/useEntitlements'
 
@@ -41,6 +42,13 @@ export default function AppShell() {
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [showMintcoinModal, setShowMintcoinModal] = useState(false)
+
+  useEffect(() => {
+    const handleOpenMintcoinModal = () => setShowMintcoinModal(true)
+    window.addEventListener('open-mintcoin-modal', handleOpenMintcoinModal)
+    return () => window.removeEventListener('open-mintcoin-modal', handleOpenMintcoinModal)
+  }, [])
   const isMobile = useIsMobile()
   const role = isGuest ? 'client' : user?.role
   const { data: access } = useEntitlements()
@@ -108,7 +116,7 @@ export default function AppShell() {
           walletBalance={showWalletUi && role !== 'admin' && !isGuest ? walletBalance : undefined}
           mintCoinBalance={role === 'client' ? (isGuest ? 999 : mintCoinBalance) : undefined}
           onWalletClick={() => showWalletUi && setShowTopUp(true)}
-          onMintCoinClick={() => navigate(isGuest ? '/register' : '/calendar')}
+          onMintCoinClick={() => isGuest ? navigate('/register') : setShowMintcoinModal(true)}
           onNotifClick={() => setShowNotif(!showNotif)}
           notifUnread={unreadCount > 0}
           unreadCount={unreadCount}
@@ -137,6 +145,7 @@ export default function AppShell() {
 
       {showNotif && !isGuest && <NotifPanel onClose={() => setShowNotif(false)} />}
       {showTopUp && showWalletUi && !isGuest && <TopUpModal onClose={() => setShowTopUp(false)} />}
+      {showMintcoinModal && !isGuest && <MintcoinModal onClose={() => setShowMintcoinModal(false)} />}
 
       <ToastHost toasts={toasts} />
     </div>

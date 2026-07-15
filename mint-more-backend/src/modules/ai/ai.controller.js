@@ -205,7 +205,6 @@ const generateEngineImage = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// ── Admin Controllers ─────────────────────────────────────────────────────────
 
 const adminGetAIStats = async (req, res, next) => {
   try {
@@ -267,6 +266,26 @@ const adminToggleModel = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const adminDeleteModel = async (req, res, next) => {
+  try {
+    const result = await adminAIService.deleteModel(req.params.modelId);
+    return sendSuccess(res, {
+      data: result,
+      message: result.type === 'soft_delete' ? 'Model soft-deleted (has generation history)' : 'Model permanently deleted',
+    });
+  } catch (err) { next(err); }
+};
+
+const adminSyncOpenRouterModels = async (req, res, next) => {
+  try {
+    const result = await adminAIService.syncOpenRouterModels(req.user.sub);
+    return sendSuccess(res, {
+      data: result,
+      message: `Sync complete. Added ${result.added} new models.`,
+    });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   getModels,
   getSingleModelTraffic,
@@ -289,4 +308,6 @@ module.exports = {
   adminAddModel,
   adminUpdateModel,
   adminToggleModel,
+  adminDeleteModel,
+  adminSyncOpenRouterModels,
 };

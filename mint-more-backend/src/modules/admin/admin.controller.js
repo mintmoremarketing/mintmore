@@ -50,6 +50,20 @@ const setUserApproval = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const setUserTier = async (req, res, next) => {
+  try {
+    const membership = await adminService.setUserTier(
+      req.params.userId,
+      req.user.sub,
+      req.body
+    );
+    return sendSuccess(res, {
+      data: { membership },
+      message: `User tier updated successfully`,
+    });
+  } catch (err) { next(err); }
+};
+
 const createAdminUser = async (req, res, next) => {
   try {
     const user = await adminService.createAdminUser(req.user.sub, req.body);
@@ -214,6 +228,7 @@ module.exports = {
   getUsers,
   getUserById,
   setUserApproval,
+  setUserTier,
   createAdminUser,
   createDesignerUser,
   setAdminPermissions,

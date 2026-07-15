@@ -161,32 +161,68 @@ const handleWebhook = async (rawBody, signature) => {
       [paymentId, order.id]
     );
 
-    // Credit the user's wallet
-    const wallet = await getWalletByUserId(order.user_id, dbClient, true);
+    // Check if Mintcoin or Wallet top-up
+    if (order.metadata && order.metadata.type === 'mintcoin') {
+      const mintcoinAmount = order.metadata.coins || 10000;
+      
+      // Ensure mint_credit_account exists
+      await dbClient.query(
+        `INSERT INTO mint_credit_accounts (user_id, balance)
+         VALUES ($1, 0)
+         ON CONFLICT (user_id) DO NOTHING`,
+        [order.user_id]
+      );
+      
+      // Add balance
+      await dbClient.query(
+        `UPDATE mint_credit_accounts
+         SET balance = balance + $1, updated_at = NOW()
+         WHERE user_id = $2`,
+        [mintcoinAmount, order.user_id]
+      );
+      
+      await dbClient.query(
+        `INSERT INTO mint_credit_transactions
+           (user_id, type, amount, reference_id, reference_type, description, idempotency_key)
+         VALUES ($1, 'platform_grant', $2, $3, 'razorpay_mintcoin', $4, $5)`,
+        [order.user_id, mintcoinAmount, order.id, `Mintcoin purchase via Razorpay (${paymentId})`, `mintcoin-topup:${order.id}`]
+      );
+      
+      await dbClient.query('COMMIT');
 
-    await recordTransaction(dbClient, {
-      walletId:      wallet.id,
-      userId:        order.user_id,
-      type:          'topup',
-      amount:        +order.amount,
-      escrowDelta:   0,
-      referenceId:   order.id,
-      referenceType: 'razorpay_order',
-      idempotencyKey: `wallet-topup:${order.id}`,
-      description:   `Wallet top-up via Razorpay (${paymentId})`,
-      metadata:      {
-        razorpay_order_id:   orderId,
-        razorpay_payment_id: paymentId,
-      },
-    });
+      logger.info('Mintcoins credited via Razorpay webhook', {
+        userId:    order.user_id,
+        coins:     mintcoinAmount,
+        paymentId,
+      });
+    } else {
+      // Credit the user's wallet
+      const wallet = await getWalletByUserId(order.user_id, dbClient, true);
 
-    await dbClient.query('COMMIT');
+      await recordTransaction(dbClient, {
+        walletId:      wallet.id,
+        userId:        order.user_id,
+        type:          'topup',
+        amount:        +order.amount,
+        escrowDelta:   0,
+        referenceId:   order.id,
+        referenceType: 'razorpay_order',
+        idempotencyKey: `wallet-topup:${order.id}`,
+        description:   `Wallet top-up via Razorpay (${paymentId})`,
+        metadata:      {
+          razorpay_order_id:   orderId,
+          razorpay_payment_id: paymentId,
+        },
+      });
 
-    logger.info('Wallet credited via Razorpay webhook', {
-      userId:    order.user_id,
-      amount:    order.amount,
-      paymentId,
-    });
+      await dbClient.query('COMMIT');
+
+      logger.info('Wallet credited via Razorpay webhook', {
+        userId:    order.user_id,
+        amount:    order.amount,
+        paymentId,
+      });
+    }
 
     return { handled: true, amount: order.amount, user_id: order.user_id };
   } catch (err) {

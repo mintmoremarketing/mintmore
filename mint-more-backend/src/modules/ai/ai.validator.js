@@ -14,8 +14,8 @@ const validateGenerateRequest = (body) => {
     errors.push('model_id is required (UUID from GET /ai/models)');
   }
 
-  if (!prompt || prompt.trim().length < 3) {
-    errors.push('prompt is required (min 3 characters)');
+  if (!prompt || prompt.trim().length < 1) {
+    errors.push('prompt is required');
   }
 
   if (prompt && prompt.length > 4000) {

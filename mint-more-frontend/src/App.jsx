@@ -5,6 +5,8 @@ import { useEntitlements } from './hooks/useEntitlements'
 // Auth
 import Login    from './pages/auth/Login'
 import Register from './pages/auth/Register'
+import OtpLogin from './pages/auth/OtpLogin'
+import ForgotPassword from './pages/auth/ForgotPassword'
 
 // Shell
 import AppShell from './components/layout/AppShell'
@@ -55,6 +57,7 @@ import AdminPricing      from './pages/admin/Pricing'
 import AdminCommerce     from './pages/admin/Commerce'
 import AdminAudit        from './pages/admin/Audit'
 import AdminOperations   from './pages/admin/Operations'
+import AdminTiers        from './pages/admin/Tiers'
 
 // ── Role-aware route wrappers ─────────────────────────────────────────────────
 
@@ -182,6 +185,8 @@ export default function App() {
         {/* Public */}
         <Route path="/login"            element={<Login />} />
         <Route path="/register"         element={<Register />} />
+        <Route path="/auth/otp"         element={<OtpLogin />} />
+        <Route path="/auth/forgot-password" element={<ForgotPassword />} />
         <Route path="/privacy"          element={<Privacy />} />
         <Route path="/terms"            element={<Terms />} />
         <Route path="/mintbox/share/:token" element={<Mintbox />} />
@@ -204,12 +209,13 @@ export default function App() {
 
           {/* Client-only routes */}
           <Route path="/addons"            element={<ClientOnly><ClientFeature flag="wallet_ui"><Addons /></ClientFeature></ClientOnly>} />
-          <Route path="/membership"        element={<ClientOnly><ClientFeature flag="wallet_ui"><Membership /></ClientFeature></ClientOnly>} />
+          <Route path="/membership"        element={<ClientOnly><Membership /></ClientOnly>} />
           <Route path="/onboarding"        element={<ClientOnly><Onboarding /></ClientOnly>} />
           <Route path="/freelancers"       element={<ClientOnly><ClientFeature flag="marketplace"><Freelancers /></ClientFeature></ClientOnly>} />
           <Route path="/freelancers/:freelancerId" element={<ClientOnly><ClientFeature flag="marketplace"><FreelancerProfile /></ClientFeature></ClientOnly>} />
           <Route path="/social"            element={<ClientOnly><ClientFeature flag="social_insights"><Social /></ClientFeature></ClientOnly>} />
           <Route path="/insights"          element={<ClientOnly><ClientFeature flag="social_insights"><Social /></ClientFeature></ClientOnly>} />
+          <Route path="/posts"             element={<ClientOnly><ClientFeature flag="social_insights"><Social /></ClientFeature></ClientOnly>} />
           <Route path="/ai"                element={<ClientOnly><ClientFeature flag="mint_ai"><MintAI /></ClientFeature></ClientOnly>} />
 
           {/* Freelancer-only routes */}
@@ -238,6 +244,7 @@ export default function App() {
           <Route path="/admin/audit"      element={<AdminOnly permission="audit.read"><AdminAudit /></AdminOnly>} />
           <Route path="/admin/wallet"     element={<AdminOnly permission="payments.manage"><AdminWallet /></AdminOnly>} />
           <Route path="/admin/ai"         element={<AdminOnly permission="pricing.manage"><AdminAIPanel /></AdminOnly>} />
+          <Route path="/admin/tiers"      element={<AdminOnly permission="pricing.manage"><AdminTiers /></AdminOnly>} />
         </Route>
         <Route path="*" element={<RootRedirect />} />
       </Routes>

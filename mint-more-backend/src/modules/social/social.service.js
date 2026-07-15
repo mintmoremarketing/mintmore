@@ -33,7 +33,7 @@ const inferContentTypeFromMedia = (currentType, mediaItems = []) => {
   const items = Array.isArray(mediaItems) ? mediaItems.filter(Boolean) : [];
   const mediaTypes = items.map((item) => String(item.media_type || '').toLowerCase());
 
-  if (normalizedType === 'carousel' || (items.length > 1 && mediaTypes.every((type) => type === 'image'))) {
+  if (normalizedType === 'carousel' || items.length > 1) {
     return 'carousel';
   }
   if (normalizedType === 'reel' || normalizedType === 'short') {
@@ -1069,29 +1069,63 @@ const publishPost = async (postId, userId) => {
   }
 
   const targetPlatforms = normalizeTargetPlatforms(post.target_platforms);
-  if (!targetPlatforms.length) throw new AppError('Choose at least one platform before publishing', 400);
+  const targetAccounts = Array.isArray(post.metadata?.target_accounts)
+    ? post.metadata.target_accounts.filter(Boolean)
+    : [];
 
-  // Create per-platform status rows
-  for (const platform of targetPlatforms) {
-    // Find user's connected account for this platform
+  let publishTargets = [];
+
+  if (targetAccounts.length > 0) {
     const accountResult = await query(
-      `SELECT id FROM social_accounts
-       WHERE user_id = $1 AND platform = $2 AND is_active = true
-       LIMIT 1`,
-      [userId, platform]
+      `SELECT id, platform
+       FROM social_accounts
+       WHERE user_id = $1
+         AND is_active = true
+         AND id = ANY($2::uuid[])`,
+      [userId, targetAccounts]
     );
 
-    const account = accountResult.rows[0];
-    if (!account) {
-      throw new AppError(`Connect a ${platform} account before publishing there`, 400);
-    }
+    publishTargets = accountResult.rows;
 
+    if (publishTargets.length !== targetAccounts.length) {
+      const foundIds = new Set(publishTargets.map((row) => row.id));
+      const missing = targetAccounts.filter((id) => !foundIds.has(id));
+      throw new AppError(`One or more selected accounts are unavailable: ${missing.join(', ')}`, 400);
+    }
+  } else {
+    if (!targetPlatforms.length) throw new AppError('Choose at least one platform before publishing', 400);
+
+    for (const platform of targetPlatforms) {
+      const accountResult = await query(
+        `SELECT id, platform FROM social_accounts
+         WHERE user_id = $1 AND platform = $2 AND is_active = true
+         ORDER BY last_used_at DESC NULLS LAST, created_at DESC
+         LIMIT 1`,
+        [userId, platform]
+      );
+
+      const account = accountResult.rows[0];
+      if (!account) {
+        throw new AppError(`Connect a ${platform} account before publishing there`, 400);
+      }
+      publishTargets.push(account);
+    }
+  }
+
+  if (!publishTargets.length) {
+    throw new AppError('Choose at least one connected account before publishing', 400);
+  }
+
+  // Create per-account status rows
+  for (const account of publishTargets) {
     await query(
       `INSERT INTO social_post_platforms
          (post_id, social_account_id, platform, status)
        VALUES ($1, $2, $3, 'pending')
-       ON CONFLICT (post_id, platform) DO UPDATE SET status = 'pending'`,
-      [postId, account.id, platform]
+       ON CONFLICT (post_id, social_account_id) DO UPDATE SET
+         status = 'pending',
+         platform = EXCLUDED.platform`,
+      [postId, account.id, account.platform]
     );
   }
 

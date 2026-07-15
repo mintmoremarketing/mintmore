@@ -65,11 +65,17 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
             : (location.pathname === item.route || location.pathname.startsWith(`${item.route}/`))
           return (
             <button
-              key={item.route}
+              key={item.label}
               className={`flex items-center rounded-lg transition-colors px-3 h-10 w-full shrink-0 group ${
                 isActive ? 'bg-mint-500/15 text-mint-400' : 'text-ink-300 hover:bg-ink-800 hover:text-white'
               } ${expanded ? 'justify-start' : 'justify-center'}`}
-              onClick={() => navigate(item.route)}
+              onClick={() => {
+                if (item.event) {
+                  window.dispatchEvent(new Event(item.event))
+                } else {
+                  navigate(item.route)
+                }
+              }}
               title={!expanded ? item.label : undefined}
             >
               <span className="shrink-0 flex items-center justify-center w-5">
@@ -94,6 +100,21 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
 
       {/* Bottom: settings + user */}
       <div className="p-3 shrink-0 border-t border-ink-800 flex flex-col gap-1 relative">
+        {role === 'client' && (
+          <button
+            className={`flex items-center rounded-lg transition-colors px-3 h-10 w-full shrink-0 group font-bold bg-mint-500 text-white shadow hover:bg-mint-400 ${
+              expanded ? 'justify-start mb-2' : 'justify-center mb-2'
+            }`}
+            onClick={() => navigate('/membership')}
+            title={!expanded ? 'Upgrade Plan' : undefined}
+          >
+            <span className="shrink-0 flex items-center justify-center w-5">
+              <Icon name="star" size={18} />
+            </span>
+            {expanded && <span className="ml-3 text-sm whitespace-nowrap">Upgrade Plan</span>}
+          </button>
+        )}
+
         {!isGuest && (
           <button
             className={`flex items-center rounded-lg transition-colors px-3 h-10 w-full shrink-0 group ${

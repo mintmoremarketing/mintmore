@@ -19,6 +19,23 @@ const createTopUpOrder = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const createMintcoinOrder = async (req, res, next) => {
+  try {
+    const amount = parseFloat(req.body.amount || 999);
+    const coins = parseInt(req.body.coins || 10000);
+    const result = await paymentService.createTopUpOrder(
+      req.user.sub,
+      amount,
+      { type: 'mintcoin', coins }
+    );
+    return sendSuccess(res, {
+      data:       result,
+      message:    'Order created. Complete payment using the Razorpay checkout.',
+      statusCode: 201,
+    });
+  } catch (err) { next(err); }
+};
+
 const verifyPayment = async (req, res, next) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
@@ -60,4 +77,4 @@ const razorpayWebhook = async (req, res, next) => {
   }
 };
 
-module.exports = { createTopUpOrder, verifyPayment, razorpayWebhook };
+module.exports = { createTopUpOrder, createMintcoinOrder, verifyPayment, razorpayWebhook };

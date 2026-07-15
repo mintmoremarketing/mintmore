@@ -8,6 +8,7 @@ const router = Router();
 // Public routes
 router.post('/register', controller.register);
 router.post('/login',    authLoginLimiter, controller.login);
+router.post('/reset-password', controller.resetPassword);
 router.post('/refresh',  controller.refresh);
 
 // Protected routes (require valid access token)

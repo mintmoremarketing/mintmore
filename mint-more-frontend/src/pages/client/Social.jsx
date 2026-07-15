@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/auth'
 import { socialApi } from '../../api/social'
@@ -647,68 +648,66 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
   const [step, setStep] = useState(1)
   const [caption, setCaption] = useState(initialPost?.caption || '')
   const [hashtags, setHashtags] = useState(Array.isArray(initialPost?.hashtags) ? initialPost.hashtags.join(' ') : '')
-  const [contentType, setContentType] = useState(initialPost?.content_type || 'text')
-  const [selectedPlatforms, setSelectedPlatforms] = useState(normalizePlatforms(initialPost?.target_platforms))
+  const [selectedAccountIds, setSelectedAccountIds] = useState(() => {
+    if (Array.isArray(initialPost?.metadata?.target_accounts)) return initialPost.metadata.target_accounts;
+    if (Array.isArray(initialPost?.target_platforms)) {
+      return initialPost.target_platforms.map(p => accounts.find(a => a.platform === p)?.id).filter(Boolean);
+    }
+    return [];
+  })
+  
+  const selectedPlatforms = useMemo(() => {
+    const s = new Set();
+    selectedAccountIds.forEach(id => {
+      const acc = accounts.find(a => a.id === id);
+      if (acc) s.add(acc.platform);
+    });
+    return Array.from(s);
+  }, [selectedAccountIds, accounts]);
+
   const [scheduleDate, setScheduleDate] = useState(initialPost?.publish_at ? new Date(initialPost.publish_at).toISOString().slice(0, 16) : '')
   const [mediaFiles, setMediaFiles] = useState([])
   const [mintboxMedia, setMintboxMedia] = useState([])
   const existingMedia = useMemo(() => Array.isArray(initialPost?.media) ? initialPost.media : [], [initialPost])
-  const existingMediaUrls = useMemo(() => existingMedia.map(item => item.media_url).filter(Boolean), [existingMedia])
   const [existingMediaTouched, setExistingMediaTouched] = useState(false)
-  const needsMedia = contentType !== 'text'
-  const hasMedia = Boolean(mediaFiles.length || mintboxMedia.length || existingMediaUrls.length)
-  const instagramSelected = selectedPlatforms.includes('instagram')
-  const instagramContentBlocked = instagramSelected && !INSTAGRAM_CONTENT_TYPES.includes(contentType)
+  const existingMediaUrls = useMemo(() => existingMedia.map(item => item.media_url).filter(Boolean), [existingMedia])
+  const hasSelectedMedia = Boolean(mediaFiles.length || mintboxMedia.length || (existingMediaUrls.length && !existingMediaTouched))
+  const hasPlainTextOnly = !hasSelectedMedia && caption.trim().length > 0
+  const inferredMediaContentType = useMemo(() => {
+    if (mediaFiles.length > 1 || mintboxMedia.length > 1) return 'carousel'
+    const item = mediaFiles[0] || mintboxMedia[0]
+    if (!item) return 'text'
+    const type = item.type || item.media_type || ''
+    return type.startsWith('video') ? 'video' : 'image'
+  }, [mediaFiles, mintboxMedia])
 
-  const mediaPreviewItems = useMemo(() => {
+  const [contentType, setContentType] = useState(initialPost?.content_type || 'text')
+  const effectiveContentType = useMemo(() => {
+    if (hasSelectedMedia) return inferredMediaContentType
+    return 'text'
+  }, [hasSelectedMedia, inferredMediaContentType])
+
+  const needsMedia = effectiveContentType !== 'text'
+  const instagramSelected = selectedPlatforms.includes('instagram')
+  const instagramContentBlocked = instagramSelected && !INSTAGRAM_CONTENT_TYPES.includes(effectiveContentType)
+
+  const selectedMediaItems = useMemo(() => {
     if (mediaFiles.length) {
-      return mediaFiles.map(file => {
-        const objectUrl = URL.createObjectURL(file)
-        return {
-          media_url: objectUrl,
-          preview_url: objectUrl,
-          thumbnail_url: objectUrl,
-          media_type: file.type.startsWith('video') ? 'video' : 'image',
-          mime_type: file.type,
-          original_name: file.name,
-        }
-      })
-    }
-    if (mintboxMedia.length) {
-      return mintboxMedia.map(item => ({
-        ...item,
-        preview_url: item.thumbnail_url || item.preview_url || item.media_url,
+      return mediaFiles.map(file => ({
+        media_url: URL.createObjectURL(file),
+        preview_url: URL.createObjectURL(file),
+        media_type: file.type.startsWith('video') ? 'video' : 'image',
+        mime_type: file.type,
       }))
     }
-    if (!existingMediaTouched && existingMedia.length) {
-      return existingMedia.map(item => ({
-        ...item,
-        preview_url: item.thumbnail_url || item.preview_url || item.media_url,
-      }))
-    }
+    if (mintboxMedia.length) return mintboxMedia.map(item => ({ ...item, preview_url: item.thumbnail_url || item.media_url }))
+    if (!existingMediaTouched && existingMedia.length) return existingMedia.map(item => ({ ...item, preview_url: item.thumbnail_url || item.media_url }))
     return []
   }, [mediaFiles, mintboxMedia, existingMedia, existingMediaTouched])
 
   useEffect(() => () => {
-    mediaPreviewItems.filter(item => item?.preview_url?.startsWith('blob:')).forEach(item => URL.revokeObjectURL(item.preview_url))
-  }, [mediaPreviewItems])
-
-  useEffect(() => {
-    if (!initialPost) return
-    setCaption(initialPost.caption || '')
-    setHashtags(Array.isArray(initialPost.hashtags) ? initialPost.hashtags.join(' ') : '')
-    setContentType(
-      initialPost.content_type && initialPost.content_type !== 'text'
-        ? initialPost.content_type
-        : inferContentTypeFromMediaItems(existingMedia)
-    )
-    setSelectedPlatforms(normalizePlatforms(initialPost.target_platforms))
-    setScheduleDate(initialPost.publish_at ? new Date(initialPost.publish_at).toISOString().slice(0, 16) : '')
-    setMediaFiles([])
-    setMintboxMedia([])
-    setExistingMediaTouched(false)
-    setStep(1)
-  }, [initialPost])
+    selectedMediaItems.forEach(item => { if (item.media_url?.startsWith('blob:')) URL.revokeObjectURL(item.media_url) })
+  }, [selectedMediaItems])
 
   const { data: mediaLibrary = [] } = useQuery({
     queryKey: ['social-media-library'],
@@ -717,16 +716,17 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
 
   const connectedPlatforms = accounts.filter(a => a.is_active)
 
-  const togglePlatform = (id) => {
-    setSelectedPlatforms(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id])
+  const toggleAccount = (id) => {
+    setSelectedAccountIds(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id])
   }
 
   const persistDraft = async ({ publishNow = false } = {}) => {
     const payload = {
       caption,
       hashtags: hashtags.split(' ').filter(Boolean),
-      content_type: contentType,
+      content_type: effectiveContentType,
       target_platforms: selectedPlatforms,
+      metadata: { target_accounts: selectedAccountIds },
       publish_at: publishNow ? null : (scheduleDate || null),
     }
 
@@ -759,7 +759,6 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
     }
 
     await socialApi.publishPost(post.id)
-
     return post
   }
 
@@ -796,7 +795,7 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
           {isEditing ? (
             <>
               <button className="btn ghost" onClick={handleSaveDraft} disabled={actionMutation.isPending}>Save draft</button>
-              <button className="btn primary" onClick={handlePublishNow} disabled={actionMutation.isPending || selectedPlatforms.length === 0 || (needsMedia && !hasMedia) || instagramContentBlocked}>
+              <button className="btn primary" onClick={handlePublishNow} disabled={actionMutation.isPending || selectedAccountIds.length === 0 || (needsMedia && !hasSelectedMedia) || instagramContentBlocked}>
                 {actionMutation.isPending ? 'Publishing...' : 'Publish now'}
               </button>
             </>
@@ -808,7 +807,7 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
             <button
               className="btn primary"
               onClick={() => actionMutation.mutate({ publishNow: !scheduleDate })}
-              disabled={actionMutation.isPending || selectedPlatforms.length === 0 || (needsMedia && !hasMedia) || instagramContentBlocked}
+              disabled={actionMutation.isPending || selectedAccountIds.length === 0 || (needsMedia && !hasSelectedMedia) || instagramContentBlocked}
             >
               {actionMutation.isPending ? 'Publishing...' : scheduleDate ? 'Schedule post' : 'Publish now'}
             </button>
@@ -818,22 +817,6 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
     >
       {step === 1 && (
         <div className="stack" style={{ gap: 16 }}>
-          <div>
-            <label className="field-label" style={{ marginBottom: 8, display: 'block' }}>Content type</label>
-            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              {['text', 'image', 'video', 'carousel'].map(type => (
-                <button
-                  key={type}
-                  className={`badge ${contentType === type ? 'violet' : 'neutral'}`}
-                  style={{ padding: '6px 12px', cursor: 'pointer', border: 'none', textTransform: 'capitalize' }}
-                  onClick={() => setContentType(type)}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="field">
             <label className="field-label">Caption</label>
             <textarea
@@ -881,7 +864,7 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
                 <div style={{ textAlign: 'center' }}>
                   <Icon name="upload" size={20} />
                   <div style={{ fontSize: 12, marginTop: 6 }}>
-                    {contentType === 'carousel' ? 'Upload multiple images for a carousel' : 'Upload an image or video'}
+                    Upload up to 20 images or videos
                   </div>
                 </div>
               )}
@@ -890,22 +873,68 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
               id="social-media-upload"
               type="file"
               accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
-              multiple={contentType === 'carousel'}
+              multiple
               style={{ display: 'none' }}
               onChange={e => {
                 const files = Array.from(e.target.files || [])
-                const picked = contentType === 'carousel' ? files : files.slice(0, 1)
-                setMediaFiles(picked)
-                if (picked.length) {
-                  setContentType(inferContentTypeFromMediaItems(picked))
-                }
+                setMediaFiles(prev => {
+                  const combined = [...prev, ...files]
+                  return combined.slice(0, 20)
+                })
                 setMintboxMedia([])
                 setExistingMediaTouched(true)
+                // Clear the input so selecting the same file again triggers onChange
+                e.target.value = ''
               }}
             />
             <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 7 }}>
               Use Mintbox below for reusable assets and carousel-ready reference media.
             </div>
+            
+            {selectedMediaItems.length > 0 && (
+              <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
+                {selectedMediaItems.map((item, idx) => (
+                  <div key={idx} style={{ position: 'relative', height: 80, borderRadius: 8, overflow: 'hidden', background: '#000' }}>
+                    {item.media_type === 'video' ? (
+                      <video src={item.preview_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <img src={item.preview_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    )}
+                    {item.media_type === 'video' && (
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                        <Icon name="play" size={24} style={{ color: '#fff' }} />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // If it's a local file, remove it from mediaFiles
+                        if (mediaFiles.length > 0) {
+                          setMediaFiles(prev => prev.filter((_, i) => i !== idx))
+                        } else if (mintboxMedia.length > 0) {
+                          setMintboxMedia(prev => prev.filter((_, i) => i !== idx))
+                        }
+                      }}
+                      style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 0, borderRadius: '50%', color: 'white', cursor: 'pointer', padding: 4, display: 'flex' }}
+                    >
+                      <Icon name="x" size={12} />
+                    </button>
+                  </div>
+                ))}
+                
+                {/* Add more button */}
+                {selectedMediaItems.length < 20 && (
+                  <div 
+                    style={{ height: 80, borderRadius: 8, border: '2px dashed var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--ink-400)' }}
+                    onClick={() => document.getElementById('social-media-upload')?.click()}
+                  >
+                    <Icon name="plus" size={20} />
+                  </div>
+                )}
+              </div>
+            )}
+
             {mediaLibrary.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <div className="field-label" style={{ marginBottom: 7 }}>Or choose from Mintbox</div>
@@ -918,29 +947,16 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
                       selected={mintboxMedia.some(existing => existing.id === item.id)}
                       onClick={() => {
                         const isAlreadySelected = mintboxMedia.some(existing => existing.id === item.id)
-                        const nextSelection = contentType === 'carousel'
-                          ? (isAlreadySelected
-                            ? mintboxMedia.filter(existing => existing.id !== item.id)
-                            : [...mintboxMedia, item])
-                          : [item]
-
+                        const nextSelection = isAlreadySelected
+                          ? mintboxMedia.filter(existing => existing.id !== item.id)
+                          : [...mintboxMedia, item]
                         setMintboxMedia(nextSelection)
-                        setContentType(
-                          contentType === 'carousel'
-                            ? inferContentTypeFromMediaItems(nextSelection)
-                            : getMediaPreviewKind(item)
-                        )
                         setMediaFiles([])
                         setExistingMediaTouched(true)
                       }}
                     />
                   ))}
                 </div>
-              </div>
-            )}
-            {contentType === 'carousel' && mediaFiles.length > 1 && (
-              <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 8 }}>
-                Carousel mode supports up to 10 selected images.
               </div>
             )}
             {instagramSelected && (
@@ -955,7 +971,7 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
       {step === 2 && (
         <div className="stack" style={{ gap: 12 }}>
           <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 4 }}>
-            Select platforms to publish to
+            Select accounts to publish to
           </div>
           {connectedPlatforms.length === 0 ? (
             <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-500)', fontSize: 13 }}>
@@ -964,11 +980,11 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
           ) : (
             connectedPlatforms.map(acc => {
               const meta = PLATFORM_META[acc.platform] || {}
-              const selected = selectedPlatforms.includes(acc.platform)
+              const selected = selectedAccountIds.includes(acc.id)
               return (
                 <div
                   key={acc.id}
-                  onClick={() => togglePlatform(acc.platform)}
+                  onClick={() => toggleAccount(acc.id)}
                   style={{
                     display: 'flex', gap: 12, alignItems: 'center',
                     padding: '12px 14px',
@@ -1010,9 +1026,9 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
               {caption.slice(0, 120)}{caption.length > 120 ? '...' : ''}
             </div>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              {selectedPlatforms.map(id => {
-                const acc = connectedPlatforms.find(a => a.platform === id)
-                const meta = PLATFORM_META[id] || {}
+              {selectedAccountIds.map(id => {
+                const acc = connectedPlatforms.find(a => a.id === id)
+                const meta = PLATFORM_META[acc?.platform] || {}
                 return (
                   <span key={id} className="badge neutral" style={{ fontSize: 12 }}>
                     <Icon name={meta.icon} size={11} style={{ color: meta.color }} />
@@ -1056,8 +1072,8 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
                     account={account}
                     caption={caption}
                     hashtags={hashtags}
-                    contentType={contentType}
-                    mediaItems={mediaPreviewItems}
+                    contentType={effectiveContentType}
+                    mediaItems={selectedMediaItems}
                   />
                 )
               })}
@@ -1073,7 +1089,14 @@ export default function Social() {
   const { accessToken } = useAuthStore()
   const queryClient     = useQueryClient()
   const pushToast       = useUIStore(s => s.pushToast)
-  const [tab, setTab] = useState('analytics')
+  const location        = useLocation()
+  
+  const [tab, setTab] = useState(() => location.pathname.includes('/posts') ? 'posts' : 'analytics')
+
+  useEffect(() => {
+    if (location.pathname.includes('/posts')) setTab('posts')
+    else if (location.pathname.includes('/insights')) setTab('analytics')
+  }, [location.pathname])
   const [showCreate, setShowCreate] = useState(false)
   const [editingPost, setEditingPost] = useState(null)
   const [connectPrompt, setConnectPrompt] = useState(null)
@@ -1086,20 +1109,17 @@ export default function Social() {
   })
   const accounts = accountsData?.accounts || []
   const connectedAccounts = accounts.filter(account => account.is_active)
-  const effectiveTab = !accLoading && connectedAccounts.length === 0 && tab === 'analytics'
-    ? 'accounts'
-    : tab
 
   const { data: postsData, isLoading: postsLoading } = useQuery({
     queryKey: ['social-posts', postFilter],
     queryFn:  () => socialApi.listPosts(postFilter !== 'all' ? { status: postFilter } : {}).then(r => r.data.data),
-    enabled:  effectiveTab === 'posts',
+    enabled:  tab === 'posts',
   })
 
   const { data: analyticsData, isLoading: analyticsLoading } = useQuery({
     queryKey: ['social-analytics-summary'],
     queryFn: () => socialApi.getAnalyticsSummary().then(r => r.data.data),
-    enabled: effectiveTab === 'analytics',
+    enabled: tab === 'analytics',
   })
 
   const disconnectMutation = useMutation({
@@ -1204,9 +1224,13 @@ export default function Social() {
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div>
           <div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-2">Social media</div>
-          <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">Insights &amp; publishing</h1>
+          <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">
+            {tab === 'posts' ? 'Publishing' : 'Insights'}
+          </h1>
           <p className="text-ink-500 text-sm md:text-base mt-2">
-            Track reach first, then plan posts for every connected channel from one place.
+            {tab === 'posts' 
+              ? 'Plan and schedule posts for every connected channel from one place.' 
+              : 'Track reach, engagement, and audience growth across your connected channels.'}
           </p>
         </div>
         {connectedAccounts.length > 0 && (
@@ -1216,68 +1240,9 @@ export default function Social() {
         )}
       </div>
 
-      <Tabs value={effectiveTab} onChange={setTab} items={[
-        { value: 'analytics', label: 'Analytics' },
-        { value: 'posts', label: 'Posts' },
-        { value: 'accounts', label: `Accounts (${connectedAccounts.length})` },
-      ]} />
 
-      {effectiveTab === 'accounts' && (
-        <div className="stack" style={{ gap: 14 }}>
-          <div className="card reveal" style={{ padding: 20 }}>
-            <div className="h-eyebrow" style={{ marginBottom: 14 }}>Add account</div>
-            <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
-              <button className="btn ghost" onClick={() => setConnectPrompt('facebook')}>
-                <Icon name="facebook" size={14} style={{ color: '#1877F2' }} />
-                Connect Facebook &amp; Instagram
-              </button>
-              <button className="btn ghost" onClick={() => setConnectPrompt('instagram')}>
-                <Icon name="instagram" size={14} style={{ color: '#E1306C' }} />
-                Connect Instagram only
-              </button>
-              <button className="btn ghost" onClick={() => setConnectPrompt('youtube')}>
-                <Icon name="youtube" size={14} style={{ color: '#FF0000' }} />
-                Connect YouTube
-              </button>
-              <button className="btn primary" onClick={refreshAccounts}>
-                <Icon name="refresh" size={14} />
-                Refresh from Meta
-              </button>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 10 }}>
-              You'll be redirected to connect your own Facebook Pages, Instagram Business accounts, or YouTube channel.
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 6 }}>
-              Follower and post counts are pulled live from Meta once the account is connected.
-              If Instagram is missing, it usually means the Instagram account is not linked to the same Facebook Page yet.
-            </div>
-          </div>
 
-          {accLoading ? (
-            <SkeletonCard />
-          ) : accounts.length === 0 ? (
-            <div className="empty">
-              <div className="empty-glyph"><Icon name="layers" size={22} /></div>
-              <h3>No accounts connected</h3>
-              <p>Connect your Facebook Pages, Instagram Business accounts, or YouTube channel.</p>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
-              {accounts.map(acc => (
-                <AccountCard
-                  key={acc.id}
-                  account={acc}
-                  onDisconnect={(id) => disconnectMutation.mutate(id)}
-                  onRefreshMeta={refreshAccounts}
-                  onOpenInstagramApp={openInstagramApp}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {effectiveTab === 'analytics' && (
+      {tab === 'analytics' && (
         analyticsLoading ? <SkeletonCard /> : (
           <div className="stack" style={{ gap: 14 }}>
             {facebookThresholdAccount && (
@@ -1348,7 +1313,7 @@ export default function Social() {
         )
       )}
 
-      {effectiveTab === 'posts' && (
+      {tab === 'posts' && (
         <div className="stack" style={{ gap: 14 }}>
           <div className="row" style={{ gap: 10 }}>
             <Tabs value={postFilter} onChange={setPostFilter} items={[

@@ -218,4 +218,17 @@ const getMe = async (userId) => {
   return user;
 };
 
-module.exports = { register, login, refreshTokens, logout, getMe };
+/**
+ * Reset password (Development fallback — bypasses actual email token check for now since frontend verified it)
+ */
+const resetPassword = async ({ email, newPassword }) => {
+  const result = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+  const user = result.rows[0];
+  if (!user) throw new AppError('User not found', 404);
+
+  const password_hash = await hashPassword(newPassword);
+  await query('UPDATE users SET password_hash = $1 WHERE id = $2', [password_hash, user.id]);
+  logger.info('User reset password', { userId: user.id });
+};
+
+module.exports = { register, login, refreshTokens, logout, getMe, resetPassword };

@@ -42,7 +42,13 @@ const groupBy = (items, keyFn) => items.reduce((acc, item) => {
 }, {})
 
 const tierCost = (model, resolution) => {
-  const tier = model?.cost_summary?.tiers?.[resolution]
+  const tiers = model?.cost_summary?.tiers;
+  if (Array.isArray(tiers)) {
+    const tier = tiers.find(t => t.tier === resolution);
+    if (!tier) return { unlimited: false, cost: 0 };
+    return { unlimited: Boolean(tier.unlimited), cost: Number(tier.cost || 0) };
+  }
+  const tier = tiers?.[resolution]
   if (!tier) return { unlimited: false, cost: 0 }
   return { unlimited: Boolean(tier.unlimited), cost: Number(tier.cost || 0) }
 }
@@ -438,14 +444,6 @@ function PromptBox({
           <Toggle checked={aiPrompt} onChange={setAiPrompt} />
           <span>AI prompt</span>
         </div>
-        <div className="engine-prompt-option">
-          <Toggle checked={fixedSeed} onChange={setFixedSeed} />
-          <span>Fixed seed</span>
-        </div>
-        <button type="button" className="engine-info" title="Enable this to get consistent results every time you use the same prompt.">i</button>
-        {fixedSeed && (
-          <input className="input" value={seed} onChange={event => setSeed(event.target.value)} placeholder="Seed" />
-        )}
       </div>
       {showEditor && (
         <div className="modal-backdrop creation-modal-backdrop" onClick={() => setShowEditor(false)}>
@@ -467,7 +465,9 @@ function ChatWorkspace({
   setPrompt,
   onSend,
   sending,
+  models,
   selectedModel,
+  setSelectedModel,
   modelsLoading,
   balance,
   cost,
@@ -475,76 +475,107 @@ function ChatWorkspace({
   quickPrompts = [],
   generations = [],
   progressMap = {},
+  activeMode,
+  setActiveMode,
 }) {
   const thread = useMemo(
     () => [...generations].sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)),
     [generations]
   )
 
+  const chatEndRef = useRef(null)
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [thread, sending])
+
   const handleKeyDown = (event) => {
     if (event.key !== 'Enter' || event.shiftKey) return
     event.preventDefault()
+    if (!prompt.trim() || !selectedModel || modelsLoading || sending) return
     onSend()
   }
 
   return (
-    <section className="engine-chat-shell">
-      <div className="engine-chat-hero">
-        <div>
-          <p className="eyebrow">Mint AI chat</p>
-          <h2>Ask, refine, and draft in one thread</h2>
-          <p className="muted">Enter sends. Shift+Enter makes a new line.</p>
-        </div>
+    <section className="engine-chat-shell h-full flex flex-col max-h-full">
+      <div className="flex items-center justify-between shrink-0 mb-4 px-2">
+        <h2 className="text-lg md:text-xl font-bold m-0 flex items-center gap-2">
+          Mint AI chat
+        </h2>
         <div className="engine-chat-meta">
-          <span className="engine-chat-model">{selectedModel?.name || 'Choose a model'}</span>
           <span className="engine-chat-credit">{unlimited ? '∞ Unlimited' : `Uses ${cost} MintCoins • ${Math.max(0, balance - cost)} remaining`}</span>
         </div>
       </div>
 
-      <div className="chat-stream mint-ai-thread">
+      <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar px-2">
         {thread.length === 0 ? (
-          <>
-            <div className="bubble-row system">
-              <div className="bubble">Ask Mint AI anything about your business, customers, offers, or content.</div>
+          <div className="flex flex-col items-center justify-center h-full text-center px-4 fade-in">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-mint-400 to-mint-600 flex items-center justify-center shadow-lg mb-6 text-white">
+              <Icon name="mint_ai" size={32} />
             </div>
-            <div className="bubble-row them">
-              <div className="bubble">
-                <div className="who">Mint AI</div>
-                I can help write captions, ad copy, campaign ideas, product storytelling, and launch messages.
-              </div>
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-ink-950 mb-2 tracking-tight">How can Mint AI help today?</h2>
+            <p className="text-ink-500 mb-10 max-w-md">I can write captions, brainstorm ideas, draft ad copy, or generate stunning visuals.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-2xl">
+              {quickPrompts.map(item => (
+                <button 
+                  key={item} 
+                  type="button" 
+                  onClick={() => setPrompt(item)}
+                  className="p-4 text-left border border-ink-200 rounded-2xl hover:border-mint-300 hover:bg-mint-50/50 transition-colors text-sm font-medium text-ink-700 bg-white shadow-sm"
+                >
+                  {item}
+                </button>
+              ))}
             </div>
-          </>
+          </div>
         ) : thread.map((generation) => {
           const progress = progressMap?.[generation.id]
           const status = progress?.status || generation.status
           const pending = ['queued', 'processing', 'pending'].includes(status)
           const failed = status === 'failed'
-          const userText = promptFor(generation) || generation.raw_prompt || 'Message'
-          const assistantText = generationResultText(generation, progress) || generation.prompt || 'Thinking...'
+          const userText = generation.raw_prompt || generation.prompt || 'Message'
+          const assistantText = generationResultText(generation, progress) || 'Thinking...'
           return (
-            <div key={generation.id} className="chat-generation-thread">
-              <div className="bubble-row me">
-                <div className="bubble">{userText}</div>
+            <div key={generation.id} className="flex flex-col mb-2 fade-in">
+              {/* User Bubble */}
+              <div className="flex justify-end mb-6">
+                <div className="bg-ink-100 text-ink-900 px-5 py-3 rounded-2xl rounded-tr-sm max-w-[85%] sm:max-w-[70%] text-[15px] leading-relaxed">
+                  {userText}
+                </div>
               </div>
+              
+              {/* AI Document Style Response */}
               {pending ? (
-                <div className="bubble-row them">
-                  <div className="bubble">
-                    <div className="who">Mint AI</div>
+                <div className="flex gap-4 mb-8">
+                  <div className="shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-mint-400 to-mint-600 flex items-center justify-center shadow-sm text-white mt-1">
+                    <Icon name="mint_ai" size={16} />
+                  </div>
+                  <div className="flex-1 text-ink-500 text-[15px] leading-relaxed pt-1 animate-pulse">
                     Working on it...
                   </div>
                 </div>
               ) : failed ? (
-                <div className="bubble-row them">
-                  <div className="bubble">
-                    <div className="who">Mint AI</div>
+                <div className="flex gap-4 mb-8">
+                  <div className="shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center shadow-sm text-white mt-1">
+                    <Icon name="x" size={16} />
+                  </div>
+                  <div className="flex-1 text-amber-600 font-medium text-[15px] leading-relaxed pt-1">
                     {progress?.error || generation.error_message || 'That request failed.'}
                   </div>
                 </div>
               ) : (
-                <div className="bubble-row them">
-                  <div className="bubble">
-                    <div className="who">Mint AI</div>
-                    {assistantText}
+                <div className="flex gap-4 mb-8 group">
+                  <div className="shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-mint-400 to-mint-600 flex items-center justify-center shadow-sm text-white mt-1">
+                    <Icon name="mint_ai" size={16} />
+                  </div>
+                  <div className="flex-1 text-ink-900 text-[15px] leading-[1.7] pt-1">
+                    {generation.result_url ? (
+                      <img src={generation.result_url} alt="Generated" className="max-w-full rounded-lg shadow-sm border border-ink-100" />
+                    ) : (
+                      assistantText
+                    )}
                   </div>
                 </div>
               )}
@@ -552,36 +583,67 @@ function ChatWorkspace({
           )
         })}
         {sending && (
-          <div className="bubble-row them">
-            <div className="bubble">Mint AI is thinking...</div>
+          <div className="flex gap-4 mb-8">
+            <div className="shrink-0 w-8 h-8 rounded-full bg-gradient-to-tr from-mint-400 to-mint-600 flex items-center justify-center shadow-sm text-white mt-1 animate-pulse">
+              <Icon name="mint_ai" size={16} />
+            </div>
+            <div className="flex-1 text-ink-500 text-[15px] leading-relaxed pt-1 animate-pulse">
+              Mint AI is thinking...
+            </div>
           </div>
         )}
+        <div ref={chatEndRef} />
       </div>
 
-      <div className="engine-chat-composer">
-        <div className="engine-chat-chips">
-          {quickPrompts.map(item => (
-            <button key={item} type="button" onClick={() => setPrompt(item)}>{item}</button>
-          ))}
+      <div className="flex flex-col gap-2 shrink-0 max-w-4xl mx-auto w-full mt-2 relative">
+        <div className="flex justify-center gap-2 mb-1">
+          <button 
+            type="button" 
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${activeMode === 'chat' ? 'bg-mint-50 text-mint-700' : 'bg-transparent text-ink-500 hover:bg-ink-100'}`}
+            onClick={() => setActiveMode('chat')}
+          >
+            <Icon name="messageSquare" size={14} /> Text
+          </button>
+          <button 
+            type="button" 
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${activeMode === 'image' ? 'bg-mint-50 text-mint-700' : 'bg-transparent text-ink-500 hover:bg-ink-100'}`}
+            onClick={() => setActiveMode('image')}
+          >
+            <Icon name="image" size={14} /> Photo
+          </button>
+          <button 
+            type="button" 
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${activeMode === 'video' ? 'bg-mint-50 text-mint-700' : 'bg-transparent text-ink-500 hover:bg-ink-100'}`}
+            onClick={() => setActiveMode('video')}
+          >
+            <Icon name="video" size={14} /> Video
+          </button>
         </div>
-        <textarea
-          value={prompt}
-          onChange={event => setPrompt(event.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask Mint AI anything about your business..."
-          rows={5}
-        />
-        <div className="engine-chat-actions">
-          <small>{modelsLoading ? 'Loading models...' : 'Chat mode uses text generation models and the same MintCoin balance.'}</small>
+        
+        <div className="flex items-end gap-2 bg-white rounded-3xl p-2 pl-4 shadow-[0_4px_24px_rgba(0,0,0,0.06)] border border-ink-200 focus-within:border-mint-300 focus-within:ring-4 focus-within:ring-mint-100/50 transition-all">
+          <button type="button" className="p-2 mb-0.5 text-ink-400 hover:text-ink-600 transition-colors shrink-0" title="Attach media">
+            <Icon name="paperclip" size={20} />
+          </button>
+          <textarea
+            value={prompt}
+            onChange={event => setPrompt(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask Mint AI anything about your business..."
+            rows={Math.min(6, Math.max(1, prompt.split('\n').length))}
+            className="flex-1 resize-none bg-transparent outline-none py-3 px-2 text-ink-900 custom-scrollbar text-[15px] max-h-[200px]"
+          />
           <button
             type="button"
-            className="engine-generate"
+            className={`w-10 h-10 mb-0.5 shrink-0 rounded-full transition-colors flex items-center justify-center ${!prompt.trim() || !selectedModel || modelsLoading || sending ? 'bg-ink-100 text-ink-400' : 'bg-ink-950 text-white hover:bg-black shadow-md'}`}
             disabled={!prompt.trim() || !selectedModel || modelsLoading || sending}
             onClick={onSend}
+            title="Send message"
           >
-            <Icon name="sparkles" size={16} />
-            {sending ? 'Sending...' : 'Send'}
+            <Icon name="send" size={18} className="ml-0.5" />
           </button>
+        </div>
+        <div className="text-center text-xs text-ink-400 font-medium mt-1">
+          {sending ? 'Generating response...' : 'Mint AI can make mistakes. Check important info.'}
         </div>
       </div>
     </section>
@@ -1064,6 +1126,7 @@ function CreationsGallery({
       setSelectedIds([])
       setInspector(null)
       queryClient.invalidateQueries({ queryKey: ['ai-generations'] })
+      queryClient.invalidateQueries({ queryKey: ['ai-chat-history'] })
       pushToast?.({ type: 'success', title: 'Generation deleted' })
     },
     onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Delete failed' }),
@@ -1451,7 +1514,7 @@ export default function MintAI() {
   const queryClient = useQueryClient()
   const pushToast = useUIStore(s => s.pushToast)
   const aiProgress = useUIStore(s => s.aiProgress)
-  const session = useMemo(() => sessionId(), [])
+  const [session, setSession] = useState(() => sessionId())
   const [projectId, setProjectId] = useState('')
   const [activeMode, setActiveMode] = useState('image')
   const [selectedModel, setSelectedModel] = useState(null)
@@ -1475,7 +1538,10 @@ export default function MintAI() {
     queryKey: ['ai-engine-models', currentToolType],
     queryFn: () => aiApi.getEngineModels({ tool_type: currentToolType }).then(res => res.data.data),
   })
-  const models = useMemo(() => modelData?.models || [], [modelData?.models])
+  const models = useMemo(() => {
+    const raw = modelData?.models || []
+    return raw.filter(m => !m.tool_type || m.tool_type === currentToolType)
+  }, [modelData?.models, currentToolType])
   const balance = Number(modelData?.balance ?? 0)
 
   const { data: styleData } = useQuery({
@@ -1483,6 +1549,14 @@ export default function MintAI() {
     queryFn: () => aiApi.getStylePresets().then(res => res.data.data),
   })
   const styles = useMemo(() => styleData?.styles || [], [styleData?.styles])
+
+  useEffect(() => {
+    if (models.length > 0) {
+      if (!selectedModel || !models.some(m => m.id === selectedModel.id)) {
+        setSelectedModel(models[0])
+      }
+    }
+  }, [models, selectedModel])
 
   const { data: chatHistoryData } = useQuery({
     queryKey: ['ai-chat-history', projectId],
@@ -1498,13 +1572,37 @@ export default function MintAI() {
     [chatHistoryData?.generations]
   )
   const chatFeedGenerations = useMemo(() => {
-    const byId = new Map(chatGenerations.map(item => [item.id, item]))
+    // Only show chats for the current session in the thread view
+    const sessionChats = chatGenerations.filter(c => (c.parameters?.session_id || c.id) === session)
+    const byId = new Map(sessionChats.map(item => [item.id, item]))
     optimisticGenerations.forEach(item => {
       if (item?.tool_type && item.tool_type !== 'text') return
       if (!byId.has(item.id)) byId.set(item.id, item)
     })
     return Array.from(byId.values())
-  }, [chatGenerations, optimisticGenerations])
+  }, [chatGenerations, optimisticGenerations, session])
+
+  const chatSessions = useMemo(() => {
+    const sessions = new Map()
+    const reversed = [...chatGenerations].reverse() // Oldest first
+    reversed.forEach(chat => {
+      const sid = chat.parameters?.session_id || chat.id
+      if (!sessions.has(sid)) {
+        sessions.set(sid, chat)
+      }
+    })
+    
+    const grouped = []
+    const seen = new Set()
+    chatGenerations.forEach(chat => {
+      const sid = chat.parameters?.session_id || chat.id
+      if (!seen.has(sid)) {
+        seen.add(sid)
+        grouped.push(sessions.get(sid)) // Keep the oldest prompt as the title, but ordered by most recent activity
+      }
+    })
+    return grouped
+  }, [chatGenerations])
 
   const { data: mintboxData } = useQuery({
     queryKey: ['mintbox-folders'],
@@ -1567,6 +1665,7 @@ export default function MintAI() {
         reference_aliases: activeMode === 'chat' ? [] : extractAliases(promptValue),
         reference_asset_ids: activeMode === 'chat' ? [] : references.map(ref => ref.id),
         style_preset_id: activeMode === 'image' ? selectedStyle?.id || null : null,
+        session_id: activeMode === 'chat' ? session : null,
       }
 
       if (activeMode === 'image') {
@@ -1588,62 +1687,81 @@ export default function MintAI() {
       }).then(res => res.data.data)
     },
     onSuccess: (data) => {
-      const generationId = data.generation_id || data.id
-      if (generationId) {
-        const queuedGeneration = {
-          id: generationId,
-          user_id: 'me',
-          ai_model_id: selectedModel?.id,
-          model_name: selectedModel?.name,
-          provider_name: selectedModel?.provider_name,
-          provider_display_name: selectedModel?.provider_display_name,
-          icon_key: selectedModel?.icon_key,
-          tool_type: currentToolType,
-          prompt,
-          raw_prompt: prompt,
-          enhanced_prompt: data.enhanced_prompt || null,
-          parameters: {
+      const generationsData = Array.isArray(data) ? data : [data]
+      const newGenerations = []
+
+      generationsData.forEach(gen => {
+        const generationId = gen.generation_id || gen.id
+        if (generationId) {
+          newGenerations.push({
+            id: generationId,
+            user_id: 'me',
+            ai_model_id: selectedModel?.id,
+            model_name: selectedModel?.name,
+            provider_name: selectedModel?.provider_name,
+            provider_display_name: selectedModel?.provider_display_name,
+            icon_key: selectedModel?.icon_key,
+            tool_type: currentToolType,
+            prompt,
+            raw_prompt: prompt,
+            enhanced_prompt: gen.enhanced_prompt || null,
+            parameters: {
+              session_id: activeMode === 'chat' ? session : null,
+              aspect_ratio: aspectRatio,
+              resolution_tier: resolution,
+              batch_count: 1, // Store as 1 in the feed since they are split
+              seed: gen.seed || seed,
+              reference_aliases: activeMode === 'chat' ? [] : extractAliases(prompt),
+            },
+            engine_metadata: {
+              references: (activeMode === 'chat' ? [] : references).map(ref => ({
+                id: ref.id,
+                alias: ref.alias,
+                preview_url: ref.preview_url,
+              })),
+            },
+            status: 'queued',
+            result_url: null,
+            created_at: new Date().toISOString(),
+            source_job_id: projectId || null,
             aspect_ratio: aspectRatio,
             resolution_tier: resolution,
-            batch_count: batchCount,
-            seed: data.seed || seed,
-            reference_aliases: activeMode === 'chat' ? [] : extractAliases(prompt),
-          },
-          engine_metadata: {
-            references: (activeMode === 'chat' ? [] : references).map(ref => ({
-              id: ref.id,
-              alias: ref.alias,
-              preview_url: ref.preview_url,
-            })),
-          },
-          status: 'queued',
-          result_url: null,
-          created_at: new Date().toISOString(),
-          source_job_id: projectId || null,
-          aspect_ratio: aspectRatio,
-          resolution_tier: resolution,
-          seed: data.seed || seed,
-          batch_count: batchCount,
-          is_favorite: false,
+            seed: gen.seed || seed,
+            batch_count: 1,
+            is_favorite: false,
+          })
         }
-        setOptimisticGenerations(current => [
-          queuedGeneration,
-          ...current.filter(item => item.id !== generationId),
-        ])
+      })
+
+      if (newGenerations.length > 0) {
+        setOptimisticGenerations(current => {
+          const ids = new Set(newGenerations.map(g => g.id))
+          return [...newGenerations, ...current.filter(item => !ids.has(item.id))]
+        })
       }
       pushToast?.({
         type: 'success',
         title: activeMode === 'chat' ? 'Message queued' : activeMode === 'video' ? 'Video generation queued' : 'Image generation queued',
       })
+      if (activeMode === 'chat') {
+        setPrompt('')
+      }
       queryClient.invalidateQueries({ queryKey: ['ai-generations'] })
       queryClient.invalidateQueries({ queryKey: ['ai-chat-history'] })
     },
-    onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Generation failed' }),
-    onError: (err) => pushToast?.({ type: 'error', title: err.response?.data?.message || 'Generation failed' }),
+    onError: (err) => {
+      const msg = err.response?.data?.message || 'Generation failed'
+      if (msg.includes('INSUFFICIENT_MINTCOINS')) {
+        window.dispatchEvent(new Event('open-mintcoin-modal'))
+        pushToast?.({ type: 'error', title: 'Insufficient Mintcoins', body: msg.replace('INSUFFICIENT_MINTCOINS: ', '') })
+      } else {
+        pushToast?.({ type: 'error', title: msg })
+      }
+    },
   })
 
-  const cost = tierCost(selectedModel, resolution)
-  const totalCost = cost.unlimited ? 0 : cost.cost * batchCount
+  const cost = tierCost(selectedModel, resolution, activeMode)
+  const totalCost = cost.unlimited ? 0 : (activeMode === 'image' || activeMode === 'video' ? cost.mintcoin * batchCount : cost.cost * batchCount)
   const modeLabel = modeTitle(activeMode)
   const promptReferences = activeMode === 'chat' ? [] : references
 
@@ -1711,36 +1829,67 @@ export default function MintAI() {
           )}
         </header>
 
-        {activeMode !== 'chat' && (
-          <div className="p-4 border-b border-ink-100 shrink-0">
-            <ModelSelector
-              models={models}
-              selected={selectedModel}
-              onSelect={setSelectedModel}
-              resolution={resolution}
-              multiple={modelMulti}
-              setMultiple={setModelMulti}
-              thinking={thinking}
-              setThinking={setThinking}
-              googleSearch={googleSearch}
-              setGoogleSearch={setGoogleSearch}
-            />
-          </div>
-        )}
+        <div className="p-4 border-b border-ink-100 shrink-0">
+          <ModelSelector
+            models={models}
+            selected={selectedModel}
+            onSelect={setSelectedModel}
+            resolution={resolution}
+            multiple={modelMulti}
+            setMultiple={setModelMulti}
+            thinking={thinking}
+            setThinking={setThinking}
+            googleSearch={googleSearch}
+            setGoogleSearch={setGoogleSearch}
+          />
+        </div>
 
         <div className="flex-1 p-4 flex flex-col gap-6 shrink-0">
           {activeMode === 'chat' ? (
             <div className="flex flex-col gap-4">
-              <h3 className="text-xs font-bold text-ink-500 uppercase tracking-wider">Chat History</h3>
-              {chatGenerations.length === 0 ? (
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-ink-500 uppercase tracking-wider">Chat History</h3>
+                <button 
+                  type="button" 
+                  onClick={() => setSession(sessionId())}
+                  className="text-xs text-mint-600 hover:text-mint-700 font-medium"
+                >
+                  + New
+                </button>
+              </div>
+              {chatSessions.length === 0 ? (
                 <p className="text-sm text-ink-400">No previous chats found.</p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {chatGenerations.map(chat => (
-                    <button key={chat.id} className="text-left text-sm text-ink-700 hover:bg-ink-100 p-2 rounded-lg truncate transition-colors">
-                      {chat.prompt}
-                    </button>
-                  ))}
+                  {chatSessions.map(chat => {
+                    const sid = chat.parameters?.session_id || chat.id
+                    return (
+                      <div key={sid} className={`flex items-center group ${session === sid ? 'bg-mint-50' : ''} rounded-lg`}>
+                        <button 
+                          className={`flex-1 text-left text-sm hover:bg-ink-100 p-2 rounded-lg truncate transition-colors ${session === sid ? 'text-mint-700 font-medium' : 'text-ink-700'}`}
+                          onClick={() => setSession(sid)}
+                        >
+                          {chat.raw_prompt || chat.prompt}
+                        </button>
+                        <button
+                          type="button"
+                          className="p-2 text-ink-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (window.confirm('Delete this chat session?')) {
+                              const idsToDelete = chatGenerations
+                                .filter(c => (c.parameters?.session_id || c.id) === sid)
+                                .map(c => c.id)
+                              deleteMutation.mutate(idsToDelete)
+                            }
+                          }}
+                          title="Delete chat"
+                        >
+                          <Icon name="trash" size={14} />
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -1845,6 +1994,8 @@ export default function MintAI() {
             ]}
             generations={chatFeedGenerations}
             progressMap={aiProgress}
+            activeMode={activeMode}
+            setActiveMode={setActiveMode}
           />
         ) : (
           <CreationsGallery

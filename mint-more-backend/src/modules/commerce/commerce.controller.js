@@ -4,6 +4,7 @@ const { getCredits, adjustCreditsByAdmin } = require('./credits.service');
 const membershipService = require('./membership.service');
 const settingsService = require('./settings.service');
 const { listAuditLogs } = require('../audit/audit.service');
+const tiersService = require('./tiers.service');
 
 const requestMeta = (req) => ({
   ipAddress: req.ip || null,
@@ -55,7 +56,29 @@ const adjustCredits = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const getTiers = async (req, res, next) => {
+  try {
+    const isAdmin = req.user && req.user.role === 'admin';
+    return sendSuccess(res, { data: await tiersService.listTiers(isAdmin) });
+  } catch (err) { next(err); }
+};
+
+const createTier = async (req, res, next) => {
+  try { return sendSuccess(res, { statusCode: 201, data: await tiersService.createTier(req.body) }); } catch (err) { next(err); }
+};
+
+const updateTier = async (req, res, next) => {
+  try { return sendSuccess(res, { data: await tiersService.updateTier(req.params.id, req.body) }); } catch (err) { next(err); }
+};
+
+const deleteTier = async (req, res, next) => {
+  try { 
+    await tiersService.deleteTier(req.params.id);
+    return sendSuccess(res, { message: 'Tier deleted successfully' }); 
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   entitlements, credits, membership, createCheckout, verifyCheckout, pause,
-  settings, updateSetting, audit, adjustCredits,
+  settings, updateSetting, audit, adjustCredits, getTiers, createTier, updateTier, deleteTier
 };

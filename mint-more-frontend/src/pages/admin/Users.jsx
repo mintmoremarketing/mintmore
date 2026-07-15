@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
+import { commerceApi } from '../../api/commerce'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import Avatar from '../../components/ui/Avatar'
@@ -435,6 +436,21 @@ function UserDetailModal({ userId, onClose }) {
     }
   }
 
+  const { data: tiers } = useQuery({
+    queryKey: ['admin-tiers'],
+    queryFn: () => commerceApi.getTiers().then(res => res.data.data.tiers),
+    enabled: user?.role === 'client'
+  })
+
+  const setTierMutation = useMutation({
+    mutationFn: (tierId) => api.patch(`/admin/users/${userId}/tier`, { tier_id: tierId }),
+    onSuccess: () => {
+      pushToast({ title: 'Membership tier updated', icon: 'check' })
+      queryClient.invalidateQueries({ queryKey: ['admin-user', userId] })
+    },
+    onError: (err) => pushToast({ title: 'Failed to update tier', body: err.response?.data?.message || err.message, tone: 'amber', icon: 'x' })
+  })
+
   if (isLoading) return (
     <Modal title="User detail" onClose={onClose}>
       <div style={{ padding: 20 }}><SkeletonCard /></div>
@@ -499,6 +515,30 @@ function UserDetailModal({ userId, onClose }) {
               <span className="mono" style={{ fontSize: 20, fontWeight: 600 }}>
                 {Number(mintCreditAccount?.balance || 0).toLocaleString('en-IN')}
               </span>
+            </div>
+          </div>
+        )}
+
+        {user.role === 'client' && (
+          <div style={{ padding: 14, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
+            <div className="row between" style={{ marginBottom: 12 }}>
+              <div className="h-eyebrow">Membership Plan</div>
+              {data?.membership?.status === 'active' && (
+                <span className="badge mint">Active</span>
+              )}
+            </div>
+            <div className="field">
+              <select 
+                className="input" 
+                value={data?.membership?.tier_id || ''}
+                onChange={e => setTierMutation.mutate(e.target.value || null)}
+                disabled={setTierMutation.isPending}
+              >
+                <option value="">No membership plan</option>
+                {tiers?.map(tier => (
+                  <option key={tier.id} value={tier.id}>{tier.name} — {rupee(tier.price)}/mo</option>
+                ))}
+              </select>
             </div>
           </div>
         )}

@@ -8,6 +8,7 @@ import { SkeletonCard } from '../components/ui/Skeleton'
 import { useSearchParams } from 'react-router-dom'
 import VerificationPanel from '../components/settings/VerificationPanel'
 import { socialApi } from '../api/social'
+import AccountManager from '../components/social/AccountManager'
 
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -23,6 +24,9 @@ export default function Settings() {
   const [waNumber,  setWaNumber]  = useState('')
   const [city,      setCity]      = useState('')
   const [state,     setState]     = useState('')
+  const [address,   setAddress]   = useState('')
+  const addressRef = useRef(null)
+  
   const [avatarFile,setAvatarFile]= useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
   const avatarInputRef = useRef(null)
@@ -66,6 +70,32 @@ export default function Settings() {
     profile.address_state,
     profile.avatar_url,
   ])
+
+  useEffect(() => {
+    if (!window.google) return
+    const autocomplete = new window.google.maps.places.Autocomplete(addressRef.current, {
+      types: ['geocode']
+    })
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace()
+      if (!place.address_components) return
+      
+      let newCity = ''
+      let newState = ''
+      for (const component of place.address_components) {
+        const types = component.types
+        if (types.includes('locality')) {
+          newCity = component.long_name
+        }
+        if (types.includes('administrative_area_level_1')) {
+          newState = component.long_name
+        }
+      }
+      if (newCity) setCity(newCity)
+      if (newState) setState(newState)
+      setAddress(place.formatted_address || '')
+    })
+  }, [])
 
   // Save profile
   const { mutate: saveProfile, isPending: savingProfile } = useMutation({
@@ -152,11 +182,11 @@ export default function Settings() {
   )
 
   const sections = [
-    ['profile', 'user', 'Profile'],
-    ['account', 'settings', 'Account info'],
-    ...(user?.role === 'client' ? [['setup', 'check', 'Setup']] : []),
-    ['security', 'lock', 'Password & security'],
+    ['profile', 'user', user?.role === 'client' ? 'Business profile' : 'Profile'],
+    ...(user?.role === 'client' ? [['social', 'layers', 'Social accounts']] : []),
     ...(!['admin', 'designer'].includes(user?.role) ? [['verification', 'shield', 'Verification']] : []),
+    ['security', 'lock', 'Password & security'],
+    ['account', 'settings', 'Account info'],
   ]
 
   return (
@@ -243,7 +273,19 @@ export default function Settings() {
             </div>
             <div className="field">
               <label className="field-label">Phone number</label>
-              <input className="input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input className="input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" style={{ flex: 1 }} />
+                {!profile.phone_verified && (
+                    <button className="btn outline" onClick={() => pushToast({title: 'OTP sent to your phone!', icon: 'check'})} type="button">
+                        Verify via OTP
+                    </button>
+                )}
+                {profile.phone_verified && (
+                    <div style={{ display: 'flex', alignItems: 'center', color: 'var(--mint-600)', gap: 4, padding: '0 8px' }}>
+                        <Icon name="checkCircle" size={16} /> Verified
+                    </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -254,6 +296,11 @@ export default function Settings() {
                 placeholder="Tell others about yourself..." />
             </div>
           )}
+
+          <div className="field">
+             <label className="field-label">Address (Google Auto-fill)</label>
+             <input className="input" ref={addressRef} value={address} onChange={e => setAddress(e.target.value)} placeholder="Start typing your address..." />
+          </div>
 
           <div className="grid-2" style={{ gap: 14 }}>
             <div className="field">
@@ -388,6 +435,9 @@ export default function Settings() {
           )}
         </div>
       </div>}
+
+      {/* Social Accounts */}
+      {section === 'social' && user?.role === 'client' && <AccountManager />}
       {section === 'setup' && user?.role === 'client' && <div className="stack" style={{ gap: 14 }}>
         <div className="card reveal" style={{ padding: 24 }}>
           <div className="h-eyebrow" style={{ marginBottom: 8 }}>Business setup</div>

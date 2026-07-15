@@ -17,6 +17,10 @@ export default function Membership() {
     queryKey: ['mint-credits'],
     queryFn: () => commerceApi.credits().then(res => res.data.data),
   })
+  const { data: tiers } = useQuery({
+    queryKey: ['public-tiers'],
+    queryFn: () => commerceApi.getTiers().then(res => res.data.data),
+  })
 
   const checkout = useMutation({
     mutationFn: payload => commerceApi.checkout(payload),
@@ -86,16 +90,16 @@ export default function Membership() {
   const periodEnd = access?.membership?.current_period_end
   return (
     <div className="stack-6">
-      <div>
-        <div className="h-eyebrow">Membership</div>
-        <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>CREATYV membership</h1>
-        <p className="muted">One membership for creative work, Mint AI, social publishing, and your brand library.</p>
+      <div className="flex flex-col gap-2">
+        <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Membership</div>
+        <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">CREATYV membership</h1>
+        <p className="text-ink-500 font-medium mt-1">One membership for creative work, Mint AI, social publishing, and your brand library.</p>
       </div>
 
       <div className="grid-2" style={{ gap: 14 }}>
         <div className="card-ink" style={{ padding: 24 }}>
           <div className="row between">
-            <span className="h-eyebrow" style={{ color: 'rgba(255,255,255,.6)' }}>Current access</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-white/60">Current access</span>
             <span className={`badge ${access?.access_state === 'expired' ? 'amber' : 'mint'}`}>{access?.access_state || 'Loading'}</span>
           </div>
           <div style={{ marginTop: 18, fontFamily: 'var(--font-display)', fontSize: 38 }}>{rupee(999)}<span style={{ fontSize: 14, color: 'rgba(255,255,255,.6)' }}> / month + GST</span></div>
@@ -115,25 +119,39 @@ export default function Membership() {
           </div>
         </div>
 
-        <div className="card" style={{ padding: 22 }}>
-          <div className="h-eyebrow">Mint Credits</div>
-          <div className="mono" style={{ fontSize: 32, fontWeight: 600, marginTop: 12 }}>{rupee(creditData?.balance || 0)}</div>
-          <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+        <div className="card flex flex-col" style={{ padding: 24 }}>
+          <div className="text-xs font-bold uppercase tracking-widest text-ink-500">Mint Credits</div>
+          <div className="font-mono text-3xl font-semibold mt-3 text-ink-900">{rupee(creditData?.balance || 0)}</div>
+          <p className="text-sm text-ink-500 mt-4 leading-relaxed">
             Promotional credits pay CREATYV platform services. They never fund freelancer earnings and cannot be withdrawn.
           </p>
         </div>
       </div>
 
-      <div>
-        <h2 className="h-display h-3">Returning-member access passes</h2>
-        <div className="grid-3" style={{ gap: 10 }}>
-          {PASSES.map(pass => (
-            <div className="card" style={{ padding: 18 }} key={pass.days}>
-              <div className="h-eyebrow">{pass.days} days</div>
-              <div className="mono" style={{ fontSize: 22, fontWeight: 600, margin: '9px 0' }}>{rupee(pass.price)}</div>
-              <p className="muted" style={{ fontSize: 12 }}>Access only. No Mint Credits included.</p>
-              <button className="btn ghost" disabled={checkout.isPending} onClick={() => checkout.mutate({ kind: 'access_pass', days: pass.days })}>
-                {checkout.isPending ? 'Opening checkout...' : 'Buy pass'}
+      <div className="mt-8">
+        <h2 className="text-2xl font-display font-bold text-ink-950 mb-6">Select a Membership Tier</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {tiers?.map(tier => (
+            <div className={`card flex flex-col ${access?.membership?.tier_id === tier.id && access?.membership?.status === 'active' ? 'border-mint border-2' : ''}`} style={{ padding: 24 }} key={tier.id}>
+              <div className="text-xs font-bold uppercase tracking-widest text-ink-500">{tier.name}</div>
+              <div className="font-mono text-3xl font-semibold my-3 text-ink-900">{tier.price === 0 ? 'Free' : rupee(tier.price)}</div>
+              
+              <ul className="mb-6 space-y-2 mt-4 text-sm text-ink-600 flex-grow">
+                {tier.features?.map(feat => (
+                  <li key={feat} className="flex items-center gap-2">
+                    <Icon name="check" size={14} className="text-mint shrink-0" />
+                    <span>{feat.replace('_', ' ')}</span>
+                  </li>
+                ))}
+                {(!tier.features || tier.features.length === 0) && <li>No features included</li>}
+              </ul>
+
+              <button 
+                className={`btn ${tier.price > 0 ? 'mint' : 'outline'} w-full mt-auto`} 
+                disabled={checkout.isPending || (access?.membership?.tier_id === tier.id && access?.membership?.status === 'active')} 
+                onClick={() => checkout.mutate({ kind: 'membership', tier_id: tier.id })}
+              >
+                {access?.membership?.tier_id === tier.id && access?.membership?.status === 'active' ? 'Current Tier' : (checkout.isPending ? 'Processing...' : 'Subscribe')}
               </button>
             </div>
           ))}

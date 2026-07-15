@@ -72,6 +72,14 @@ export const refreshAccessToken = async () => {
 
 	try {
 		return await refreshPromise
+	} catch (err) {
+		if (isRefreshAuthFailure(err) || err.message === 'No refresh token') {
+			useAuthStore.getState().logout()
+			if (window.location.pathname !== '/login') {
+				window.location.href = '/login'
+			}
+		}
+		throw err
 	} finally {
 		refreshPromise = null
 	}
