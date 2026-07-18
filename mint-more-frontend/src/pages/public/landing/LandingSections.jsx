@@ -39,6 +39,102 @@ function WorkflowMock({ slide }) {
   )
 }
 
+function WorkflowPreview({ feature }) {
+  const preview = feature.preview || {}
+
+  if (preview.kind === 'image') {
+    return (
+      <div className="landing-tab-preview landing-tab-preview-image">
+        <div className="landing-tab-preview-head">
+          <span>{preview.badge || feature.label}</span>
+          <strong>{preview.label || 'Preview'}</strong>
+        </div>
+        <div className="landing-tab-preview-frame">
+          <img src={preview.src} alt={preview.alt || ''} />
+        </div>
+      </div>
+    )
+  }
+
+  if (preview.kind === 'meter') {
+    return (
+      <div className="landing-tab-preview landing-tab-preview-meter">
+        <div className="landing-tab-preview-head">
+          <span>{preview.badge || feature.label}</span>
+          <strong>{preview.label || 'Meter'}</strong>
+        </div>
+        <div className="landing-tab-preview-meter-row">
+          <div className="landing-tab-preview-chip">
+            <span>Balance</span>
+            <strong>₹{preview.value || '0'}</strong>
+          </div>
+          <div className="landing-tab-preview-ring" aria-hidden="true">
+            <svg viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="46" />
+              <circle cx="60" cy="60" r="46" className="meter-progress" />
+            </svg>
+            <strong>Usage</strong>
+          </div>
+        </div>
+        <p>{preview.detail}</p>
+        <div className="landing-tab-preview-footer">
+          <span>Images</span>
+          <strong>5 free</strong>
+          <span>Video</span>
+          <strong>Coin priced</strong>
+        </div>
+      </div>
+    )
+  }
+
+  if (preview.kind === 'folder') {
+    return (
+      <div className="landing-tab-preview landing-tab-preview-folder">
+        <div className="landing-tab-preview-head">
+          <span>{preview.badge || feature.label}</span>
+          <strong>{preview.label || 'Folder'}</strong>
+        </div>
+        <div className="landing-tab-preview-folder-stack" aria-hidden="true">
+          <div className="back" />
+          <div className="middle" />
+          <div className="front" />
+        </div>
+        <p>{preview.detail}</p>
+      </div>
+    )
+  }
+
+  if (preview.kind === 'calendar') {
+    return (
+      <div className="landing-tab-preview landing-tab-preview-calendar">
+        <div className="landing-tab-preview-head">
+          <span>{preview.badge || feature.label}</span>
+          <strong>{preview.label || 'Calendar'}</strong>
+        </div>
+        <div className="landing-tab-preview-calendar-grid" aria-hidden="true">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => <span key={day}>{day}</span>)}
+          {Array.from({ length: 21 }).map((_, index) => (
+            <span key={index} className={index === 2 || index === 7 || index === 14 ? 'is-active' : ''}>
+              {index + 1}
+            </span>
+          ))}
+        </div>
+        <p>{preview.detail}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="landing-tab-preview">
+      <div className="landing-tab-preview-head">
+        <span>{feature.label}</span>
+        <strong>{feature.title}</strong>
+      </div>
+      <p>{feature.body}</p>
+    </div>
+  )
+}
+
 function SwipeMarkers({ items, activeId, onSelect }) {
   return (
     <div className="landing-swipe-markers" aria-label="Feature slides">
@@ -97,10 +193,12 @@ function StoryCarousel() {
 
 export function ProofStrip() {
   return (
-    <section className="landing-proof">
-      <span>Built for teams who need content every month</span>
-      <div className="landing-logo-strip">
-        {proofBrands.map(brand => <strong key={brand}>{brand}</strong>)}
+    <section className="landing-proof" aria-label="Feature labels">
+      <div className="landing-logo-strip" aria-hidden="true">
+        <div className="landing-logo-strip-track">
+          {proofBrands.map(brand => <strong key={`primary-${brand}`}>{brand}</strong>)}
+          {proofBrands.map(brand => <strong key={`secondary-${brand}`}>{brand}</strong>)}
+        </div>
       </div>
     </section>
   )
@@ -116,11 +214,12 @@ export function WorkflowSection() {
     <section className="landing-workflow landing-animate" id="how-it-works">
       <div className="landing-centered-head">
         <p>How it works</p>
-        <h2>Your whole creative program, finally connected in one workflow.</h2>
+        <h2>Your complete content engine, connected from prompt to publish.</h2>
       </div>
 
       <div className="landing-desktop-tabs" aria-label="CREATYV workflow tabs">
-        <div className="landing-tab-switcher">
+        <div className="landing-tab-switcher" style={{ '--active-index': Math.max(0, tabFeatures.findIndex(item => item.id === desktopTab)) }}>
+          <span className="landing-tab-indicator" aria-hidden="true" />
           {tabFeatures.map(feature => (
             <button
               key={feature.id}
@@ -137,23 +236,9 @@ export function WorkflowSection() {
             <span>{desktopFeature.label}</span>
             <h3>{desktopFeature.title}</h3>
             <p>{desktopFeature.body}</p>
-            <ul>
-              {desktopFeature.points.map(point => <li key={point}>{point}</li>)}
-            </ul>
           </div>
           <div className="landing-tab-visual" aria-hidden="true">
-            <div className="landing-tab-board">
-              <div className="landing-tab-board-head">
-                <strong>{desktopFeature.label}</strong>
-                <span>Live workspace</span>
-              </div>
-              {desktopFeature.points.map((point, index) => (
-                <div key={point} className={index === 0 ? 'is-active' : ''}>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <strong>{point}</strong>
-                </div>
-              ))}
-            </div>
+            <WorkflowPreview feature={desktopFeature} />
           </div>
         </article>
       </div>
@@ -201,9 +286,32 @@ export function StatsRow() {
   )
 }
 
-export function PricingSection() {
+export function ManagedSection() {
   return (
-    <section className="landing-social-block landing-animate" id="pricing">
+    <section className="landing-managed landing-animate" id="managed-by-mmm">
+      <div className="landing-centered-head">
+        <p>Managed by MMM</p>
+        <h2>For businesses that want the technology plus hands-on creative support.</h2>
+      </div>
+      <div className="landing-card-grid two">
+        {[
+          ['Strategy support', 'We help map out the month, the campaign goals, and the content mix.'],
+          ['Production support', 'Requests, revisions, and creative handoff stay coordinated in one workflow.'],
+        ].map(([title, body]) => (
+          <article className="landing-card" key={title}>
+            <MiniIcon label={title} />
+            <h3>{title}</h3>
+            <p>{body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+export function SocialSection() {
+  return (
+    <section className="landing-social-block landing-animate" id="social">
       <article className="landing-social-tile">
         <div className="landing-social-art" aria-hidden="true">
           <span className="social-sticker instagram">IG</span>
@@ -228,6 +336,30 @@ export function PricingSection() {
           </div>
         </div>
       </article>
+    </section>
+  )
+}
+
+export function RoadmapSection() {
+  return (
+    <section className="landing-roadmap landing-animate" id="roadmap">
+      <div className="landing-centered-head">
+        <p>Roadmap</p>
+        <h2>What we’re building next.</h2>
+      </div>
+      <div className="landing-card-grid features">
+        {[
+          ['More publishing depth', 'Expand post formats, scheduling controls, and platform options.'],
+          ['Richer analytics', 'Bring clearer reporting for accounts, posts, and campaign performance.'],
+          ['Smarter AI workflow', 'Keep improving how prompts, references, and outputs stay aligned.'],
+        ].map(([title, body]) => (
+          <article className="landing-card" key={title}>
+            <MiniIcon label={title} />
+            <h3>{title}</h3>
+            <p>{body}</p>
+          </article>
+        ))}
+      </div>
     </section>
   )
 }
@@ -296,5 +428,137 @@ export function CreatorsSection() {
         </ScrollStack>
       </section>
     </>
+  )
+}
+
+export function PricingSection() {
+  const [billing, setBilling] = useState('monthly')
+  const isAnnual = billing === 'annual'
+
+  return (
+    <section className="landing-pricing-block landing-animate" id="pricing">
+      <div className="landing-centered-head">
+        <p>CREATYV PRICING PLANS</p>
+        <h2>Generate AI text, images and videos for free. Buy Mint Coins whenever you need more.</h2>
+        <div className="landing-pricing-toggle-wrap">
+          <span>Choose monthly or annual billing. Annual prices are shown as the effective monthly rate and are billed annually.</span>
+          <div className="landing-pricing-toggle">
+            <button className={!isAnnual ? 'active' : ''} onClick={() => setBilling('monthly')}>Monthly</button>
+            <button className={isAnnual ? 'active' : ''} onClick={() => setBilling('annual')}>Annually</button>
+          </div>
+        </div>
+      </div>
+      
+      <div className="landing-pricing-cards">
+        <article className="landing-pricing-card">
+          <div className="landing-pricing-header">
+            <h3>FREE</h3>
+            <div className="price">₹0<span>/month</span></div>
+            <p>For individuals, SMEs and brands exploring Creatyv.</p>
+          </div>
+          <ul className="landing-pricing-features">
+            <li>Limited monthly AI generations</li>
+            <li>1,000 Mint Coins included</li>
+            <li>AI text generation</li>
+            <li>AI image generation</li>
+            <li>AI video generation</li>
+            <li>Save content drafts</li>
+            <li>Access your content workspace</li>
+            <li>Standard account access</li>
+          </ul>
+          <div className="landing-pricing-cta">
+            <Link to="/register" className="btn outline">Start for Free</Link>
+            <small>No payment method required.</small>
+          </div>
+        </article>
+        
+        <article className="landing-pricing-card recommended">
+          <div className="recommended-badge">Recommended</div>
+          <div className="landing-pricing-header">
+            <h3>SOCIAL</h3>
+            <div className="price">{isAnnual ? '₹1,699' : '₹1,999'}<span>/month</span></div>
+            <p>For creators, businesses and teams that want to create and publish regularly.</p>
+            {isAnnual && <small className="annual-total">Annual billing total: ₹20,388/year</small>}
+          </div>
+          <ul className="landing-pricing-features">
+            <li>Higher monthly AI generation limits</li>
+            <li>10,000 Mint Coins recharged every month</li>
+            <li>AI text generation</li>
+            <li>AI image generation</li>
+            <li>AI video generation</li>
+            <li>Visual content calendar</li>
+            <li>Instagram scheduling and publishing</li>
+            <li>Facebook scheduling and publishing</li>
+            <li>YouTube scheduling and publishing</li>
+            <li>Post review and approval workflow</li>
+            <li>Brand workspace</li>
+            <li>Priority product access</li>
+            <li>Insights access when launched</li>
+          </ul>
+          <div className="landing-pricing-cta">
+            <Link to="/register" className="btn mint">Upgrade to Social</Link>
+          </div>
+        </article>
+
+        <article className="landing-pricing-card">
+          <div className="landing-pricing-header">
+            <h3>MANAGED BY MMM</h3>
+            <div className="price">{isAnnual ? '₹7,999' : '₹9,999'}<span>/month</span></div>
+            <p>For businesses that want Creatyv’s technology with professional marketing support.</p>
+            {isAnnual && <small className="annual-total">Annual billing total: ₹95,988/year</small>}
+          </div>
+          <ul className="landing-pricing-features">
+            <li><strong>Everything included in Social</strong></li>
+            <li>Custom monthly content plan</li>
+            <li>Content strategy support</li>
+            <li>Professional copy and creative assistance</li>
+            <li>Review and approval dashboard</li>
+            <li>Scheduling and publishing support</li>
+            <li>Mint More Marketing execution</li>
+            <li>Dedicated coordination</li>
+            <li>Custom deliverables based on your requirements*</li>
+            <li>Reporting and recommendations</li>
+          </ul>
+          <div className="landing-pricing-cta">
+            <a href="mailto:agency@mintmoremarketing.com" className="btn outline">Contact MMM</a>
+            <small>*Custom scope and deliverables are finalised before onboarding.</small>
+          </div>
+        </article>
+      </div>
+
+      <div className="landing-pricing-table-wrapper">
+        <h3 className="landing-table-title">PRICING COMPARISON</h3>
+        <table className="landing-pricing-table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Free</th>
+              <th>Social</th>
+              <th>Managed by MMM</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>AI Text Generation</td><td>Limited</td><td>Higher limit</td><td>Included</td></tr>
+            <tr><td>AI Image Generation</td><td>Limited</td><td>Higher limit</td><td>Included</td></tr>
+            <tr><td>AI Video Generation</td><td>Limited</td><td>Higher limit</td><td>Included</td></tr>
+            <tr><td>Mint Coins (Tokens)</td><td>1,000/month</td><td>10,000/month</td><td>10,000/month + managed service</td></tr>
+            <tr><td>Content Calendar</td><td>Included</td><td>Included</td><td>Included + Assisted Reminders</td></tr>
+            <tr><td>Festival Greetings</td><td>Not included</td><td>Not included</td><td>Included with Personalised Messaging</td></tr>
+            <tr><td>Mint Box (Storage)</td><td>10 GB included</td><td>100 GB included</td><td>250 GB included</td></tr>
+            <tr><td>Save Drafts</td><td>Included</td><td>Included</td><td>Included</td></tr>
+            <tr><td>Instagram Publishing</td><td>Not included</td><td>Included</td><td>Managed</td></tr>
+            <tr><td>Facebook Publishing</td><td>Not included</td><td>Included</td><td>Managed</td></tr>
+            <tr><td>YouTube Publishing</td><td>Not included</td><td>Included</td><td>Managed</td></tr>
+            <tr><td>Review & Approval</td><td>Basic</td><td>Included</td><td>Included</td></tr>
+            <tr><td>Content Strategy</td><td>Not included</td><td>Self-managed</td><td>MMM supported</td></tr>
+            <tr><td>Creative Execution</td><td>AI-assisted</td><td>AI-assisted</td><td>MMM supported</td></tr>
+            <tr><td>Account Executive</td><td>Not included</td><td>Not included</td><td>MMM Trained Assistant</td></tr>
+            <tr><td>Performance Insights</td><td>Coming soon</td><td>Coming soon</td><td>Coming soon</td></tr>
+            <tr><td>Monthly Billing</td><td>Free</td><td>₹1,999/month</td><td>₹9,999/month</td></tr>
+            <tr><td>Annual Billing</td><td>Not applicable</td><td>₹1,699/month (₹20,388/year)</td><td>₹7,999/month (₹95,988/year)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   )
 }

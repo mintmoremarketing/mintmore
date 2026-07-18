@@ -173,7 +173,6 @@ const ensureTrialCredits = async (userId) => {
 };
 
 const getCredits = async (userId) => {
-  await ensureTrialCredits(userId);
   await expireCreditsForUser(userId);
   const account = await getCreditAccount(userId);
   const transactions = await query(

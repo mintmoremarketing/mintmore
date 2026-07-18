@@ -1,4 +1,5 @@
 const service = require('./creative.service');
+const brandService = require('../brand/brand.service');
 const { sendSuccess } = require('../../utils/apiResponse');
 
 const calendar = async (req, res, next) => {
@@ -75,6 +76,15 @@ const designerTasks = async (req, res, next) => {
     const data = await service.listDesignerTasks(req.user.sub);
     return sendSuccess(res, { data });
   } catch (error) { next(error); }
+};
+
+const getBrandContext = async (req, res, next) => {
+  try {
+    const data = await brandService.getBrandWorkspace(req.params.userId);
+    return sendSuccess(res, { data });
+  } catch (error) {
+    next(error);
+  }
 };
 
 const updateDesignerTask = async (req, res, next) => {
@@ -177,6 +187,7 @@ module.exports = {
   cancelSelection,
   adminOverview,
   designerTasks,
+  getBrandContext,
   updateDesignerTask,
   syncTaskSheet,
   suggestEvents,

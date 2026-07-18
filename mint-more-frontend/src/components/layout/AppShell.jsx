@@ -3,9 +3,9 @@ import { Outlet, Navigate, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
+import { aiApi } from '../../api/ai'
 import { walletApi } from '../../api/wallet'
 import { notificationsApi } from '../../api/notifications'
-import { commerceApi } from '../../api/commerce'
 import { useSSE } from '../../hooks/useSSE'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
@@ -38,6 +38,7 @@ export default function AppShell() {
     toasts, showTopUp, showNotif,
     setShowTopUp, setShowNotif,
     unreadCount, setUnreadCount,
+    aiUsageFocus,
   } = useUIStore()
 
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -73,13 +74,21 @@ export default function AppShell() {
     refetchInterval: 60_000,
   })
   const walletBalance = walletData?.wallet?.balance ?? null
-  const { data: mintCreditData } = useQuery({
-    queryKey: ['mint-credits'],
-    queryFn: () => commerceApi.credits().then(r => r.data.data),
+  const aiUsageQueryKey = [
+    'ai-usage',
+    aiUsageFocus?.model_id || 'any',
+    aiUsageFocus?.tool_type || 'any',
+    aiUsageFocus?.resolution_tier || 'any',
+    aiUsageFocus?.duration || 'any',
+  ]
+  const { data: aiUsageData } = useQuery({
+    queryKey: aiUsageQueryKey,
+    queryFn: () => aiApi.getUsage(aiUsageFocus || undefined).then(r => r.data.data),
     enabled: isAuthed && user?.role === 'client' && !isGuest,
     refetchInterval: 60_000,
   })
-  const mintCoinBalance = Number(mintCreditData?.balance ?? 0)
+  const aiUsageSummary = aiUsageData?.usage || null
+  const mintCoinBalance = Number(aiUsageSummary?.mintcoin_balance ?? 0)
 
   useQuery({
     queryKey: ['notif-count'],
@@ -115,6 +124,7 @@ export default function AppShell() {
           onMenuClick={() => setDrawerOpen(true)}
           walletBalance={showWalletUi && role !== 'admin' && !isGuest ? walletBalance : undefined}
           mintCoinBalance={role === 'client' ? (isGuest ? 999 : mintCoinBalance) : undefined}
+          usageSummary={role === 'client' ? aiUsageSummary : undefined}
           onWalletClick={() => showWalletUi && setShowTopUp(true)}
           onMintCoinClick={() => isGuest ? navigate('/register') : setShowMintcoinModal(true)}
           onNotifClick={() => setShowNotif(!showNotif)}

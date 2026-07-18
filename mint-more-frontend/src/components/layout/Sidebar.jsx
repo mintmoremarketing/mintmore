@@ -5,13 +5,11 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../ui/Icon'
 import { useEntitlements } from '../../hooks/useEntitlements'
 import { filterNavItems, navForRole } from './navigation'
-import ProfilePopover from './ProfilePopover'
 
 export default function Sidebar({ role, collapsed = false, onCollapsedChange }) {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const { user, isGuest } = useAuthStore()
-  const [profileOpen, setProfileOpen] = useState(false)
+  const { user, isGuest, logout } = useAuthStore()
   const [hovered, setHovered] = useState(false)
   const unreadCount = useUIStore((s) => s.unreadCount)
   const { data: access } = useEntitlements()
@@ -28,10 +26,7 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
         expanded ? 'w-56' : 'w-16'
       }`}
       onMouseEnter={() => collapsed && setHovered(true)}
-      onMouseLeave={() => {
-        setHovered(false)
-        setProfileOpen(false)
-      }}
+      onMouseLeave={() => setHovered(false)}
     >
       <button
         type="button"
@@ -47,9 +42,7 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
         className="flex items-center h-16 px-4 cursor-pointer mb-4 shrink-0 transition-opacity hover:opacity-80" 
         onClick={() => navigate(homeRoute)}
       >
-        <div className="w-8 h-8 rounded-lg bg-mint-500 text-white flex items-center justify-center font-display font-bold shrink-0">
-          C
-        </div>
+        <img src="/logo-dark.png" alt="CREATYV" className="w-8 h-8 shrink-0 object-contain" />
         {expanded && (
           <span className="ml-3 font-display text-lg tracking-wide whitespace-nowrap overflow-hidden">
             CREAT<span className="text-mint-500 font-bold">YV</span>
@@ -131,27 +124,31 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
         )}
 
         <button 
-          className={`flex items-center rounded-lg transition-colors h-12 w-full mt-1 ${
-            expanded ? 'px-2 hover:bg-ink-800' : 'justify-center'
+          className={`flex items-center rounded-lg transition-colors h-12 w-full mt-1 group ${
+            expanded ? 'px-2 hover:bg-ink-800' : 'justify-center hover:bg-ink-800'
           }`}
-          onClick={() => setProfileOpen(open => !open)}
+          onClick={() => navigate('/settings?section=profile')}
+          title={!expanded ? 'Profile' : undefined}
         >
-          <div className="w-8 h-8 rounded-full bg-ink-700 text-ink-200 border border-ink-600 flex items-center justify-center text-xs font-medium shrink-0">
-            {(user?.full_name || 'U').split(' ').map(p => p[0]).slice(0, 2).join('')}
+          <div className="w-8 h-8 rounded-full bg-ink-700 text-ink-200 border border-ink-600 flex items-center justify-center text-xs font-medium shrink-0 overflow-hidden transition-colors">
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt={user?.full_name} className="w-full h-full object-cover" />
+            ) : (
+              (user?.full_name || 'U').split(' ').map(p => p[0]).slice(0, 2).join('')
+            )}
           </div>
           {expanded && (
             <div className="ml-3 flex-1 min-w-0 text-left">
-              <div className="text-sm font-medium text-white truncate">
+              <div className="text-sm font-medium text-white truncate transition-colors">
                 {user?.full_name}
               </div>
-              <div className="text-xs text-ink-400 capitalize truncate">
+              <div className="text-xs text-ink-400 capitalize truncate transition-colors">
                 {user?.role}
               </div>
             </div>
           )}
-          {expanded && <Icon name="chevronRight" size={14} className="text-ink-500 shrink-0" />}
+          {expanded && <Icon name="chevronRight" size={14} className="text-ink-500 shrink-0 transition-colors" />}
         </button>
-        {profileOpen && <ProfilePopover onClose={() => setProfileOpen(false)} />}
       </div>
     </nav>
   )

@@ -22,19 +22,19 @@ const CONTROL_SCHEMAS = {
     ],
   },
   'membership.trial': {
-    title: 'First-time access',
-    description: 'Let new businesses explore the real dashboard, AI tools, and restricted trial MintCoins.',
+    title: 'New account starter',
+    description: 'Configure the one-time starter window and the 5-image trial that new clients receive.',
     fields: [
       ['duration_days', 'Access duration', 'days'],
-      ['text_generations', 'Text generations', 'generations'],
-      ['image_generations', 'Image generations', 'generations'],
-      ['mint_credits', 'Trial MintCoins', 'MintCoins'],
+      ['text_generations', 'Text/chat generations (legacy)', 'generations'],
+      ['image_generations', 'Starter image generations', 'generations'],
+      ['mint_credits', 'Starter MintCoins (legacy)', 'MintCoins'],
       ['mint_credit_expiry_days', 'Trial MintCoins expire after', 'days'],
     ],
   },
   'ai.quotas': {
-    title: 'Member AI allowance',
-    description: 'Monthly standard AI usage included with membership.',
+    title: 'AI pricing notes',
+    description: 'Legacy quota settings for reference; runtime AI billing is now coin-priced per model.',
     fields: [
       ['text_generations', 'Text generations', 'generations'],
       ['image_generations', 'Image generations', 'generations'],
@@ -128,7 +128,7 @@ const COMMERCE_TABS = [
   {
     id: 'membership',
     label: 'Membership',
-    description: 'Subscriptions, first-time access, MintCoins, and access passes.',
+    description: 'Subscriptions, starter access, MintCoins, and access passes.',
     keys: ['membership.monthly', 'membership.trial', 'access_passes'],
   },
   {
@@ -146,7 +146,7 @@ const COMMERCE_TABS = [
   {
     id: 'ai',
     label: 'AI',
-    description: 'Member AI quotas and public Mint AI landing-page knowledge.',
+    description: 'Legacy AI settings, pricing notes, and public Mint AI knowledge.',
     keys: ['ai.quotas', 'public_qna'],
   },
   {

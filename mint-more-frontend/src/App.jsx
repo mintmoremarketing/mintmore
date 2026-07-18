@@ -58,6 +58,7 @@ import AdminCommerce     from './pages/admin/Commerce'
 import AdminAudit        from './pages/admin/Audit'
 import AdminOperations   from './pages/admin/Operations'
 import AdminTiers        from './pages/admin/Tiers'
+import AdminBrands       from './pages/admin/Brands'
 
 // ── Role-aware route wrappers ─────────────────────────────────────────────────
 
@@ -229,6 +230,7 @@ export default function App() {
           <Route path="/messages" element={<PermissionIfAdmin permission="support.manage"><Chat /></PermissionIfAdmin>} />
           <Route path="/mintbox" element={<ClientOnly><ClientFeature flag="mintbox"><Mintbox /></ClientFeature></ClientOnly>} />
           <Route path="/mintbox/jobs/:jobId" element={<Mintbox />} />
+          <Route path="/mintbox/library/:folderId" element={<Mintbox />} />
           <Route path="/notifications" element={<NotificationsInbox />} />
           <Route path="/support" element={<PermissionIfAdmin permission="support.manage"><Support /></PermissionIfAdmin>} />
           <Route path="/disputes" element={<PermissionIfAdmin permission="support.manage"><Disputes /></PermissionIfAdmin>} />
@@ -245,6 +247,7 @@ export default function App() {
           <Route path="/admin/wallet"     element={<AdminOnly permission="payments.manage"><AdminWallet /></AdminOnly>} />
           <Route path="/admin/ai"         element={<AdminOnly permission="pricing.manage"><AdminAIPanel /></AdminOnly>} />
           <Route path="/admin/tiers"      element={<AdminOnly permission="pricing.manage"><AdminTiers /></AdminOnly>} />
+          <Route path="/admin/brands"     element={<AdminOnly permission="users.manage"><AdminBrands /></AdminOnly>} />
         </Route>
         <Route path="*" element={<RootRedirect />} />
       </Routes>

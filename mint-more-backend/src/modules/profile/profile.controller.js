@@ -42,6 +42,29 @@ const updateAvatar = async (req, res, next) => {
   }
 };
 
+const uploadBrandAsset = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      const { default: AppError } = await import('../../utils/AppError.js').catch(
+        () => ({ default: require('../../utils/AppError') })
+      );
+      throw new AppError('No file uploaded', 400);
+    }
+
+    const profile = await profileService.uploadBrandAsset(req.user.sub, req.file, {
+      kind: req.body.kind,
+      label: req.body.label,
+    });
+
+    return sendSuccess(res, {
+      data: { profile },
+      message: 'Brand asset uploaded successfully',
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const getPublicProfile = async (req, res, next) => {
   try {
     const profile = await profileService.getPublicProfile(req.params.userId);
@@ -62,5 +85,6 @@ const getPricingGuidance = async (req, res, next) => {
 // Add to module.exports:
 module.exports = {
   getMyProfile, updateMyProfile, updateAvatar,
-  getPublicProfile, getPricingGuidance,   // ← ADDED
+  uploadBrandAsset,
+  getPublicProfile, getPricingGuidance,
 };

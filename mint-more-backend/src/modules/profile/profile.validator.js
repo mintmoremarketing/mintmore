@@ -1,5 +1,113 @@
 const AppError = require('../../utils/AppError');
 
+const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const normalizeHex = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(trimmed) ? trimmed : null;
+};
+
+const validatePalette = (palette, errors) => {
+  if (palette === undefined) return;
+  if (!Array.isArray(palette)) {
+    errors.push('brand_assets.palette must be an array of colors');
+    return;
+  }
+  if (palette.length > 12) {
+    errors.push('brand_assets.palette can contain up to 12 colors');
+  }
+  palette.forEach((entry, index) => {
+    if (!isPlainObject(entry)) {
+      errors.push(`brand_assets.palette[${index}] must be an object`);
+      return;
+    }
+    if (entry.hex === undefined || normalizeHex(entry.hex) === null) {
+      errors.push(`brand_assets.palette[${index}].hex must be a valid hex color`);
+    }
+    if (entry.label !== undefined && (typeof entry.label !== 'string' || entry.label.trim().length > 40)) {
+      errors.push(`brand_assets.palette[${index}].label must be a string under 40 characters`);
+    }
+  });
+};
+
+const validateAssetList = (assets, fieldName, errors, limit = 20) => {
+  if (assets === undefined) return;
+  if (!Array.isArray(assets)) {
+    errors.push(`${fieldName} must be an array`);
+    return;
+  }
+  if (assets.length > limit) {
+    errors.push(`${fieldName} can contain up to ${limit} items`);
+  }
+  assets.forEach((entry, index) => {
+    if (!isPlainObject(entry)) {
+      errors.push(`${fieldName}[${index}] must be an object`);
+      return;
+    }
+    if (entry.url !== undefined && (typeof entry.url !== 'string' || !entry.url.trim())) {
+      errors.push(`${fieldName}[${index}].url must be a string`);
+    }
+    if (entry.kind !== undefined && !['logo', 'reference', 'photo', 'file'].includes(entry.kind)) {
+      errors.push(`${fieldName}[${index}].kind must be one of: logo, reference, photo, file`);
+    }
+  });
+};
+
+const validateBrandAssets = (value, errors) => {
+  if (value === undefined) return;
+  if (!isPlainObject(value)) {
+    errors.push('brand_assets must be an object');
+    return;
+  }
+  validatePalette(value.palette, errors);
+  validateAssetList(value.logos, 'brand_assets.logos', errors, 10);
+  validateAssetList(value.references, 'brand_assets.references', errors, 30);
+  validateAssetList(value.photos, 'brand_assets.photos', errors, 30);
+  validateAssetList(value.files, 'brand_assets.files', errors, 60);
+};
+
+const validateGoogleBusiness = (value, errors) => {
+  if (value === undefined) return;
+  if (!isPlainObject(value)) {
+    errors.push('google_business must be an object');
+    return;
+  }
+  const checks = [
+    ['listing_name', 120],
+    ['place_id', 255],
+    ['formatted_address', 255],
+    ['phone', 30],
+    ['website', 255],
+    ['maps_url', 255],
+  ];
+  checks.forEach(([key, maxLength]) => {
+    if (value[key] !== undefined && (typeof value[key] !== 'string' || value[key].trim().length > maxLength)) {
+      errors.push(`google_business.${key} must be a string under ${maxLength} characters`);
+    }
+  });
+};
+
+const validatePostingPreferences = (value, errors) => {
+  if (value === undefined) return;
+  if (!isPlainObject(value)) {
+    errors.push('posting_preferences must be an object');
+    return;
+  }
+  const enums = {
+    festival_mode: ['manual', 'managed', 'hybrid'],
+    content_mode: ['admin_first', 'client_first', 'mixed'],
+    approval_mode: ['app_or_whatsapp', 'app_only', 'whatsapp_only'],
+    publish_mode: ['managed', 'manual', 'hybrid'],
+    cadence: ['monthly', 'weekly', 'custom'],
+  };
+  Object.entries(enums).forEach(([key, allowed]) => {
+    if (value[key] !== undefined && !allowed.includes(value[key])) {
+      errors.push(`posting_preferences.${key} must be one of: ${allowed.join(', ')}`);
+    }
+  });
+};
+
 const validateProfileUpdate = (body) => {
   const { full_name, phone, bio, gender, date_of_birth, skills } = body;
   const errors = [];
@@ -51,7 +159,10 @@ const validateProfileUpdate = (body) => {
     }
   }
 
-  // Add inside validateProfileUpdate, after the skills block:
+  validateBrandAssets(body.brand_assets, errors);
+  validateGoogleBusiness(body.google_business, errors);
+  validatePostingPreferences(body.posting_preferences, errors);
+
   const { price_min, price_max, pricing_visibility } = body;
 
   if (price_min !== undefined) {

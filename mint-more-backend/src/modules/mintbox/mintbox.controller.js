@@ -19,6 +19,86 @@ const listFolders = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const listBrandLibrary = async (req, res, next) => {
+  try {
+    const result = await mintboxService.listBrandLibrary(req.user.sub, req.user.role);
+    return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
+const getBrandFolder = async (req, res, next) => {
+  try {
+    const result = await mintboxService.getBrandFolder(req.params.folderId, req.user.sub, req.user.role);
+    return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
+const createBrandFolder = async (req, res, next) => {
+  try {
+    const folder = await mintboxService.createBrandFolder(req.user.sub, req.user.role, req.body);
+    return sendSuccess(res, { data: { folder }, message: 'Brand folder created', statusCode: 201 });
+  } catch (err) { next(err); }
+};
+
+const updateBrandFolder = async (req, res, next) => {
+  try {
+    const folder = await mintboxService.updateBrandFolder(req.params.folderId, req.user.sub, req.user.role, req.body);
+    return sendSuccess(res, { data: { folder }, message: 'Brand folder updated' });
+  } catch (err) { next(err); }
+};
+
+const deleteBrandFolder = async (req, res, next) => {
+  try {
+    const result = await mintboxService.deleteBrandFolder(req.params.folderId, req.user.sub, req.user.role);
+    return sendSuccess(res, { data: result, message: 'Brand folder deleted' });
+  } catch (err) { next(err); }
+};
+
+const prepareBrandUpload = async (req, res, next) => {
+  try {
+    const upload = await mintboxService.prepareBrandUpload(
+      req.params.folderId,
+      req.user.sub,
+      req.user.role,
+      req.body
+    );
+    return sendSuccess(res, {
+      data: { upload },
+      message: 'Brand upload prepared',
+      statusCode: 201,
+    });
+  } catch (err) { next(err); }
+};
+
+const completeBrandUpload = async (req, res, next) => {
+  try {
+    const file = await mintboxService.completeBrandUpload(
+      req.params.uploadId,
+      req.user.sub,
+      req.user.role
+    );
+    return sendSuccess(res, { data: { file }, message: 'Brand asset uploaded' });
+  } catch (err) { next(err); }
+};
+
+const cancelBrandUpload = async (req, res, next) => {
+  try {
+    const upload = await mintboxService.cancelBrandUpload(
+      req.params.uploadId,
+      req.user.sub,
+      req.user.role
+    );
+    return sendSuccess(res, { data: { upload }, message: 'Brand upload cancelled' });
+  } catch (err) { next(err); }
+};
+
+const deleteBrandFile = async (req, res, next) => {
+  try {
+    const result = await mintboxService.deleteBrandFile(req.params.fileId, req.user.sub, req.user.role);
+    return sendSuccess(res, { data: result, message: 'Brand file deleted' });
+  } catch (err) { next(err); }
+};
+
 const getSharedFolder = async (req, res, next) => {
   try {
     const result = await mintboxService.getFolderByShareToken(
@@ -241,7 +321,9 @@ const completeProject = async (req, res, next) => {
 
 module.exports = {
   listFolders,
+  listBrandLibrary,
   getProjectFolder,
+  getBrandFolder,
   getSharedFolder,
   getPublicSharedFolder,
   getPublicSharedCategory,
@@ -249,6 +331,13 @@ module.exports = {
   streamPublicFile,
   revokeShare,
   rotateShare,
+  createBrandFolder,
+  updateBrandFolder,
+  deleteBrandFolder,
+  prepareBrandUpload,
+  completeBrandUpload,
+  cancelBrandUpload,
+  deleteBrandFile,
   prepareUpload,
   markSeen,
   completeUpload,

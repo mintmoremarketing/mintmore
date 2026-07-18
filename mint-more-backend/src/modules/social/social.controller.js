@@ -14,7 +14,7 @@ const connectPlatform = async (req, res, next) => {
     const { platform } = req.params;
     const url = socialService.getOAuthUrl(platform, req.user.sub);
     return res.redirect(url);
-  } catch (err) { next(err); }
+  } catch (err) { require('fs').writeFileSync('error_trace.txt', err.stack); next(err); }
 };
 
 const oauthCallback = async (req, res, next) => {

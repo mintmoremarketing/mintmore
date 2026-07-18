@@ -302,6 +302,7 @@ const generateVideo = async (openrouterId, prompt, params = {}) => {
     resolution,
     first_frame_url = null,   // image-to-video: URL of first frame
     last_frame_url  = null,   // some models support last frame too
+    reference_urls = [],
   } = normalizedParams;
 
   // Build request body
@@ -314,6 +315,12 @@ const generateVideo = async (openrouterId, prompt, params = {}) => {
   };
 
   const frameImages = [];
+  for (const url of (Array.isArray(reference_urls) ? reference_urls : []).filter(Boolean)) {
+    frameImages.push({
+      type: 'image_url',
+      image_url: { url },
+    });
+  }
   if (first_frame_url) {
     frameImages.push({
       type: 'image_url',

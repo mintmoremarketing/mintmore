@@ -720,6 +720,9 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
     setSelectedAccountIds(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id])
   }
 
+  // Whether the user has entered any content worth saving
+  const hasUnsavedContent = !isEditing && (caption.trim().length > 0 || mediaFiles.length > 0 || mintboxMedia.length > 0)
+
   const persistDraft = async ({ publishNow = false } = {}) => {
     const payload = {
       caption,
@@ -758,8 +761,25 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
       await socialApi.addMedia(post.id, fd)
     }
 
-    await socialApi.publishPost(post.id)
+    // Only publish to queue if explicitly requested
+    if (publishNow) {
+      await socialApi.publishPost(post.id)
+    }
     return post
+  }
+
+  // Silently save draft when user closes with content
+  const saveDraftAndClose = async () => {
+    if (!hasUnsavedContent) { onClose(); return }
+    try {
+      await persistDraft({ publishNow: false })
+      await queryClient.invalidateQueries({ queryKey: ['social-posts'] })
+      pushToast({ title: 'Saved as draft', icon: 'check' })
+    } catch {
+      // If saving fails, just close without blocking the user
+    } finally {
+      onClose()
+    }
   }
 
   const actionMutation = useMutation({
@@ -786,12 +806,14 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
     <Modal
       title={isEditing ? 'Edit draft' : 'Create post'}
       subtitle={isEditing ? 'Update your draft and publish when ready.' : `Step ${step} of 3`}
-      onClose={onClose}
+      onClose={saveDraftAndClose}
       maxWidth={640}
       footer={(
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           {step > 1 && !isEditing && <button className="btn ghost" onClick={() => setStep(s => s - 1)}>Back</button>}
-          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn ghost" onClick={saveDraftAndClose}>
+            {hasUnsavedContent ? 'Save draft' : 'Cancel'}
+          </button>
           {isEditing ? (
             <>
               <button className="btn ghost" onClick={handleSaveDraft} disabled={actionMutation.isPending}>Save draft</button>
@@ -1090,7 +1112,6 @@ export default function Social() {
   const queryClient     = useQueryClient()
   const pushToast       = useUIStore(s => s.pushToast)
   const location        = useLocation()
-  
   const [tab, setTab] = useState(() => location.pathname.includes('/posts') ? 'posts' : 'analytics')
 
   useEffect(() => {
@@ -1233,7 +1254,7 @@ export default function Social() {
               : 'Track reach, engagement, and audience growth across your connected channels.'}
           </p>
         </div>
-        {connectedAccounts.length > 0 && (
+        {connectedAccounts.length > 0 && tab === 'posts' && (
           <button className="bg-ink-950 text-white shadow-md shadow-ink-900/10 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-900 transition-colors" onClick={() => { setEditingPost(null); setShowCreate(true); }}>
             <Icon name="plus" size={16} /> Create post
           </button>
@@ -1323,9 +1344,6 @@ export default function Social() {
               { value: 'published', label: 'Published' },
               { value: 'failed', label: 'Failed' },
             ]} />
-            <button className="btn primary" style={{ marginLeft: 'auto' }} onClick={() => { setEditingPost(null); setShowCreate(true); }}>
-              <Icon name="plus" /> Create post
-            </button>
           </div>
 
           {postsLoading ? (

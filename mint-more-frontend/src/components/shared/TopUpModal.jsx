@@ -53,6 +53,7 @@ export default function TopUpModal({ onClose }) {
 			currency: 'INR',
 			name: 'CREATYV',
 			description: 'Wallet top-up',
+			image: window.location.origin + '/logo-light.png',
 			order_id: order.order_id,
 			theme: { color: '#f77f00' },
 			handler: async (response) => {

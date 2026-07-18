@@ -36,11 +36,14 @@ export const useUIStore = create((set) => ({
 
 	// AI progress
 	aiProgress: {},
+	aiUsageFocus: null,
 
 	setAIProgress: (generationId, status, data) =>
 		set((s) => ({
 			aiProgress: { ...s.aiProgress, [generationId]: { status, ...data } },
 		})),
+
+	setAIUsageFocus: (focus) => set({ aiUsageFocus: focus }),
 
 	clearAIProgress: (generationId) =>
 		set((s) => {

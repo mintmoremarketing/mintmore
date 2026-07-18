@@ -438,7 +438,7 @@ function UserDetailModal({ userId, onClose }) {
 
   const { data: tiers } = useQuery({
     queryKey: ['admin-tiers'],
-    queryFn: () => commerceApi.getTiers().then(res => res.data.data.tiers),
+    queryFn: () => commerceApi.getTiers().then(res => res.data.data),
     enabled: user?.role === 'client'
   })
 

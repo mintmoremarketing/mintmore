@@ -11,9 +11,9 @@ const listTiers = async (includeInactive = false) => {
 const updateTier = async (id, data) => {
   const result = await query(
     `UPDATE subscription_tiers 
-     SET name = $1, price = $2, features = $3, is_active = $4, updated_at = NOW()
+     SET name = $1, price = $2, features = $3, is_active = $4, annual_price = $6, annual_razorpay_plan_id = $7, monthly_credits = $8, updated_at = NOW()
      WHERE id = $5 RETURNING *`,
-    [data.name, data.price, JSON.stringify(data.features || []), data.is_active, id]
+    [data.name, data.price, JSON.stringify(data.features || []), data.is_active, id, data.annual_price || 0, data.annual_razorpay_plan_id || null, data.monthly_credits || 0]
   );
   if (!result.rows[0]) throw Object.assign(new Error('Tier not found'), { statusCode: 404 });
   return result.rows[0];
@@ -21,9 +21,9 @@ const updateTier = async (id, data) => {
 
 const createTier = async (data) => {
   const result = await query(
-    `INSERT INTO subscription_tiers (name, price, features, is_active)
-     VALUES ($1, $2, $3, $4) RETURNING *`,
-    [data.name, data.price, JSON.stringify(data.features || []), data.is_active !== false]
+    `INSERT INTO subscription_tiers (name, price, features, is_active, annual_price, annual_razorpay_plan_id, monthly_credits)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [data.name, data.price, JSON.stringify(data.features || []), data.is_active !== false, data.annual_price || 0, data.annual_razorpay_plan_id || null, data.monthly_credits || 0]
   );
   return result.rows[0];
 };

@@ -54,6 +54,7 @@ export default function MintcoinModal({ onClose }) {
 			currency: 'INR',
 			name: 'CREATYV AI',
 			description: 'Mintcoin Recharge',
+			image: window.location.origin + '/logo-light.png',
 			order_id: order.order_id,
 			theme: { color: '#8b5cf6' }, // Purple tone for AI
 			handler: async (response) => {

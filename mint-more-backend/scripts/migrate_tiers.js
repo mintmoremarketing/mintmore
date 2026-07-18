@@ -7,8 +7,12 @@ async function migrate() {
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         name VARCHAR NOT NULL,
         price NUMERIC NOT NULL DEFAULT 0,
+        annual_price NUMERIC DEFAULT 0,
+        monthly_credits NUMERIC DEFAULT 0,
         features JSONB DEFAULT '[]'::jsonb,
         is_active BOOLEAN DEFAULT true,
+        razorpay_plan_id VARCHAR,
+        annual_razorpay_plan_id VARCHAR,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
@@ -19,10 +23,10 @@ async function migrate() {
     if (tiers.rows.length === 0) {
       // Create defaults
       await query(`
-        INSERT INTO subscription_tiers (name, price, features) VALUES 
-        ('Basic', 0, '["mint_ai"]'),
-        ('Middle', 999, '["mint_ai", "social_insights", "posting", "calendar_creatives"]'),
-        ('Top', 4999, '["mint_ai", "social_insights", "posting", "custom_requests", "calendar_creatives"]')
+        INSERT INTO subscription_tiers (name, price, annual_price, monthly_credits, features) VALUES 
+        ('FREE', 0, 0, 1000, '["mint_ai", "mintbox_10gb"]'),
+        ('SOCIAL', 1999, 20388, 10000, '["mint_ai", "social_insights", "posting", "calendar_creatives", "mintbox_100gb"]'),
+        ('MANAGED BY MMM', 9999, 95988, 10000, '["mint_ai", "social_insights", "posting", "calendar_creatives", "custom_requests", "mintbox_250gb"]')
       `);
       console.log('Default tiers inserted.');
     }

@@ -2,13 +2,36 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AskAnythingWidget from './landing/AskAnythingWidget'
 import LandingHero from './landing/LandingHero'
-import MintAISection from './landing/MintAISection'
-import WorkflowSteps from './landing/WorkflowSteps'
-import FeaturesTabs from './landing/FeaturesTabs'
-import AudienceSection from './landing/AudienceSection'
-import DashboardTeaserSection from './landing/DashboardTeaserSection'
-import FAQSection from './landing/FAQSection'
 import { navItems } from './landing/landingContent'
+import {
+  CreatorsSection,
+  ManagedSection,
+  RoadmapSection,
+  SocialSection,
+  PricingSection,
+  ProofStrip,
+  StatsRow,
+  WorkflowSection,
+} from './landing/LandingSections'
+
+const ANNOUNCEMENT = 'Creatyv Phase 1 is now live. Create your account and start for free.'
+
+function AnnouncementBar() {
+  return (
+    <div className="landing-announcement" role="status" aria-label={ANNOUNCEMENT}>
+      <div className="landing-announcement-track">
+        <div className="landing-announcement-group">
+          <span>{ANNOUNCEMENT}</span>
+          <span aria-hidden="true">{ANNOUNCEMENT}</span>
+        </div>
+        <div className="landing-announcement-group" aria-hidden="true">
+          <span>{ANNOUNCEMENT}</span>
+          <span>{ANNOUNCEMENT}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function Landing() {
   const rootRef = useRef(null)
@@ -38,8 +61,23 @@ export default function Landing() {
         if (!entry.isIntersecting || entry.target.dataset.animated) return
         entry.target.dataset.animated = 'true'
 
+        if (entry.target.classList.contains('landing-stat-number')) {
+          const target = Number(entry.target.dataset.target || 0)
+          const suffix = entry.target.dataset.suffix || ''
+          anime({
+            targets: { value: 0 },
+            value: target,
+            duration: 1100,
+            easing: 'easeOutCubic',
+            update: anim => {
+              entry.target.textContent = `${Math.round(anim.animatables[0].target.value).toLocaleString('en-IN')}${suffix}`
+            },
+          })
+          return
+        }
+
         anime({
-          targets: entry.target.querySelectorAll('.landing-card, .landing-animate'),
+          targets: entry.target.querySelectorAll('.landing-card, .landing-pricing-card, .landing-value-card, .landing-bento-card, .landing-story-card, .landing-integration-board article, .landing-swipe-card, .landing-social-tile'),
           translateY: [24, 0],
           opacity: [0, 1],
           delay: anime.stagger(100),
@@ -49,7 +87,7 @@ export default function Landing() {
       })
     }, { threshold: 0.18 })
 
-    rootRef.current.querySelectorAll('.landing-animate').forEach(el => observer.observe(el))
+    rootRef.current.querySelectorAll('.landing-animate, .landing-stat-number').forEach(el => observer.observe(el))
     return () => observer.disconnect()
   }, [])
 
@@ -89,11 +127,12 @@ export default function Landing() {
 
   return (
     <main className="landing-page" ref={rootRef}>
+      <AnnouncementBar />
       <nav className="landing-nav">
-        <Link to="/" className="landing-logo">CREATYV <span>by Mint More</span></Link>
+        <Link to="/" className="landing-logo">CREATYV <span>by Mint More Marketing</span></Link>
         <div className="landing-links">
           {navItems.map(item => (
-            <a key={item} href={`#${item.toLowerCase().replaceAll(' ', '-')}`} onClick={scrollToSection}>{item}</a>
+            <a key={item.id} href={`#${item.id}`} onClick={scrollToSection}>{item.label}</a>
           ))}
         </div>
         <div className="landing-nav-actions">
@@ -103,34 +142,14 @@ export default function Landing() {
       </nav>
 
       <LandingHero spotlight={spotlight} onMoveSpotlight={moveSpotlight} onSetSpotlight={setSpotlight} />
-      
-      <MintAISection />
-      <WorkflowSteps />
-      <FeaturesTabs />
-      <AudienceSection />
-      <DashboardTeaserSection />
-      <FAQSection />
-
-      {/* Final CTA Section */}
-      <section className="py-32 px-4 bg-[var(--landing-accent-wash)] text-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-[var(--landing-accent)]"></div>
-        <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-8 text-[#15120f]" style={{ fontFamily: 'var(--font-landing-display)' }}>
-          Your next month of content<br/>can start today.
-        </h2>
-        <p className="text-xl text-[#15120f]/70 font-medium max-w-3xl mx-auto mb-12">
-          Create social media content with AI, organise your ideas and keep your brand consistently active from one simple workspace.
-        </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link to="/register" className="landing-primary px-10 py-4 rounded-full font-bold text-lg transition-transform hover:scale-105">
-            Create for Free
-          </Link>
-          <button className="px-10 py-4 rounded-full font-bold text-lg text-[#15120f] border border-[#15120f]/20 hover:bg-[#15120f]/5 transition-colors bg-white">
-            Contact Mint More Marketing
-          </button>
-        </div>
-        <p className="mt-8 font-bold text-[#15120f]">Create for your brand. Switch to Creatyv.</p>
-      </section>
-
+      <ProofStrip />
+      <WorkflowSection />
+      <StatsRow />
+      <ManagedSection />
+      <SocialSection />
+      <PricingSection />
+      <RoadmapSection />
+      <CreatorsSection />
       <AskAnythingWidget visible={showAsk && !footerVisible} />
 
       <footer className="landing-footer" ref={footerRef}>
@@ -186,16 +205,15 @@ export default function Landing() {
             <span>Privacy</span>
             <span>Terms</span>
             <span>Security</span>
-            <span>Refund and Cancellation Policy</span>
           </div>
         </div>
         <div className="landing-footer-grid">
           <strong>CREATYV</strong>
-          <span>Built by Mint More Marketing.</span>
+          <span>Creative work, managed by Mint More.</span>
         </div>
         <div className="landing-footer-bottom">
-          <span>© 2026 Creatyv. All rights reserved.</span>
-          <span>Get Creative with Creatyv.</span>
+          <span>(c) 2026 Mint More Marketing</span>
+          <span>Built for Indian businesses that need content every month.</span>
         </div>
       </footer>
     </main>

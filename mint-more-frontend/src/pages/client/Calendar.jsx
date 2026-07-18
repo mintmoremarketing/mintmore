@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { creativeApi } from '../../api/creative'
 import { useUIStore } from '../../store/ui'
@@ -32,6 +33,7 @@ const startOfDay = (date) => {
 const sameDay = (a, b) => startOfDay(a).getTime() === startOfDay(b).getTime()
 
 export default function Calendar() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const pushToast = useUIStore(s => s.pushToast)
   const [month, setMonth] = useState(monthKey())
@@ -74,6 +76,21 @@ export default function Calendar() {
   const pendingCost = selectedPending.reduce((sum, event) => sum + Number(event.coin_cost || 1), 0)
   const balance = Number(data?.balance || 0)
   const overBalance = pendingCost > balance
+  const formatDateInput = (date) => {
+    const d = startOfDay(date)
+    const year = d.getFullYear()
+    const monthPart = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${monthPart}-${day}`
+  }
+  const openRequestForDate = (date) => {
+    navigate(`/jobs/new?deadline=${formatDateInput(date)}`)
+    pushToast({
+      title: 'Date selected',
+      body: 'We opened a new request with this date already filled in.',
+      icon: 'calendar',
+    })
+  }
 
   const calendarCells = useMemo(() => {
     const [year, monthNum] = month.split('-').map(Number)
@@ -191,6 +208,18 @@ export default function Calendar() {
               >
                 {!cell.blank && (
                   <>
+                    <button
+                      type="button"
+                      className="calendar-day-add"
+                      title={`Create a request for ${cell.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
+                      aria-label={`Create a request for ${cell.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openRequestForDate(cell.date)
+                      }}
+                    >
+                      <Icon name="plus" size={12} />
+                    </button>
                     <div className="row between" style={{ marginBottom: 8 }}>
                       <strong style={{ fontSize: 13 }}>{cell.date.getDate()}</strong>
                       {sameDay(cell.date, new Date()) && <span className="badge mint">Today</span>}

@@ -1,4 +1,5 @@
 const adminService = require('./admin.service');
+const brandService = require('../brand/brand.service');
 const {
   validateApproveUser,
   validateSetFreelancerLevel,
@@ -33,6 +34,27 @@ const getUserById = async (req, res, next) => {
     const detail = await adminService.getUserById(req.params.userId);
     return sendSuccess(res, { data: detail });
   } catch (err) { next(err); }
+};
+
+const getBrandWorkspaces = async (req, res, next) => {
+  try {
+    const data = await brandService.listBrandWorkspaces({
+      limit: parseInt(req.query.limit, 10) || 100,
+      search: req.query.search || '',
+    });
+    return sendSuccess(res, { data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getBrandWorkspace = async (req, res, next) => {
+  try {
+    const data = await brandService.getBrandWorkspace(req.params.userId);
+    return sendSuccess(res, { data });
+  } catch (err) {
+    next(err);
+  }
 };
 
 const setUserApproval = async (req, res, next) => {
@@ -227,6 +249,8 @@ const retryOutbox = async (req, res, next) => {
 module.exports = {
   getUsers,
   getUserById,
+  getBrandWorkspaces,
+  getBrandWorkspace,
   setUserApproval,
   setUserTier,
   createAdminUser,

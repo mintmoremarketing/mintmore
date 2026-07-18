@@ -22,27 +22,10 @@ export default function ProfilePopover({ onClose }) {
   }
 
   return (
-    <div className="profile-popover" ref={ref}>
-      <div className="profile-popover-summary">
-        <div className="avatar">
-          {user?.avatar_url ? (
-            <img src={user.avatar_url} alt="" />
-          ) : (
-            (user?.full_name || 'U').split(' ').map(part => part[0]).slice(0, 2).join('')
-          )}
-        </div>
-        <div>
-          <strong>{user?.full_name}</strong>
-          <span>{user?.email}</span>
-        </div>
-        <span className="profile-role">{user?.role}</span>
-      </div>
-      <div className="profile-popover-menu">
-        <button onClick={() => go('/settings?section=profile')}><Icon name="user" /><span>Edit profile</span><Icon name="chevronRight" /></button>
-        <button onClick={() => go('/settings?section=account')}><Icon name="settings" /><span>Account settings</span><Icon name="chevronRight" /></button>
-        {!['admin', 'designer'].includes(user?.role) && <button onClick={() => go('/settings?section=verification')}><Icon name="shield" /><span>Verification</span><Icon name="chevronRight" /></button>}
-      </div>
-      <button className="profile-signout" onClick={() => { logout(); onClose() }}><Icon name="arrowRight" /> Sign out</button>
+    <div className="profile-popover" ref={ref} style={{ width: 'auto', minWidth: '150px' }}>
+      <button className="profile-signout" onClick={() => { logout(); onClose() }} style={{ width: '100%', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', fontWeight: '500' }}>
+        <Icon name="arrowRight" /> Sign out
+      </button>
     </div>
   )
 }

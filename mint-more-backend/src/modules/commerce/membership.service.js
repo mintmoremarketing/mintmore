@@ -49,7 +49,7 @@ const getMembership = async (userId) => {
   return result.rows[0] || null;
 };
 
-const createCheckout = async (userId, { kind = 'membership', days, tier_id } = {}) => {
+const createCheckout = async (userId, { kind = 'membership', days, tier_id, billing_cycle = 'monthly' } = {}) => {
   const config = await getSetting(kind === 'access_pass' ? 'access_passes' : 'membership.monthly', {});
   let pass = null;
   let amount = 0;
@@ -63,8 +63,14 @@ const createCheckout = async (userId, { kind = 'membership', days, tier_id } = {
     const tierResult = await query('SELECT * FROM subscription_tiers WHERE id = $1', [tier_id]);
     const tier = tierResult.rows[0];
     if (!tier) throw new AppError('Tier not found', 404);
-    amount = Number(tier.price);
-    razorpayPlanId = tier.razorpay_plan_id;
+    
+    if (billing_cycle === 'annual') {
+      amount = Number(tier.annual_price || tier.price * 12);
+      razorpayPlanId = tier.annual_razorpay_plan_id || null;
+    } else {
+      amount = Number(tier.price);
+      razorpayPlanId = tier.razorpay_plan_id;
+    }
   } else {
     amount = Number(config.price || 999);
     razorpayPlanId = config.razorpay_plan_id;
@@ -113,12 +119,13 @@ const createCheckout = async (userId, { kind = 'membership', days, tier_id } = {
     if (membership?.razorpay_subscription_id && membership.auto_renew && membership.status === 'active' && membership.tier_id === tier_id) {
       throw new AppError('Your recurring membership for this tier is already active', 409);
     }
+    const totalCount = billing_cycle === 'annual' ? 10 : Number(config.subscription_cycles || 120);
     const subscription = await callRazorpay('subscriptions.create', () => razorpay.subscriptions.create({
       plan_id: razorpayPlanId,
-      total_count: Number(config.subscription_cycles || 120),
+      total_count: totalCount,
       quantity: 1,
       customer_notify: true,
-      notes: { user_id: userId, purpose: 'membership', tier_id: tier_id || '' },
+      notes: { user_id: userId, purpose: 'membership', tier_id: tier_id || '', billing_cycle },
     }));
     await query(
       `UPDATE memberships
@@ -136,7 +143,7 @@ const createCheckout = async (userId, { kind = 'membership', days, tier_id } = {
         userId,
         amount,
         subscription.id,
-        JSON.stringify({ recurring: true, plan_id: config.razorpay_plan_id }),
+        JSON.stringify({ recurring: true, plan_id: razorpayPlanId, billing_cycle }),
       ]
     );
     return {
@@ -197,9 +204,18 @@ const activatePayment = async (dbClient, payment, paymentId) => {
       [payment.user_id, payment.id]
     );
     const isRenewal = Boolean(priorPayment.rows[0]);
-    const creditAmount = Number(isRenewal ? config.renewal_credits : config.welcome_credits);
-    const expiryDays = Number(isRenewal ? config.renewal_expiry_days : config.welcome_expiry_days);
     const tierId = payment.metadata?.tier_id;
+    
+    let creditAmount = Number(isRenewal ? config.renewal_credits : config.welcome_credits);
+    if (tierId) {
+      const tierRes = await dbClient.query('SELECT monthly_credits FROM subscription_tiers WHERE id=$1', [tierId]);
+      if (tierRes.rows[0] && tierRes.rows[0].monthly_credits > 0) {
+        creditAmount = Number(tierRes.rows[0].monthly_credits);
+      }
+    }
+    
+    const expiryDays = Number(isRenewal ? config.renewal_expiry_days : config.welcome_expiry_days);
+    
     await dbClient.query(
       `UPDATE memberships
        SET status='active', current_period_start=NOW(),

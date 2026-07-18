@@ -25,6 +25,7 @@ router.post(
   controller.uploadReference
 );
 router.post('/engine/image/generate', requireEntitlement('can_use_ai'), controller.generateEngineImage);
+router.post('/engine/video/generate', requireEntitlement('can_use_ai'), controller.generateEngineVideo);
 
 // ── Generation ────────────────────────────────────────────────────────────────
 

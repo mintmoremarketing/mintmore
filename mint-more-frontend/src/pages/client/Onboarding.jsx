@@ -77,6 +77,7 @@ export default function Onboarding() {
   return (
     <div className="stack-6" style={{ maxWidth: 860 }}>
       <div>
+        <img src="/logo-dark.png" alt="CREATYV Logo" className="w-12 h-12 object-contain rounded mb-4" />
         <div className="h-eyebrow">Getting started</div>
         <h1 className="h-display h-1" style={{ margin: '5px 0 0' }}>Tell CREATYV about your business</h1>
         <p className="muted">This context improves briefs, AI output, matching, and onboarding support. You can update it later.</p>

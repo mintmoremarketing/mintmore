@@ -20,6 +20,8 @@ const { generateImage: generatePollinationsImage } = require('./providers/pollin
 const { generateImage: generateReplicateImage } = require('./providers/replicate.provider');
 const {
   buildEnhancementMessages,
+  buildVideoEnhancementMessages,
+  parseImagePromptIntent,
   composeImagePrompt,
   normalizeEnhancedPrompt,
 } = require('./image-prompt.orchestrator');
@@ -32,8 +34,6 @@ const {
   getCreditAccount,
   expireCreditsForUser,
 } = require('../commerce/credits.service');
-const { getSetting } = require('../commerce/settings.service');
-const { getWalletByUserId, recordTransaction } = require('../wallet/wallet.service');
 
 const RATE_LIMIT_KEY      = (userId) => `ai:ratelimit:${userId}`;
 const AI_PROGRESS_CHANNEL = 'mint_more:ai_progress';
@@ -41,6 +41,7 @@ const userPrice = (model) => Number(model?.user_price_per_1k_tokens ?? model?.co
 const IMAGE_REFERENCE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const IMAGE_REFERENCE_MAX_BYTES = 5 * 1024 * 1024;
 const RESOLUTION_MULTIPLIERS = { '1K': 1, '2K': 4, '4K': 16 };
+const TRIAL_IMAGE_GENERATIONS_LIMIT = 5;
 
 const parseJsonObject = (value) => {
   if (!value) return {};
@@ -51,16 +52,38 @@ const parseJsonObject = (value) => {
   return {};
 };
 
+const getSupportedTools = (model) => {
+  const tools = parseJsonObject(model?.supported_tools);
+  if (Array.isArray(tools)) return tools.map((tool) => String(tool).toLowerCase());
+  return [];
+};
+
+const getTierAliases = (model, resolutionTier = '1K') => {
+  const tier = String(resolutionTier || '1K');
+  const isVideoModel = getSupportedTools(model).includes('video');
+
+  if (isVideoModel) {
+    if (tier === 'normal') return ['normal', '1K'];
+    if (tier === '2560p') return ['2560p', '2K', '4K'];
+    if (tier === '1K') return ['1K', 'normal'];
+    if (tier === '2K' || tier === '4K') return [tier, '2560p'];
+  }
+
+  return [tier];
+};
+
 const isUnlimitedForResolution = (model, resolutionTier = '1K') => {
   const tiers = parseJsonObject(model?.is_unlimited_tier);
-  return Boolean(tiers[resolutionTier]);
+  return getTierAliases(model, resolutionTier).some((tier) => Boolean(tiers[tier]));
 };
 
 const modelResolutionCost = (model, resolutionTier = '1K') => {
   if (isUnlimitedForResolution(model, resolutionTier)) return 0;
   const customCosts = parseJsonObject(model.mintcoin_costs);
-  if (customCosts && customCosts[resolutionTier] !== undefined) {
-    return Number(customCosts[resolutionTier] || 0);
+  for (const tier of getTierAliases(model, resolutionTier)) {
+    if (customCosts && customCosts[tier] !== undefined) {
+      return Number(customCosts[tier] || 0);
+    }
   }
   const multiplier = RESOLUTION_MULTIPLIERS[resolutionTier] || 1;
   return Math.max(0, Math.ceil(userPrice(model) * multiplier));
@@ -209,39 +232,97 @@ const checkRateLimit = async (userId) => {
   }
 };
 
-const assertIncludedQuota = async (userId, toolType, model) => {
-  if (userPrice(model) > 0) return;
-  const membershipResult = await query(
-    'SELECT status, current_period_start FROM memberships WHERE user_id = $1',
+const getMembershipTrialState = async (userId, dbClient = null, forUpdate = false) => {
+  const executor = dbClient || { query };
+  const result = await executor.query(
+    `SELECT id, status, trial_image_generations_used, trial_image_generations_limit
+     FROM memberships
+     WHERE user_id = $1
+     ${forUpdate ? 'FOR UPDATE' : ''}`,
     [userId]
   );
-  const membership = membershipResult.rows[0];
-  if (!membership) throw new AppError('AI access requires a membership or trial', 403);
+  return result.rows[0] || null;
+};
 
-  const isTrial = membership.status === 'trial';
-  const quota = await getSetting(isTrial ? 'membership.trial' : 'ai.quotas', {});
-  const group = toolType === 'image' ? 'image' : toolType === 'video' ? 'video' : 'text';
-  const limit = Number(quota[`${group}_generations`] || 0);
-  if (!limit) throw new AppError(`No included ${group} generations are configured`, 403);
+const consumeTrialImageGeneration = async (userId, count = 1) => {
+  const units = Math.max(1, Number(count || 1));
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+    const membership = await getMembershipTrialState(userId, dbClient, true);
+    if (!membership || membership.status !== 'trial') {
+      await dbClient.query('COMMIT');
+      return {
+        applied: false,
+        used: Number(membership?.trial_image_generations_used || 0),
+        limit: Number(membership?.trial_image_generations_limit || TRIAL_IMAGE_GENERATIONS_LIMIT),
+        remaining: 0,
+      };
+    }
 
-  const tools = group === 'text' ? ['text', 'caption', 'video_script', 'repurpose'] : [group];
-  const usage = await query(
-    `SELECT COUNT(*)::int AS count
-     FROM ai_generations
-     WHERE user_id = $1
-       AND tool_type::text = ANY($2::text[])
-       AND created_at >= COALESCE($3::timestamptz, date_trunc('month', NOW()))
-       AND status <> 'failed'`,
-    [userId, tools, isTrial ? membership.current_period_start : null]
-  );
-  if (usage.rows[0].count >= limit) {
-    throw new AppError(`Included ${group} generation quota reached. Choose a premium model or wait for renewal.`, 402);
+    const limit = Math.max(0, Number(membership.trial_image_generations_limit || TRIAL_IMAGE_GENERATIONS_LIMIT));
+    const used = Math.max(0, Number(membership.trial_image_generations_used || 0));
+    if (used + units > limit) {
+      await dbClient.query('COMMIT');
+      return {
+        applied: false,
+        used,
+        limit,
+        remaining: Math.max(0, limit - used),
+      };
+    }
+
+    const nextUsed = used + units;
+    await dbClient.query(
+      'UPDATE memberships SET trial_image_generations_used = $1 WHERE id = $2',
+      [nextUsed, membership.id]
+    );
+    await dbClient.query('COMMIT');
+    return {
+      applied: true,
+      used: nextUsed,
+      limit,
+      remaining: Math.max(0, limit - nextUsed),
+    };
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    dbClient.release();
+  }
+};
+
+const releaseTrialImageGeneration = async (userId, count = 1) => {
+  const units = Math.max(1, Number(count || 1));
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+    const membership = await getMembershipTrialState(userId, dbClient, true);
+    if (membership && membership.status === 'trial') {
+      const used = Math.max(0, Number(membership.trial_image_generations_used || 0));
+      const nextUsed = Math.max(0, used - units);
+      if (nextUsed !== used) {
+        await dbClient.query(
+          'UPDATE memberships SET trial_image_generations_used = $1 WHERE id = $2',
+          [nextUsed, membership.id]
+        );
+      }
+    }
+    await dbClient.query('COMMIT');
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    logger.warn('Trial image generation release failed', {
+      userId,
+      error: err.message,
+    });
+  } finally {
+    dbClient.release();
   }
 };
 
 // ── Credit Deduction ──────────────────────────────────────────────────────────
 
-const deductCredits = async (userId, generationId, creditCost, isMintcoinOnly = false) => {
+const deductCredits = async (userId, generationId, creditCost) => {
   if (creditCost <= 0) return;
 
   await expireCreditsForUser(userId);
@@ -253,46 +334,24 @@ const deductCredits = async (userId, generationId, creditCost, isMintcoinOnly = 
       'SELECT amount FROM mint_credit_transactions WHERE idempotency_key = $1',
       [`ai-credit:${generationId}`]
     );
-    const creditAccount = await getCreditAccount(userId, dbClient, true);
-    const creditSpend = existingCreditTx.rows[0]
-      ? Math.abs(Number(existingCreditTx.rows[0].amount))
-      : Math.min(Number(creditAccount.balance), Number(creditCost));
-    if (creditSpend > 0) {
-      await recordCreditTransaction(dbClient, {
-        userId,
-        type: 'platform_spend',
-        amount: -creditSpend,
-        referenceId: generationId,
-        referenceType: 'ai_generation',
-        idempotencyKey: `ai-credit:${generationId}`,
-        description: 'Mint AI generation',
-      });
-    }
-    const cashSpend = Number(creditCost) - creditSpend;
-    if (cashSpend <= 0) {
+    if (existingCreditTx.rows[0]) {
       await dbClient.query('COMMIT');
       return;
     }
-    
-    if (isMintcoinOnly) {
+
+    const creditAccount = await getCreditAccount(userId, dbClient, true);
+    if (Number(creditAccount.balance) < Number(creditCost)) {
       throw new AppError('Insufficient Mintcoins for this generation', 402);
     }
 
-    const wallet = await getWalletByUserId(userId, dbClient, true);
-    if (!wallet || parseFloat(wallet.balance) < cashSpend) {
-      throw new AppError('Insufficient balance for this AI generation', 402);
-    }
-
-    await recordTransaction(dbClient, {
-      walletId: wallet.id,
+    await recordCreditTransaction(dbClient, {
       userId,
-      type: 'adjustment',
-      amount: -cashSpend,
+      type: 'platform_spend',
+      amount: -Number(creditCost),
       referenceId: generationId,
       referenceType: 'ai_generation',
-      idempotencyKey: `ai-cash:${generationId}`,
+      idempotencyKey: `ai-credit:${generationId}`,
       description: 'Mint AI generation',
-      metadata: { generation_id: generationId },
     });
 
     await dbClient.query('COMMIT');
@@ -311,6 +370,15 @@ const refundPrepaidGenerationCredits = async (userId, generationId) => {
   const dbClient = await getClient();
   try {
     await dbClient.query('BEGIN');
+
+    const generationResult = await dbClient.query(
+      'SELECT parameters FROM ai_generations WHERE id = $1 FOR UPDATE',
+      [generationId]
+    );
+    const generationParams = generationResult.rows[0]?.parameters || {};
+    if (generationParams._trial_image_generation) {
+      await releaseTrialImageGeneration(userId);
+    }
 
     const creditTx = await dbClient.query(
       'SELECT amount FROM mint_credit_transactions WHERE idempotency_key = $1',
@@ -333,32 +401,6 @@ const refundPrepaidGenerationCredits = async (userId, generationId) => {
         referenceType: 'ai_generation',
         idempotencyKey: `ai-credit-refund:${generationId}`,
         description: 'Mint AI generation refund - queue unavailable',
-      });
-    }
-
-    const cashTx = await dbClient.query(
-      'SELECT wallet_id, amount FROM wallet_transactions WHERE idempotency_key = $1',
-      [`ai-cash:${generationId}`]
-    );
-    const existingCashRefund = await dbClient.query(
-      'SELECT id FROM wallet_transactions WHERE idempotency_key = $1',
-      [`ai-cash-refund:${generationId}`]
-    );
-    const cashRefund = cashTx.rows[0] && !existingCashRefund.rows[0]
-      ? Math.abs(Number(cashTx.rows[0].amount))
-      : 0;
-
-    if (cashRefund > 0) {
-      await recordTransaction(dbClient, {
-        walletId: cashTx.rows[0].wallet_id,
-        userId,
-        type: 'adjustment',
-        amount: cashRefund,
-        referenceId: generationId,
-        referenceType: 'ai_generation',
-        idempotencyKey: `ai-cash-refund:${generationId}`,
-        description: 'Mint AI generation refund - queue unavailable',
-        metadata: { generation_id: generationId },
       });
     }
 
@@ -419,58 +461,40 @@ const createGeneration = async (userId, {
 
   const engineCost = Number(normalizedParameters._engine_credit_cost || 0);
   const engineUnlimited = normalizedParameters._engine_unlimited === true;
+  const isTextTool = ['text', 'caption', 'video_script', 'repurpose'].includes(String(tool_type));
+  const isImageTool = tool_type === 'image';
+  const isVideoTool = tool_type === 'video';
 
-  if (!engineUnlimited && engineCost <= 0) {
-    await assertIncludedQuota(userId, tool_type, model);
-  }
   await checkRateLimit(userId);
 
   // Credit preflight check
-  let preflightCost = engineCost > 0 ? engineCost : userPrice(model);
-  let isMintcoinPayment = false;
-  
-  if (tool_type === 'image' || tool_type === 'video') {
-    isMintcoinPayment = true;
-    const resKey = tool_type === 'video' 
-      ? (normalizedParameters.resolution_tier || 'normal')
-      : (normalizedParameters.resolution_tier || '1K');
-      
-    const mintcoinCosts = model.mintcoin_costs || {};
-    if (mintcoinCosts[resKey]) {
-      preflightCost = Number(mintcoinCosts[resKey]);
-    } else {
-      // Default fallback if not set in admin
-      preflightCost = tool_type === 'image' ? 5 : 50;
+  let preflightCost = isTextTool ? 0 : (engineCost > 0 ? engineCost : userPrice(model));
+
+  if (isImageTool && !engineUnlimited && preflightCost > 0) {
+    const trialResult = await consumeTrialImageGeneration(userId, 1);
+    if (trialResult.applied) {
+      preflightCost = 0;
+      normalizedParameters._trial_image_generation = true;
+      normalizedParameters._engine_credit_cost = 0;
+      normalizedParameters._engine_deduct_before_enqueue = false;
     }
   }
 
-  if (!engineUnlimited && preflightCost > 0) {
+  if ((isImageTool || isVideoTool) && !engineUnlimited && preflightCost > 0) {
     await expireCreditsForUser(userId);
     const walletResult = await query(
-      `SELECT COALESCE(w.balance, 0) AS cash_balance,
-              COALESCE(c.balance, 0) AS credit_balance
+      `SELECT COALESCE(c.balance, 0) AS credit_balance
        FROM mint_credit_accounts c
-       LEFT JOIN wallets w ON w.user_id = c.user_id
        WHERE c.user_id = $1`,
       [userId]
     );
-    
-    if (isMintcoinPayment) {
-      const availableMintcoins = Number(walletResult.rows[0]?.credit_balance || 0);
-      if (availableMintcoins < preflightCost) {
-        throw new AppError(
-          `INSUFFICIENT_MINTCOINS: You need ${preflightCost} Mintcoins to generate this ${tool_type}.`,
-          402
-        );
-      }
-    } else {
-      const available = Number(walletResult.rows[0]?.cash_balance || 0) + Number(walletResult.rows[0]?.credit_balance || 0);
-      if (available < preflightCost) {
-        throw new AppError(
-          `Insufficient wallet balance. This model costs ₹${(preflightCost / 100).toFixed(2)} per 1K tokens. Add credits to continue.`,
-          402
-        );
-      }
+
+    const availableMintcoins = Number(walletResult.rows[0]?.credit_balance || 0);
+    if (availableMintcoins < preflightCost) {
+      throw new AppError(
+        `INSUFFICIENT_MINTCOINS: You need ${preflightCost} Mintcoins to generate this ${tool_type}.`,
+        402
+      );
     }
   }
 
@@ -667,7 +691,9 @@ const processGeneration = async (generationId) => {
       const prepaidEngineCost = params._engine_deduct_before_enqueue
         ? Number(params._engine_credit_cost || 0)
         : 0;
-      const creditCost = prepaidEngineCost > 0 ? prepaidEngineCost : userPrice(model);
+      const creditCost = params._trial_image_generation
+        ? 0
+        : (prepaidEngineCost > 0 ? prepaidEngineCost : userPrice(model));
       if (!prepaidEngineCost && creditCost > 0) {
         await deductCredits(generation.user_id, generationId, creditCost);
       }
@@ -701,7 +727,49 @@ const processGeneration = async (generationId) => {
       );
     } else if (isVideo) {
       // ── Video generation ────────────────────────────────────────────────────
-      result = await generateVideo(openrouterId, generation.prompt, params);
+      const supplementalReferenceUrls = [];
+      const startReferenceAlias = params.start_reference_alias || null;
+      const endReferenceAlias = params.end_reference_alias || null;
+      const references = Array.isArray(params.engine_metadata?.references)
+        ? params.engine_metadata.references
+        : [];
+      for (const reference of references) {
+        if (!reference?.bucket || !reference?.path) continue;
+        if (reference.alias === startReferenceAlias || reference.alias === endReferenceAlias) continue;
+        try {
+          const signed = await createSignedDownloadUrl(reference.bucket, reference.path, 900);
+          if (signed) supplementalReferenceUrls.push(signed);
+        } catch (err) {
+          logger.warn('AI video reference signing failed', {
+            generationId,
+            referenceId: reference.id,
+            error: err.message,
+          });
+        }
+      }
+
+      const startFrameReference = startReferenceAlias
+        ? references.find((item) => item.alias === startReferenceAlias) || null
+        : null;
+      const endFrameReference = endReferenceAlias
+        ? references.find((item) => item.alias === endReferenceAlias) || null
+        : null;
+      const startFrameUrl = startFrameReference?.bucket && startFrameReference?.path
+        ? await createSignedDownloadUrl(startFrameReference.bucket, startFrameReference.path, 900).catch(() => null)
+        : null;
+      const lastFrameUrl = endFrameReference?.bucket && endFrameReference?.path
+        ? await createSignedDownloadUrl(endFrameReference.bucket, endFrameReference.path, 900).catch(() => null)
+        : null;
+
+      const videoParams = {
+        ...params,
+        duration: Number(params.duration || 6),
+        reference_urls: supplementalReferenceUrls,
+        first_frame_url: params.first_frame_url || startFrameUrl || null,
+        last_frame_url: params.last_frame_url || lastFrameUrl || null,
+      };
+
+      result = await generateVideo(openrouterId, generation.prompt, videoParams);
 
       // Download video and store in Supabase Storage
       const videoRes  = await fetch(result.url, { headers: result.download_headers || {} });
@@ -714,21 +782,11 @@ const processGeneration = async (generationId) => {
       const filePath  = `ai-generated/${generation.user_id}/${generationId}.mp4`;
       const storedUrl = await uploadFile('job-attachments', filePath, buffer, 'video/mp4');
 
-      // Cost: per second of output video
-      // Admin sets cost in model metadata - we use a flat per-second rate
-      // Default: free models = 0 credits, paid = cost_per_1k_tokens as flat credit
-      let creditCost = userPrice(model) > 0
-        ? userPrice(model) * (result.duration_seconds || 5)
-        : 0;
       const resKey = params.resolution_tier || 'normal';
       const mintcoinCosts = model.mintcoin_costs || {};
-      if (mintcoinCosts[resKey]) {
-        creditCost = Number(mintcoinCosts[resKey]);
-      } else {
-        creditCost = 50; // fallback
-      }
+      const creditCost = Number(mintcoinCosts[resKey] || 0);
 
-      if (creditCost > 0) await deductCredits(generation.user_id, generationId, creditCost, true);
+      if (creditCost > 0) await deductCredits(generation.user_id, generationId, creditCost);
 
       await query(
         `UPDATE ai_generations
@@ -822,8 +880,7 @@ const processGeneration = async (generationId) => {
       result = requireNonEmptyTextResult(result, openrouterId);
 
       const totalTokens = result.tokens_input + result.tokens_output;
-      const creditCost  = usedFailover ? 0 :
-        Math.ceil((totalTokens / 1000) * userPrice(model));
+      const creditCost  = 0;
 
       if (creditCost > 0) await deductCredits(generation.user_id, generationId, creditCost);
 
@@ -943,7 +1000,7 @@ const getStylePresets = async () => {
   return result.rows;
 };
 
-const uploadReferenceAsset = async (userId, { file, sessionId, projectId = null }) => {
+const uploadReferenceAsset = async (userId, { file, sessionId, projectId = null, referenceRole = 'reference' }) => {
   if (!sessionId) throw new AppError('Reference session_id is required', 400);
   if (!file) throw new AppError('Reference image is required', 400);
   if (!IMAGE_REFERENCE_TYPES.has(file.mimetype)) {
@@ -964,6 +1021,9 @@ const uploadReferenceAsset = async (userId, { file, sessionId, projectId = null 
     throw new AppError('You can add up to 4 image references in this phase', 400);
   }
 
+  const normalizedRole = ['start', 'end', 'reference'].includes(String(referenceRole || '').toLowerCase())
+    ? String(referenceRole).toLowerCase()
+    : 'reference';
   const alias = `img${currentCount + 1}`;
   const extension = file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
   const bucket = getBucket('mintbox');
@@ -972,15 +1032,16 @@ const uploadReferenceAsset = async (userId, { file, sessionId, projectId = null 
 
   const inserted = await query(
     `INSERT INTO ai_reference_assets
-       (user_id, session_id, project_id, alias, storage_bucket, storage_path,
+       (user_id, session_id, project_id, alias, reference_role, storage_bucket, storage_path,
         original_filename, mime_type, size_bytes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-     RETURNING id, alias, original_filename, mime_type, size_bytes, created_at`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+     RETURNING id, alias, reference_role, original_filename, mime_type, size_bytes, created_at`,
     [
       userId,
       sessionId,
       projectId || null,
       alias,
+      normalizedRole,
       bucket,
       storagePath,
       file.originalname || `${alias}.${extension}`,
@@ -998,7 +1059,7 @@ const resolveReferenceAssets = async (userId, sessionId, aliases = []) => {
   const uniqueAliases = [...new Set((aliases || []).filter(Boolean))];
   if (!uniqueAliases.length) return [];
   const result = await query(
-    `SELECT id, alias, storage_bucket, storage_path, mime_type
+    `SELECT id, alias, reference_role, storage_bucket, storage_path, mime_type
      FROM ai_reference_assets
      WHERE user_id = $1 AND session_id = $2 AND alias = ANY($3::text[])
      ORDER BY created_at ASC`,
@@ -1039,10 +1100,21 @@ const enhancePrompt = async ({
   projectContext = {},
   aspectRatio,
   resolutionTier,
+  promptIntent = {},
 }) => {
   const freeModels = await getFreeModels('text');
-  const model = freeModels.find((item) => item.openrouter_id === 'openrouter/free') || freeModels[0];
+  if (!freeModels.length) {
+    logger.warn('enhancePrompt: no free text models available — skipping enhancement');
+    return null;
+  }
+  // Pick the best (lowest-load) free text model instead of always using the weakest fallback
+  const model = await getBestFreeModel(freeModels);
   if (!model) return null;
+  logger.info('enhancePrompt: starting prompt enhancement', {
+    model: model.openrouter_id,
+    rawPrompt: rawPrompt.slice(0, 120),
+    hasReferences: references.length > 0,
+  });
   try {
     const enhancement = buildEnhancementMessages({
       rawPrompt,
@@ -1052,16 +1124,64 @@ const enhancePrompt = async ({
       projectContext,
       aspectRatio,
       resolutionTier,
+      promptIntent,
     });
     const result = await generateText(
       model.openrouter_id,
       enhancement.user,
-      { temperature: 0.35, max_tokens: 320 },
+      { temperature: 0.35, max_tokens: 600 },
+      enhancement.system
+    );
+    const enhanced = normalizeEnhancedPrompt(requireNonEmptyTextResult(result, model.openrouter_id).text);
+    logger.info('enhancePrompt: enhancement succeeded', {
+      model: model.openrouter_id,
+      enhancedPrompt: (enhanced || '').slice(0, 200),
+    });
+    return enhanced;
+  } catch (err) {
+    logger.warn('enhancePrompt: AI prompt enhancement skipped', {
+      model: model.openrouter_id,
+      error: err.message,
+    });
+    return null;
+  }
+};
+
+// Video-specific prompt enhancer — uses cinematic/motion-aware system prompt
+const enhanceVideoPrompt = async ({
+  rawPrompt,
+  references = [],
+  businessContext = {},
+  projectContext = {},
+  aspectRatio,
+  duration,
+  startFrameAlias = null,
+  endFrameAlias = null,
+}) => {
+  const freeModels = await getFreeModels('text');
+  if (!freeModels.length) return null;
+  const model = await getBestFreeModel(freeModels);
+  if (!model) return null;
+  try {
+    const enhancement = buildVideoEnhancementMessages({
+      rawPrompt,
+      references,
+      businessContext,
+      projectContext,
+      aspectRatio,
+      duration,
+      startFrameAlias,
+      endFrameAlias,
+    });
+    const result = await generateText(
+      model.openrouter_id,
+      enhancement.user,
+      { temperature: 0.4, max_tokens: 600 },
       enhancement.system
     );
     return normalizeEnhancedPrompt(requireNonEmptyTextResult(result, model.openrouter_id).text);
   } catch (err) {
-    logger.warn('AI prompt enhancement skipped', {
+    logger.warn('AI video prompt enhancement skipped', {
       model: model.openrouter_id,
       error: err.message,
     });
@@ -1113,6 +1233,14 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
   const references = await resolveReferenceAssets(userId, session_id, reference_aliases);
   const styleModifier = stylePreset?.prompt_modifier || '';
   const promptContext = await getImagePromptContext(userId, project_id || null);
+  const promptIntent = parseImagePromptIntent({
+    rawPrompt,
+    businessContext: promptContext.businessContext,
+    projectContext: promptContext.projectContext,
+    aspectRatio: aspect_ratio,
+    resolutionTier: resolution_tier,
+    references,
+  });
   const enhancedPrompt = ai_prompt
     ? await enhancePrompt({
       rawPrompt,
@@ -1122,6 +1250,7 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
       projectContext: promptContext.projectContext,
       aspectRatio: aspect_ratio,
       resolutionTier: resolution_tier,
+      promptIntent,
     })
     : null;
   const promptOrchestration = composeImagePrompt({
@@ -1134,6 +1263,7 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
     projectContext: promptContext.projectContext,
     aspectRatio: aspect_ratio,
     resolutionTier: resolution_tier,
+    promptIntent,
   });
   const finalPrompt = promptOrchestration.providerPrompt;
 
@@ -1142,7 +1272,6 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
   const allowedGoogleSearch = Boolean(model.supports_google_search && google_search_enabled);
   const creditCostPerItem = modelResolutionCost(model, resolution_tier);
   const unlimited = isUnlimitedForResolution(model, resolution_tier);
-  const totalCreditCost = creditCostPerItem * safeBatchCount;
 
   const results = [];
   for (let i = 0; i < safeBatchCount; i++) {
@@ -1179,6 +1308,7 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
           prompt_orchestration: {
             profile_version: promptOrchestration.profileVersion,
             reference_policy: promptOrchestration.referencePolicy,
+            intent: promptIntent,
             has_business_context: Boolean(
               promptContext.businessContext?.business_name ||
               promptContext.businessContext?.business_type ||
@@ -1196,6 +1326,7 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
             path: item.storage_path,
             mime_type: item.mime_type,
           })),
+          prompt_intent: promptIntent,
         },
       },
     });
@@ -1207,10 +1338,142 @@ const createEngineImageGeneration = async (userId, payload = {}) => {
       unlimited,
       raw_prompt: rawPrompt,
       enhanced_prompt: enhancedPrompt,
+      prompt_intent: promptIntent,
     });
   }
 
   return results;
+};
+
+// ── Engine Video Generation ───────────────────────────────────────────────────
+
+const createEngineVideoGeneration = async (userId, payload = {}) => {
+  const {
+    model_id,
+    prompt,
+    session_id,
+    project_id,
+    reference_aliases = [],
+    start_reference_alias = null,
+    end_reference_alias = null,
+    duration = 6,
+    ai_prompt = false,
+    aspect_ratio = 'Auto',
+    resolution_tier = 'normal',
+    ...restParameters
+  } = payload;
+
+  const modelResult = await query(
+    'SELECT * FROM ai_models WHERE id = $1 AND is_active = true',
+    [model_id]
+  );
+  const model = modelResult.rows[0];
+  if (!model) throw new AppError('Video model not found or inactive', 404);
+  if (!model.supported_tools?.includes('video')) {
+    throw new AppError(`Model "${model.name}" does not support video generation`, 400);
+  }
+
+  const rawPrompt = String(prompt || '').trim();
+  if (!rawPrompt) throw new AppError('Prompt is required', 400);
+
+  const resolvedAliases = [
+    ...new Set(
+      [ ...(Array.isArray(reference_aliases) ? reference_aliases : []), start_reference_alias, end_reference_alias ]
+        .filter(Boolean)
+    ),
+  ];
+  const references = await resolveReferenceAssets(userId, session_id, resolvedAliases);
+  const startReference = start_reference_alias
+    ? references.find((item) => item.alias === start_reference_alias) || null
+    : null;
+  const endReference = end_reference_alias
+    ? references.find((item) => item.alias === end_reference_alias) || null
+    : null;
+  const promptContext = await getImagePromptContext(userId, project_id || null);
+  const promptIntent = parseImagePromptIntent({
+    rawPrompt,
+    businessContext: promptContext.businessContext,
+    projectContext: promptContext.projectContext,
+    aspectRatio: aspect_ratio,
+    resolutionTier: resolution_tier,
+    references,
+  });
+
+  const enhancedPrompt = ai_prompt
+    ? await enhanceVideoPrompt({
+      rawPrompt,
+      references,
+      businessContext: promptContext.businessContext,
+      projectContext: promptContext.projectContext,
+      aspectRatio: aspect_ratio,
+      duration,
+      startFrameAlias: startReference?.alias || null,
+      endFrameAlias: endReference?.alias || null,
+      promptIntent,
+    })
+    : null;
+
+  // Use the enhanced prompt as the final prompt sent to the video model
+  const finalPrompt = enhancedPrompt || rawPrompt;
+
+  // Delegate to the standard createGeneration which handles credits, queueing, etc.
+  const generation = await createGeneration(userId, {
+    tool_type: 'video',
+    model_id,
+    prompt: finalPrompt,
+    parameters: {
+      duration: Number(duration || 6),
+      aspect_ratio,
+      resolution_tier,
+      reference_asset_ids: references.map((item) => item.id),
+      reference_aliases: references.map((item) => item.alias),
+      start_reference_alias: startReference?.alias || null,
+      end_reference_alias: endReference?.alias || null,
+      _raw_prompt: rawPrompt,
+      _enhanced_prompt: enhancedPrompt,
+      _provider_prompt: finalPrompt,
+      _prompt_profile_version: promptIntent?.profile_version || null,
+      engine_metadata: {
+        project_id: project_id || null,
+        prompt_orchestration: {
+          profile_version: promptIntent?.profile_version || null,
+          intent: promptIntent,
+          has_business_context: Boolean(
+            promptContext.businessContext?.business_name ||
+            promptContext.businessContext?.business_type ||
+            promptContext.businessContext?.customer_profile
+          ),
+          has_project_context: Boolean(
+            promptContext.projectContext?.title ||
+            promptContext.projectContext?.description
+          ),
+        },
+        prompt_intent: promptIntent,
+        references: references.map((item) => ({
+          id: item.id,
+          alias: item.alias,
+          role: item.reference_role || 'reference',
+          bucket: item.storage_bucket,
+          path: item.storage_path,
+          mime_type: item.mime_type,
+        })),
+        video_frame_anchors: {
+          start_reference_alias: startReference?.alias || null,
+          end_reference_alias: endReference?.alias || null,
+          duration: Number(duration || 6),
+        },
+      },
+      ...restParameters,
+    },
+    source_job_id: project_id || null,
+  });
+
+  return {
+    ...generation,
+    raw_prompt: rawPrompt,
+    enhanced_prompt: enhancedPrompt,
+    prompt_intent: promptIntent,
+  };
 };
 
 const generationSelect = `
@@ -1402,7 +1665,7 @@ const deletePublishedPost = async (publishedPostId, userId) => {
   return { deleted: true, id: result.rows[0].id };
 };
 
-const getUsageSummary = async (userId) => {
+const getUsageSummary = async (userId, filters = {}) => {
   const result = await query(
     `SELECT
        COUNT(*)                                              AS total_generations,
@@ -1416,8 +1679,106 @@ const getUsageSummary = async (userId) => {
     [userId]
   );
 
+  const [membership, creditAccount] = await Promise.all([
+    getMembershipTrialState(userId).catch(() => null),
+    getCreditAccount(userId).catch(() => null),
+  ]);
+  const balance = Number(creditAccount?.balance || 0);
+  const trialLimit = Math.max(0, Number(membership?.trial_image_generations_limit || TRIAL_IMAGE_GENERATIONS_LIMIT));
+  const trialUsed = Math.max(0, Number(membership?.trial_image_generations_used || 0));
+  const trialRemaining = membership?.status === 'trial'
+    ? Math.max(0, trialLimit - trialUsed)
+    : 0;
+
+  const requestedModelId = filters.model_id || null;
+  const requestedToolType = filters.tool_type || null;
+  const requestedResolution = filters.resolution_tier || (requestedToolType === 'video' ? 'normal' : '1K');
+  const requestedDuration = Number(filters.duration || 6);
+
+  const selectedModel = requestedModelId
+    ? await query('SELECT * FROM ai_models WHERE id = $1 AND is_active = true', [requestedModelId]).then((r) => r.rows[0] || null)
+    : null;
+
+  const fallbackImageModel = await query(
+    `SELECT *
+     FROM ai_models
+     WHERE is_active = true AND 'image' = ANY(supported_tools)
+     ORDER BY
+       COALESCE((mintcoin_costs->>'1K')::numeric, (mintcoin_costs->>'2K')::numeric, (mintcoin_costs->>'4K')::numeric, 999999) ASC,
+       sort_order ASC,
+       name ASC
+     LIMIT 1`
+  ).then((r) => r.rows[0] || null);
+
+  const fallbackVideoModel = await query(
+    `SELECT *
+     FROM ai_models
+     WHERE is_active = true AND 'video' = ANY(supported_tools)
+     ORDER BY
+       COALESCE((mintcoin_costs->>'normal')::numeric, (mintcoin_costs->>'1K')::numeric, 999999) ASC,
+       sort_order ASC,
+       name ASC
+     LIMIT 1`
+  ).then((r) => r.rows[0] || null);
+
+  const imageModel = selectedModel && selectedModel.supported_tools?.includes('image')
+    ? selectedModel
+    : fallbackImageModel;
+  const videoModel = selectedModel && selectedModel.supported_tools?.includes('video')
+    ? selectedModel
+    : fallbackVideoModel;
+
+  const imageCostPerGeneration = imageModel
+    ? modelResolutionCost(imageModel, requestedResolution === 'normal' ? '1K' : requestedResolution)
+    : 0;
+  const videoCostPerGeneration = videoModel
+    ? modelResolutionCost(videoModel, requestedResolution)
+    : 0;
+
+  const imageCoinGenerationsLeft = imageCostPerGeneration > 0
+    ? Math.floor(balance / imageCostPerGeneration)
+    : null;
+  const videoCoinGenerationsLeft = videoCostPerGeneration > 0
+    ? Math.floor(balance / videoCostPerGeneration)
+    : null;
+
   return {
     ...result.rows[0],
+    mintcoin_balance: balance,
+    trial: {
+      active: Boolean(membership?.status === 'trial'),
+      used: trialUsed,
+      limit: trialLimit,
+      remaining: trialRemaining,
+    },
+    selected: {
+      model_id: selectedModel?.id || null,
+      model_name: selectedModel?.name || null,
+      tool_type: requestedToolType,
+      resolution_tier: requestedResolution,
+      duration: requestedDuration,
+      image_cost: imageCostPerGeneration,
+      video_cost: videoCostPerGeneration,
+      image_generations_left: imageCostPerGeneration > 0 ? trialRemaining + imageCoinGenerationsLeft : null,
+      video_generations_left: videoCostPerGeneration > 0 ? videoCoinGenerationsLeft : null,
+      image_unlimited: imageCostPerGeneration === 0,
+      video_unlimited: videoCostPerGeneration === 0,
+      text_free: true,
+    },
+    capacity: {
+      text_free: true,
+      image: {
+        free_trials_remaining: trialRemaining,
+        coin_generations_left: imageCoinGenerationsLeft,
+        cost_per_generation: imageCostPerGeneration,
+        unlimited: imageCostPerGeneration === 0,
+      },
+      video: {
+        coin_generations_left: videoCoinGenerationsLeft,
+        cost_per_generation: videoCostPerGeneration,
+        unlimited: videoCostPerGeneration === 0,
+      },
+    },
     rate_limit: {
       limit:     env.ai.maxRequestsPerHour,
       used:      parseInt(result.rows[0].this_hour, 10),
@@ -1434,6 +1795,7 @@ module.exports = {
   getStylePresets,
   uploadReferenceAsset,
   createEngineImageGeneration,
+  createEngineVideoGeneration,
   getGeneration,
   getMyGenerations,
   setGenerationFavorite,

@@ -61,7 +61,7 @@ export default function Wallet() {
 						</div>
 						<div style={{ width: 1, height: 26, background: 'rgba(255,255,255,0.1)' }} />
 						<div>
-							<div style={{ color: 'rgba(255,255,255,0.5)' }}>Mint Credits</div>
+							<div style={{ color: 'rgba(255,255,255,0.5)' }}>Mint Coins</div>
 							<div className="mono" style={{ color: 'white', marginTop: 4, fontSize: 16, fontWeight: 500 }}>{rupee(credits?.balance || 0)}</div>
 						</div>
 						<div style={{ width: 1, height: 26, background: 'rgba(255,255,255,0.1)' }} />

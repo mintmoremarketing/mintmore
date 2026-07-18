@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { jobsApi } from '../../api/jobs'
 import { creativeApi } from '../../api/creative'
@@ -86,9 +86,19 @@ function ChoiceTiles({ options, selected = [], onToggle, renderOption }) {
 
 export default function PostJob() {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const { id } = useParams()
   const isEditMode = Boolean(id)
+  const initialDeadline = useMemo(() => {
+    if (isEditMode) return ''
+    const searchParams = new URLSearchParams(location.search)
+    const rawDeadline = searchParams.get('deadline')
+    if (!rawDeadline) return ''
+    const parsed = new Date(`${rawDeadline}T00:00:00`)
+    if (Number.isNaN(parsed.getTime())) return ''
+    return parsed.toISOString().slice(0, 10)
+  }, [isEditMode, location.search])
   const pushToast = useUIStore(state => state.pushToast)
   const [step, setStep] = useState(1)
   const [draftId, setDraftId] = useState(id || null)
@@ -103,7 +113,7 @@ export default function PostJob() {
   })
   const [data, setData] = useState({
     title: '', category_id: '', description: '', pricing_mode: '',
-    budget_type: 'fixed', budget_amount: null, deadline: '',
+    budget_type: 'fixed', budget_amount: null, deadline: initialDeadline,
     required_skills: [], required_level: null,
   })
   const [minimumDeadline] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10))
@@ -113,6 +123,11 @@ export default function PostJob() {
   const saveQueueRef = useRef(Promise.resolve())
   const hydratedRef = useRef(!isEditMode)
   const uploadedFileKeysRef = useRef(new Set())
+
+  useEffect(() => {
+    if (isEditMode || !initialDeadline) return
+    setData(current => (current.deadline ? current : { ...current, deadline: initialDeadline }))
+  }, [initialDeadline, isEditMode])
 
   const { data: catData } = useQuery({ queryKey: ['categories'], queryFn: () => jobsApi.categories().then(res => res.data.data) })
   const categories = catData?.categories || []

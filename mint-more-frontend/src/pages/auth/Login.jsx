@@ -48,12 +48,11 @@ export default function Login() {
 	return (
 		<div className={`auth-shell${isMobile ? ' mobile' : ''}`}>
 			<aside className="auth-aside">
-				<div>
-					<Link to="/" className="auth-brand-link" aria-label="Back to CREATYV landing page">
-						CREAT<span>YV</span>
-					</Link>
-				</div>
-				<div className="flex-1 w-full flex flex-col justify-center h-full">
+				<Link to="/" className="auth-brand-link" aria-label="Back to CREATYV landing page" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+					<img src="/logo-dark.png" alt="CREATYV Logo" className="w-8 h-8 object-contain rounded" />
+					<span>CREAT<span className="text-mint-500 font-bold">YV</span></span>
+				</Link>
+				<div className="auth-mood-grid flex-1 w-full flex items-center">
 					<div className="grid grid-cols-4 grid-rows-5 gap-2 md:gap-3 w-full h-full animate-in fade-in slide-in-from-bottom-8 duration-1000 opacity-90 hover:opacity-100 transition-opacity">
 						{/* Row 1 & 2 */}
 						<div className="relative overflow-hidden rounded-xl bg-ink-900 shadow-lg col-span-2 row-span-2 group">
@@ -100,14 +99,14 @@ export default function Login() {
 					</div>
 				</div>
 			</aside>
-
 			<div className="auth-form-wrap overflow-y-auto h-full max-h-screen">
 				<form className="auth-form" onSubmit={submit}>
 
 					{isMobile && (
 						<div style={{ textAlign: 'center', marginBottom: 32 }}>
-							<Link to="/" className="auth-brand-link light" aria-label="Back to CREATYV landing page">
-								CREAT<span>YV</span>
+							<Link to="/" className="auth-brand-link light" aria-label="Back to CREATYV landing page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+								<img src="/logo-light.png" alt="CREATYV Logo" className="w-8 h-8 object-contain rounded" />
+								<span>CREAT<span className="text-mint-500 font-bold">YV</span></span>
 							</Link>
 							<p style={{ 
 								color: 'var(--ink-500)', fontSize: 13.5, lineHeight: 1.5, 

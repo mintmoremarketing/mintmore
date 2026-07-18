@@ -40,6 +40,7 @@ export const ADMIN_NAV = [
   { route: '/admin', icon: 'overview', label: 'Overview' },
   { route: '/notifications', icon: 'inbox', label: 'Inbox', showCount: true },
   { route: '/admin/operations', icon: 'operations', label: 'Operations', permission: 'ops.manage' },
+  { route: '/admin/brands', icon: 'layers', label: 'Brands', permission: 'users.manage' },
   { route: '/admin/users', icon: 'users', label: 'Users', permission: 'users.manage' },
   { route: '/admin/approvals', icon: 'approvals', label: 'Approvals', permission: 'deals.approve' },
   { route: '/chat', icon: 'chats', label: 'Chats', permission: 'support.manage' },

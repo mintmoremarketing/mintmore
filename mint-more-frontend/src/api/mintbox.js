@@ -2,6 +2,15 @@ import { api } from './client'
 
 export const mintboxApi = {
 	getFolders: () => api.get('/mintbox'),
+	getBrandLibrary: () => api.get('/mintbox/library'),
+	getBrandFolder: (folderId) => api.get(`/mintbox/library/folders/${folderId}`),
+	createBrandFolder: (data) => api.post('/mintbox/library/folders', data),
+	updateBrandFolder: (folderId, data) => api.patch(`/mintbox/library/folders/${folderId}`, data),
+	deleteBrandFolder: (folderId) => api.delete(`/mintbox/library/folders/${folderId}`),
+	prepareBrandUpload: (folderId, data) => api.post(`/mintbox/library/folders/${folderId}/uploads/prepare`, data),
+	completeBrandUpload: (uploadId) => api.post(`/mintbox/library/uploads/${uploadId}/complete`),
+	cancelBrandUpload: (uploadId) => api.delete(`/mintbox/library/uploads/${uploadId}`),
+	deleteBrandFile: (fileId) => api.delete(`/mintbox/library/files/${fileId}`),
 	getJobFolder: (jobId) => api.get(`/mintbox/jobs/${jobId}`),
 	markSeen: (jobId) => api.patch(`/mintbox/jobs/${jobId}/seen`),
 	completeProject: (jobId, data) => api.post(`/mintbox/jobs/${jobId}/complete`, data),

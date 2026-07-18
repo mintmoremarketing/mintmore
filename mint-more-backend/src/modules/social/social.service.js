@@ -1123,8 +1123,7 @@ const publishPost = async (postId, userId) => {
          (post_id, social_account_id, platform, status)
        VALUES ($1, $2, $3, 'pending')
        ON CONFLICT (post_id, social_account_id) DO UPDATE SET
-         status = 'pending',
-         platform = EXCLUDED.platform`,
+         status = 'pending'`,
       [postId, account.id, account.platform]
     );
   }

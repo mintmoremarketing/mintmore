@@ -24,8 +24,9 @@ export default function MobileDrawer({ role, onClose }) {
       <div className="mobile-drawer" onClick={e => e.stopPropagation()}>
         <nav className="sidebar">
           {/* Logo */}
-          <div className="sidebar-logo" onClick={() => go(homeRoute)}>
-            CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
+          <div className="sidebar-logo" onClick={() => go(homeRoute)} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img src="/logo-dark.png" alt="CREATYV" className="w-8 h-8 object-contain rounded" />
+            <span>CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span></span>
           </div>
 
           {/* Nav items */}
@@ -41,6 +42,17 @@ export default function MobileDrawer({ role, onClose }) {
               </button>
             ))}
           </div>
+
+          {role === 'client' && (
+            <button
+              className="nav-item"
+              style={{ color: 'var(--mint-500)', fontWeight: 600 }}
+              onClick={() => go('/membership')}
+            >
+              <Icon name="star" size={15} />
+              <span>Upgrade Plan</span>
+            </button>
+          )}
 
           {!isGuest && <button
             className={`nav-item ${location.pathname === '/settings' ? 'active' : ''}`}

@@ -30,12 +30,16 @@ const ensureAIEngineSchema = async () => {
       ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN NOT NULL DEFAULT false,
       ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
+    ALTER TABLE ai_reference_assets
+      ADD COLUMN IF NOT EXISTS reference_role TEXT NOT NULL DEFAULT 'reference';
+
     CREATE TABLE IF NOT EXISTS ai_reference_assets (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       session_id TEXT NOT NULL,
       project_id UUID NULL,
       alias TEXT NOT NULL,
+      reference_role TEXT NOT NULL DEFAULT 'reference',
       storage_bucket TEXT NOT NULL,
       storage_path TEXT NOT NULL,
       original_filename TEXT NOT NULL,

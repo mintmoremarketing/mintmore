@@ -1,27 +1,68 @@
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../ui/Icon'
 import { rupee } from '../../utils/format'
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
+
+function UsageBar({ label, value, max, tone = 'mint' }) {
+  const pct = max > 0 ? clamp((value / max) * 100, 0, 100) : 0
+  return (
+    <div className={`mintcoin-usage-row mintcoin-usage-${tone}`}>
+      <div className="mintcoin-usage-label-row">
+        <span>{label}</span>
+        <strong>{value}/{max || 0}</strong>
+      </div>
+      <div className="mintcoin-meter">
+        <span style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
 
 export default function Topbar({
   isMobile,
   onMenuClick,
   walletBalance,
   mintCoinBalance,
+  usageSummary,
   onWalletClick,
   onMintCoinClick,
   onNotifClick,
   notifUnread,
   unreadCount,
 }) {
-  const navigate   = useNavigate()
+  const navigate = useNavigate()
   const { isGuest } = useAuthStore()
+  const [mintPopoverOpen, setMintPopoverOpen] = useState(false)
   const isLow = walletBalance !== null && walletBalance !== undefined && walletBalance < 100
+
+  const balance = Number(usageSummary?.mintcoin_balance ?? mintCoinBalance ?? 0)
+  const trialRemaining = Number(usageSummary?.trial?.remaining ?? 0)
+  const selected = usageSummary?.selected || {}
+  const imageLeft = Number(selected.image_generations_left ?? 0)
+  const videoLeft = Number(selected.video_generations_left ?? 0)
+  const imageUnlimited = Boolean(selected.image_unlimited)
+  const videoUnlimited = Boolean(selected.video_unlimited)
+  const textFree = selected.text_free !== false
+  const usableNow = selected.tool_type === 'video'
+    ? (videoUnlimited ? (videoLeft || 1) : videoLeft)
+    : selected.tool_type === 'text'
+      ? 1
+      : (imageUnlimited ? (imageLeft || 1) : (trialRemaining + imageLeft))
+  const usableLabel = useMemo(() => {
+    if (selected.tool_type === 'video') {
+      return videoUnlimited ? '∞ Unlimited' : `${videoLeft} videos`
+    }
+    if (selected.tool_type === 'text') {
+      return 'Text is free'
+    }
+    return imageUnlimited ? '∞ Unlimited' : `${imageLeft} images`
+  }, [selected.tool_type, videoUnlimited, videoLeft, imageUnlimited, imageLeft])
 
   return (
     <header className="topbar">
-
-      {/* ── Left ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {isMobile && (
           <button
@@ -38,7 +79,6 @@ export default function Topbar({
               padding: 0,
             }}
           >
-            {/* Three-line hamburger — explicit lines, not a path */}
             <svg
               width="16" height="16"
               viewBox="0 0 16 16"
@@ -47,8 +87,8 @@ export default function Topbar({
               strokeWidth="1.8"
               strokeLinecap="round"
             >
-              <line x1="2" y1="4"  x2="14" y2="4"  />
-              <line x1="2" y1="8"  x2="14" y2="8"  />
+              <line x1="2" y1="4" x2="14" y2="4" />
+              <line x1="2" y1="8" x2="14" y2="8" />
               <line x1="2" y1="12" x2="14" y2="12" />
             </svg>
           </button>
@@ -71,35 +111,78 @@ export default function Topbar({
         )}
       </div>
 
-      {/* ── Right ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-
-        {/* MintCoin chip */}
         {mintCoinBalance !== null && mintCoinBalance !== undefined && (
-          <button
-            className="mintcoin-chip"
-            onClick={onMintCoinClick}
-            title="MintCoin balance"
-            aria-label={`MintCoin balance ${mintCoinBalance}`}
+          <div
+            className="mintcoin-chip-wrap"
+            onMouseEnter={() => setMintPopoverOpen(true)}
+            onMouseLeave={() => setMintPopoverOpen(false)}
           >
-            <span className="mintcoin-mark">
-              <Icon name="coin" size={13} />
-            </span>
-            <span className="mintcoin-label">MintCoin</span>
-            <span className="mono mintcoin-amount">
-              {Number(mintCoinBalance).toLocaleString('en-IN')}
-            </span>
-          </button>
+            <button
+              className="mintcoin-chip"
+              onClick={() => {
+                setMintPopoverOpen(v => !v)
+                onMintCoinClick?.()
+              }}
+              onFocus={() => setMintPopoverOpen(true)}
+              onBlur={() => setMintPopoverOpen(false)}
+              title="MintCoin balance"
+              aria-label={`MintCoin balance ${balance}`}
+            >
+              <span className="mintcoin-mark">
+                <Icon name="coin" size={13} />
+              </span>
+              <span className="mintcoin-label">MintCoin</span>
+              <span className="mono mintcoin-amount">
+                {Number(balance).toLocaleString('en-IN')}
+              </span>
+            </button>
+
+            {mintPopoverOpen && (
+              <div className="mintcoin-popover">
+                <div className="mintcoin-popover-head">
+                  <strong>MintCoin usage</strong>
+                  <span>{usableLabel}</span>
+                </div>
+                <UsageBar
+                  label="Usable now"
+                  value={usableNow}
+                  max={Math.max(balance, usableNow, 1)}
+                />
+                <div className="mintcoin-popover-grid">
+                  <div>
+                    <span>Trial images</span>
+                    <strong>{trialRemaining}</strong>
+                  </div>
+                  <div>
+                    <span>Text</span>
+                    <strong>{textFree ? 'Free' : 'Paid'}</strong>
+                  </div>
+                  <div>
+                    <span>Image left</span>
+                    <strong>{imageUnlimited ? '∞' : imageLeft}</strong>
+                  </div>
+                  <div>
+                    <span>Video left</span>
+                    <strong>{videoUnlimited ? '∞' : videoLeft}</strong>
+                  </div>
+                </div>
+                <div className="mintcoin-popover-foot">
+                  <span>Usable now</span>
+                  <strong>{usableLabel}</strong>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
-        {/* Wallet chip */}
         {walletBalance !== null && walletBalance !== undefined && (
           <button
             className="wallet-chip"
             onClick={onWalletClick}
             style={{
               borderColor: isLow ? 'rgba(217,119,6,0.4)' : undefined,
-              color:       isLow ? 'var(--amber)'        : undefined,
+              color: isLow ? 'var(--amber)' : undefined,
             }}
           >
             <Icon name="wallet" size={13} />
@@ -114,7 +197,6 @@ export default function Topbar({
           </button>
         )}
 
-        {/* Guest CTA */}
         {isGuest && (
           <button
             className="btn mint guest-topbar-cta"
@@ -125,7 +207,6 @@ export default function Topbar({
           </button>
         )}
 
-        {/* Notification bell */}
         {!isGuest && (
           <button
             className="icon-btn notif-btn"

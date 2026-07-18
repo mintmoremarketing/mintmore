@@ -297,6 +297,7 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-2 gap-3">
               {[
                 { icon: 'calendar', label: 'Operations',       route: '/admin/operations' },
+                { icon: 'layers',   label: 'Brands',          route: '/admin/brands' },
                 { icon: 'user',     label: 'Manage users',     route: '/admin/users' },
                 { icon: 'zap',      label: 'Approve deals',    route: '/admin/approvals' },
                 { icon: 'wallet',   label: 'Platform wallet',  route: '/admin/wallet' },

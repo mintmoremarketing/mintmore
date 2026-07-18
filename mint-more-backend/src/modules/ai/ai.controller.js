@@ -158,7 +158,7 @@ const publishGenerationPost = async (req, res, next) => {
 
 const getUsageSummary = async (req, res, next) => {
   try {
-    const summary = await aiService.getUsageSummary(req.user.sub);
+    const summary = await aiService.getUsageSummary(req.user.sub, req.query);
     return sendSuccess(res, { data: { usage: summary } });
   } catch (err) { next(err); }
 };
@@ -185,6 +185,7 @@ const uploadReference = async (req, res, next) => {
       file: req.file,
       sessionId: req.body.session_id,
       projectId: req.body.project_id || null,
+      referenceRole: req.body.reference_role || 'reference',
     });
     return sendSuccess(res, {
       data: { asset },
@@ -200,6 +201,17 @@ const generateEngineImage = async (req, res, next) => {
     return sendSuccess(res, {
       data: result,
       message: 'Image generation queued. Connect to the SSE stream for live progress.',
+      statusCode: 201,
+    });
+  } catch (err) { next(err); }
+};
+
+const generateEngineVideo = async (req, res, next) => {
+  try {
+    const result = await aiService.createEngineVideoGeneration(req.user.sub, req.body);
+    return sendSuccess(res, {
+      data: result,
+      message: 'Video generation queued. Connect to the SSE stream for live progress.',
       statusCode: 201,
     });
   } catch (err) { next(err); }
@@ -294,6 +306,7 @@ module.exports = {
   getStylePresets,
   uploadReference,
   generateEngineImage,
+  generateEngineVideo,
   getGeneration,
   getMyGenerations,
   getPublishedPosts,

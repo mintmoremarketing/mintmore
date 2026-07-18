@@ -25,6 +25,9 @@ router.patch('/users/:userId/tier',     requirePermission('users.manage'), contr
 router.patch('/users/:userId/level',    requirePermission('matching.manage'), controller.setFreelancerLevel);
 router.delete('/users/:userId',         requirePermission('users.manage'), controller.deleteUserData);
 
+router.get('/brands', requirePermission('users.manage'), controller.getBrandWorkspaces);
+router.get('/brands/:userId', requirePermission('users.manage'), controller.getBrandWorkspace);
+
 // ── Category Management ───────────────────────────────────────────────────────
 router.get('/categories',                       controller.getCategories);
 router.post('/categories',                      requirePermission('pricing.manage'), controller.createCategory);

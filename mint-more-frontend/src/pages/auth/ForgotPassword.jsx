@@ -84,8 +84,9 @@ export default function ForgotPassword() {
 		<div className={`auth-shell${isMobile ? ' mobile' : ''}`}>
 			<aside className="auth-aside">
 				<div>
-					<Link to="/" className="auth-brand-link" aria-label="Back to CREATYV landing page">
-						CREAT<span>YV</span>
+					<Link to="/" className="auth-brand-link" aria-label="Back to CREATYV landing page" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+						<img src="/logo-dark.png" alt="CREATYV Logo" className="w-8 h-8 object-contain rounded" />
+						<span>CREAT<span className="text-mint-500 font-bold">YV</span></span>
 					</Link>
 				</div>
 				<div className="flex-1 w-full flex flex-col justify-center h-full">
@@ -140,8 +141,9 @@ export default function ForgotPassword() {
 				<div className="auth-form">
 					{isMobile && (
 						<div style={{ textAlign: 'center', marginBottom: 32 }}>
-							<Link to="/" className="auth-brand-link light" aria-label="Back to CREATYV landing page">
-								CREAT<span>YV</span>
+							<Link to="/" className="auth-brand-link light" aria-label="Back to CREATYV landing page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+								<img src="/logo-light.png" alt="CREATYV Logo" className="w-8 h-8 object-contain rounded" />
+								<span>CREAT<span className="text-mint-500 font-bold">YV</span></span>
 							</Link>
 						</div>
 					)}

@@ -23,6 +23,9 @@ export const aiApi = {
   generateEngineImage: (data) =>
     api.post('/ai/engine/image/generate', data),
 
+  generateEngineVideo: (data) =>
+    api.post('/ai/engine/video/generate', data),
+
   // History
   getGenerations: (params) =>
     api.get('/ai/generations', { params }),
@@ -49,8 +52,8 @@ export const aiApi = {
     api.post(`/ai/generations/${id}/publish`, data),
 
   // Usage
-  getUsage: () =>
-    api.get('/ai/usage'),
+  getUsage: (params) =>
+    api.get('/ai/usage', { params }),
 
   // Admin
   adminStats: () =>

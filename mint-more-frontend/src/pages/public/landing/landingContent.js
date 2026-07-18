@@ -1,208 +1,139 @@
-export const navItems = ['Platform', 'How It Works', 'Features', 'Pricing', 'Managed by MMM', 'Roadmap'];
+export const navItems = [
+  { label: 'Platform', id: 'platform' },
+  { label: 'How It Works', id: 'how-it-works' },
+  { label: 'Features', id: 'features' },
+  { label: 'Pricing', id: 'pricing' },
+  { label: 'Managed by MMM', id: 'managed-by-mmm' },
+  { label: 'Roadmap', id: 'roadmap' },
+]
 
-export const proofBrands = ['Creators', 'Small Businesses', 'Founders', 'Marketing Teams', 'Growing Brands'];
+export const proofBrands = [
+  'AI Content Generation',
+  'Content Calendar',
+  'Festivals Greetings',
+  'Post Scheduling',
+  'Cloud Storage for Assets',
+  'Managed Marketing',
+]
 
-export const newWorkflowSteps = [
-  {
-    id: '01',
-    title: 'Build Your Brand Workspace',
-    description: 'Create your account and tell Creatyv about your brand, audience, tone of voice and marketing goals.',
-  },
-  {
-    id: '02',
-    title: 'Generate with the World’s Leading AI',
-    description: 'Create captions, campaign ideas, scripts, images and videos using an expanding ecosystem of advanced AI models.',
-  },
-  {
-    id: '03',
-    title: 'Save Everything in Mintbox and Plan Your Month',
-    description: 'Every prompt, caption, image, video, draft and revision stays organised inside Mintbox—your brand’s central content library.',
-  },
-  {
-    id: '04',
-    title: 'Schedule Everywhere-or Let MMM Take Over',
-    description: 'Connect your supported Instagram, Facebook and YouTube accounts and schedule approved content directly from your calendar.',
-  }
-];
+export const workflow = [
+  ['01', 'See the month clearly', 'Your dashboard opens with a calendar of upcoming creative opportunities and work already in progress.'],
+  ['02', 'Pick what you need', 'Choose festival posts, sale creatives, campaign assets, or send a custom request in minutes.'],
+  ['03', 'Review every delivery', 'Drafts, comments, revisions, and final files stay organised inside the right Mintbox folder.'],
+  ['04', 'Publish from one place', 'Connect social accounts, generate captions with Mint AI, and send approved work to your channels.'],
+]
 
-export const newFeatureTabs = [
+export const tabFeatures = [
   {
-    id: 'ai-studio',
-    label: 'AI Studio',
-    title: 'Create with the Right AI for Every Idea.',
-    description: 'Generate captions, content plans, campaign ideas, images and videos using an expanding selection of leading AI models-all inside Creatyv.',
-    features: [
-      'AI caption and copy generation',
-      'Monthly content-plan generation',
-      'Reel scripts, hooks and campaign ideas',
-      'AI image generation',
-      'AI video generation',
-      'Multiple generation models and styles',
-      'Edit, regenerate and save outputs',
-      'Move generated content directly to Mintbox or Calendar'
-    ],
-    supportLine: 'One workspace. Multiple AI capabilities. No need to manage separate tools and subscriptions.'
+    id: 'calendar',
+    label: 'Create with AI',
+    tone: 'pink',
+    title: 'Mint AI',
+    body: 'Generate copy, images and videos using leading AI models.',
+    preview: {
+      kind: 'image',
+      src: '/landing/creative-rock-reveal.webp',
+      alt: 'Mint AI creative preview',
+      label: 'Image preview',
+      badge: 'Live preview',
+    },
   },
   {
-    id: 'mint-coins',
+    id: 'requests',
     label: 'Mint Coins',
-    title: 'One Flexible Credit System for Every Generation.',
-    description: 'Mint Coins power text, image and video generation across Creatyv. Different AI models and generation formats use different amounts of Mint Coins.',
-    features: [
-      '1,000 Mint Coins included with the Free Plan',
-      '10,000 Mint Coins recharged monthly with Social',
-      'Use coins across text, image and video generation',
-      'View remaining balance from the dashboard',
-      'See the generation cost before confirming',
-      'Purchase additional Mint Coins whenever required'
-    ],
-    supportLine: 'Use what you need. Buy more only when your ideas demand it.'
+    tone: 'peach',
+    title: 'Usage-Based Credits',
+    body: 'Use flexible generation credits and purchase more when required.',
+    preview: {
+      kind: 'meter',
+      label: 'Balance meter',
+      badge: 'Mint Coins',
+      value: '11,109',
+      detail: 'A live usage meter keeps generation spend visible at a glance.',
+    },
   },
   {
     id: 'mintbox',
     label: 'Mintbox',
-    title: 'Every Asset, Draft and Revision-Stored Together.',
-    description: 'Mintbox is your central creative library for everything produced, uploaded or approved inside Creatyv.',
-    features: [
-      'Store generated text, images and videos',
-      'Upload logos, brand guidelines and reference files',
-      'Save prompts and previous generations',
-      'Organise assets by brand, campaign or project',
-      'Maintain drafts and final versions',
-      'Access previous revisions',
-      'Move approved assets directly into the content calendar',
-      'Keep client feedback connected to the relevant content'
-    ],
-    supportLine: 'No more searching across WhatsApp chats, email attachments and scattered folders.'
-  },
-  {
-    id: 'calendar',
-    label: 'Calendar',
-    title: 'Plan an Entire Month from One Visual Calendar.',
-    description: 'Create, organise and manage content across every connected platform from one monthly view.',
-    features: [
-      'Monthly and weekly calendar views',
-      'Add captions, media and publishing dates',
-      'Plan Instagram, Facebook and YouTube content',
-      'Create recurring content themes',
-      'Move posts between dates',
-      'Filter content by platform or status',
-      'View campaigns and festivals together',
-      'Track content progress from idea to publication'
-    ],
-    supportLine: 'See exactly what is going live, where it is being published and what still needs attention.'
-  },
-  {
-    id: 'approvals',
-    label: 'Approvals',
-    title: 'Keep Feedback Clear and Content Moving.',
-    description: 'Review content, request changes and approve deliverables from the same workspace where the work was created.',
-    features: [
-      'Review captions, images and videos',
-      'Approve or reject content',
-      'Request revisions',
-      'Add comments and feedback',
-      'Maintain version history',
-      'Track pending approvals',
-      'Prevent unapproved content from being published',
-      'Give clients controlled access to their brand workspace'
-    ],
-    supportLine: 'Replace scattered feedback messages with one structured approval workflow.'
+    tone: 'violet',
+    title: 'Organised storage',
+    body: 'Store every asset, prompt, draft, approval and revision.',
+    preview: {
+      kind: 'folder',
+      label: 'Project vault',
+      badge: 'Mintbox',
+      detail: 'Prompts, references, drafts, approvals, and revisions stay together in one clean folder view.',
+    },
   },
   {
     id: 'publish',
-    label: 'Publish',
-    title: 'Plan Once. Publish Everywhere.',
-    description: 'Connect supported social accounts and schedule approved content directly from Creatyv.',
-    features: [
-      'Instagram scheduling and publishing',
-      'Facebook Page scheduling and publishing',
-      'YouTube scheduling and publishing',
-      'Platform-specific captions and media',
-      'Select publishing dates and times',
-      'Manage multiple connected channels',
-      'Monitor scheduled and published content',
-      'View publishing errors or failed posts',
-      'Organise all channels through one calendar'
-    ],
-    supportLine: 'Create in Creatyv, approve in Creatyv and publish wherever your audience follows you.'
+    label: 'Calendar & Publish',
+    tone: 'green',
+    title: 'Plan, schedule, publish',
+    body: 'Plan the month and schedule content across supported platforms.',
+    preview: {
+      kind: 'calendar',
+      label: 'Publishing calendar',
+      badge: 'Live schedule',
+      detail: 'A simple month view keeps publishing and approval dates aligned across every channel.',
+    },
   },
-  {
-    id: 'managed',
-    label: 'Managed by MMM',
-    title: 'Your Dashboard. Our Marketing Team.',
-    description: 'Use Creatyv independently or let Mint More Marketing manage the complete content workflow for your brand.',
-    features: [
-      'Monthly content strategy',
-      'Content-calendar planning',
-      'Caption and copywriting',
-      'Design and creative assistance',
-      'Reel and video support',
-      'Content reviews and revisions',
-      'Scheduling and publishing',
-      'Dedicated coordination',
-      'Reporting and recommendations',
-      'Custom deliverables based on your requirements'
-    ],
-    supportLine: 'You can continue reviewing and approving work through your Creatyv dashboard while MMM handles execution.'
-  },
-  {
-    id: 'insights',
-    label: 'Insights',
-    title: 'Understand What Works and What to Create Next.',
-    description: 'Coming Soon: Creatyv Insights will bring content performance into the same workspace used for creation and publishing.',
-    features: [
-      'Reach and engagement overview',
-      'Platform-wise performance',
-      'Top-performing content',
-      'Post comparisons',
-      'Audience growth tracking',
-      'Monthly performance summaries',
-      'AI-powered content recommendations'
-    ],
-    supportLine: ''
-  }
-];
+]
 
-export const faqData = [
+export const workflowSlides = [
   {
-    q: 'What is Creatyv?',
-    a: 'Creatyv is an AI-powered content creation and social media management workspace. It helps users generate content, organise it in a calendar, review it and schedule it for publishing.'
+    id: 'plan',
+    tone: 'pink',
+    label: 'Plan',
+    title: 'Stay in control',
+    body: 'Keep your monthly content plan, custom requests, status updates, and approvals in one home.',
+    cta: 'Explore calendar',
+    mockTitle: 'June creative plan',
+    mockRows: ['Father’s Day post', 'Yoga Day creative', 'Weekend sale story'],
   },
   {
-    q: 'Can I use Creatyv for free?',
-    a: 'Yes. The Free plan includes limited AI generations and access to the content workspace. Direct publishing to social media platforms is not included in the Free plan.'
+    id: 'track',
+    tone: 'peach',
+    label: 'Track',
+    title: 'Track every creative',
+    body: 'See what is queued, in progress, delivered, or waiting for review without asking your team for updates.',
+    cta: 'Explore requests',
+    mockTitle: 'Campaign overview',
+    mockRows: ['3 in production', '2 delivered', '1 needs review'],
   },
   {
-    q: 'Which platforms can I publish to?',
-    a: 'The Pro plan supports scheduling and publishing to supported Instagram, Facebook and YouTube accounts.'
+    id: 'store',
+    tone: 'violet',
+    label: 'Store',
+    title: 'Keep files together',
+    body: 'Briefs, references, drafts, revisions, and final files stay inside the right Mintbox project folder.',
+    cta: 'Explore Mintbox',
+    mockTitle: 'Mintbox folders',
+    mockRows: ['References', 'Drafts', 'Final delivery'],
   },
-  {
-    q: 'Can I use Creatyv without working with Mint More Marketing?',
-    a: 'Yes. Creatyv can be used independently through the Free or Pro plan.'
-  },
-  {
-    q: 'What is the Managed by MMM plan?',
-    a: 'The Managed by MMM plan combines the Creatyv dashboard with professional marketing support from Mint More Marketing. MMM can help plan, create, review, schedule and manage your social media content.'
-  },
-  {
-    q: 'Are social media insights currently available?',
-    a: 'Insights are planned for the next phase of Creatyv. Eligible Pro and Managed users will receive access when the feature becomes available, subject to the final product rollout.'
-  },
-  {
-    q: 'Can clients approve content through Creatyv?',
-    a: 'Yes. Client workspaces can be used to review content, provide feedback, approve posts and manage publishing activity.'
-  },
-  {
-    q: 'Will freelancers be able to use Creatyv?',
-    a: 'A dedicated freelancer dashboard is planned for a future phase.'
-  },
-  {
-    q: 'Can I upgrade my plan later?',
-    a: 'Yes. You can begin with the Free plan and upgrade as your content and publishing requirements grow.'
-  }
-];
+]
 
+export const valueCards = [
+  ['Calendar planning', 'See today, tomorrow, and the whole month in one clean view.'],
+  ['Custom creatives', 'Request social posts, flyers, covers, menus, banners, and campaign assets.'],
+  ['Mintbox storage', 'Keep 10GB of files, references, drafts, and final deliveries in one place.'],
+  ['Direct posting', 'Connect Instagram, Facebook, and YouTube and publish after approval.'],
+  ['Mint AI', 'Generate ideas, captions, scripts, and brief directions without leaving the workflow.'],
+  ['Status clarity', 'Track queued, in progress, delivered, revision, and completed work instantly.'],
+]
+
+export const integrations = [
+  ['Instagram', 'Plan and publish visual content for your audience.'],
+  ['Facebook', 'Connect pages and keep local customers updated.'],
+  ['YouTube', 'Organise video assets and publish when ready.'],
+]
+
+export const stories = [
+  ['Local cafe', 'Kept festive posts, weekly offers, and story creatives planned from the calendar instead of WhatsApp notes.', 'Owner, Dhanbad cafe'],
+  ['D2C store', 'Stored product references, campaign drafts, revisions, and final files in Mintbox folders.', 'Founder, handmade brand'],
+  ['Restaurant', 'Requested menus, event posts, and offer creatives from one place, then approved work for posting.', 'Manager, family restaurant'],
+  ['Coaching centre', 'Turned admission dates, result posts, and reminder creatives into a simple monthly queue.', 'Operations lead'],
+]
 
 export const bentoCards = [
   ['Monthly operating calendar', 'Plan recurring content moments and see active creative work without opening ten tabs.', 'large'],
@@ -245,4 +176,3 @@ export const localAnswer = question => {
   if (text.includes('price') || text.includes('pricing') || text.includes('cost')) return 'Mint More can recommend the right plan based on how much content your business needs each month.'
   return 'CREATYV helps your business plan monthly creatives, request custom designs, review work, and keep everything in one place.'
 }
-

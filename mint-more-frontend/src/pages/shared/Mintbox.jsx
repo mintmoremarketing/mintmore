@@ -66,7 +66,7 @@ function StorageBar({ quota }) {
 }
 
 export default function Mintbox() {
-	const { jobId, token, categoryToken } = useParams()
+	const { jobId, token, categoryToken, folderId: brandFolderId } = useParams()
 	const navigate = useNavigate()
 	const fileRef = useRef(null)
 	const queryClient = useQueryClient()
@@ -89,8 +89,12 @@ export default function Mintbox() {
 
 	const isOverview = !jobId && !token && !categoryToken
 	const queryKey = useMemo(() => (
-		categoryToken ? ['mintbox-category-share', categoryToken] : token ? ['mintbox-share', token] : jobId ? ['mintbox-job', jobId] : ['mintbox']
-	), [categoryToken, jobId, token])
+		categoryToken ? ['mintbox-category-share', categoryToken]
+		: token ? ['mintbox-share', token]
+		: brandFolderId ? ['mintbox-brand-folder', brandFolderId]
+		: jobId ? ['mintbox-job', jobId]
+		: ['mintbox']
+	), [brandFolderId, categoryToken, jobId, token])
 	const { data, isLoading } = useQuery({
 		queryKey,
 		queryFn: async () => {
@@ -98,6 +102,8 @@ export default function Mintbox() {
 				? await mintboxApi.getSharedCategory(categoryToken)
 				: token
 				? await mintboxApi.getSharedFolder(token)
+				: brandFolderId
+				? await mintboxApi.getBrandFolder(brandFolderId)
 				: jobId
 				? await mintboxApi.getJobFolder(jobId)
 				: await mintboxApi.getFolders()
@@ -107,13 +113,17 @@ export default function Mintbox() {
 
 	const folder = data?.folder
 	const folders = data?.folders || []
+	const brandLibrary = data?.brand_library || {}
+	const brandFolders = brandLibrary?.folders || []
+	const brandFiles = brandLibrary?.files || []
 	const files = useMemo(() => data?.files || [], [data?.files])
 	const quota = data?.quota
 	const uploadPolicy = data?.upload_policy
 	const revisions = data?.revisions
 	const categoryShares = data?.category_shares || []
 	const shareUrl = folder?.share_token && !folder?.share_revoked_at ? `${window.location.origin}/mintbox/share/${folder.share_token}` : ''
-	const canDeleteMintboxContent = Boolean(folder?.job_id) && ['client', 'admin'].includes(role) && !token && !categoryToken
+	const isBrandFolderView = Boolean(brandFolderId)
+	const canDeleteMintboxContent = Boolean(folder) && ['client', 'admin'].includes(role) && !token && !categoryToken
 
 	useEffect(() => {
 		if (!folder?.job_id || !['client', 'freelancer', 'designer', 'admin'].includes(role)) return
@@ -142,7 +152,8 @@ export default function Mintbox() {
 	const walletBalance = Number(walletData?.wallet?.balance ?? 0)
 
 	const startUpload = async (file) => {
-		if (!file || !folder) return
+		const uploadFolderId = isBrandFolderView ? folder?.id : folder?.job_id
+		if (!file || !uploadFolderId) return
 		const extension = `.${file.name.split('.').pop()?.toLowerCase()}`
 		const fileType = getFileType(file)
 		if (uploadPolicy?.max_file_size_bytes && file.size > Number(uploadPolicy.max_file_size_bytes)) {
@@ -158,12 +169,18 @@ export default function Mintbox() {
 
 		setUploadState({ status: 'preparing', progress: 0, file, error: '', uploadId: null })
 		try {
-			const prepared = await mintboxApi.prepareUpload(folder.job_id, {
-				name: file.name,
-				size: file.size,
-				type: fileType,
-				note: note.trim() || undefined,
-			})
+			const prepared = isBrandFolderView
+				? await mintboxApi.prepareBrandUpload(uploadFolderId, {
+					name: file.name,
+					size: file.size,
+					type: fileType,
+				})
+				: await mintboxApi.prepareUpload(uploadFolderId, {
+					name: file.name,
+					size: file.size,
+					type: fileType,
+					note: note.trim() || undefined,
+				})
 			const config = prepared.data?.data?.upload
 			setUploadState(prev => ({ ...prev, uploadId: config.upload_id }))
 			await uploadMintboxFile({
@@ -176,12 +193,16 @@ export default function Mintbox() {
 				},
 			})
 			try {
-				await mintboxApi.completeUpload(config.upload_id)
+				if (isBrandFolderView) {
+					await mintboxApi.completeBrandUpload(config.upload_id)
+				} else {
+					await mintboxApi.completeUpload(config.upload_id)
+				}
 				setUploadState({ status: 'complete', progress: 100, file: null, error: '', uploadId: null })
 				setNote('')
 				queryClient.invalidateQueries({ queryKey })
 				queryClient.invalidateQueries({ queryKey: ['mintbox'] })
-				pushToast({ title: 'Uploaded to Mintbox', icon: 'check' })
+				pushToast({ title: isBrandFolderView ? 'Brand asset uploaded' : 'Uploaded to Mintbox', icon: 'check' })
 			} catch (error) {
 				setUploadState(prev => ({ ...prev, status: 'failed', error: error.response?.data?.message || 'Upload finished but could not be finalized' }))
 				throw error
@@ -318,6 +339,37 @@ export default function Mintbox() {
 			navigate('/mintbox')
 		},
 		onError: err => pushToast({ title: 'Could not delete project', body: err.response?.data?.message || 'Try again', tone: 'danger', icon: 'x' }),
+	})
+	const saveBrandFolderMutation = useMutation({
+		mutationFn: (payload) => (
+			payload?.folderId
+				? mintboxApi.updateBrandFolder(payload.folderId, payload.data)
+				: mintboxApi.createBrandFolder(payload.data)
+		),
+		onSuccess: () => {
+			pushToast({ title: 'Brand folder saved', icon: 'check' })
+			queryClient.invalidateQueries({ queryKey: ['mintbox'] })
+			queryClient.invalidateQueries({ queryKey: ['mintbox-brand-folder', brandFolderId] })
+		},
+		onError: err => pushToast({ title: 'Could not save brand folder', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+	})
+	const deleteBrandFolderMutation = useMutation({
+		mutationFn: (folderId) => mintboxApi.deleteBrandFolder(folderId),
+		onSuccess: () => {
+			pushToast({ title: 'Brand folder deleted', icon: 'trash' })
+			queryClient.invalidateQueries({ queryKey: ['mintbox'] })
+			navigate('/mintbox')
+		},
+		onError: err => pushToast({ title: 'Could not delete brand folder', body: err.response?.data?.message || 'Try again', tone: 'danger', icon: 'x' }),
+	})
+	const deleteBrandFileMutation = useMutation({
+		mutationFn: (fileId) => mintboxApi.deleteBrandFile(fileId),
+		onSuccess: () => {
+			pushToast({ title: 'Brand file deleted', icon: 'trash' })
+			queryClient.invalidateQueries({ queryKey })
+			queryClient.invalidateQueries({ queryKey: ['mintbox'] })
+		},
+		onError: err => pushToast({ title: 'Could not delete brand file', body: err.response?.data?.message || 'Try again', tone: 'danger', icon: 'x' }),
 	})
 
 	const copyShare = async () => {
@@ -515,6 +567,75 @@ export default function Mintbox() {
 				<StorageBar quota={quota} />
 			</div>
 
+			<div className="card reveal" style={{ padding: 18 }}>
+				<div className="row between" style={{ gap: 14, marginBottom: 14 }}>
+					<div>
+						<div className="h-eyebrow" style={{ marginBottom: 6 }}>Brand library</div>
+						<div style={{ fontSize: 13, color: 'var(--ink-600)' }}>Create optional brand folders for logos, photos, references, and campaign assets.</div>
+					</div>
+					<button className="btn primary" onClick={() => {
+						const name = window.prompt('Folder name')
+						if (!name) return
+						const description = window.prompt('Folder description (optional)', '') || ''
+						saveBrandFolderMutation.mutate({ data: { name, description } })
+					}}>
+						<Icon name="plus" size={13} /> New folder
+					</button>
+				</div>
+				{brandFolders.length > 0 ? (
+					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+						{brandFolders.map((item) => (
+							<div key={item.id} style={{ border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)', padding: 14, background: 'var(--paper-tint)' }}>
+								<div className="row between" style={{ gap: 10, marginBottom: 10, alignItems: 'flex-start' }}>
+									<button
+										type="button"
+										onClick={() => navigate(`/mintbox/library/${item.id}`)}
+										style={{ textAlign: 'left', minWidth: 0, flex: 1, border: 0, background: 'transparent', padding: 0, cursor: 'pointer' }}
+									>
+										<div style={{ fontWeight: 700, color: 'var(--ink-950)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+											{item.name}
+										</div>
+										<div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+											{item.file_count || 0} files • {formatBytes(Number(item.storage_used || 0))}
+										</div>
+									</button>
+									<div className="row" style={{ gap: 4 }}>
+										<button
+											className="icon-btn"
+											title="Rename folder"
+											onClick={() => {
+												const name = window.prompt('Rename folder', item.name || '')
+												if (!name) return
+												const description = window.prompt('Folder description (optional)', item.description || '') || ''
+												saveBrandFolderMutation.mutate({ folderId: item.id, data: { name, description } })
+											}}
+										>
+											<Icon name="edit" size={11} />
+										</button>
+										<button
+											className="icon-btn"
+											title="Delete folder"
+											onClick={() => {
+												if (window.confirm(`Delete folder "${item.name}" and all brand files inside it?`)) deleteBrandFolderMutation.mutate(item.id)
+											}}
+										>
+											<Icon name="trash" size={11} />
+										</button>
+									</div>
+								</div>
+								{item.description && <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.5 }}>{item.description}</div>}
+							</div>
+						))}
+					</div>
+				) : (
+					<div className="empty" style={{ border: 0, padding: 28 }}>
+						<div className="empty-glyph"><Icon name="layers" /></div>
+						<h3>No brand folders yet</h3>
+						<p>Create one for logos, reference images, product shots, or campaign assets.</p>
+					</div>
+				)}
+			</div>
+
 			{storagePlans.length > 0 && (
 				<div className="card reveal" style={{ padding: 18 }}>
 					<div className="row between" style={{ gap: 14, marginBottom: 14 }}>
@@ -595,6 +716,179 @@ export default function Mintbox() {
 		<div className="empty">
 			<h3>Mintbox not found</h3>
 			<button className="btn ghost" onClick={() => navigate('/jobs')}>Back to jobs</button>
+		</div>
+	)
+
+	if (isBrandFolderView) return (
+		<div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
+			<div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+				<div>
+					<button className="flex items-center gap-1.5 text-ink-500 hover:text-ink-900 transition-colors text-xs font-semibold uppercase tracking-wider mb-2" onClick={() => navigate('/mintbox')}>
+						<Icon name="arrowLeft" size={14} /> Back to Mintbox
+					</button>
+					<h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">{folder.name}</h1>
+					<p className="text-ink-500 text-sm md:text-base mt-2">
+						Brand assets, reference files, and campaign materials stored in one place.
+					</p>
+					{folder.description && <div className="muted" style={{ marginTop: 8 }}>{folder.description}</div>}
+				</div>
+				<div className="flex items-center gap-2 flex-wrap">
+					<button
+						className="bg-white border border-ink-200 text-ink-700 shadow-sm px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-50 transition-colors"
+						onClick={() => {
+							const name = window.prompt('Rename folder', folder.name || '')
+							if (!name) return
+							const description = window.prompt('Folder description (optional)', folder.description || '') || ''
+							saveBrandFolderMutation.mutate({ folderId: folder.id, data: { name, description } })
+						}}
+					>
+						<Icon name="edit" size={16} /> Rename
+					</button>
+					<button
+						className="bg-red-50 text-red-600 border border-red-200 shadow-sm px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-red-100 transition-colors"
+						onClick={() => {
+							if (window.confirm(`Delete folder "${folder.name}" and all files inside it?`)) deleteBrandFolderMutation.mutate(folder.id)
+						}}
+					>
+						<Icon name="trash" size={16} /> Delete folder
+					</button>
+				</div>
+			</div>
+
+			{quota && (
+				<div className="animate-in fade-in slide-in-from-bottom-6 duration-700">
+					<StorageBar quota={quota} />
+				</div>
+			)}
+
+			<div className="card reveal" style={{ padding: 18 }}>
+				<div className="row between" style={{ gap: 14, marginBottom: 14 }}>
+					<div>
+						<div className="h-eyebrow" style={{ marginBottom: 6 }}>Upload brand assets</div>
+						<div style={{ fontSize: 13, color: 'var(--ink-600)' }}>Upload directly into this folder. Logos, reference images, photos, videos, and documents stay organised here.</div>
+					</div>
+					<button className="btn primary" onClick={() => fileRef.current?.click()} disabled={['preparing', 'uploading', 'paused'].includes(uploadState.status)}>
+						<Icon name="upload" size={13} />
+						{['preparing', 'uploading'].includes(uploadState.status) ? 'Uploading...' : 'Choose files'}
+					</button>
+				</div>
+				<div
+					onDragOver={e => e.preventDefault()}
+					onDrop={e => {
+						e.preventDefault()
+						if (e.dataTransfer.files?.length) startUploads(e.dataTransfer.files)
+					}}
+					onClick={() => fileRef.current?.click()}
+					style={{ border: '1px dashed var(--ink-300)', padding: 18, cursor: 'pointer', marginBottom: 12, background: 'var(--paper-tint)' }}
+				>
+					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+						{[
+							['image', 'Image assets'],
+							['video', 'Video assets'],
+							['file', 'Documents'],
+							['layers', 'Reference packs'],
+						].map(([icon, label]) => (
+							<div key={label} style={{ minHeight: 78, border: '1px solid var(--hairline)', background: 'var(--paper)', padding: 12, display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+								<Icon name={icon} size={15} />
+								<div>
+									<div style={{ fontSize: 12.5, fontWeight: 600 }}>{label}</div>
+									<div style={{ fontSize: 10.5, color: 'var(--ink-500)', marginTop: 4, lineHeight: 1.4 }}>Drop files directly into this folder.</div>
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
+				<textarea
+					className="textarea"
+					rows={2}
+					value={note}
+					onChange={e => setNote(e.target.value)}
+					placeholder="Optional note for the team..."
+				/>
+				<div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 8 }}>
+					Use this folder for brand assets, references, and reusable campaign media.
+				</div>
+				{uploadState.status !== 'idle' && (
+					<div style={{ marginTop: 14, padding: 12, background: 'var(--paper-tint)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}>
+						<div className="row between" style={{ gap: 12, marginBottom: 8 }}>
+							<div style={{ minWidth: 0 }}>
+								<div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+									{uploadState.file?.name || 'Upload complete'}
+								</div>
+								<div style={{ fontSize: 11.5, color: uploadState.status === 'failed' ? 'var(--rose)' : 'var(--ink-500)', marginTop: 2 }}>
+									{uploadState.status === 'failed' ? uploadState.error : uploadState.status === 'complete' ? 'Upload complete' : `${uploadState.progress}% uploaded - resumable`}
+								</div>
+							</div>
+							<div className="row" style={{ gap: 6, flexShrink: 0 }}>
+								{uploadState.status === 'failed' && uploadState.file && (
+									<button className="btn ghost sm" onClick={retryUpload}>
+										<Icon name="refresh" size={12} /> Retry
+									</button>
+								)}
+								{uploadState.status === 'uploading' && (
+									<button className="btn ghost sm" onClick={pauseUpload}>Pause</button>
+								)}
+								{uploadState.status === 'paused' && (
+									<button className="btn ghost sm" onClick={resumeUpload}>Resume</button>
+								)}
+								{['preparing', 'uploading', 'paused'].includes(uploadState.status) && (
+									<button className="btn ghost sm" onClick={cancelUpload}>Cancel</button>
+								)}
+							</div>
+						</div>
+						<div style={{ height: 6, background: 'var(--hairline)', borderRadius: 3, overflow: 'hidden' }}>
+							<div style={{ height: '100%', width: `${uploadState.progress}%`, background: uploadState.status === 'failed' ? 'var(--rose)' : 'var(--mint-500)', transition: 'width 0.2s ease' }} />
+						</div>
+					</div>
+				)}
+			</div>
+
+			<div className="card reveal" style={{ padding: 18 }}>
+				<div className="row between" style={{ gap: 14, marginBottom: 14 }}>
+					<div>
+						<div className="h-eyebrow" style={{ marginBottom: 6 }}>Files</div>
+						<div style={{ fontSize: 13, color: 'var(--ink-600)' }}>Preview and manage the assets stored in this folder.</div>
+					</div>
+					<span className="badge neutral">{files.length} files</span>
+				</div>
+				{files.length === 0 ? (
+					<div className="empty" style={{ border: 0, padding: 40 }}>
+						<div className="empty-glyph"><Icon name="upload" /></div>
+						<h3>No files yet</h3>
+						<p>Upload assets into this folder to get started.</p>
+					</div>
+				) : (
+					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+						{files.map((file) => (
+							<div key={file.id} style={{ border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--paper)' }}>
+								<div style={{ aspectRatio: '1 / 1', background: 'var(--paper-tint)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+									{String(file.mime_type || '').startsWith('video/') ? (
+										<video src={file.preview_url} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+									) : String(file.mime_type || '').startsWith('image/') ? (
+										<img src={file.preview_url} alt={file.original_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+									) : (
+										<div className="muted" style={{ fontSize: 12, padding: 18, textAlign: 'center' }}>{file.media_type || 'file'}</div>
+									)}
+								</div>
+								<div style={{ padding: 12 }}>
+									<div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.original_name}</div>
+									<div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{formatBytes(Number(file.size_bytes || 0))}</div>
+									<div className="row between" style={{ gap: 8, marginTop: 10 }}>
+										<a className="btn ghost sm" href={file.preview_url} target="_blank" rel="noreferrer">
+											<Icon name="arrowUpRight" size={12} /> Open
+										</a>
+										{['client', 'admin'].includes(role) && (
+											<button className="icon-btn" title="Delete file" onClick={() => { if (window.confirm(`Delete ${file.original_name}?`)) deleteBrandFileMutation.mutate(file.id) }}>
+												<Icon name="trash" size={11} />
+											</button>
+										)}
+									</div>
+								</div>
+							</div>
+						))}
+					</div>
+				)}
+			</div>
 		</div>
 	)
 

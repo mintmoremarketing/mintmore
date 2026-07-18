@@ -15,6 +15,7 @@ const BUCKET = storage.getBucket();
 const CLIENT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;
 const BYTES_PER_GB = 1024 * 1024 * 1024;
 const DEFAULT_REVISION_POLICY = { included_rounds: 3, paid_revision_price: 20, feedback_window_hours: 24 };
+const BRAND_LIBRARY_UPLOAD_PREFIX = 'brand-library';
 
 const getRevisionPolicy = async (dbClient = null) => {
   const configured = await getSetting('revisions', DEFAULT_REVISION_POLICY, dbClient);
@@ -126,9 +127,12 @@ const validateMintboxFile = ({ name, size, type }) => {
 const getClientUsage = async (clientId, dbClient = null) => {
   const executor = dbClient || { query: (sql, params) => query(sql, params) };
   const result = await executor.query(
-    `SELECT COALESCE(SUM(storage_used), 0)::BIGINT AS used
-     FROM mintbox_folders
-     WHERE client_id = $1`,
+    `SELECT COALESCE((
+       SELECT SUM(storage_used) FROM mintbox_folders WHERE client_id = $1
+     ), 0)::BIGINT
+     + COALESCE((
+       SELECT SUM(storage_used) FROM mintbox_brand_folders WHERE client_id = $1
+     ), 0)::BIGINT AS used`,
     [clientId]
   );
   return Number(result.rows[0]?.used || 0);
@@ -252,9 +256,11 @@ const listClientFolders = async (clientId, role) => {
   );
   const used = await getClientUsage(clientId);
   const limit = await getClientStorageLimit(clientId);
+  const brandLibrary = await listBrandLibrary(clientId, role);
 
   return {
     folders: folders.rows,
+    brand_library: brandLibrary.brand_library,
     upload_policy: getUploadPolicy(),
     quota: {
       used,
@@ -327,6 +333,300 @@ const getPublicCategoryByShareToken = async (token) => {
     files: (await listFiles(share.folder_id, share.category)).filter((file) => !file.share_revoked_at),
     category_shares: [],
   };
+};
+
+const listBrandLibrary = async (clientId, role) => {
+  if (role !== 'client' && role !== 'admin') {
+    throw new AppError('Only clients can view brand library folders', 403);
+  }
+
+  const foldersResult = await query(
+    `SELECT
+       bf.id, bf.client_id, bf.name, bf.description, bf.storage_prefix, bf.storage_used,
+       bf.created_at, bf.updated_at,
+       COUNT(files.id)::INT AS file_count,
+       MAX(files.created_at) AS last_file_at
+     FROM mintbox_brand_folders bf
+     LEFT JOIN mintbox_brand_files files ON files.folder_id = bf.id AND files.deleted_at IS NULL
+     WHERE bf.client_id = $1
+     GROUP BY bf.id
+     ORDER BY bf.updated_at DESC, bf.created_at DESC`,
+    [clientId]
+  );
+
+  const recentFiles = await query(
+    `SELECT
+       bf.id, bf.folder_id, bf.client_id, bf.original_name, bf.storage_bucket,
+       bf.storage_path, bf.mime_type, bf.size_bytes, bf.media_type, bf.created_at,
+       folder.name AS folder_name
+     FROM mintbox_brand_files bf
+     JOIN mintbox_brand_folders folder ON folder.id = bf.folder_id
+     WHERE bf.client_id = $1 AND bf.deleted_at IS NULL
+     ORDER BY bf.created_at DESC
+     LIMIT 48`,
+    [clientId]
+  );
+
+  return {
+    brand_library: {
+      folders: foldersResult.rows,
+      files: await Promise.all(recentFiles.rows.map(toBrandFile)),
+    },
+    upload_policy: getUploadPolicy(),
+    quota: {
+      used: await getClientUsage(clientId),
+      limit: await getClientStorageLimit(clientId),
+      remaining: Math.max(0, (await getClientStorageLimit(clientId)) - (await getClientUsage(clientId))),
+    },
+  };
+};
+
+const getBrandFolder = async (folderId, requesterId, role) => {
+  const folder = await getBrandFolderAccess(folderId, requesterId, role);
+  const files = await listBrandFiles(folder.id);
+  const childFolders = await query(
+    `SELECT
+       bf.id, bf.client_id, bf.name, bf.description, bf.storage_prefix, bf.storage_used,
+       bf.created_at, bf.updated_at,
+       COUNT(files.id)::INT AS file_count
+     FROM mintbox_brand_folders bf
+     LEFT JOIN mintbox_brand_files files ON files.folder_id = bf.id AND files.deleted_at IS NULL
+     WHERE bf.client_id = $1
+     GROUP BY bf.id
+     ORDER BY bf.updated_at DESC, bf.created_at DESC`,
+    [folder.client_id]
+  );
+
+  return {
+    folder,
+    files,
+    folders: childFolders.rows,
+    upload_policy: getUploadPolicy(),
+    quota: {
+      used: await getClientUsage(folder.client_id),
+      limit: await getClientStorageLimit(folder.client_id),
+      remaining: Math.max(0, (await getClientStorageLimit(folder.client_id)) - (await getClientUsage(folder.client_id))),
+    },
+  };
+};
+
+const createBrandFolder = async (clientId, role, { name, description = '' } = {}) => {
+  if (role !== 'client' && role !== 'admin') throw new AppError('Only clients can create brand folders', 403);
+  const folderName = String(name || '').trim();
+  if (!folderName) throw new AppError('Folder name is required', 400);
+  const prefix = `${BRAND_LIBRARY_UPLOAD_PREFIX}/${clientId}/${crypto.randomUUID()}`;
+  const result = await query(
+    `INSERT INTO mintbox_brand_folders (client_id, name, description, storage_prefix)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [clientId, folderName, description || null, prefix]
+  );
+  return result.rows[0];
+};
+
+const updateBrandFolder = async (folderId, requesterId, role, { name, description } = {}) => {
+  const folder = await getBrandFolderAccess(folderId, requesterId, role);
+  const nextName = name !== undefined ? String(name || '').trim() : folder.name;
+  if (!nextName) throw new AppError('Folder name is required', 400);
+  const nextDescription = description !== undefined ? (description || null) : folder.description;
+  const result = await query(
+    `UPDATE mintbox_brand_folders
+     SET name = $2,
+         description = $3
+     WHERE id = $1
+     RETURNING *`,
+    [folderId, nextName, nextDescription]
+  );
+  return result.rows[0];
+};
+
+const deleteBrandFolder = async (folderId, requesterId, role) => {
+  const folder = await getBrandFolderAccess(folderId, requesterId, role);
+  const files = await query(
+    `SELECT size_bytes FROM mintbox_brand_files
+     WHERE folder_id = $1 AND deleted_at IS NULL`,
+    [folder.id]
+  );
+  const freedBytes = files.rows.reduce((sum, item) => sum + Number(item.size_bytes || 0), 0);
+  await query('DELETE FROM mintbox_brand_folders WHERE id = $1', [folder.id]);
+  return { folder_id: folder.id, deleted: true, freed_bytes: freedBytes };
+};
+
+const prepareBrandUpload = async (folderId, uploaderId, role, { name, size, type } = {}) => {
+  if (!['client', 'admin'].includes(role)) throw new AppError('Only clients can upload brand assets', 403);
+  validateMintboxFile({ name, size, type });
+
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+    const folder = await getBrandFolderAccess(folderId, uploaderId, role, dbClient);
+    const used = await getClientUsage(folder.client_id, dbClient);
+    const limit = await getClientStorageLimit(folder.client_id, dbClient);
+    if (used + Number(size) > limit) {
+      throw new AppError('Client Mintbox storage does not have enough available space', 400);
+    }
+
+    const ext = path.extname(safeName(name)).toLowerCase();
+    const mediaType = getFileCategory({ name, type });
+    const storagePath = `${folder.storage_prefix}/${mediaType}/${Date.now()}-${crypto.randomUUID()}${ext}`;
+    const signedUpload = await storage.prepareResumableUpload(storagePath, {
+      contentType: type || 'application/octet-stream',
+      size: Number(size),
+    });
+    const session = await dbClient.query(
+      `INSERT INTO mintbox_brand_upload_sessions
+         (folder_id, client_id, uploaded_by, original_name, storage_bucket, storage_path, mime_type, size_bytes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING id, expires_at`,
+      [
+        folder.id,
+        folder.client_id,
+        uploaderId,
+        safeName(name),
+        BUCKET,
+        storagePath,
+        type,
+        Number(size),
+      ]
+    );
+    await dbClient.query('COMMIT');
+    return {
+      upload_id: session.rows[0].id,
+      expires_at: session.rows[0].expires_at,
+      bucket: BUCKET,
+      storage_path: storagePath,
+      ...signedUpload,
+      policy: getUploadPolicy(),
+    };
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    dbClient.release();
+  }
+};
+
+const completeBrandUpload = async (uploadId, uploaderId, role) => {
+  if (!['client', 'admin'].includes(role)) throw new AppError('Only clients can complete brand uploads', 403);
+
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+    const sessionResult = await dbClient.query(
+      `SELECT * FROM mintbox_brand_upload_sessions
+       WHERE id = $1 AND uploaded_by = $2
+       FOR UPDATE`,
+      [uploadId, uploaderId]
+    );
+    const session = sessionResult.rows[0];
+    if (!session) throw new AppError('Upload session not found', 404);
+    if (session.status === 'completed') {
+      const existing = await dbClient.query(
+        'SELECT * FROM mintbox_brand_files WHERE storage_path = $1',
+        [session.storage_path]
+      );
+      await dbClient.query('COMMIT');
+      return existing.rows[0] ? await toBrandFile(existing.rows[0]) : null;
+    }
+    if (session.status !== 'pending' || new Date(session.expires_at) <= new Date()) {
+      throw new AppError('Upload session has expired', 410);
+    }
+
+    const exists = await storage.objectExists(session.storage_path);
+    if (!exists) throw new AppError('Upload has not finished yet', 409);
+
+    const inserted = await dbClient.query(
+      `INSERT INTO mintbox_brand_files
+         (folder_id, client_id, uploaded_by, original_name, storage_bucket, storage_path, mime_type, size_bytes, media_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (storage_path) DO UPDATE SET storage_path = EXCLUDED.storage_path
+       RETURNING *`,
+      [
+        session.folder_id,
+        session.client_id,
+        session.uploaded_by,
+        session.original_name,
+        session.storage_bucket,
+        session.storage_path,
+        session.mime_type,
+        session.size_bytes,
+        getFileCategory({ name: session.original_name, type: session.mime_type }),
+      ]
+    );
+
+    await dbClient.query(
+      `UPDATE mintbox_brand_folders
+       SET storage_used = storage_used + $1
+       WHERE id = $2`,
+      [session.size_bytes, session.folder_id]
+    );
+    await dbClient.query(
+      `UPDATE mintbox_brand_upload_sessions
+       SET status = 'completed', completed_at = NOW()
+       WHERE id = $1`,
+      [session.id]
+    );
+    await dbClient.query('COMMIT');
+    return toBrandFile(inserted.rows[0]);
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    dbClient.release();
+  }
+};
+
+const cancelBrandUpload = async (uploadId, uploaderId, role) => {
+  if (!['client', 'admin'].includes(role)) throw new AppError('Only clients can cancel brand uploads', 403);
+  const result = await query(
+    `UPDATE mintbox_brand_upload_sessions
+     SET status = 'cancelled'
+     WHERE id = $1
+       AND uploaded_by = $2
+       AND status = 'pending'
+     RETURNING id`,
+    [uploadId, uploaderId]
+  );
+  if (!result.rows[0]) throw new AppError('Active upload session not found', 404);
+  return { upload_id: result.rows[0].id, status: 'cancelled' };
+};
+
+const deleteBrandFile = async (fileId, requesterId, role) => {
+  const dbClient = await getClient();
+  try {
+    await dbClient.query('BEGIN');
+    const fileResult = await dbClient.query(
+      `SELECT bf.*, folder.client_id
+       FROM mintbox_brand_files bf
+       JOIN mintbox_brand_folders folder ON folder.id = bf.folder_id
+       WHERE bf.id = $1
+       FOR UPDATE`,
+      [fileId]
+    );
+    const file = fileResult.rows[0];
+    if (!file || file.deleted_at) throw new AppError('File not found', 404);
+    assertBrandLibraryAccess(role, requesterId, file.client_id);
+
+    await dbClient.query(
+      `UPDATE mintbox_brand_files
+       SET deleted_at = NOW()
+       WHERE id = $1`,
+      [fileId]
+    );
+    await dbClient.query(
+      `UPDATE mintbox_brand_folders
+       SET storage_used = GREATEST(0, storage_used - $2::BIGINT)
+       WHERE id = $1`,
+      [file.folder_id, Number(file.size_bytes || 0)]
+    );
+    await dbClient.query('COMMIT');
+    return { file_id: fileId, deleted: true, freed_bytes: Number(file.size_bytes || 0) };
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    dbClient.release();
+  }
 };
 
 const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, purpose = 'delivery' } = {}) => {
@@ -621,6 +921,51 @@ const listCategoryShares = async (folderId) => {
     ...share,
     share_url: share.share_revoked_at ? null : `/mintbox/share-category/${share.share_token}`,
   }));
+};
+
+const toBrandFile = async (file) => {
+  if (!file) return file;
+  const signedUrl = await storage.createDownloadUrl(file.storage_path, 7 * 24 * 60 * 60);
+  return {
+    ...file,
+    preview_url: signedUrl || null,
+    url: signedUrl || null,
+  };
+};
+
+const assertBrandLibraryAccess = (role, requesterId, clientId) => {
+  if (role !== 'client' && role !== 'admin') {
+    throw new AppError('Only clients can manage brand library folders', 403);
+  }
+  if (role === 'client' && requesterId !== clientId) {
+    throw new AppError('Brand library folder not found', 404);
+  }
+};
+
+const getBrandFolderAccess = async (folderId, requesterId, role, dbClient = null) => {
+  const executor = dbClient || { query: (sql, params) => query(sql, params) };
+  const result = await executor.query(
+    `SELECT id, client_id, name, description, storage_prefix, storage_used, created_at, updated_at
+     FROM mintbox_brand_folders
+     WHERE id = $1`,
+    [folderId]
+  );
+  const folder = result.rows[0];
+  if (!folder) throw new AppError('Brand library folder not found', 404);
+  assertBrandLibraryAccess(role, requesterId, folder.client_id);
+  return folder;
+};
+
+const listBrandFiles = async (folderId) => {
+  const result = await query(
+    `SELECT bf.*, u.full_name AS uploaded_by_name, u.role AS uploaded_by_role
+     FROM mintbox_brand_files bf
+     JOIN users u ON u.id = bf.uploaded_by
+     WHERE bf.folder_id = $1 AND bf.deleted_at IS NULL
+     ORDER BY bf.created_at DESC`,
+    [folderId]
+  );
+  return Promise.all(result.rows.map(toBrandFile));
 };
 
 const getPublicFile = async (token) => {
@@ -1133,6 +1478,15 @@ module.exports = {
   getUploadPolicy,
   listClientFolders,
   getFolderByJob,
+  listBrandLibrary,
+  getBrandFolder,
+  createBrandFolder,
+  updateBrandFolder,
+  deleteBrandFolder,
+  prepareBrandUpload,
+  completeBrandUpload,
+  cancelBrandUpload,
+  deleteBrandFile,
   getFolderByShareToken,
   getPublicFolderByShareToken,
   getPublicCategoryByShareToken,

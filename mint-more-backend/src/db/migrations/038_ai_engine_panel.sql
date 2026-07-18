@@ -26,6 +26,9 @@ ALTER TABLE ai_generations
   ADD COLUMN IF NOT EXISTS batch_count INTEGER NOT NULL DEFAULT 1,
   ADD COLUMN IF NOT EXISTS engine_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 
+ALTER TABLE ai_reference_assets
+  ADD COLUMN IF NOT EXISTS reference_role TEXT NOT NULL DEFAULT 'reference';
+
 CREATE TABLE IF NOT EXISTS ai_reference_assets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -15,6 +15,7 @@ router.delete('/selections/:selectionId', authorize('client'), controller.cancel
 
 router.get('/designer/tasks', authorize('designer'), controller.designerTasks);
 router.patch('/designer/tasks/:taskId', authorize('designer'), controller.updateDesignerTask);
+router.get('/brands/:userId/context', authorize('admin', 'designer'), controller.getBrandContext);
 
 router.get(
   '/admin/overview',
