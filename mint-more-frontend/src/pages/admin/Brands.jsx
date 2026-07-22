@@ -7,6 +7,12 @@ import { SkeletonCard } from '../../components/ui/Skeleton'
 
 const asArray = (value) => (Array.isArray(value) ? value : [])
 const brandName = (brand) => brand?.business_name || brand?.full_name || brand?.email || 'Brand'
+const formatShortDate = (value) => (value
+  ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  : '—')
+const formatShortDateTime = (value) => (value
+  ? new Date(value).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  : '—')
 
 function Section({ title, subtitle, children, icon }) {
   return (
@@ -93,6 +99,7 @@ export default function AdminBrands() {
   const references = asArray(brandAssets.references)
   const photos = asArray(brandAssets.photos)
   const socialAccounts = asArray(detailData?.social_accounts)
+  const socialAccountRows = socialAccounts.length ? socialAccounts : asArray(detailData?.channel_history)
   const tasks = asArray(detailData?.tasks)
   const calendar = asArray(detailData?.calendar)
   const requests = asArray(detailData?.requests)
@@ -251,16 +258,24 @@ export default function AdminBrands() {
               <Section title="Brand library" subtitle="Drive-like brand folders and reusable files from Mintbox." icon="folder">
                 <div className="stack" style={{ gap: 12 }}>
                   <div className="row wrap" style={{ gap: 8 }}>
-                    <span className="badge mint">Folders {(detailData?.brand_library?.folders || []).length}</span>
-                    <span className="badge mint">Files {(detailData?.brand_library?.files || []).length}</span>
+                    <span className="badge mint">Folders ${(detailData?.brand_library?.folders || []).length}</span>
+                    <span className="badge mint">Files ${(detailData?.brand_library?.files || []).length}</span>
                   </div>
                   {(detailData?.brand_library?.folders || []).length ? (
                     <div className="grid-2" style={{ gap: 12 }}>
-                      {detailData.brand_library.folders.slice(0, 6).map((folder) => (
+                      {detailData.brand_library.folders.map((folder) => (
                         <div key={folder.id} className="card" style={{ padding: 14 }}>
-                          <div style={{ fontWeight: 700 }}>{folder.name}</div>
-                          <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-                            {folder.description || 'Brand folder'} â€¢ {folder.file_count || 0} file{(folder.file_count || 0) === 1 ? '' : 's'}
+                          <div className="row between" style={{ gap: 12, alignItems: 'flex-start' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: 700 }}>{folder.name}</div>
+                              <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{folder.description || 'Brand folder'}</div>
+                            </div>
+                            <span className="badge neutral">{folder.visibility || 'private'}</span>
+                          </div>
+                          <div className="row wrap" style={{ gap: 8, marginTop: 12 }}>
+                            <span className="badge neutral">Files {folder.file_count || 0}</span>
+                            <span className="badge neutral">Created {formatShortDate(folder.created_at)}</span>
+                            <span className="badge neutral">Updated {formatShortDateTime(folder.updated_at)}</span>
                           </div>
                         </div>
                       ))}
@@ -270,11 +285,20 @@ export default function AdminBrands() {
                   )}
                   {(detailData?.brand_library?.files || []).length ? (
                     <div className="grid-2" style={{ gap: 12 }}>
-                      {detailData.brand_library.files.slice(0, 4).map((file) => (
+                      {detailData.brand_library.files.map((file) => (
                         <div key={file.id} className="card" style={{ padding: 14 }}>
-                          <div style={{ fontWeight: 700 }}>{file.original_name || file.name}</div>
-                          <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-                            {file.folder_name || 'Brand folder'} â€¢ {file.media_type || 'file'}
+                          <div className="row between" style={{ gap: 12, alignItems: 'flex-start' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: 700 }}>{file.original_name || file.name}</div>
+                              <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{file.folder_name || 'Brand folder'}</div>
+                            </div>
+                            <span className="badge neutral">{file.media_type || file.mime_type || 'file'}</span>
+                          </div>
+                          <div className="row wrap" style={{ gap: 8, marginTop: 12 }}>
+                            <span className="badge neutral">Size {file.size_bytes ? Math.round(file.size_bytes / 1024) + ' KB' : '�'}</span>
+                            <span className="badge neutral">Created {formatShortDate(file.created_at)}</span>
+                            <span className="badge neutral">Updated {formatShortDateTime(file.updated_at)}</span>
+                            {file.storage_path && <span className="badge neutral">Path {file.storage_path}</span>}
                           </div>
                         </div>
                       ))}
@@ -282,30 +306,74 @@ export default function AdminBrands() {
                   ) : null}
                 </div>
               </Section>
-
               <div className="grid-2" style={{ gap: 16 }}>
                 <Section title="Calendar & requests" subtitle="Approved content, requests, and history." icon="calendar">
                   <div className="stack" style={{ gap: 14 }}>
-                    {calendar.length ? calendar.slice(0, 6).map((item) => (
+                    <div className="row wrap" style={{ gap: 8 }}>
+                      <span className="badge mint">Calendar ${calendar.length}</span>
+                      <span className="badge mint">Requests ${requests.length}</span>
+                      <span className="badge mint">Tasks ${tasks.length}</span>
+                    </div>
+                    {calendar.length ? calendar.map((item) => (
                       <div key={item.id} className="card" style={{ padding: 14 }}>
-                        <div className="row between" style={{ gap: 12 }}>
-                          <div>
-                            <div style={{ fontWeight: 700 }}>{item.title}</div>
-                            <div className="muted" style={{ fontSize: 13 }}>{item.category_name || 'Creative event'} • {item.event_date ? new Date(item.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No date'}</div>
+                        <div className="row between" style={{ gap: 12, alignItems: 'flex-start' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700 }}>{item.title || item.name || 'Calendar item'}</div>
+                            <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                              {item.category_name || item.event_type || 'Creative event'} - {item.event_date ? new Date(item.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No date'}
+                            </div>
                           </div>
-                          <span className="badge neutral">{item.selection_status || 'published'}</span>
+                          <span className="badge neutral">{item.selection_status || item.status || 'planned'}</span>
+                        </div>
+                        <div className="row wrap" style={{ gap: 8, marginTop: 12 }}>
+                          <span className="badge neutral">Coin {item.coin_cost ?? 0}</span>
+                          <span className="badge neutral">Status {item.publish_status || 'draft'}</span>
+                          <span className="badge neutral">Channel {item.platform || item.target_platform || 'general'}</span>
+                          {item.source && <span className="badge neutral">Source {item.source}</span>}
+                        </div>
+                        <div className="stack" style={{ gap: 8, marginTop: 12 }}>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Created</span><strong>{formatShortDateTime(item.created_at)}</strong></div>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Updated</span><strong>{formatShortDateTime(item.updated_at)}</strong></div>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Approved by</span><strong>{item.approved_by_name || item.approved_by || '�'}</strong></div>
+                          {item.description && <div className="muted" style={{ fontSize: 13 }}>{item.description}</div>}
                         </div>
                       </div>
                     )) : <div className="muted">No calendar items yet.</div>}
-                    {requests.length ? requests.slice(0, 6).map((item) => (
+                    {requests.length ? requests.map((item) => (
                       <div key={item.id} className="card" style={{ padding: 14 }}>
-                        <div style={{ fontWeight: 700 }}>{item.title}</div>
-                        <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{item.status} • {item.job_title || 'No linked job'}</div>
+                        <div className="row between" style={{ gap: 12, alignItems: 'flex-start' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700 }}>{item.title || item.request_title || 'Request'}</div>
+                            <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{item.status || 'open'} - {item.job_title || item.request_type || 'No linked job'}</div>
+                          </div>
+                          <span className="badge neutral">{item.priority || 'normal'}</span>
+                        </div>
+                        <div className="stack" style={{ gap: 8, marginTop: 12 }}>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Due</span><strong>{formatShortDate(item.due_date || item.requested_for)}</strong></div>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Created</span><strong>{formatShortDateTime(item.created_at)}</strong></div>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Assigned to</span><strong>{item.assignee_name || '�'}</strong></div>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Channel</span><strong>{item.platform || '�'}</strong></div>
+                          <div className="muted" style={{ fontSize: 13 }}>{item.description || item.notes || 'No request notes yet.'}</div>
+                        </div>
+                      </div>
+                    )) : null}
+                    {tasks.length ? tasks.map((task) => (
+                      <div key={task.id} className="card" style={{ padding: 14 }}>
+                        <div className="row between" style={{ gap: 12 }}>
+                          <div style={{ fontWeight: 700 }}>{task.title || task.name || 'Task'}</div>
+                          <span className="badge neutral">{task.status || 'open'}</span>
+                        </div>
+                        <div className="stack" style={{ gap: 8, marginTop: 12 }}>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Type</span><strong>{task.task_type || '�'}</strong></div>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Due</span><strong>{formatShortDate(task.due_date)}</strong></div>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Owner</span><strong>{task.assignee_name || '�'}</strong></div>
+                          <div className="row between" style={{ gap: 12 }}><span className="muted">Linked job</span><strong>{task.job_title || '�'}</strong></div>
+                          <div className="muted" style={{ fontSize: 13 }}>{task.notes || task.description || 'No task details yet.'}</div>
+                        </div>
                       </div>
                     )) : null}
                   </div>
                 </Section>
-
                 <Section title="Mintbox" subtitle="Folders and files linked to the brand’s jobs." icon="mintbox">
                   <div className="stack" style={{ gap: 10 }}>
                     <div className="row wrap" style={{ gap: 8 }}>

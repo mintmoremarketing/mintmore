@@ -189,8 +189,8 @@ export default function Landing() {
           </div>
           <div>
             <h4>Support</h4>
-            <span>Help center</span>
-            <span>Ask a question</span>
+            <Link to="/contact-support-policy">Help center</Link>
+            <a href="mailto:agency@mintmoremarketing.com">Ask a question</a>
             <a href="mailto:agency@mintmoremarketing.com">Contact team</a>
             <a href="tel:+918092282114">8092282114</a>
           </div>
@@ -202,9 +202,10 @@ export default function Landing() {
           </div>
           <div>
             <h4>Trust</h4>
-            <span>Privacy</span>
-            <span>Terms</span>
-            <span>Security</span>
+            <Link to="/privacy">Privacy</Link>
+            <Link to="/terms">Terms of use</Link>
+            <Link to="/refund-cancellation-policy">Refund & cancellation</Link>
+            <Link to="/contact-support-policy">Security & support</Link>
           </div>
         </div>
         <div className="landing-footer-grid">

@@ -4,6 +4,15 @@ const ALLOWED_PRICING_MODES = ['budget', 'expert'];
 const ALLOWED_BUDGET_TYPES = ['quote', 'fixed', 'expert'];
 const ALLOWED_LEVELS = ['beginner', 'intermediate', 'experienced'];
 
+const parseDeadline = (value) => {
+  if (typeof value !== 'string') return new Date(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day, 23, 59, 59, 999);
+  }
+  return new Date(value);
+};
+
 const throwIfErrors = (errors) => {
   if (errors.length > 0) {
     const err = new AppError('Validation failed', 422);
@@ -54,11 +63,11 @@ const validateCreateJob = (body) => {
     errors.push(`required_level must be one of: ${ALLOWED_LEVELS.join(', ')}`);
   }
   if (deadline) {
-    const d = new Date(deadline);
+    const d = parseDeadline(deadline);
     if (isNaN(d.getTime())) {
       errors.push('deadline must be a valid date');
     } else if (d <= new Date()) {
-      errors.push('deadline must be in the future');
+      errors.push('deadline must be today or later');
     }
   }
   if (required_skills !== undefined) {
@@ -110,9 +119,9 @@ const validateUpdateJob = (body) => {
     errors.push(`required_level must be one of: ${ALLOWED_LEVELS.join(', ')}`);
   }
   if (deadline !== undefined && deadline) {
-    const d = new Date(deadline);
+    const d = parseDeadline(deadline);
     if (isNaN(d.getTime())) errors.push('deadline must be a valid date');
-    else if (d <= new Date()) errors.push('deadline must be in the future');
+    else if (d <= new Date()) errors.push('deadline must be today or later');
   }
   if (required_skills !== undefined) {
     if (!Array.isArray(required_skills)) {

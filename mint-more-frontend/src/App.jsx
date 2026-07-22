@@ -35,6 +35,8 @@ import Disputes          from './pages/shared/Disputes'
 import Support           from './pages/shared/Support'
 import Privacy           from './pages/public/Privacy'
 import Terms             from './pages/public/Terms'
+import RefundCancellation from './pages/public/RefundCancellation'
+import ContactSupportPolicy from './pages/public/ContactSupportPolicy'
 
 // Freelancer pages
 import FreelancerDashboard  from './pages/freelancer/Dashboard'
@@ -190,6 +192,8 @@ export default function App() {
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
         <Route path="/privacy"          element={<Privacy />} />
         <Route path="/terms"            element={<Terms />} />
+        <Route path="/refund-cancellation-policy" element={<RefundCancellation />} />
+        <Route path="/contact-support-policy" element={<ContactSupportPolicy />} />
         <Route path="/mintbox/share/:token" element={<Mintbox />} />
         <Route path="/mintbox/share-category/:categoryToken" element={<Mintbox />} />
         <Route path="/mintbox/file/:token" element={<SharedFile />} />
@@ -203,8 +207,8 @@ export default function App() {
           <Route path="/calendar"  element={<ClientOnly><ClientFeature flag="calendar_creatives"><ClientCalendar /></ClientFeature></ClientOnly>} />
           <Route path="/jobs"      element={<ClientFeature flag="custom_requests"><RoleJobs /></ClientFeature>} />
           <Route path="/requests"  element={<ClientOnly><ClientFeature flag="custom_requests"><Jobs /></ClientFeature></ClientOnly>} />
-          <Route path="/jobs/new"  element={<ClientOnly><ClientFeature flag="custom_requests"><PostJob /></ClientFeature></ClientOnly>} />
-          <Route path="/jobs/:id/edit" element={<ClientOnly><ClientFeature flag="custom_requests"><PostJob /></ClientFeature></ClientOnly>} />
+          <Route path="/jobs/new"  element={<ClientOnly><PostJob /></ClientOnly>} />
+          <Route path="/jobs/:id/edit" element={<ClientOnly><PostJob /></ClientOnly>} />
           <Route path="/jobs/:id"  element={<RoleJobDetail />} />
           <Route path="/wallet"    element={<ClientFeature flag="wallet_ui"><RoleWallet /></ClientFeature>} />
 

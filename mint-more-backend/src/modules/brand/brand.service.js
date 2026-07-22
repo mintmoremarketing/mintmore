@@ -224,7 +224,7 @@ const listBrandWorkspaces = async ({ limit = 100, search = '' } = {}) => {
        (SELECT COUNT(*) FROM mintbox_brand_folders WHERE client_id = u.id) AS brand_library_folders,
        (SELECT COUNT(*) FROM mintbox_brand_files WHERE client_id = u.id AND deleted_at IS NULL) AS brand_library_files
      FROM users u
-     WHERE u.role = 'client'
+     WHERE LOWER(u.role::text) = 'client'
      ${searchClause}
      ORDER BY COALESCE(NULLIF(u.business_name, ''), u.full_name, u.email) ASC, u.created_at DESC
      LIMIT $1`,
@@ -250,7 +250,7 @@ const listBrandWorkspaces = async ({ limit = 100, search = '' } = {}) => {
 const getBrandWorkspace = async (userId) => {
   const select = await buildUserSelect('u');
   const [profileResult, socialAccounts, channelHistory, tasks, events, requests, folders, files, brandLibrary, posts, platformSummary, summaryCounts] = await Promise.all([
-    query(`SELECT ${select} FROM users u WHERE u.id = $1 AND u.role = 'client'`, [userId]),
+    query(`SELECT ${select} FROM users u WHERE u.id = $1 AND LOWER(u.role::text) = 'client'`, [userId]),
     query(
       `SELECT
          id, platform, platform_user_id, platform_username, platform_name, platform_avatar_url,

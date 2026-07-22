@@ -28,6 +28,13 @@ const briefExtension = file => {
   const dotIndex = name.lastIndexOf('.')
   return dotIndex >= 0 ? name.slice(dotIndex).toLowerCase() : ''
 }
+const todayInputValue = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 const isAllowedBriefFile = file => {
   const extension = briefExtension(file)
   return extension && ALLOWED_BRIEF_EXTENSIONS.includes(extension) && !BLOCKED_BRIEF_EXTENSIONS.includes(extension)
@@ -40,20 +47,22 @@ const poolOptions = [
 
 function Question({ eyebrow, title, subtitle, children }) {
   return (
-    <div className="stack" style={{ gap: 22 }}>
+    <div className="stack" style={{ gap: 24 }}>
       <div>
-        <div className="h-eyebrow" style={{ color: 'var(--mint-700)', marginBottom: 8 }}>{eyebrow}</div>
-        <h2 className="h-display h-2" style={{ margin: 0, maxWidth: 760 }}>{title}</h2>
-        {subtitle && <p className="muted" style={{ margin: '8px 0 0', maxWidth: 680, lineHeight: 1.55 }}>{subtitle}</p>}
+        <div className="h-eyebrow" style={{ color: 'var(--mint-600)', marginBottom: 6, fontWeight: 700, letterSpacing: '0.08em' }}>{eyebrow}</div>
+        <h2 className="h-display" style={{ margin: 0, maxWidth: 760, fontSize: '26px', lineHeight: '1.25', fontWeight: 800, color: 'var(--ink-950)' }}>{title}</h2>
+        {subtitle && <p className="muted" style={{ margin: '10px 0 0', maxWidth: 680, fontSize: '14px', lineHeight: 1.6, color: 'var(--ink-500)' }}>{subtitle}</p>}
       </div>
-      {children}
+      <div style={{ marginTop: 8 }}>
+        {children}
+      </div>
     </div>
   )
 }
 
 function ChoiceTiles({ options, selected = [], onToggle, renderOption }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+    <div className="brief-tiles-grid">
       {options.map(option => {
         const value = typeof option === 'string' ? option : option.value
         const active = selected.includes(value)
@@ -62,21 +71,12 @@ function ChoiceTiles({ options, selected = [], onToggle, renderOption }) {
             key={value}
             type="button"
             onClick={() => onToggle(value)}
-            style={{
-              position: 'relative', minHeight: 104, padding: 18, textAlign: 'left',
-              border: `1.5px solid ${active ? 'var(--mint-500)' : 'var(--hairline)'}`,
-              background: active ? 'var(--mint-50)' : 'var(--paper)',
-              borderRadius: 'var(--radius-md)', cursor: 'pointer',
-              boxShadow: active ? '0 0 0 3px rgba(247,127,0,.08)' : 'none',
-            }}
+            className={`brief-tile${active ? ' active' : ''}`}
           >
-            <span style={{
-              position: 'absolute', top: 14, right: 14, width: 20, height: 20, borderRadius: '50%',
-              border: `1.5px solid ${active ? 'var(--mint-500)' : 'var(--ink-300)'}`,
-              background: active ? 'var(--mint-500)' : 'transparent',
-              display: 'grid', placeItems: 'center', color: 'white',
-            }}>{active && <Icon name="check" size={11} strokeWidth={3} />}</span>
-            {renderOption ? renderOption(option, active) : <strong style={{ display: 'block', paddingRight: 24, fontSize: 14 }}>{value}</strong>}
+            <span className="brief-tile-check">
+              {active && <Icon name="check" size={11} strokeWidth={3} />}
+            </span>
+            {renderOption ? renderOption(option, active) : <strong style={{ display: 'block', paddingRight: 24, fontSize: 14, fontWeight: 650 }}>{value}</strong>}
           </button>
         )
       })}
@@ -116,7 +116,7 @@ export default function PostJob() {
     budget_type: 'fixed', budget_amount: null, deadline: initialDeadline,
     required_skills: [], required_level: null,
   })
-  const [minimumDeadline] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10))
+  const [minimumDeadline] = useState(() => todayInputValue())
   const briefFileRef = useRef(null)
   const draftIdRef = useRef(id || null)
   const draftCreatePromiseRef = useRef(null)
@@ -372,7 +372,7 @@ export default function PostJob() {
     if (step === 5 && !briefContext.customer_profile.length) return 'Choose who this should speak to.'
     if (step === 11 && !data.pricing_mode) return 'Choose Budget or Pro creatives.'
     if (step === 12 && !data.deadline) return 'Choose a deadline.'
-    if (step === 12 && new Date(`${data.deadline}T23:59:59`) <= new Date()) return 'Choose a future deadline.'
+    if (step === 12 && new Date(`${data.deadline}T23:59:59`) <= new Date()) return 'Choose today or a later deadline.'
     return ''
   }
 
@@ -384,7 +384,7 @@ export default function PostJob() {
     if (!briefContext.promotion_or_goal.length) return { step: 4, message: 'Choose the main goal.' }
     if (!briefContext.customer_profile.length) return { step: 5, message: 'Choose who this should speak to.' }
     if (!data.pricing_mode) return { step: 11, message: 'Choose Budget or Pro creatives.' }
-    if (!data.deadline || new Date(`${data.deadline}T23:59:59`) <= new Date()) return { step: 12, message: 'Choose a future deadline.' }
+    if (!data.deadline || new Date(`${data.deadline}T23:59:59`) <= new Date()) return { step: 12, message: 'Choose today or a later deadline.' }
     return null
   }
 
@@ -428,8 +428,8 @@ export default function PostJob() {
   if (isEditMode && isJobLoading) return <div className="card" style={{ padding: 28 }}><div className="skeleton" style={{ height: 180 }} /></div>
 
   return (
-    <div style={{ maxWidth: 980, margin: '0 auto' }}>
-      <div className="row between" style={{ marginBottom: 18 }}>
+    <div className="brief-container">
+      <div className="brief-header">
         <button className="btn link sm" onClick={leaveToJobs} style={{ padding: 0, color: 'var(--ink-500)' }}><Icon name="arrowLeft" size={12} /> All requests</button>
         <div className="row" style={{ gap: 12 }}>
           {draftId && (
@@ -437,17 +437,17 @@ export default function PostJob() {
               {saveState === 'saving' ? 'Saving draft...' : saveState === 'error' ? 'Draft not saved' : 'Draft saved'}
             </span>
           )}
-          <span className="muted" style={{ fontSize: 12 }}>Step {step} of {TOTAL_STEPS}</span>
+          <span className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Step {step} of {TOTAL_STEPS}</span>
         </div>
       </div>
-      <div style={{ height: 5, background: 'var(--paper-deep)', borderRadius: 8, overflow: 'hidden', marginBottom: 28 }}>
-        <div style={{ height: '100%', width: `${(step / TOTAL_STEPS) * 100}%`, background: 'var(--mint-500)', borderRadius: 8, transition: 'width .25s ease' }} />
+      <div className="brief-progress-track">
+        <div className="brief-progress-bar" style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} />
       </div>
 
-      <div className="card" style={{ padding: 'clamp(22px, 5vw, 46px)', minHeight: 440 }}>
-        {step === 1 && <Question eyebrow="Let’s start simple" title="What should we call this project?" subtitle="A short working title helps everyone stay oriented."><input className="input" value={data.title} onChange={event => update('title', event.target.value)} placeholder="Diwali campaign hero video" autoFocus style={{ fontSize: 17, minHeight: 54 }} /></Question>}
+      <div className="brief-card">
+        {step === 1 && <Question eyebrow="Let’s start simple" title="What should we call this project?" subtitle="A short working title helps everyone stay oriented."><input className="brief-text-input" value={data.title} onChange={event => update('title', event.target.value)} placeholder="Diwali campaign hero video" autoFocus /></Question>}
 
-        {step === 2 && <Question eyebrow="Project category" title="Which creative area is this closest to?" subtitle="Choose the closest match. We use this to find the right specialists."><ChoiceTiles options={categories.map(category => ({ value: category.id, ...category }))} selected={[data.category_id]} onToggle={value => selectAndAdvance('category_id', value)} renderOption={category => <><strong style={{ display: 'block', paddingRight: 25, fontSize: 15 }}>{category.name}</strong>{category.description && <span className="muted" style={{ display: 'block', marginTop: 5, fontSize: 12.5 }}>{category.description}</span>}</>} /></Question>}
+        {step === 2 && <Question eyebrow="Project category" title="Which creative area is this closest to?" subtitle="Choose the closest match. We use this to find the right specialists."><ChoiceTiles options={categories.map(category => ({ value: category.id, ...category }))} selected={[data.category_id]} onToggle={value => selectAndAdvance('category_id', value)} renderOption={category => <><strong style={{ display: 'block', paddingRight: 25, fontSize: 15, fontWeight: 700 }}>{category.name}</strong>{category.description && <span className="muted" style={{ display: 'block', marginTop: 5, fontSize: 12.5 }}>{category.description}</span>}</>} /></Question>}
 
         {step === 3 && <Question eyebrow="Deliverables" title="What would you like the creative to make?" subtitle="Choose everything that belongs in this project."><ChoiceTiles options={BRIEF_GUIDE_OPTIONS.deliverables} selected={briefContext.deliverables} onToggle={value => toggleContext('deliverables', value)} />{otherInput('deliverables', 'Describe the deliverable you need')}</Question>}
 
@@ -459,34 +459,34 @@ export default function PostJob() {
 
         {step === 7 && <Question eyebrow="Guardrails" title="Anything the creative should avoid?" subtitle="Optional, but useful when your brand has clear boundaries."><ChoiceTiles options={BRIEF_GUIDE_OPTIONS.avoid} selected={briefContext.avoid} onToggle={value => toggleContext('avoid', value)} />{otherInput('avoid', 'Tell the creative what to avoid')}</Question>}
 
-        {step === 8 && <Question eyebrow="A little more context" title="Anything else the creative should know?" subtitle="Add required wording, a reference link, important details, or leave this blank."><textarea className="textarea" rows={7} value={data.description} onChange={event => update('description', event.target.value)} placeholder="For example: the launch is on 24 October, the logo must stay visible, and the tone should feel warm rather than sales-heavy." autoFocus /></Question>}
+        {step === 8 && <Question eyebrow="A little more context" title="Anything else the creative should know?" subtitle="Add required wording, a reference link, important details, or leave this blank."><textarea className="brief-textarea" rows={7} value={data.description} onChange={event => update('description', event.target.value)} placeholder="For example: the launch is on 24 October, the logo must stay visible, and the tone should feel warm rather than sales-heavy." autoFocus /></Question>}
 
         {step === 9 && <Question eyebrow="Creative signals" title="Which skills seem relevant?" subtitle="Choose what feels right. CREATYV uses this to route the request internally."><ChoiceTiles options={CREATIVE_SKILLS} selected={data.required_skills} onToggle={value => update('required_skills', data.required_skills.includes(value) ? data.required_skills.filter(item => item !== value) : [...data.required_skills, value])} /></Question>}
 
         {step === 10 && <Question eyebrow="References" title="Do you have anything useful to share?" subtitle="Optional. Drop everything in one place and Mintbox will organise it automatically.">
           <>
             <input ref={briefFileRef} type="file" multiple accept={ALLOWED_BRIEF_EXTENSIONS.join(',')} style={{ display: 'none' }} onChange={event => { addBriefFiles(event.target.files); event.target.value = '' }} />
-            <div onClick={() => briefFileRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); addBriefFiles(event.dataTransfer.files) }} style={{ minHeight: 190, border: '1.5px dashed var(--mint-500)', background: 'var(--mint-50)', borderRadius: 'var(--radius-md)', display: 'grid', placeItems: 'center', cursor: 'pointer', textAlign: 'center', padding: 24 }}>
-              <div><Icon name="upload" size={24} /><strong style={{ display: 'block', marginTop: 10 }}>Drop files here or choose files</strong><span className="muted" style={{ display: 'block', marginTop: 5, fontSize: 12.5 }}>Images, videos, audio, documents and packages</span></div>
+            <div onClick={() => briefFileRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); addBriefFiles(event.dataTransfer.files) }} style={{ minHeight: 180, border: '1.5px dashed var(--mint-500)', background: 'rgba(247,127,0,0.02)', borderRadius: '16px', display: 'grid', placeItems: 'center', cursor: 'pointer', textAlign: 'center', padding: 24, transition: 'all 0.2s ease' }}>
+              <div><Icon name="upload" size={24} style={{ color: 'var(--mint-500)' }} /><strong style={{ display: 'block', marginTop: 10, fontSize: '15px' }}>Drop files here or choose files</strong><span className="muted" style={{ display: 'block', marginTop: 5, fontSize: 12.5 }}>Images, videos, audio, documents and packages</span></div>
             </div>
-            {isEditMode && <div className="card-mint">Previously uploaded references remain attached. You can add more here.</div>}
-            {briefFiles.length > 0 && <div className="stack" style={{ gap: 7 }}>{briefFiles.map(file => <div key={`${file.name}-${file.size}-${file.lastModified}`} className="row between" style={{ padding: 10, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-sm)' }}><span><Icon name="paperclip" size={11} /> {file.name}</span><button type="button" className="icon-btn" onClick={() => setBriefFiles(files => files.filter(item => item !== file))}><Icon name="x" size={11} /></button></div>)}</div>}
+            {isEditMode && <div className="card-mint" style={{ borderRadius: '12px', marginTop: 14 }}>Previously uploaded references remain attached. You can add more here.</div>}
+            {briefFiles.length > 0 && <div className="stack" style={{ gap: 8, marginTop: 16 }}>{briefFiles.map(file => <div key={`${file.name}-${file.size}-${file.lastModified}`} className="row between" style={{ padding: '12px 16px', border: '1px solid var(--hairline-strong)', borderRadius: '12px', background: 'var(--paper)' }}><span><Icon name="paperclip" size={11} style={{ marginRight: 6, color: 'var(--ink-400)' }} /> {file.name}</span><button type="button" className="icon-btn" onClick={() => setBriefFiles(files => files.filter(item => item !== file))}><Icon name="x" size={11} /></button></div>)}</div>}
           </>
         </Question>}
 
-        {step === 11 && <Question eyebrow="CREATYV production" title="What level of support fits this request?" subtitle="This helps CREATYV review scope and choose the right internal creative direction."><ChoiceTiles options={poolOptions} selected={[data.pricing_mode]} onToggle={value => selectAndAdvance('pricing_mode', value)} renderOption={option => { const range = option.value === 'expert' ? expertRange : budgetRange; return <><Icon name={option.icon} size={18} /><strong style={{ display: 'block', marginTop: 10, fontSize: 15 }}>{option.title}</strong><span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 12.5 }}>{option.subtitle}</span><span style={{ display: 'block', marginTop: 10, fontSize: 12.5, fontWeight: 600 }}>Typical effort range: {formatRange(range)}</span></> }} /></Question>}
+        {step === 11 && <Question eyebrow="CREATYV production" title="What level of support fits this request?" subtitle="This helps CREATYV review scope and choose the right internal creative direction."><ChoiceTiles options={poolOptions} selected={[data.pricing_mode]} onToggle={value => selectAndAdvance('pricing_mode', value)} renderOption={option => { const range = option.value === 'expert' ? expertRange : budgetRange; return <><Icon name={option.icon} size={18} style={{ color: 'var(--mint-600)' }} /><strong style={{ display: 'block', marginTop: 10, fontSize: 15, fontWeight: 700 }}>{option.title}</strong><span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 12.5 }}>{option.subtitle}</span><span style={{ display: 'block', marginTop: 10, fontSize: 12.5, fontWeight: 600, color: 'var(--ink-700)' }}>Typical effort range: {formatRange(range)}</span></> }} /></Question>}
 
-        {step === 12 && <Question eyebrow="Timeline" title="When do you need the work?" subtitle="Choose a realistic final delivery date. CREATYV ops will confirm timing after review."><input className="input" type="date" min={minimumDeadline} value={data.deadline} onChange={event => update('deadline', event.target.value)} autoFocus style={{ maxWidth: 380, minHeight: 58, fontSize: 16 }} /></Question>}
+        {step === 12 && <Question eyebrow="Timeline" title="When do you need the work?" subtitle="Choose a realistic final delivery date. CREATYV ops will confirm timing after review."><input className="brief-text-input" type="date" min={minimumDeadline} value={data.deadline} onChange={event => update('deadline', event.target.value)} autoFocus style={{ maxWidth: 380 }} /></Question>}
 
         {step === 13 && <Question eyebrow="Ready for CREATYV review" title={data.title} subtitle="Review the essentials. You can go back to change anything before sending this request.">
-          <div className="grid-2" style={{ gap: 12 }}>
-            <div style={{ padding: 16, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}><div className="h-eyebrow">What you need</div><p style={{ lineHeight: 1.55 }}>{briefDescription}</p><div className="row wrap" style={{ gap: 6 }}>{data.required_skills.map(skill => <span key={skill} className="badge neutral">{skill}</span>)}</div></div>
-            <div style={{ padding: 16, border: '1px solid var(--hairline)', borderRadius: 'var(--radius-md)' }}><div className="h-eyebrow">At a glance</div><div className="stack" style={{ gap: 10, marginTop: 12 }}><div className="row between"><span className="muted">Creative pool</span><strong>{selectedPool?.title}</strong></div><div className="row between"><span className="muted">Typical range</span><strong>{formatRange(selectedRange)}</strong></div><div className="row between"><span className="muted">Deadline</span><DateBadge value={data.deadline} /></div><div className="row between"><span className="muted">References</span><strong>{briefFiles.length}</strong></div></div></div>
+          <div className="grid-2" style={{ gap: 16, marginTop: 8 }}>
+            <div style={{ padding: 20, border: '1px solid var(--hairline-strong)', borderRadius: '16px', background: 'var(--paper)' }}><div className="h-eyebrow" style={{ color: 'var(--mint-600)', marginBottom: 10 }}>What you need</div><p style={{ lineHeight: 1.6, color: 'var(--ink-800)', fontSize: '14px', marginBottom: 14 }}>{briefDescription}</p><div className="row wrap" style={{ gap: 6 }}>{data.required_skills.map(skill => <span key={skill} className="badge neutral">{skill}</span>)}</div></div>
+            <div style={{ padding: 20, border: '1px solid var(--hairline-strong)', borderRadius: '16px', background: 'var(--paper)' }}><div className="h-eyebrow" style={{ color: 'var(--mint-600)', marginBottom: 10 }}>At a glance</div><div className="stack" style={{ gap: 12, marginTop: 12 }}><div className="row between"><span className="muted">Creative pool</span><strong>{selectedPool?.title}</strong></div><div className="row between"><span className="muted">Typical range</span><strong>{formatRange(selectedRange)}</strong></div><div className="row between"><span className="muted">Deadline</span><DateBadge value={data.deadline} /></div><div className="row between"><span className="muted">References</span><strong>{briefFiles.length}</strong></div></div></div>
           </div>
         </Question>}
       </div>
 
-      <div className="row between" style={{ marginTop: 18, paddingBottom: 28 }}>
+      <div className="brief-footer-actions">
         <button className="btn ghost" onClick={() => {
           if (step > 1) {
             setSaveState('saving')
@@ -495,7 +495,7 @@ export default function PostJob() {
             leaveToJobs()
           }
         }}><Icon name="arrowLeft" /> {step > 1 ? 'Back' : 'Cancel'}</button>
-        <button className="btn primary lg" onClick={handlePrimaryAction} disabled={isPending}>
+        <button className="btn primary lg" onClick={handlePrimaryAction} disabled={isPending} style={{ borderRadius: '12px' }}>
           {isPending ? 'Sending...' : step === TOTAL_STEPS ? <>Send request <Icon name="arrowRight" /></> : <>{optionalStepIsEmpty ? 'Skip' : 'Continue'} <Icon name="arrowRight" /></>}
         </button>
       </div>

@@ -243,6 +243,13 @@ const getAnalyticsSummary = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const getCalendarPosts = async (req, res, next) => {
+  try {
+    const result = await socialService.getCalendarPosts(req.user.sub, { month: req.query.month });
+    return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   connectPlatform,
   oauthCallback,
@@ -261,4 +268,5 @@ module.exports = {
   getPost,
   pullAnalytics,
   getAnalyticsSummary,
+  getCalendarPosts,
 };

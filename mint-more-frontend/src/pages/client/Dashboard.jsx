@@ -32,7 +32,7 @@ const startOfDay = (date) => {
 const sameDay = (a, b) => startOfDay(a).getTime() === startOfDay(b).getTime()
 const monthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 
-function MiniCalendar({ events = [], tasks = [], onOpenCalendar }) {
+function MiniCalendar({ events = [], tasks = [], posts = [], onOpenCalendar }) {
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth()
@@ -45,17 +45,23 @@ function MiniCalendar({ events = [], tasks = [], onOpenCalendar }) {
       const date = new Date(year, month, i + 1)
       const dayEvents = events.filter(event => event.event_date && sameDay(event.event_date, date) && !event.selection?.task_id)
       const dayTasks = tasks.filter(task => task.due_date && sameDay(task.due_date, date))
-      return { key: date.toISOString(), date, dayEvents, dayTasks }
+      const dayPosts = posts.filter(post => {
+        const ts = post.publish_at || post.published_at
+        return ts && sameDay(ts, date)
+      })
+      return { key: date.toISOString(), date, dayEvents, dayTasks, dayPosts }
     }),
   ]
   const describeCell = (cell) => {
     if (cell.blank) return ''
     const dayEvents = cell.dayEvents || []
     const dayTasks = cell.dayTasks || []
+    const dayPosts = cell.dayPosts || []
     const lines = [
       cell.date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }),
       ...dayEvents.map(event => `${event.title} - ${event.asset_type?.replace(/_/g, ' ') || 'creative'}`),
       ...dayTasks.map(task => `${task.title} - ${task.client_status || task.status}`),
+      ...dayPosts.map(post => `${post.caption || post.title || 'Social post'} - ${post.status}`),
     ]
     return lines.join('\n')
   }
@@ -78,9 +84,11 @@ function MiniCalendar({ events = [], tasks = [], onOpenCalendar }) {
         {cells.map(cell => {
           const dayEvents = cell.dayEvents || []
           const dayTasks = cell.dayTasks || []
+          const dayPosts = cell.dayPosts || []
           const details = [
             ...dayEvents.map(event => ({ title: event.title, meta: event.asset_type?.replace(/_/g, ' ') || 'creative', tone: 'event' })),
             ...dayTasks.map(task => ({ title: task.title, meta: task.client_status || task.status, tone: 'task' })),
+            ...dayPosts.map(post => ({ title: post.caption || post.title || 'Social post', meta: post.status, tone: 'post' })),
           ]
           const isToday = !cell.blank && sameDay(cell.date, now)
           const hasItems = !cell.blank && details.length > 0
@@ -105,9 +113,10 @@ function MiniCalendar({ events = [], tasks = [], onOpenCalendar }) {
             }}
           >
             {!cell.blank && cell.date.getDate()}
-            {!cell.blank && (dayEvents.length > 0 || dayTasks.length > 0) && (
+            {!cell.blank && (dayEvents.length > 0 || dayTasks.length > 0 || dayPosts.length > 0) && (
               <span className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${
-                dayTasks.length ? (isToday ? 'bg-white' : 'bg-orange-500') : 'bg-amber-500'
+                dayTasks.length ? (isToday ? 'bg-white' : 'bg-orange-500') :
+                dayPosts.length ? (isToday ? 'bg-white' : 'bg-mint-500') : 'bg-amber-500'
               }`} />
             )}
             {hasItems && (

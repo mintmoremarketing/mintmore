@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/auth'
 import { socialApi } from '../../api/social'
@@ -34,6 +34,25 @@ const getMediaPreviewKind = (item) => {
 }
 
 const getMediaPreviewSource = (item) => item?.thumbnail_url || item?.preview_url || item?.media_url || ''
+
+const toLocalDateTimeInput = (date) => {
+  const d = new Date(date)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hour = String(d.getHours()).padStart(2, '0')
+  const minute = String(d.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hour}:${minute}`
+}
+
+const nextAvailableSchedule = (dateString) => {
+  const now = new Date()
+  if (!dateString) return toLocalDateTimeInput(new Date(now.getTime() + 60 * 60 * 1000))
+  const dateOnly = new Date(`${dateString}T09:00:00`)
+  if (Number.isNaN(dateOnly.getTime())) return toLocalDateTimeInput(new Date(now.getTime() + 60 * 60 * 1000))
+  if (dateOnly.getTime() <= now.getTime()) return toLocalDateTimeInput(new Date(now.getTime() + 60 * 60 * 1000))
+  return toLocalDateTimeInput(dateOnly)
+}
 
 const MediaTile = ({ item, selected, onClick, compact = false }) => {
   const [previewFailed, setPreviewFailed] = useState(false)
@@ -641,7 +660,7 @@ function AccountCard({ account, onDisconnect, onRefreshMeta, onOpenInstagramApp 
   )
 }
 
-function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost = null }) {
+function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost = null, defaultScheduleDate = '' }) {
   const pushToast   = useUIStore(s => s.pushToast)
   const queryClient = useQueryClient()
   const isEditing = Boolean(initialPost?.id)
@@ -665,7 +684,13 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
     return Array.from(s);
   }, [selectedAccountIds, accounts]);
 
-  const [scheduleDate, setScheduleDate] = useState(initialPost?.publish_at ? new Date(initialPost.publish_at).toISOString().slice(0, 16) : '')
+  const [scheduleDate, setScheduleDate] = useState(() => (
+    initialPost?.publish_at
+      ? new Date(initialPost.publish_at).toISOString().slice(0, 16)
+      : defaultScheduleDate
+        ? nextAvailableSchedule(defaultScheduleDate)
+        : ''
+  ))
   const [mediaFiles, setMediaFiles] = useState([])
   const [mintboxMedia, setMintboxMedia] = useState([])
   const existingMedia = useMemo(() => Array.isArray(initialPost?.media) ? initialPost.media : [], [initialPost])
@@ -709,6 +734,9 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
     selectedMediaItems.forEach(item => { if (item.media_url?.startsWith('blob:')) URL.revokeObjectURL(item.media_url) })
   }, [selectedMediaItems])
 
+  const scheduleDateIsPast = Boolean(scheduleDate && new Date(scheduleDate) <= new Date())
+  const scheduleInputMin = toLocalDateTimeInput(new Date(Date.now() + 5 * 60 * 1000))
+
   const { data: mediaLibrary = [] } = useQuery({
     queryKey: ['social-media-library'],
     queryFn: () => socialApi.getMediaLibrary().then(r => r.data.data.media || []),
@@ -724,6 +752,9 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
   const hasUnsavedContent = !isEditing && (caption.trim().length > 0 || mediaFiles.length > 0 || mintboxMedia.length > 0)
 
   const persistDraft = async ({ publishNow = false } = {}) => {
+    if (scheduleDate && scheduleDateIsPast) {
+      throw new Error('Please choose a future schedule time.')
+    }
     const payload = {
       caption,
       hashtags: hashtags.split(' ').filter(Boolean),
@@ -829,7 +860,7 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
             <button
               className="btn primary"
               onClick={() => actionMutation.mutate({ publishNow: !scheduleDate })}
-              disabled={actionMutation.isPending || selectedAccountIds.length === 0 || (needsMedia && !hasSelectedMedia) || instagramContentBlocked}
+              disabled={actionMutation.isPending || selectedAccountIds.length === 0 || (needsMedia && !hasSelectedMedia) || instagramContentBlocked || scheduleDateIsPast}
             >
               {actionMutation.isPending ? 'Publishing...' : scheduleDate ? 'Schedule post' : 'Publish now'}
             </button>
@@ -1067,6 +1098,7 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
               className="input"
               type="datetime-local"
               value={scheduleDate}
+              min={scheduleInputMin}
               onChange={e => setScheduleDate(e.target.value)}
             />
           </div>
@@ -1075,6 +1107,11 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
             <div style={{ fontSize: 13, color: 'var(--ink-600)', display: 'flex', gap: 6, alignItems: 'center' }}>
               <Icon name="clock" size={13} />
               Scheduled for {new Date(scheduleDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+            </div>
+          )}
+          {scheduleDateIsPast && (
+            <div style={{ fontSize: 13, color: 'var(--amber)' }}>
+              Pick a time later than now. You can schedule for today or any later date, but not in the past.
             </div>
           )}
 
@@ -1112,6 +1149,8 @@ export default function Social() {
   const queryClient     = useQueryClient()
   const pushToast       = useUIStore(s => s.pushToast)
   const location        = useLocation()
+  const [searchParams]  = useSearchParams()
+  const composeHandledRef = useRef(false)
   const [tab, setTab] = useState(() => location.pathname.includes('/posts') ? 'posts' : 'analytics')
 
   useEffect(() => {
@@ -1123,6 +1162,8 @@ export default function Social() {
   const [connectPrompt, setConnectPrompt] = useState(null)
   const [postFilter, setPostFilter] = useState('all')
   const [loadingDraftId, setLoadingDraftId] = useState(null)
+  const composeRequested = searchParams.get('compose') === '1'
+  const composePublishDate = searchParams.get('publish_at') || ''
 
   const { data: accountsData, isLoading: accLoading } = useQuery({
     queryKey: ['social-accounts'],
@@ -1179,6 +1220,14 @@ export default function Social() {
   }, { followers: 0, posts: 0, likes: 0 }), [connectedAccounts])
 
   const facebookThresholdAccount = connectedAccounts.find(account => account.platform === 'facebook' && account.stats?.insights_available === false)
+
+  useEffect(() => {
+    if (!composeRequested || composeHandledRef.current) return
+    if (tab !== 'posts' || !connectedAccounts.length) return
+    setEditingPost(null)
+    setShowCreate(true)
+    composeHandledRef.current = true
+  }, [composeRequested, connectedAccounts.length, tab])
 
   const refreshAccounts = async () => {
     try {
@@ -1441,6 +1490,7 @@ export default function Social() {
         <CreatePostModal
           accounts={accounts}
           initialPost={editingPost}
+          defaultScheduleDate={composePublishDate}
           onClose={closeComposer}
           onSaved={() => queryClient.invalidateQueries({ queryKey: ['social-posts'] })}
           onPublished={() => queryClient.invalidateQueries({ queryKey: ['social-posts'] })}

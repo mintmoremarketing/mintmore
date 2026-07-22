@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const controller = require('./social.controller');
-const { authenticate, authorize } = require('../../middleware/authenticate');
+const { authenticate } = require('../../middleware/authenticate');
 const { rawBody } = require('../../middleware/rawBody');
 const { verifyWebhook, handleWebhook } = require('./social.webhook');
 const { requireEntitlement } = require('../../middleware/permissions');
@@ -20,9 +20,7 @@ const socialMediaUpload = createUpload({
 });
 
 // ── OAuth (GET — browser redirects, no Bearer token) ─────────────────────────
-// Token passed via query param: ?token=ACCESS_TOKEN
 router.get('/connect/:platform', async (req, res, next) => {
-  // Authenticate via query param for browser OAuth flow
   const token = req.query.token;
   if (!token) return res.status(401).json({ success: false, message: 'Token required' });
   const { verifyAccessToken } = require('../../utils/jwt');
@@ -34,7 +32,7 @@ router.get('/connect/:platform', async (req, res, next) => {
   }
 });
 
-// GET  /api/v1/social/callback/:platform  — OAuth callback (no auth — state contains userId)
+// GET  /api/v1/social/callback/:platform  — OAuth callback
 router.get('/callback/:platform', controller.oauthCallback);
 
 // Webhook routes — no auth, need raw body
@@ -45,30 +43,25 @@ router.post('/webhook/facebook', rawBody, handleWebhook);
 router.use(authenticate);
 
 // ── Accounts ──────────────────────────────────────────────────────────────────
-
-// GET    /api/v1/social/accounts               — list connected accounts
 router.get('/accounts', controller.getMyAccounts);
 router.post('/accounts/refresh', controller.refreshFromMeta);
+router.delete('/accounts/:accountId', controller.disconnectAccount);
+
+// ── Utility ───────────────────────────────────────────────────────────────────
 router.get('/health', controller.getHealth);
 router.get('/analytics/summary', controller.getAnalyticsSummary);
 router.get('/media-library', requireEntitlement('can_use_social'), controller.getMediaLibrary);
 
-// DELETE /api/v1/social/accounts/:accountId    — disconnect account
-router.delete('/accounts/:accountId', controller.disconnectAccount);
+// ── Calendar ──────────────────────────────────────────────────────────────────
+// GET  /api/v1/social/calendar?month=2026-07
+router.get('/calendar', controller.getCalendarPosts);
 
 // ── Posts ─────────────────────────────────────────────────────────────────────
-
-// GET    /api/v1/social/posts                  — list posts
 router.get('/posts', controller.getMyPosts);
-
-// POST   /api/v1/social/posts                  — create draft post
 router.post('/posts', requireEntitlement('can_use_social'), controller.createPost);
-
-// GET    /api/v1/social/posts/:postId          — get single post
 router.get('/posts/:postId', controller.getPost);
 router.patch('/posts/:postId', requireEntitlement('can_use_social'), controller.updatePost);
 
-// POST   /api/v1/social/posts/:postId/media    — add media to draft
 router.post(
   '/posts/:postId/media',
   requireEntitlement('can_use_social'),
@@ -76,16 +69,9 @@ router.post(
   controller.addMedia
 );
 
-// POST   /api/v1/social/posts/:postId/publish  — publish or schedule
 router.post('/posts/:postId/publish', requireEntitlement('can_use_social'), controller.publishPost);
-
-// POST   /api/v1/social/posts/:postId/cancel   — cancel draft or scheduled
 router.post('/posts/:postId/cancel', controller.cancelPost);
-
-// DELETE /api/v1/social/posts/:postId          — delete any owned post
 router.delete('/posts/:postId', controller.deletePost);
-
-// GET    /api/v1/social/posts/:postId/analytics — pull fresh analytics
 router.get('/posts/:postId/analytics', controller.pullAnalytics);
 
 module.exports = router;

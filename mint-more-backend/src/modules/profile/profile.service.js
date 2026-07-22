@@ -368,7 +368,7 @@ const uploadBrandAsset = async (userId, file, { kind = 'reference', label = '' }
     [JSON.stringify(nextAssets), userId]
   );
 
-  logger.info('Brand asset uploaded', { userId, kind: safeKind, publicUrl });
+  logger.info('Brand asset uploaded', { userId, kind: safeKind, previewUrl });
   const profile = result.rows[0];
   return {
     ...profile,
