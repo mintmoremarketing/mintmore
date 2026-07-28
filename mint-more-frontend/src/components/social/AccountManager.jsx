@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { socialApi } from '../../api/social'
 import { useUIStore } from '../../store/ui'
+import { useAuthStore } from '../../store/auth'
 import Icon from '../ui/Icon'
 import Modal from '../ui/Modal'
 import { SkeletonCard } from '../ui/Skeleton'
@@ -220,6 +221,7 @@ export function AccountCard({ account, onDisconnect, onRefreshMeta, onOpenInstag
 export default function AccountManager() {
   const queryClient = useQueryClient()
   const pushToast = useUIStore(s => s.pushToast)
+  const accessToken = useAuthStore(s => s.accessToken)
   const [connectPrompt, setConnectPrompt] = useState(null)
 
   const { data: accountsData, isLoading: accLoading } = useQuery({
@@ -253,7 +255,6 @@ export default function AccountManager() {
     if (!connectPrompt) return
     const platform = connectPrompt
     setConnectPrompt(null)
-    const accessToken = localStorage.getItem('access_token')
     if (platform === 'facebook') return socialApi.connectFacebook(accessToken)
     if (platform === 'instagram') return socialApi.connectInstagram(accessToken)
     if (platform === 'youtube') return socialApi.connectYouTube(accessToken)
