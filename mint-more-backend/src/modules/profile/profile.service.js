@@ -62,7 +62,7 @@ const PROFILE_SELECT_COLUMNS = [
   'bio', 'skills', 'gender', 'date_of_birth',
   'address_line1', 'address_city', 'address_state', 'country',
   'preferred_language', 'business_name', 'business_type', 'customer_profile', 'onboarding_checklist',
-  'brand_assets', 'google_business', 'posting_preferences',
+  'brand_assets', 'google_business', 'posting_preferences', 'whatsapp_number',
   'is_active', 'is_email_verified',
   'kyc_status', 'kyc_level',
   'last_login_at', 'created_at', 'updated_at',
@@ -73,7 +73,7 @@ const PROFILE_UPDATABLE_COLUMNS = [
   'date_of_birth', 'skills',
   'address_line1', 'address_city', 'address_state', 'country',
   'preferred_language', 'business_name', 'business_type', 'customer_profile', 'onboarding_checklist',
-  'brand_assets', 'google_business', 'posting_preferences',
+  'brand_assets', 'google_business', 'posting_preferences', 'whatsapp_number',
   'price_min', 'price_max', 'pricing_visibility',
 ];
 
@@ -111,7 +111,7 @@ const PROFILE_FIELDS = `
   bio, skills, gender, date_of_birth,
   address_line1, address_city, address_state, country,
   preferred_language, business_name, business_type, customer_profile, onboarding_checklist,
-  brand_assets, google_business, posting_preferences,
+  brand_assets, google_business, posting_preferences, whatsapp_number,
   is_active, is_email_verified,
   kyc_status, kyc_level,
   last_login_at, created_at, updated_at

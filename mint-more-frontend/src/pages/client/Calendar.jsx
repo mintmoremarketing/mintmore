@@ -66,7 +66,15 @@ const fmtHourLabel = (h) => {
   return `${h - 12} PM`
 }
 
-const dateKeyFromTs = (ts) => new Date(ts).toISOString().slice(0, 10)
+const toLocalDateKey = (date) => {
+  const d = new Date(date)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const dateKeyFromTs = (ts) => toLocalDateKey(ts)
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -482,7 +490,19 @@ export default function Calendar() {
   // Build calendar cells
   const calendarCells = useMemo(() => {
     const creativeEvents = creativeData?.events || []
-    const byDate = socialData?.byDate || {}
+    
+    // Group social posts by local date key
+    const postsList = socialData?.posts || []
+    const byDate = {}
+    postsList.forEach(post => {
+      const ts = post.publish_at || post.published_at || post.created_at
+      if (ts) {
+        const dateKey = toLocalDateKey(ts)
+        if (!byDate[dateKey]) byDate[dateKey] = []
+        byDate[dateKey].push(post)
+      }
+    })
+
     const first  = new Date(year, monthNum, 1)
     const days   = new Date(year, monthNum + 1, 0).getDate()
     const leading = first.getDay()
@@ -491,7 +511,7 @@ export default function Calendar() {
       ...Array.from({ length: leading }, (_, i) => ({ key: `blank-${i}`, blank: true })),
       ...Array.from({ length: days }, (_, i) => {
         const date    = new Date(year, monthNum, i + 1)
-        const dateKey = date.toISOString().slice(0, 10)
+        const dateKey = toLocalDateKey(date)
         return {
           key: date.toISOString(),
           dateKey,
@@ -503,7 +523,7 @@ export default function Calendar() {
     ]
   }, [creativeData, socialData, year, monthNum])
 
-  const todayKey    = new Date().toISOString().slice(0, 10)
+  const todayKey    = toLocalDateKey(new Date())
   const activeCell  = useMemo(() =>
     calendarCells.find(c => !c.blank && c.dateKey === activeDateKey) ||
     calendarCells.find(c => !c.blank && c.dateKey === todayKey) ||
@@ -522,7 +542,7 @@ export default function Calendar() {
       pushToast({ title: 'Choose today or later', body: 'Posts can only be scheduled for today or a future date.', tone: 'amber' })
       return
     }
-    const formatted = date.toISOString().slice(0, 10)
+    const formatted = toLocalDateKey(date)
     navigate(`/posts?compose=1&publish_at=${formatted}`)
   }, [navigate, pushToast])
 
@@ -531,7 +551,7 @@ export default function Calendar() {
       pushToast({ title: 'Choose today or later', body: 'Custom requests can only be created for today or a future date.', tone: 'amber' })
       return
     }
-    const formatted = date.toISOString().slice(0, 10)
+    const formatted = toLocalDateKey(date)
     navigate(`/jobs/new?deadline=${formatted}`)
     pushToast({ title: 'Date selected', body: 'We opened a new request with this date already filled in.', icon: 'calendar' })
   }, [navigate, pushToast])

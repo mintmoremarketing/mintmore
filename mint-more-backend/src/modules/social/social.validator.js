@@ -1,9 +1,10 @@
 const AppError = require('../../utils/AppError');
 
-const PLATFORMS      = ['facebook', 'instagram', 'youtube'];
+const PLATFORMS      = ['facebook', 'instagram', 'youtube', 'google_business_profile'];
 const CONTENT_TYPES  = ['text', 'image', 'video', 'carousel', 'reel', 'short', 'story'];
 const CONTENT_RULES  = {
   instagram: ['image', 'carousel', 'reel'],
+  google_business_profile: ['text', 'image', 'video'],
 };
 
 const validateCreatePost = (body) => {

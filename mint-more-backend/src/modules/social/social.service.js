@@ -3,6 +3,7 @@ const { schedulePost, cancelScheduledPost } = require('./queue/publish.queue');
 const { publishToFacebook, getFacebookAnalytics, refreshFacebookToken } = require('./publishers/facebook.publisher');
 const { publishToInstagram, getInstagramAnalytics } = require('./publishers/instagram.publisher');
 const { publishToYouTube, getYouTubeAnalytics, refreshYouTubeToken } = require('./publishers/youtube.publisher');
+const { publishToGoogleBusinessProfile, refreshGBPToken } = require('./publishers/google-business-profile.publisher');
 const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
 const env      = require('../../config/env');
@@ -10,7 +11,7 @@ const axios    = require('axios');
 const { getSetting } = require('../commerce/settings.service');
 
 const FB_API = 'https://graph.facebook.com/v19.0';
-const SOCIAL_PLATFORMS = ['facebook', 'instagram', 'youtube'];
+const SOCIAL_PLATFORMS = ['facebook', 'instagram', 'youtube', 'google_business_profile'];
 const META_REQUIRED_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
@@ -332,6 +333,20 @@ const getOAuthUrl = (platform, userId) => {
     return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   }
 
+  if (platform === 'google_business_profile') {
+    const params = new URLSearchParams({
+      client_id:     env.social.googleBusinessProfile.clientId,
+      redirect_uri:  env.social.googleBusinessProfile.redirectUri,
+      scope:         'https://www.googleapis.com/auth/business.manage',
+      response_type: 'code',
+      access_type:   'offline',
+      prompt:        'consent',
+      state,
+    });
+
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  }
+
   throw new AppError(`Unsupported platform: ${platform}`, 400);
 };
 
@@ -355,6 +370,10 @@ const handleOAuthCallback = async (platform, code, state) => {
 
   if (platform === 'youtube') {
     return handleYouTubeCallback(userId, code);
+  }
+
+  if (platform === 'google_business_profile') {
+    return handleGoogleBusinessProfileCallback(userId, code);
   }
 
   throw new AppError(`Unsupported platform: ${platform}`, 400);
@@ -529,6 +548,74 @@ const handleYouTubeCallback = async (userId, code) => {
 
   logger.info('YouTube OAuth completed', { userId, channelId: channel.id });
   return [account];
+};
+
+const handleGoogleBusinessProfileCallback = async (userId, code) => {
+  const { google } = require('googleapis');
+  const auth = new google.auth.OAuth2(
+    env.social.googleBusinessProfile.clientId,
+    env.social.googleBusinessProfile.clientSecret,
+    env.social.googleBusinessProfile.redirectUri
+  );
+
+  const { tokens } = await auth.getToken(code);
+  auth.setCredentials(tokens);
+
+  // Retrieve accounts
+  let accountsList = [];
+  try {
+    const accResponse = await axios.get('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    accountsList = accResponse.data.accounts || [];
+  } catch (err) {
+    const msg = err.response?.data?.error?.message || err.message;
+    logger.error('Google Business Profile fetch accounts failed', { error: msg });
+    throw new AppError(`Google Business Profile error: ${msg}`, 400);
+  }
+
+  if (accountsList.length === 0) {
+    throw new AppError('No Google Business Accounts found', 404);
+  }
+
+  const savedAccounts = [];
+
+  for (const businessAcc of accountsList) {
+    try {
+      const locResponse = await axios.get(`https://mybusinessbusinessinformation.googleapis.com/v1/${businessAcc.name}/locations`, {
+        params: { readMask: 'name,title,storefrontAddress' },
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      });
+      
+      const locations = locResponse.data.locations || [];
+      for (const loc of locations) {
+        const account = await upsertSocialAccount({
+          userId,
+          platform:          'google_business_profile',
+          platformUserId:    loc.name,
+          platformName:      loc.title,
+          platformAvatarUrl: null,
+          accessToken:       tokens.access_token,
+          refreshToken:      tokens.refresh_token,
+          tokenExpiresAt:    new Date(tokens.expiry_date),
+          tokenScope:        tokens.scope,
+        });
+        savedAccounts.push(account);
+      }
+    } catch (err) {
+      logger.warn('Google Business Profile fetch locations failed for account', {
+        accountName: businessAcc.name,
+        error:       err.response?.data?.error?.message || err.message,
+      });
+    }
+  }
+
+  if (savedAccounts.length === 0) {
+    throw new AppError('No Google Business Profile locations found for this account. Create one inside Google Business Profile Manager first.', 404);
+  }
+
+  logger.info('Google Business Profile OAuth completed', { userId, locationsConnected: savedAccounts.length });
+  return savedAccounts;
 };
 
 // ── Account Management ────────────────────────────────────────────────────────
@@ -856,6 +943,8 @@ const refreshTokenIfNeeded = async (account, thresholdDays = 7) => {
     newTokenData = await refreshFacebookToken(account);
   } else if (account.platform === 'youtube') {
     newTokenData = await refreshYouTubeToken(account);
+  } else if (account.platform === 'google_business_profile') {
+    newTokenData = await refreshGBPToken(account);
   }
 
   if (!newTokenData) return account;
@@ -1116,6 +1205,35 @@ const publishPost = async (postId, userId) => {
     throw new AppError('Choose at least one connected account before publishing', 400);
   }
 
+  // YouTube safety validation
+  const hasYouTube = publishTargets.some(t => t.platform === 'youtube');
+  if (hasYouTube) {
+    if (!post.title || !post.title.trim()) {
+      throw new AppError('A video title is required for YouTube uploads', 400);
+    }
+    const mediaResult = await query(
+      `SELECT * FROM social_post_media WHERE post_id = $1`,
+      [postId]
+    );
+    const videos = mediaResult.rows.filter(m => m.media_type === 'video');
+    const images = mediaResult.rows.filter(m => m.media_type === 'image');
+    if (videos.length !== 1 || images.length > 0) {
+      throw new AppError('YouTube uploading requires exactly one video (no images allowed)', 400);
+    }
+  }
+
+  // Google Business Profile safety validation
+  const hasGBP = publishTargets.some(t => t.platform === 'google_business_profile');
+  if (hasGBP) {
+    const mediaResult = await query(
+      `SELECT * FROM social_post_media WHERE post_id = $1`,
+      [postId]
+    );
+    if (mediaResult.rows.length > 1) {
+      throw new AppError('Google Business Profile only supports a single image or video per post (carousels are not supported)', 400);
+    }
+  }
+
   // Create per-account status rows
   for (const account of publishTargets) {
     await query(
@@ -1129,15 +1247,49 @@ const publishPost = async (postId, userId) => {
   }
 
   const isScheduled = post.publish_at && new Date(post.publish_at) > new Date();
-  const newStatus   = isScheduled ? 'scheduled' : 'publishing';
 
+  // Check if Redis is connected
+  let redisConnected = false;
+  try {
+    const { getRedisCircuitState } = require('../../config/redis');
+    const state = getRedisCircuitState();
+    if (!state.open) {
+      const { getRedis } = require('../../config/redis');
+      redisConnected = !!getRedis();
+    }
+  } catch {
+    redisConnected = false;
+  }
+
+  if (isScheduled && !redisConnected) {
+    throw new AppError('Redis is temporarily unavailable. Future post scheduling requires Redis.', 503);
+  }
+
+  if (!isScheduled && !redisConnected) {
+    logger.warn('Redis unavailable - executing immediate social publish in-process', { postId });
+    await query(
+      `UPDATE social_posts
+       SET status = 'publishing', queue_job_id = NULL
+       WHERE id = $1`,
+      [postId]
+    );
+
+    // Execute immediately in background process so API call returns immediately
+    executePublish(postId).catch((err) => {
+      logger.error('In-process immediate publish failed', { postId, error: err.message });
+    });
+
+    return { postId, status: 'publishing', queue_job_id: null };
+  }
+
+  const newStatus   = isScheduled ? 'scheduled' : 'publishing';
   const queueJobId = await schedulePost(postId, post.publish_at);
 
   await query(
     `UPDATE social_posts
      SET status = $1, queue_job_id = $2
      WHERE id = $3`,
-    [newStatus, queueJobId.toString(), postId]
+    [newStatus, queueJobId ? queueJobId.toString() : null, postId]
   );
 
   logger.info('Post queued for publishing', { postId, isScheduled, queueJobId });
@@ -1302,6 +1454,9 @@ const executePublish = async (postId) => {
           break;
         case 'youtube':
           result = await publishToYouTube(account, post, media);
+          break;
+        case 'google_business_profile':
+          result = await publishToGoogleBusinessProfile(account, post, media);
           break;
         default:
           throw new Error(`Unknown platform: ${platformRow.platform}`);
@@ -1916,19 +2071,13 @@ const getCalendarPosts = async (userId, { month } = {}) => {
     [userId, start.toISOString(), end.toISOString()]
   );
 
-  // Group by date key (YYYY-MM-DD in local-ish time — use UTC date)
-  const byDate = {};
+  const posts = [];
   for (const post of result.rows) {
-    const ts = post.publish_at || post.published_at || post.created_at;
-    const dateKey = new Date(ts).toISOString().slice(0, 10);
-
-    // Build platforms array from target_platforms (string/array) + platform_statuses
     const rawPlatforms = normalizeTargetPlatforms(post.target_platforms || []);
     const statusPlatforms = (post.platform_statuses || []).map(s => s.platform);
     const platforms = [...new Set([...rawPlatforms, ...statusPlatforms])].filter(Boolean);
 
-    if (!byDate[dateKey]) byDate[dateKey] = [];
-    byDate[dateKey].push({
+    posts.push({
       id:               post.id,
       title:            post.title,
       caption:          post.caption,
@@ -1939,10 +2088,11 @@ const getCalendarPosts = async (userId, { month } = {}) => {
       publish_at:       post.publish_at,
       published_at:     post.published_at,
       media:            post.media || [],
+      created_at:       post.created_at
     });
   }
 
-  return { month: key, byDate, total: result.rows.length };
+  return { month: key, posts, total: posts.length };
 };
 
 module.exports = {

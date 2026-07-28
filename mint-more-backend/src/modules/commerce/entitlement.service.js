@@ -4,7 +4,7 @@ const { getSetting } = require('./settings.service');
 const { expireCreditsForUser } = require('./credits.service');
 
 const DEFAULT_FEATURE_FLAGS = {
-  calendar_creatives: false,
+  calendar_creatives: true,
   internal_ops: true,
   custom_requests: false,
   mintbox: false,

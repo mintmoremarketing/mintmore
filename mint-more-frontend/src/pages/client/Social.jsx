@@ -165,121 +165,187 @@ const MediaTile = ({ item, selected, onClick, compact = false }) => {
   )
 }
 
-const PostMediaPreview = ({ media = [] }) => {
-  const items = Array.isArray(media) ? media.filter(Boolean) : []
-  if (!items.length) return null
+const renderFacebookGrid = (items) => {
+  const count = items.length
+  if (count === 0) return null
 
-  const renderItem = (item, style = {}) => {
+  const renderMediaGridItem = (item, style = {}) => {
     const kind = getMediaPreviewKind(item)
     const source = getMediaPreviewSource(item)
-
     if (!source) {
       return (
-        <div style={{
-          width: '100%',
-          height: '100%',
-          display: 'grid',
-          placeItems: 'center',
-          color: 'var(--ink-400)',
-          background: 'var(--paper-tint)',
-          ...style,
-        }}>
+        <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: 'var(--ink-400)', background: 'var(--paper-tint)', ...style }}>
           <Icon name={kind === 'video' ? 'video' : 'image'} />
         </div>
       )
     }
-
-    if (kind === 'video') {
-      if (!item.media_url && item.thumbnail_url) {
-        return (
-          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            <img src={item.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...style }} />
-            <div style={{
-              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-              width: 48, height: 48, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <Icon name="play" color="white" size={24} />
-            </div>
-            <div style={{
-              position: 'absolute', bottom: 8, right: 8,
-              padding: '4px 8px', borderRadius: 4, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 11
-            }}>Archived (See live post)</div>
-          </div>
-        )
-      }
-      return (
-        <video
-          src={source}
-          controls
-          muted
-          playsInline
-          preload="metadata"
-          poster={item?.thumbnail_url || undefined}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#111827', ...style }}
-        />
-      )
-    }
-
-    return (
-        <img
-          src={source}
-          alt=""
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...style }}
-        />
-      )
+    return kind === 'video'
+      ? <video src={source} style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#111827', ...style }} />
+      : <img src={source} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', ...style }} />
   }
 
-  if (items.length === 1) {
-    const item = items[0]
+  if (count === 1) {
     return (
-      <div style={{
-        borderRadius: 14,
-        overflow: 'hidden',
-        background: 'var(--paper-tint)',
-        border: '1px solid var(--hairline)',
-        marginBottom: 12,
-      }}>
-        {renderItem(item, { maxHeight: 320 })}
+      <div style={{ width: '100%', height: 280, borderRadius: 12, overflow: 'hidden' }}>
+        {renderMediaGridItem(items[0], { width: '100%', height: '100%', display: 'block', objectFit: 'cover' })}
       </div>
     )
   }
 
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: items.length > 3 ? 'repeat(3, minmax(0, 1fr))' : `repeat(${Math.min(items.length, 2)}, minmax(0, 1fr))`,
-      gap: 8,
-      marginBottom: 12,
-    }}>
-      {items.slice(0, 6).map((item, index) => {
-        return (
-          <div
-            key={`${item.media_url}-${index}`}
-            style={{
-              position: 'relative',
-              borderRadius: 12,
-              overflow: 'hidden',
-              background: 'var(--paper-tint)',
-              border: '1px solid var(--hairline)',
-              aspectRatio: '1 / 1',
-            }}
-          >
-            {renderItem(item)}
-            <div style={{
-              position: 'absolute',
-              left: 8,
-              top: 8,
-              padding: '3px 7px',
-              borderRadius: 999,
-              background: 'rgba(15,23,42,0.75)',
-              color: 'white',
-              fontSize: 10.5,
-            }}>
-              {index + 1}
-            </div>
+  if (count === 2) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4, height: 280, width: '100%', borderRadius: 12, overflow: 'hidden' }}>
+        {items.map((item, idx) => (
+          <div key={idx} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+            {renderMediaGridItem(item)}
           </div>
-        )
-      })}
+        ))}
+      </div>
+    )
+  }
+
+  if (count === 3) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gridTemplateRows: '1.2fr 1fr', gap: 4, height: 280, width: '100%', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ gridColumn: 'span 2', width: '100%', height: '100%', overflow: 'hidden' }}>
+          {renderMediaGridItem(items[0])}
+        </div>
+        <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+          {renderMediaGridItem(items[1])}
+        </div>
+        <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+          {renderMediaGridItem(items[2])}
+        </div>
+      </div>
+    )
+  }
+
+  if (count === 4) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: 4, height: 280, width: '100%', borderRadius: 12, overflow: 'hidden' }}>
+        {items.slice(0, 4).map((item, idx) => (
+          <div key={idx} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+            {renderMediaGridItem(item)}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // 5 or more images
+  const remaining = count - 5
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gridTemplateRows: '1.2fr 1fr', gap: 4, height: 280, width: '100%', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ gridColumn: 'span 3', width: '100%', height: '100%', overflow: 'hidden' }}>
+        {renderMediaGridItem(items[0])}
+      </div>
+      <div style={{ gridColumn: 'span 3', width: '100%', height: '100%', overflow: 'hidden' }}>
+        {renderMediaGridItem(items[1])}
+      </div>
+      <div style={{ gridColumn: 'span 2', width: '100%', height: '100%', overflow: 'hidden' }}>
+        {renderMediaGridItem(items[2])}
+      </div>
+      <div style={{ gridColumn: 'span 2', width: '100%', height: '100%', overflow: 'hidden' }}>
+        {renderMediaGridItem(items[3])}
+      </div>
+      <div style={{ gridColumn: 'span 2', width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+        {renderMediaGridItem(items[4])}
+        {remaining > 0 && (
+          <div style={{
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
+            display: 'grid', placeItems: 'center', color: '#fff', fontSize: '20px', fontWeight: 700
+          }}>
+            +{remaining}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const PostMediaPreview = ({ media = [] }) => {
+  const items = Array.isArray(media) ? media.filter(Boolean) : []
+  if (!items.length) return null
+
+  const renderMediaGridItem = (item, style = {}) => {
+    const kind = getMediaPreviewKind(item)
+    const source = getMediaPreviewSource(item)
+    if (!source) {
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: 'var(--ink-400)', background: 'var(--paper-tint)', ...style }}>
+          <Icon name={kind === 'video' ? 'video' : 'image'} />
+        </div>
+      )
+    }
+    return kind === 'video'
+      ? <video src={source} style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#111827', ...style }} />
+      : <img src={source} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', ...style }} />
+  }
+
+  const count = items.length
+
+  if (count === 1) {
+    return (
+      <div style={{ width: '100%', height: '200px', borderRadius: '8px', overflow: 'hidden' }}>
+        {renderMediaGridItem(items[0])}
+      </div>
+    )
+  }
+
+  if (count === 2) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '2px', height: '200px', width: '100%', borderRadius: '8px', overflow: 'hidden' }}>
+        {items.slice(0, 2).map((item, idx) => (
+          <div key={idx} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+            {renderMediaGridItem(item)}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (count === 3) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2px', height: '200px', width: '100%', borderRadius: '8px', overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+          {renderMediaGridItem(items[0])}
+        </div>
+        <div style={{ display: 'grid', gridTemplateRows: 'repeat(2, 1fr)', gap: '2px', height: '100%' }}>
+          <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+            {renderMediaGridItem(items[1])}
+          </div>
+          <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+            {renderMediaGridItem(items[2])}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 4 or more images
+  const remaining = count - 4
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: '2px', height: '200px', width: '100%', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+        {renderMediaGridItem(items[0])}
+      </div>
+      <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+        {renderMediaGridItem(items[1])}
+      </div>
+      <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+        {renderMediaGridItem(items[2])}
+      </div>
+      <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+        {renderMediaGridItem(items[3])}
+        {remaining > 0 && (
+          <div style={{
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)',
+            display: 'grid', placeItems: 'center', color: '#fff', fontSize: '14px', fontWeight: 700
+          }}>
+            +{remaining} more
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -438,12 +504,8 @@ function SocialPostPreview({ platform, account, caption, hashtags, contentType, 
         </p>
       </div>
       {items.length > 0 && (
-        <div style={{ maxHeight: 360, background: 'var(--paper-tint)', overflow: 'hidden' }}>
-          {isCarousel
-            ? renderMedia('16 / 9')
-            : (contentType === 'video' || contentType === 'reel'
-              ? <video src={primaryMediaUrl} muted controls poster={primaryMedia?.thumbnail_url || undefined} style={{ width: '100%', display: 'block' }} />
-              : renderMediaItem(primaryMedia, { width: '100%', display: 'block', objectFit: 'cover' }))}
+        <div style={{ background: 'var(--paper-tint)', overflow: 'hidden' }}>
+          {renderFacebookGrid(items)}
         </div>
       )}
       <div className="row between" style={{ borderTop: '1px solid var(--hairline)', padding: '10px 18px', color: 'var(--ink-500)', fontSize: 13 }}>
@@ -664,7 +726,22 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
   const pushToast   = useUIStore(s => s.pushToast)
   const queryClient = useQueryClient()
   const isEditing = Boolean(initialPost?.id)
+  
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 960)
+  useEffect(() => {
+    const handler = () => setIsDesktop(window.innerWidth >= 960)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
+  const totalStepsCount = isDesktop ? 2 : 3
   const [step, setStep] = useState(1)
+  const [postType, setPostType] = useState(() => {
+    if (initialPost?.target_platforms?.includes('youtube')) return 'youtube'
+    return 'social'
+  })
+  const [title, setTitle] = useState(initialPost?.title || '')
+
   const [caption, setCaption] = useState(initialPost?.caption || '')
   const [hashtags, setHashtags] = useState(Array.isArray(initialPost?.hashtags) ? initialPost.hashtags.join(' ') : '')
   const [selectedAccountIds, setSelectedAccountIds] = useState(() => {
@@ -674,6 +751,10 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
     }
     return [];
   })
+
+  useEffect(() => {
+    setSelectedAccountIds([])
+  }, [postType])
   
   const selectedPlatforms = useMemo(() => {
     const s = new Set();
@@ -684,13 +765,27 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
     return Array.from(s);
   }, [selectedAccountIds, accounts]);
 
-  const [scheduleDate, setScheduleDate] = useState(() => (
-    initialPost?.publish_at
-      ? new Date(initialPost.publish_at).toISOString().slice(0, 16)
+  const [scheduleDatePart, setScheduleDatePart] = useState(() => {
+    const init = initialPost?.publish_at
+      ? toLocalDateTimeInput(initialPost.publish_at)
       : defaultScheduleDate
         ? nextAvailableSchedule(defaultScheduleDate)
         : ''
-  ))
+    return init ? init.split('T')[0] : ''
+  })
+
+  const [scheduleTimePart, setScheduleTimePart] = useState(() => {
+    const init = initialPost?.publish_at
+      ? toLocalDateTimeInput(initialPost.publish_at)
+      : defaultScheduleDate
+        ? nextAvailableSchedule(defaultScheduleDate)
+        : ''
+    return init ? init.split('T')[1] : ''
+  })
+
+  const scheduleDate = (scheduleDatePart && scheduleTimePart)
+    ? `${scheduleDatePart}T${scheduleTimePart}`
+    : ''
   const [mediaFiles, setMediaFiles] = useState([])
   const [mintboxMedia, setMintboxMedia] = useState([])
   const existingMedia = useMemo(() => Array.isArray(initialPost?.media) ? initialPost.media : [], [initialPost])
@@ -707,10 +802,12 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
   }, [mediaFiles, mintboxMedia])
 
   const [contentType, setContentType] = useState(initialPost?.content_type || 'text')
+  const [previewPlatform, setPreviewPlatform] = useState('facebook')
   const effectiveContentType = useMemo(() => {
+    if (postType === 'youtube') return 'video'
     if (hasSelectedMedia) return inferredMediaContentType
     return 'text'
-  }, [hasSelectedMedia, inferredMediaContentType])
+  }, [hasSelectedMedia, inferredMediaContentType, postType])
 
   const needsMedia = effectiveContentType !== 'text'
   const instagramSelected = selectedPlatforms.includes('instagram')
@@ -735,39 +832,67 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
   }, [selectedMediaItems])
 
   const scheduleDateIsPast = Boolean(scheduleDate && new Date(scheduleDate) <= new Date())
-  const scheduleInputMin = toLocalDateTimeInput(new Date(Date.now() + 5 * 60 * 1000))
 
   const { data: mediaLibrary = [] } = useQuery({
     queryKey: ['social-media-library'],
     queryFn: () => socialApi.getMediaLibrary().then(r => r.data.data.media || []),
   })
 
-  const connectedPlatforms = accounts.filter(a => a.is_active)
+  const filteredMediaLibrary = useMemo(() => {
+    if (postType === 'youtube') {
+      return mediaLibrary.filter(item => item.media_type === 'video');
+    }
+    return mediaLibrary;
+  }, [mediaLibrary, postType])
+
+  const isYouTubeEligible = useMemo(() => {
+    const videoItems = selectedMediaItems.filter(item => item.media_type === 'video' || item.mime_type?.startsWith('video'));
+    const imageItems = selectedMediaItems.filter(item => item.media_type === 'image' || item.mime_type?.startsWith('image'));
+    return videoItems.length === 1 && imageItems.length === 0;
+  }, [selectedMediaItems])
+
+  const connectedPlatforms = useMemo(() => {
+    const active = accounts.filter(a => a.is_active)
+    if (postType === 'youtube') {
+      return active.filter(a => a.platform === 'youtube')
+    } else {
+      return active.filter(a => a.platform !== 'youtube')
+    }
+  }, [accounts, postType])
 
   const toggleAccount = (id) => {
     setSelectedAccountIds(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id])
   }
 
-  // Whether the user has entered any content worth saving
   const hasUnsavedContent = !isEditing && (caption.trim().length > 0 || mediaFiles.length > 0 || mintboxMedia.length > 0)
 
   const persistDraft = async ({ publishNow = false } = {}) => {
+    if (postType === 'youtube') {
+      if (!title.trim()) {
+        throw new Error('A video title is required for YouTube uploads.')
+      }
+      if (!isYouTubeEligible) {
+        throw new Error('YouTube requires exactly one video (no images or text-only posts allowed).')
+      }
+    }
+
     if (scheduleDate && scheduleDateIsPast) {
       throw new Error('Please choose a future schedule time.')
     }
     const payload = {
+      title: postType === 'youtube' ? title.trim() : null,
       caption,
       hashtags: hashtags.split(' ').filter(Boolean),
       content_type: effectiveContentType,
       target_platforms: selectedPlatforms,
       metadata: { target_accounts: selectedAccountIds },
-      publish_at: publishNow ? null : (scheduleDate || null),
+      publish_at: publishNow ? null : (scheduleDate ? new Date(scheduleDate).toISOString() : null),
     }
 
     if (isEditing) {
       await socialApi.updatePost(initialPost.id, payload)
       queryClient.invalidateQueries({ queryKey: ['social-posts'] })
-      if (publishNow) {
+      if (publishNow || scheduleDate) {
         await socialApi.publishPost(initialPost.id)
       }
       return initialPost
@@ -792,14 +917,12 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
       await socialApi.addMedia(post.id, fd)
     }
 
-    // Only publish to queue if explicitly requested
-    if (publishNow) {
+    if (publishNow || scheduleDate) {
       await socialApi.publishPost(post.id)
     }
-    return post
+    return post;
   }
 
-  // Silently save draft when user closes with content
   const saveDraftAndClose = async () => {
     if (!hasUnsavedContent) { onClose(); return }
     try {
@@ -807,7 +930,7 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
       await queryClient.invalidateQueries({ queryKey: ['social-posts'] })
       pushToast({ title: 'Saved as draft', icon: 'check' })
     } catch {
-      // If saving fails, just close without blocking the user
+      // ignore
     } finally {
       onClose()
     }
@@ -833,26 +956,584 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
   const handlePublishNow = () => actionMutation.mutate({ publishNow: true })
   const handleSaveDraft = () => actionMutation.mutate({ publishNow: false })
 
+  const renderFormFields = () => (
+    <div className="stack" style={{ gap: 16 }}>
+      {/* Segmented control to toggle Post Type */}
+      <div style={{ display: 'flex', border: '1px solid var(--hairline-strong)', borderRadius: 10, padding: 3, background: 'var(--paper-tint)', marginBottom: 8 }}>
+        <button
+          type="button"
+          onClick={() => setPostType('social')}
+          style={{
+            flex: 1, padding: '8px 12px', border: 0, borderRadius: 8, fontSize: 13, fontWeight: 650,
+            background: postType === 'social' ? 'var(--paper)' : 'transparent',
+            color: postType === 'social' ? 'var(--ink-950)' : 'var(--ink-400)',
+            boxShadow: postType === 'social' ? '0 1px 4px rgba(0,0,0,0.05)' : 'none',
+            cursor: 'pointer', transition: 'all 0.12s',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+          }}
+        >
+          <Icon name="image" size={13} style={{ color: postType === 'social' ? 'var(--mint-600)' : 'inherit' }} />
+          Social Post
+        </button>
+        <button
+          type="button"
+          onClick={() => setPostType('youtube')}
+          style={{
+            flex: 1, padding: '8px 12px', border: 0, borderRadius: 8, fontSize: 13, fontWeight: 650,
+            background: postType === 'youtube' ? 'var(--paper)' : 'transparent',
+            color: postType === 'youtube' ? 'var(--ink-950)' : 'var(--ink-400)',
+            boxShadow: postType === 'youtube' ? '0 1px 4px rgba(0,0,0,0.05)' : 'none',
+            cursor: 'pointer', transition: 'all 0.12s',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+          }}
+        >
+          <Icon name="play" size={13} style={{ color: postType === 'youtube' ? 'var(--rose-600)' : 'inherit' }} />
+          YouTube Video
+        </button>
+      </div>
+
+      {postType === 'youtube' && (
+        <div className="field">
+          <label className="field-label">Video Title (Required)</label>
+          <input
+            className="input"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="Enter YouTube video title..."
+            maxLength={100}
+          />
+          <div style={{ fontSize: 11.5, color: 'var(--ink-400)', marginTop: 4 }}>
+            {title.length}/100 characters
+          </div>
+        </div>
+      )}
+
+      <div className="field">
+        <label className="field-label">{postType === 'youtube' ? 'Description' : 'Caption'}</label>
+        <textarea
+          className="textarea"
+          rows={4}
+          value={caption}
+          onChange={e => setCaption(e.target.value)}
+          placeholder={postType === 'youtube' ? 'Write your YouTube video description...' : 'Write your caption...'}
+        />
+        <div style={{ fontSize: 11.5, color: 'var(--ink-400)', marginTop: 4 }}>
+          {caption.length} characters
+        </div>
+      </div>
+
+      {postType === 'social' && (
+        <div className="field">
+          <label className="field-label">Hashtags</label>
+          <input
+            className="input"
+            value={hashtags}
+            onChange={e => setHashtags(e.target.value)}
+            placeholder="#marketing #india #creative"
+          />
+        </div>
+      )}
+
+      <div className="field">
+        <label className="field-label">Media</label>
+        
+        {/* Only show upload area if YouTube eligibility criteria or multi-upload limits are met */}
+        {!(postType === 'youtube' && selectedMediaItems.length >= 1) ? (
+          <div
+            style={{
+              height: 90, borderRadius: 'var(--radius-md)',
+              border: '2px dashed var(--hairline)', background: 'var(--paper-tint)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: 'var(--ink-400)',
+            }}
+            onClick={() => document.getElementById('social-media-upload')?.click()}
+          >
+            {mediaFiles.length ? (
+              <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
+                <Icon name="check" size={13} style={{ color: 'var(--mint-600)' }} /> {mediaFiles.length} file{mediaFiles.length > 1 ? 's' : ''} selected
+              </span>
+            ) : existingMediaUrls.length && !existingMediaTouched ? (
+              <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
+                <Icon name="image" size={13} /> Existing media attached to this post
+              </span>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <Icon name="upload" size={20} />
+                <div style={{ fontSize: 12, marginTop: 6 }}>
+                  {postType === 'youtube' ? 'Upload video file' : 'Upload up to 20 images or videos'}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12.5, color: 'var(--ink-600)', padding: '10px 14px', background: 'var(--paper-tint)', borderRadius: 10, border: '1px solid var(--hairline)' }}>
+            <Icon name="check" size={13} style={{ color: 'var(--mint-600)' }} /> Video file selected. Delete it below to upload a different one.
+          </div>
+        )}
+
+        <input
+          id="social-media-upload"
+          type="file"
+          accept={postType === 'youtube' ? 'video/mp4,video/webm,video/quicktime' : 'image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime'}
+          multiple={postType !== 'youtube'}
+          style={{ display: 'none' }}
+          onChange={e => {
+            const files = Array.from(e.target.files || [])
+            if (postType === 'youtube') {
+              const videoFiles = files.filter(f => f.type.startsWith('video'))
+              if (videoFiles.length > 0) {
+                setMediaFiles([videoFiles[0]])
+                setMintboxMedia([])
+                setExistingMediaTouched(true)
+              }
+            } else {
+              setMediaFiles(prev => {
+                const combined = [...prev, ...files]
+                return combined.slice(0, 20)
+              })
+              setMintboxMedia([])
+              setExistingMediaTouched(true)
+            }
+            e.target.value = ''
+          }}
+        />
+        <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 7 }}>
+          {postType === 'youtube' ? 'Select a video file to upload.' : 'Choose files or select from Mintbox library below.'}
+        </div>
+        
+        {selectedMediaItems.length > 0 && (
+          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
+            {selectedMediaItems.map((item, idx) => (
+              <div key={idx} style={{ position: 'relative', height: 80, borderRadius: 8, overflow: 'hidden', background: '#000' }}>
+                {item.media_type === 'video' ? (
+                  <video src={item.preview_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <img src={item.preview_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )}
+                {item.media_type === 'video' && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                    <Icon name="play" size={24} style={{ color: '#fff' }} />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (mediaFiles.length > 0) {
+                      setMediaFiles(prev => prev.filter((_, i) => i !== idx))
+                    } else if (mintboxMedia.length > 0) {
+                      setMintboxMedia(prev => prev.filter((_, i) => i !== idx))
+                    }
+                  }}
+                  style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 0, borderRadius: '50%', color: 'white', cursor: 'pointer', padding: 4, display: 'flex' }}
+                >
+                  <Icon name="x" size={12} />
+                </button>
+              </div>
+            ))}
+            
+            {postType !== 'youtube' && selectedMediaItems.length < 20 && (
+              <div 
+                style={{ height: 80, borderRadius: 8, border: '2px dashed var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--ink-400)' }}
+                onClick={() => document.getElementById('social-media-upload')?.click()}
+              >
+                <Icon name="plus" size={20} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {filteredMediaLibrary.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div className="field-label" style={{ marginBottom: 7 }}>Or choose from Mintbox</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8, maxHeight: 150, overflowY: 'auto', paddingRight: 2 }}>
+              {filteredMediaLibrary.map(item => (
+                <MediaTile
+                  key={item.id}
+                  item={item}
+                  compact
+                  selected={mintboxMedia.some(existing => existing.id === item.id)}
+                  onClick={() => {
+                    const isAlreadySelected = mintboxMedia.some(existing => existing.id === item.id)
+                    if (postType === 'youtube') {
+                      if (isAlreadySelected) {
+                        setMintboxMedia([])
+                      } else {
+                        setMintboxMedia([item])
+                        setMediaFiles([])
+                        setExistingMediaTouched(true)
+                      }
+                    } else {
+                      const nextSelection = isAlreadySelected
+                        ? mintboxMedia.filter(existing => existing.id !== item.id)
+                        : [...mintboxMedia, item]
+                      setMintboxMedia(nextSelection)
+                      setMediaFiles([])
+                      setExistingMediaTouched(true)
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        {instagramSelected && (
+          <div style={{ fontSize: 12, color: instagramContentBlocked ? 'var(--rose)' : 'var(--ink-500)', marginTop: 8 }}>
+            Instagram post demands images/videos. Make sure target accounts are chosen correctly.
+          </div>
+        )}
+      </div>
+
+      {/* Scheduling Choice — premium pill selector */}
+      <div style={{
+        background: 'var(--paper)',
+        border: '1.5px solid var(--hairline-strong)',
+        borderRadius: '14px',
+        padding: '6px',
+        marginTop: 4,
+        overflow: 'hidden',
+      }}>
+        {/* Two-pill selector row */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          {/* Publish Now pill */}
+          <button
+            type="button"
+            onClick={() => { setScheduleDatePart(''); setScheduleTimePart('') }}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', gap: 10,
+              padding: '11px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: !(scheduleDatePart || scheduleTimePart)
+                ? 'linear-gradient(135deg, var(--mint-500, #10b981) 0%, var(--mint-600, #059669) 100%)'
+                : 'transparent',
+              color: !(scheduleDatePart || scheduleTimePart) ? '#fff' : 'var(--ink-500)',
+              transition: 'all 200ms ease',
+              textAlign: 'left',
+              boxShadow: !(scheduleDatePart || scheduleTimePart) ? '0 2px 8px rgba(16,185,129,0.30)' : 'none',
+            }}
+          >
+            <span style={{
+              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+              background: !(scheduleDatePart || scheduleTimePart) ? 'rgba(255,255,255,0.2)' : 'var(--ink-100)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Icon name="zap" size={14} style={{ color: !(scheduleDatePart || scheduleTimePart) ? '#fff' : 'var(--ink-400)' }} />
+            </span>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>Publish Now</div>
+              <div style={{ fontSize: '11px', opacity: 0.75, marginTop: 1 }}>Goes live immediately</div>
+            </div>
+          </button>
+
+          {/* Schedule pill */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!(scheduleDatePart || scheduleTimePart)) {
+                const next = nextAvailableSchedule(new Date().toISOString())
+                setScheduleDatePart(next.split('T')[0])
+                setScheduleTimePart(next.split('T')[1])
+              }
+            }}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', gap: 10,
+              padding: '11px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: (scheduleDatePart || scheduleTimePart)
+                ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'
+                : 'transparent',
+              color: (scheduleDatePart || scheduleTimePart) ? '#fff' : 'var(--ink-500)',
+              transition: 'all 200ms ease',
+              textAlign: 'left',
+              boxShadow: (scheduleDatePart || scheduleTimePart) ? '0 2px 8px rgba(99,102,241,0.30)' : 'none',
+            }}
+          >
+            <span style={{
+              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+              background: (scheduleDatePart || scheduleTimePart) ? 'rgba(255,255,255,0.2)' : 'var(--ink-100)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Icon name="clock" size={14} style={{ color: (scheduleDatePart || scheduleTimePart) ? '#fff' : 'var(--ink-400)' }} />
+            </span>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>Schedule</div>
+              <div style={{ fontSize: '11px', opacity: 0.75, marginTop: 1 }}>
+                {(scheduleDatePart || scheduleTimePart)
+                  ? `${scheduleDatePart} · ${scheduleTimePart}`
+                  : 'Pick date and time'}
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {/* Date + Time inputs — slide in when Schedule selected */}
+        {Boolean(scheduleDatePart || scheduleTimePart) && (
+          <div style={{
+            display: 'flex', gap: 10, padding: '12px 8px 8px',
+            borderTop: '1px solid var(--hairline)', marginTop: 6,
+          }}>
+            <div style={{ flex: 1.2 }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: 'var(--ink-400)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 5 }}>Date</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="brief-text-input"
+                  type="date"
+                  value={scheduleDatePart}
+                  min={toLocalDateTimeInput(new Date()).split('T')[0]}
+                  onChange={e => setScheduleDatePart(e.target.value)}
+                  style={{ minHeight: '38px', padding: '8px 12px 8px 34px', fontSize: '13px', borderRadius: 10, width: '100%' }}
+                />
+                <Icon name="calendar" size={13} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#6366f1' }} />
+              </div>
+            </div>
+            <div style={{ flex: 0.8 }}>
+              <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: 'var(--ink-400)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 5 }}>Time</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="brief-text-input"
+                  type="time"
+                  value={scheduleTimePart}
+                  onChange={e => setScheduleTimePart(e.target.value)}
+                  style={{ minHeight: '38px', padding: '8px 12px 8px 34px', fontSize: '13px', borderRadius: 10, width: '100%' }}
+                />
+                <Icon name="clock" size={13} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#6366f1' }} />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      {instagramContentBlocked && (
+        <div style={{
+          display: 'flex', gap: 10, padding: '12px 14px',
+          background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)',
+          borderRadius: '10px', color: 'var(--rose-700)', fontSize: '13px', fontWeight: 550,
+          alignItems: 'center', marginTop: 10
+        }}>
+          <Icon name="xCircle" size={16} style={{ color: 'var(--rose-600)', flexShrink: 0 }} />
+          <span>Instagram does not support text-only posts. Please select a photo or video file to proceed.</span>
+        </div>
+      )}
+      </div>
+  )
+
+  const renderPreviews = () => {
+    // Determine which platforms to show toggle for
+    const previewablePlatforms = postType === 'youtube'
+      ? ['youtube']
+      : (selectedPlatforms.length > 0 ? selectedPlatforms : ['facebook', 'instagram']).filter(p => ['facebook', 'instagram'].includes(p))
+    const showToggle = previewablePlatforms.length > 1 && postType !== 'youtube'
+    // Ensure the active previewPlatform is valid
+    const activePlatform = (previewablePlatforms.includes(previewPlatform) ? previewPlatform : previewablePlatforms[0]) || 'facebook'
+
+    const PLATFORM_TOGGLE_META = {
+      facebook:  { label: 'Facebook',  icon: 'facebook',  color: '#1877f2' },
+      instagram: { label: 'Instagram', icon: 'instagram', color: '#e1306c' },
+    }
+
+    return (
+      <div className="stack" style={{ gap: 12 }}>
+        {/* Header row: label + toggle pill */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink-400)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            Live Feed Preview
+          </div>
+          {showToggle && (
+            <div style={{
+              display: 'flex', alignItems: 'center',
+              background: '#f1f5f9', borderRadius: 999,
+              padding: '3px', gap: 2,
+            }}>
+              {previewablePlatforms.map(p => {
+                const meta = PLATFORM_TOGGLE_META[p]
+                const isActive = activePlatform === p
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPreviewPlatform(p)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      padding: '5px 12px', borderRadius: 999,
+                      fontSize: '12px', fontWeight: isActive ? 600 : 400,
+                      background: isActive ? '#fff' : 'transparent',
+                      color: isActive ? meta.color : '#64748b',
+                      border: 'none', cursor: 'pointer',
+                      boxShadow: isActive ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
+                      transition: 'all 150ms ease',
+                    }}
+                  >
+                    <Icon name={meta.icon} size={13} style={{ color: meta.color }} />
+                    {meta.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Preview pane */}
+        {postType === 'youtube' ? (
+          <div className="card" style={{ padding: 0, borderRadius: 16, overflow: 'hidden', border: '1px solid var(--hairline-strong)', background: 'var(--paper)' }}>
+            <div style={{ aspectRatio: '16/9', background: '#000', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {selectedMediaItems.length > 0 ? (
+                <video src={selectedMediaItems[0].preview_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : (
+                <div style={{ color: '#fff', fontSize: 13, textAlign: 'center' }}>
+                  <Icon name="play" size={40} style={{ color: '#ff0000', marginBottom: 8 }} />
+                  <div>YouTube Video Mock Preview</div>
+                </div>
+              )}
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(255,255,255,0.2)' }}>
+                <div style={{ width: '0%', height: '100%', background: '#ff0000' }} />
+              </div>
+            </div>
+            <div style={{ padding: 14, textAlign: 'left' }}>
+              <h4 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: 'var(--ink-950)' }}>
+                {title || 'Video Title'}
+              </h4>
+              <div style={{ fontSize: 12, color: 'var(--ink-500)', display: 'flex', gap: 6, marginBottom: 10 }}>
+                <span>0 views</span><span>·</span><span>Just now</span>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--mint-50)', border: '1px solid var(--mint-100)', display: 'grid', placeItems: 'center', color: 'var(--mint-600)', fontWeight: 700, fontSize: 13 }}>
+                  {selectedAccountIds.length > 0 ? (accounts.find(a => a.id === selectedAccountIds[0])?.page_name || 'Y').charAt(0).toUpperCase() : 'Y'}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--ink-950)' }}>
+                    {selectedAccountIds.length > 0 ? (accounts.find(a => a.id === selectedAccountIds[0])?.page_name || 'YouTube Channel') : 'YouTube Channel'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-400)' }}>1.2K subscribers</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <SocialPostPreview
+            key={activePlatform}
+            platform={activePlatform}
+            account={accounts.find(a => a.platform === activePlatform)}
+            caption={caption}
+            hashtags={hashtags}
+            contentType={effectiveContentType}
+            mediaItems={selectedMediaItems}
+          />
+        )}
+      </div>
+    )
+  }
+
+  const renderAccountSelection = () => (
+    <div className="stack" style={{ gap: 12 }}>
+      <div style={{ padding: 16, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline-strong)', marginBottom: 4 }}>
+        <div className="h-eyebrow" style={{ marginBottom: 8 }}>Post summary</div>
+        <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--ink-700)', marginBottom: 10 }}>
+          {caption.slice(0, 120)}{caption.length > 120 ? '...' : ''}
+        </div>
+        {selectedAccountIds.length > 0 ? (
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            {selectedAccountIds.map(id => {
+              const acc = connectedPlatforms.find(a => a.id === id)
+              const meta = PLATFORM_META[acc?.platform] || {}
+              return (
+                <span key={id} className="badge neutral" style={{ fontSize: 12 }}>
+                  <Icon name={meta.icon} size={11} style={{ color: meta.color }} />
+                  &nbsp;{acc?.page_name || meta.label}
+                </span>
+              )
+            })}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12.5, color: 'var(--amber-700)', fontWeight: 550 }}>
+            No channels selected yet. Choose one below.
+          </div>
+        )}
+      </div>
+
+      <div style={{ fontSize: 13.5, fontWeight: 750, color: 'var(--ink-950)', marginBottom: 4 }}>
+        Select accounts to publish to
+      </div>
+      {connectedPlatforms.length === 0 ? (
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink-500)', fontSize: 13, border: '1.5px dashed var(--hairline-strong)', borderRadius: '12px' }}>
+          No connected accounts. Go to the Accounts tab to connect.
+        </div>
+      ) : (
+        connectedPlatforms.map(acc => {
+          const meta = PLATFORM_META[acc.platform] || {}
+          const selected = selectedAccountIds.includes(acc.id)
+          return (
+            <div
+              key={acc.id}
+              onClick={() => toggleAccount(acc.id)}
+              style={{
+                display: 'flex', gap: 12, alignItems: 'center',
+                padding: '12px 14px',
+                background: selected ? 'rgba(247,127,0,0.06)' : 'var(--paper-tint)',
+                border: `1.5px solid ${selected ? 'rgba(247,127,0,0.4)' : 'var(--hairline)'}`,
+                borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                transition: 'all 0.12s',
+              }}
+            >
+              <Icon name={meta.icon} size={16} style={{ color: meta.color }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>
+                  {acc.page_name || acc.platform_name}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--ink-500)', textTransform: 'capitalize' }}>
+                  {meta.label}
+                </div>
+              </div>
+              <div style={{
+                width: 20, height: 20, borderRadius: '50%',
+                border: `2px solid ${selected ? 'var(--mint-500)' : 'var(--hairline-strong)'}`,
+                background: selected ? 'var(--mint-500)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {selected && <Icon name="check" size={11} strokeWidth={3} style={{ color: 'white' }} />}
+              </div>
+            </div>
+          )
+        })
+      )}
+      {instagramContentBlocked && (
+        <div style={{
+          display: 'flex', gap: 10, padding: '12px 14px',
+          background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)',
+          borderRadius: '10px', color: 'var(--rose-700)', fontSize: '13px', fontWeight: 550,
+          alignItems: 'center', marginTop: 10
+        }}>
+          <Icon name="xCircle" size={16} style={{ color: 'var(--rose-600)', flexShrink: 0 }} />
+          <span>Instagram does not support text-only posts. Please select a photo or video file to proceed.</span>
+        </div>
+      )}
+    </div>
+  )
+
+  const modalMaxWidth = isDesktop && step === 1 ? 1080 : 640
+
   return (
     <Modal
-      title={isEditing ? 'Edit draft' : 'Create post'}
-      subtitle={isEditing ? 'Update your draft and publish when ready.' : `Step ${step} of 3`}
+      title={isEditing ? 'Edit post' : 'Create post'}
+      subtitle={isEditing ? `Edit draft — Step ${step} of ${totalStepsCount}` : `Step ${step} of ${totalStepsCount}`}
       onClose={saveDraftAndClose}
-      maxWidth={640}
+      maxWidth={modalMaxWidth}
       footer={(
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          {step > 1 && !isEditing && <button className="btn ghost" onClick={() => setStep(s => s - 1)}>Back</button>}
+          {step > 1 && <button className="btn ghost" onClick={() => setStep(s => s - 1)}>Back</button>}
           <button className="btn ghost" onClick={saveDraftAndClose}>
             {hasUnsavedContent ? 'Save draft' : 'Cancel'}
           </button>
           {isEditing ? (
             <>
               <button className="btn ghost" onClick={handleSaveDraft} disabled={actionMutation.isPending}>Save draft</button>
-              <button className="btn primary" onClick={handlePublishNow} disabled={actionMutation.isPending || selectedAccountIds.length === 0 || (needsMedia && !hasSelectedMedia) || instagramContentBlocked}>
-                {actionMutation.isPending ? 'Publishing...' : 'Publish now'}
-              </button>
+              {step < totalStepsCount ? (
+                <button className="btn primary" onClick={() => setStep(s => s + 1)} disabled={step === 1 && !caption.trim()}>
+                  Continue <Icon name="arrowRight" />
+                </button>
+              ) : (
+                <button className="btn primary" onClick={handlePublishNow} disabled={actionMutation.isPending || selectedAccountIds.length === 0 || (needsMedia && !hasSelectedMedia) || instagramContentBlocked}>
+                  {actionMutation.isPending ? 'Publishing...' : 'Publish now'}
+                </button>
+              )}
             </>
-          ) : step < 3 ? (
+          ) : step < totalStepsCount ? (
             <button className="btn primary" onClick={() => setStep(s => s + 1)} disabled={step === 1 && !caption.trim()}>
               Continue <Icon name="arrowRight" />
             </button>
@@ -869,275 +1550,37 @@ function CreatePostModal({ accounts, onClose, onSaved, onPublished, initialPost 
       )}
     >
       {step === 1 && (
-        <div className="stack" style={{ gap: 16 }}>
-          <div className="field">
-            <label className="field-label">Caption</label>
-            <textarea
-              className="textarea"
-              rows={5}
-              value={caption}
-              onChange={e => setCaption(e.target.value)}
-              placeholder="Write your caption..."
-            />
-            <div style={{ fontSize: 11.5, color: 'var(--ink-400)', marginTop: 4 }}>
-              {caption.length} characters
+        isDesktop ? (
+          <div className="composer-split-layout">
+            <div className="composer-form-col">
+              {renderFormFields()}
+            </div>
+            <div className="composer-preview-col">
+              {renderPreviews()}
             </div>
           </div>
-
-          <div className="field">
-            <label className="field-label">Hashtags</label>
-            <input
-              className="input"
-              value={hashtags}
-              onChange={e => setHashtags(e.target.value)}
-              placeholder="#marketing #india #creative"
-            />
+        ) : (
+          <div className="stack" style={{ gap: 16 }}>
+            {renderFormFields()}
           </div>
-
-          <div className="field">
-            <label className="field-label">Media</label>
-            <div
-              style={{
-                height: 100, borderRadius: 'var(--radius-md)',
-                border: '2px dashed var(--hairline)', background: 'var(--paper-tint)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', color: 'var(--ink-400)',
-              }}
-              onClick={() => document.getElementById('social-media-upload')?.click()}
-            >
-              {mediaFiles.length ? (
-                <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
-                  <Icon name="check" size={13} style={{ color: 'var(--mint-600)' }} /> {mediaFiles.length} file{mediaFiles.length > 1 ? 's' : ''} selected
-                </span>
-              ) : existingMediaUrls.length && !existingMediaTouched ? (
-                <span style={{ fontSize: 13, color: 'var(--ink-700)', textAlign: 'center', padding: '0 14px' }}>
-                  <Icon name="image" size={13} /> Existing media attached to this post
-                </span>
-              ) : (
-                <div style={{ textAlign: 'center' }}>
-                  <Icon name="upload" size={20} />
-                  <div style={{ fontSize: 12, marginTop: 6 }}>
-                    Upload up to 20 images or videos
-                  </div>
-                </div>
-              )}
-            </div>
-            <input
-              id="social-media-upload"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
-              multiple
-              style={{ display: 'none' }}
-              onChange={e => {
-                const files = Array.from(e.target.files || [])
-                setMediaFiles(prev => {
-                  const combined = [...prev, ...files]
-                  return combined.slice(0, 20)
-                })
-                setMintboxMedia([])
-                setExistingMediaTouched(true)
-                // Clear the input so selecting the same file again triggers onChange
-                e.target.value = ''
-              }}
-            />
-            <div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 7 }}>
-              Use Mintbox below for reusable assets and carousel-ready reference media.
-            </div>
-            
-            {selectedMediaItems.length > 0 && (
-              <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
-                {selectedMediaItems.map((item, idx) => (
-                  <div key={idx} style={{ position: 'relative', height: 80, borderRadius: 8, overflow: 'hidden', background: '#000' }}>
-                    {item.media_type === 'video' ? (
-                      <video src={item.preview_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <img src={item.preview_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    )}
-                    {item.media_type === 'video' && (
-                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
-                        <Icon name="play" size={24} style={{ color: '#fff' }} />
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // If it's a local file, remove it from mediaFiles
-                        if (mediaFiles.length > 0) {
-                          setMediaFiles(prev => prev.filter((_, i) => i !== idx))
-                        } else if (mintboxMedia.length > 0) {
-                          setMintboxMedia(prev => prev.filter((_, i) => i !== idx))
-                        }
-                      }}
-                      style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 0, borderRadius: '50%', color: 'white', cursor: 'pointer', padding: 4, display: 'flex' }}
-                    >
-                      <Icon name="x" size={12} />
-                    </button>
-                  </div>
-                ))}
-                
-                {/* Add more button */}
-                {selectedMediaItems.length < 20 && (
-                  <div 
-                    style={{ height: 80, borderRadius: 8, border: '2px dashed var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--ink-400)' }}
-                    onClick={() => document.getElementById('social-media-upload')?.click()}
-                  >
-                    <Icon name="plus" size={20} />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {mediaLibrary.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div className="field-label" style={{ marginBottom: 7 }}>Or choose from Mintbox</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8, maxHeight: 230, overflowY: 'auto', paddingRight: 2 }}>
-                  {mediaLibrary.map(item => (
-                    <MediaTile
-                      key={item.id}
-                      item={item}
-                      compact
-                      selected={mintboxMedia.some(existing => existing.id === item.id)}
-                      onClick={() => {
-                        const isAlreadySelected = mintboxMedia.some(existing => existing.id === item.id)
-                        const nextSelection = isAlreadySelected
-                          ? mintboxMedia.filter(existing => existing.id !== item.id)
-                          : [...mintboxMedia, item]
-                        setMintboxMedia(nextSelection)
-                        setMediaFiles([])
-                        setExistingMediaTouched(true)
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            {instagramSelected && (
-              <div style={{ fontSize: 12, color: instagramContentBlocked ? 'var(--rose)' : 'var(--ink-500)', marginTop: 8 }}>
-                Instagram-only posts work best as images, carousels, or reels. Pick the Instagram account in step 2 if that is the destination you want.
-              </div>
-            )}
-          </div>
-        </div>
+        )
       )}
 
-      {step === 2 && (
+      {step === 2 && isDesktop && (
         <div className="stack" style={{ gap: 12 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 4 }}>
-            Select accounts to publish to
-          </div>
-          {connectedPlatforms.length === 0 ? (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-500)', fontSize: 13 }}>
-              No connected accounts. Go to the Accounts tab to connect.
-            </div>
-          ) : (
-            connectedPlatforms.map(acc => {
-              const meta = PLATFORM_META[acc.platform] || {}
-              const selected = selectedAccountIds.includes(acc.id)
-              return (
-                <div
-                  key={acc.id}
-                  onClick={() => toggleAccount(acc.id)}
-                  style={{
-                    display: 'flex', gap: 12, alignItems: 'center',
-                    padding: '12px 14px',
-                    background: selected ? 'rgba(247,127,0,0.06)' : 'var(--paper-tint)',
-                    border: `1.5px solid ${selected ? 'rgba(247,127,0,0.4)' : 'var(--hairline)'}`,
-                    borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                    transition: 'all 0.12s',
-                  }}
-                >
-                  <Icon name={meta.icon} size={16} style={{ color: meta.color }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 500 }}>
-                      {acc.page_name || acc.platform_name}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--ink-500)', textTransform: 'capitalize' }}>
-                      {meta.label}
-                    </div>
-                  </div>
-                  <div style={{
-                    width: 20, height: 20, borderRadius: '50%',
-                    border: `2px solid ${selected ? 'var(--mint-500)' : 'var(--hairline-strong)'}`,
-                    background: selected ? 'var(--mint-500)' : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {selected && <Icon name="check" size={11} strokeWidth={3} style={{ color: 'white' }} />}
-                  </div>
-                </div>
-              )
-            })
-          )}
+          {renderAccountSelection()}
         </div>
       )}
 
-      {step === 3 && (
-        <div className="stack" style={{ gap: 18 }}>
-          <div style={{ padding: 16, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
-            <div className="h-eyebrow" style={{ marginBottom: 8 }}>Post summary</div>
-            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--ink-700)', marginBottom: 10 }}>
-              {caption.slice(0, 120)}{caption.length > 120 ? '...' : ''}
-            </div>
-            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              {selectedAccountIds.map(id => {
-                const acc = connectedPlatforms.find(a => a.id === id)
-                const meta = PLATFORM_META[acc?.platform] || {}
-                return (
-                  <span key={id} className="badge neutral" style={{ fontSize: 12 }}>
-                    <Icon name={meta.icon} size={11} style={{ color: meta.color }} />
-                    &nbsp;{acc?.page_name || meta.label}
-                  </span>
-                )
-              })}
-            </div>
-          </div>
+      {step === 2 && !isDesktop && (
+        <div className="stack" style={{ gap: 16 }}>
+          {renderPreviews()}
+        </div>
+      )}
 
-          <div className="field">
-            <label className="field-label">Schedule (leave empty to publish now)</label>
-            <input
-              className="input"
-              type="datetime-local"
-              value={scheduleDate}
-              min={scheduleInputMin}
-              onChange={e => setScheduleDate(e.target.value)}
-            />
-          </div>
-
-          {scheduleDate && (
-            <div style={{ fontSize: 13, color: 'var(--ink-600)', display: 'flex', gap: 6, alignItems: 'center' }}>
-              <Icon name="clock" size={13} />
-              Scheduled for {new Date(scheduleDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-            </div>
-          )}
-          {scheduleDateIsPast && (
-            <div style={{ fontSize: 13, color: 'var(--amber)' }}>
-              Pick a time later than now. You can schedule for today or any later date, but not in the past.
-            </div>
-          )}
-
-          <div>
-            <div className="h-eyebrow" style={{ marginBottom: 10 }}>Live preview</div>
-            <div style={{ display: 'grid', gap: 14 }}>
-              {selectedPlatforms.length === 0 ? (
-                <div className="empty" style={{ padding: 18 }}>
-                  <h3>Select a platform to preview the post</h3>
-                </div>
-              ) : selectedPlatforms.map(platform => {
-                const account = connectedPlatforms.find(a => a.platform === platform)
-                return (
-                    <SocialPostPreview
-                    key={platform}
-                    platform={platform}
-                    account={account}
-                    caption={caption}
-                    hashtags={hashtags}
-                    contentType={effectiveContentType}
-                    mediaItems={selectedMediaItems}
-                  />
-                )
-              })}
-            </div>
-          </div>
+      {step === 3 && !isDesktop && (
+        <div className="stack" style={{ gap: 12 }}>
+          {renderAccountSelection()}
         </div>
       )}
     </Modal>
@@ -1161,9 +1604,15 @@ export default function Social() {
   const [editingPost, setEditingPost] = useState(null)
   const [connectPrompt, setConnectPrompt] = useState(null)
   const [postFilter, setPostFilter] = useState('all')
-  const [loadingDraftId, setLoadingDraftId] = useState(null)
+  const [activeMenuId, setActiveMenuId] = useState(null)
   const composeRequested = searchParams.get('compose') === '1'
   const composePublishDate = searchParams.get('publish_at') || ''
+
+  useEffect(() => {
+    const handleCloseMenu = () => setActiveMenuId(null)
+    window.addEventListener('click', handleCloseMenu)
+    return () => window.removeEventListener('click', handleCloseMenu)
+  }, [])
 
   const { data: accountsData, isLoading: accLoading } = useQuery({
     queryKey: ['social-accounts'],
@@ -1289,6 +1738,29 @@ export default function Social() {
     setEditingPost(null)
   }
 
+  // ── STATUS CONFIG (Task 4) ──────────────────────────────────────────────
+  const STATUS_CONFIG = {
+    published: { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0', dot: '#10b981', label: 'Published' },
+    draft:     { bg: '#f8fafc', text: '#64748b', border: '#e2e8f0', dot: '#94a3b8', label: 'Draft'      },
+    scheduled: { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe', dot: '#3b82f6', label: 'Scheduled'  },
+    failed:    { bg: '#fef2f2', text: '#dc2626', border: '#fecaca', dot: '#ef4444', label: 'Failed'      },
+  }
+
+  const StatusBadge = ({ status }) => {
+    const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.draft
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '3px 10px', borderRadius: 999, fontSize: '11px', fontWeight: 600,
+        background: cfg.bg, color: cfg.text, border: `1px solid ${cfg.border}`,
+        whiteSpace: 'nowrap', flexShrink: 0,
+      }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
+        {cfg.label}
+      </span>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1304,8 +1776,23 @@ export default function Social() {
           </p>
         </div>
         {connectedAccounts.length > 0 && tab === 'posts' && (
-          <button className="bg-ink-950 text-white shadow-md shadow-ink-900/10 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-900 transition-colors" onClick={() => { setEditingPost(null); setShowCreate(true); }}>
-            <Icon name="plus" size={16} /> Create post
+          <button
+            onClick={() => { setEditingPost(null); setShowCreate(true); }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 20px', borderRadius: 12,
+              background: 'linear-gradient(135deg, var(--mint-500, #10b981) 0%, var(--mint-600, #059669) 100%)',
+              color: '#fff', border: 'none', cursor: 'pointer',
+              fontSize: '14px', fontWeight: 650, letterSpacing: '-0.01em',
+              boxShadow: '0 4px 14px rgba(16,185,129,0.35)',
+              transition: 'all 150ms ease',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 20px rgba(16,185,129,0.50)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(16,185,129,0.35)'; e.currentTarget.style.transform = 'translateY(0)' }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, background: 'rgba(255,255,255,0.25)', borderRadius: 6, fontWeight: 700, fontSize: 15, lineHeight: 1 }}>+</span>
+            Create post
           </button>
         )}
       </div>
@@ -1384,16 +1871,53 @@ export default function Social() {
       )}
 
       {tab === 'posts' && (
-        <div className="stack" style={{ gap: 14 }}>
-          <div className="row" style={{ gap: 10 }}>
-            <Tabs value={postFilter} onChange={setPostFilter} items={[
-              { value: 'all', label: 'All' },
-              { value: 'draft', label: 'Drafts' },
-              { value: 'scheduled', label: 'Scheduled' },
-              { value: 'published', label: 'Published' },
-              { value: 'failed', label: 'Failed' },
-            ]} />
-          </div>
+        <div className="stack" style={{ gap: 0 }}>
+          {/* Task 5: polished tab bar with active underline + count badges */}
+          {(() => {
+            const allStatusCounts = {
+              all: posts.length,
+              draft: posts.filter(p => p.status === 'draft').length,
+              scheduled: posts.filter(p => p.status === 'scheduled').length,
+              published: posts.filter(p => p.status === 'published').length,
+              failed: posts.filter(p => p.status === 'failed').length,
+            }
+            const tabDefs = [
+              { key: 'all', label: 'All' },
+              { key: 'draft', label: 'Drafts' },
+              { key: 'scheduled', label: 'Scheduled' },
+              { key: 'published', label: 'Published' },
+              { key: 'failed', label: 'Failed' },
+            ]
+            return (
+              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e2e8f0', marginBottom: 24 }}>
+                {tabDefs.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => setPostFilter(t.key)}
+                    style={{
+                      padding: '9px 16px', fontSize: '14px', cursor: 'pointer',
+                      fontWeight: postFilter === t.key ? 600 : 400,
+                      color: postFilter === t.key ? '#0f172a' : '#64748b',
+                      borderBottom: postFilter === t.key ? '2px solid #10b981' : '2px solid transparent',
+                      background: 'none', border: 'none', borderRadius: 0,
+                      transition: 'all 150ms ease',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    {t.label}
+                    {allStatusCounts[t.key] > 0 && (
+                      <span style={{
+                        background: postFilter === t.key ? '#dcfce7' : '#f1f5f9',
+                        color: postFilter === t.key ? '#166534' : '#64748b',
+                        fontSize: '11px', fontWeight: 600,
+                        padding: '1px 6px', borderRadius: 10,
+                      }}>{allStatusCounts[t.key]}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
 
           {postsLoading ? (
             <div className="stack" style={{ gap: 10 }}>
@@ -1409,77 +1933,253 @@ export default function Social() {
               </button>
             </div>
           ) : (
-            <div className="stack" style={{ gap: 10 }}>
+            <div className="social-feed-grid">
               {posts.map(post => {
                 const isEditable = ['draft', 'scheduled', 'failed'].includes(post.status)
-                const imported = post.metadata?.source === 'historical_import' || post.platform_statuses?.some(s => s.source === 'historical_import')
-                const mediaItems = Array.isArray(post.media) ? post.media.filter(Boolean) : []
-                return (
-                  <div
-                    key={post.id}
-                    role={isEditable ? 'button' : undefined}
-                    tabIndex={isEditable ? 0 : -1}
-                    onClick={() => isEditable && openDraftEditor(post.id)}
-                    onKeyDown={(e) => { if (isEditable && (e.key === 'Enter' || e.key === ' ')) openDraftEditor(post.id) }}
-                    style={{
-                      background: 'var(--paper)',
-                      border: '1px solid var(--hairline)',
-                      borderRadius: 'var(--radius-lg)',
-                      padding: 18,
-                      cursor: isEditable ? 'pointer' : 'default',
-                      }}
-                    >
-                    <PostMediaPreview media={mediaItems} />
+                const isDraft     = post.status === 'draft'
+                const isScheduled = post.status === 'scheduled'
+                const isPublished = post.status === 'published'
+                const isFailed    = post.status === 'failed'
+                const imported    = post.metadata?.source === 'historical_import' || post.platform_statuses?.some(s => s.source === 'historical_import')
+                const mediaItems  = Array.isArray(post.media) ? post.media.filter(Boolean) : []
+                const platforms   = normalizePlatforms(post.target_platforms)
+                const hasMedia    = mediaItems.length > 0
+                const isInstagramTextOnly = platforms.includes('instagram') && !hasMedia
 
-                    <div className="row between" style={{ marginBottom: 10, gap: 12 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 500, flex: 1, minWidth: 0 }}>
-                        {post.caption?.slice(0, 80)}{post.caption?.length > 80 ? '...' : ''}
-                      </div>
-                      <div className="row" style={{ gap: 8, flexShrink: 0 }}>
-                        {imported && <span className="badge neutral">Imported from Facebook</span>}
-                        <span className={`badge ${post.status === 'published' ? 'mint' : post.status === 'failed' ? 'rose' : post.status === 'scheduled' ? 'violet' : 'neutral'}`}>
-                          <span className="bdot" />{post.status}
-                        </span>
-                        {isEditable && (
-                          <button className="btn ghost" type="button" onClick={(e) => { e.stopPropagation(); openDraftEditor(post.id); }}>
-                            Edit
-                          </button>
-                        )}
-                        <button
-                          className="btn ghost"
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            deletePostMutation.mutate(post.id)
-                          }}
+                const targetAccountNames = (post.metadata?.target_accounts || [])
+                  .map(id => accounts.find(a => a.id === id)?.page_name)
+                  .filter(Boolean)
+                  .join(', ') || platforms.map(p => PLATFORM_META[p]?.label).join(', ')
+
+                const timestamp = post.publish_at
+                  ? `Scheduled for ${new Date(post.publish_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`
+                  : post.published_at
+                  ? `Published ${timeAgo(post.published_at)}`
+                  : post.status === 'draft' ? 'Unsaved draft'
+                  : post.status === 'failed' ? 'Failed to publish'
+                  : ''
+
+                return (() => {
+                    // Generate a deterministic avatar color from the page name
+                    const avatarColors = ['#1877F2','#E1306C','#FF6B35','#7C3AED','#059669','#DC2626','#D97706']
+                    const colorIdx = (targetAccountNames || 'A').charCodeAt(0) % avatarColors.length
+                    const avatarColor = avatarColors[colorIdx]
+                    const initials = (targetAccountNames || 'P').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase()
+
+                    // Find the primary account object for this post
+                    const primaryAccountId = post.metadata?.target_accounts?.[0]
+                    const primaryAccount = accounts.find(a => a.id === primaryAccountId)
+                    const avatarUrl = primaryAccount?.picture_url || primaryAccount?.profile_image_url || null
+
+                    // Human readable timestamp
+                    const friendlyTime = post.publish_at
+                      ? new Date(post.publish_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + ' at ' + new Date(post.publish_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                      : post.published_at
+                      ? new Date(post.published_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' at ' + new Date(post.published_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                      : post.status === 'draft' ? 'Draft' : post.status === 'failed' ? 'Failed' : 'Pending'
+
+                    const primaryPlatform = platforms[0] || 'facebook'
+                    const platMeta = PLATFORM_META[primaryPlatform] || PLATFORM_META.facebook
+
+                    return (
+                      <div
+                        key={post.id}
+                        style={{
+                          background: '#fff',
+                          border: '1px solid #dde1e7',
+                          borderRadius: '10px',
+                          overflow: 'hidden',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          cursor: isEditable ? 'pointer' : 'default',
+                          transition: 'box-shadow 150ms ease',
+                        }}
+                        onClick={() => isEditable && openDraftEditor(post.id)}
+                        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 3px 10px rgba(0,0,0,0.12)'}
+                        onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)'}
+                        role={isEditable ? 'button' : undefined}
+                        tabIndex={isEditable ? 0 : -1}
+                      >
+                        {/* ── Top toolbar: status badge + action buttons ── */}
+                        <div
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f7f8fa', borderBottom: '1px solid #e4e6ea' }}
+                          onClick={e => e.stopPropagation()}
                         >
-                          <Icon name="trash" size={12} />
-                        </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {/* Platform icon */}
+                            <span style={{ width: 20, height: 20, borderRadius: 4, background: platMeta.color + '15', display: 'grid', placeItems: 'center' }}>
+                              <Icon name={platMeta.icon} size={12} style={{ color: platMeta.color }} />
+                            </span>
+                            {platforms.length > 1 && platforms.slice(1).map(p => (
+                              <Icon key={p} name={PLATFORM_META[p]?.icon || 'globe'} size={12} style={{ color: PLATFORM_META[p]?.color }} />
+                            ))}
+                            <StatusBadge status={post.status} />
+                            {imported && <span style={{ fontSize: '10px', color: '#94a3b8', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 999 }}>Imported</span>}
+                            {isInstagramTextOnly && (
+                              <span title="Instagram requires media — this post may fail." style={{ fontSize: 13, cursor: 'help' }}>⚠️</span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            {isDraft && (
+                              <button type="button" onClick={() => openDraftEditor(post.id)}
+                                style={{ fontSize: '11px', fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: '#f0fdf4', border: '1px solid #86efac', color: '#15803d', cursor: 'pointer' }}>
+                                Publish
+                              </button>
+                            )}
+                            {isScheduled && (
+                              <button type="button" onClick={() => openDraftEditor(post.id)}
+                                style={{ fontSize: '11px', fontWeight: 500, padding: '4px 10px', borderRadius: 6, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', cursor: 'pointer' }}>
+                                Reschedule
+                              </button>
+                            )}
+                            {isPublished && post.metadata?.post_url && (
+                              <a href={post.metadata.post_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                style={{ fontSize: '11px', fontWeight: 500, padding: '4px 10px', borderRadius: 6, background: 'none', border: '1px solid #e2e8f0', color: '#475569', textDecoration: 'none', display: 'inline-flex', gap: 3 }}>
+                                View ↗
+                              </a>
+                            )}
+                            {isFailed && (
+                              <button type="button" onClick={() => openDraftEditor(post.id)}
+                                style={{ fontSize: '11px', fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', cursor: 'pointer' }}>
+                                Retry
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* ── Facebook post body ── */}
+                        <div style={{ padding: '12px 14px 0' }}>
+                          {/* Header: avatar + name + time + ··· */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                              {/* Profile picture / avatar */}
+                              {avatarUrl ? (
+                                <img src={avatarUrl} alt={initials}
+                                  style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1.5px solid #e4e6ea' }} />
+                              ) : (
+                                <div style={{
+                                  width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                                  background: `linear-gradient(135deg, ${avatarColor}cc, ${avatarColor})`,
+                                  display: 'grid', placeItems: 'center',
+                                  color: '#fff', fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em',
+                                }}>
+                                  {initials}
+                                </div>
+                              )}
+                              <div style={{ lineHeight: 1.25 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ fontWeight: 700, fontSize: '14px', color: '#050505' }}>
+                                    {targetAccountNames || 'Your Page'}
+                                  </span>
+                                  {/* Verified checkmark */}
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill={platMeta.color}>
+                                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="white" strokeWidth="1.5" fill="none"/>
+                                    <circle cx="12" cy="12" r="12" fill={platMeta.color}/>
+                                    <path d="M8.5 12.5l2.5 2.5 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                                  </svg>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                                  <span style={{ fontSize: '12px', color: '#65676b' }}>{friendlyTime}</span>
+                                  <span style={{ color: '#bcc0c4', fontSize: 10 }}>·</span>
+                                  {/* Globe icon SVG */}
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#65676b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+                                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                            {/* Three dots dropdown */}
+                            <div className="relative" onClick={e => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => setActiveMenuId(curr => curr === post.id ? null : post.id)}
+                                style={{
+                                  background: 'none', border: 'none', cursor: 'pointer',
+                                  color: '#65676b', fontSize: 20, lineHeight: 1, padding: '2px 6px',
+                                  borderRadius: 4, userSelect: 'none', display: 'flex', alignItems: 'center'
+                                }}
+                              >
+                                ···
+                              </button>
+                              
+                              {activeMenuId === post.id && (
+                                <div
+                                  style={{
+                                    position: 'absolute', right: 0, top: 24,
+                                    background: '#ffffff', border: '1px solid #dde1e7',
+                                    borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                    zIndex: 50, minWidth: 110, overflow: 'hidden'
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveMenuId(null)
+                                      if (window.confirm('Delete this post?')) {
+                                        deletePostMutation.mutate(post.id)
+                                      }
+                                    }}
+                                    style={{
+                                      width: '100%', padding: '10px 12px', border: 'none',
+                                      background: 'none', textAlign: 'left', cursor: 'pointer',
+                                      fontSize: 13, color: '#ef4444', display: 'flex',
+                                      alignItems: 'center', gap: 8, transition: 'background 0.15s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                  >
+                                    <Icon name="trash" size={13} style={{ color: '#ef4444' }} />
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Caption */}
+                          {post.caption && (
+                            <p style={{ margin: '10px 0 12px', fontSize: '14px', lineHeight: 1.5, color: '#050505', whiteSpace: 'pre-wrap' }}>
+                              {post.caption}
+                            </p>
+                          )}
+                          {isFailed && isInstagramTextOnly && (
+                            <p style={{ margin: '4px 0 10px', fontSize: '12px', color: '#dc2626', fontWeight: 500 }}>
+                              Failed: Instagram requires media
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Media zone */}
+                        {hasMedia ? (
+                          <div style={{ width: '100%', lineHeight: 0 }}>
+                            <PostMediaPreview media={mediaItems} />
+                          </div>
+                        ) : null}
+
+
+                        {/* ── Facebook engagement footer ── */}
+                        <div style={{ borderTop: '1px solid #e4e6ea', margin: '0 14px', padding: '4px 0' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+                            {[
+                              { label: 'Like', icon: 'M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5' },
+                              { label: 'Comment', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
+                              { label: 'Share', icon: 'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z' },
+                            ].map(({ label, icon }) => (
+                              <button key={label} type="button" onClick={e => e.stopPropagation()}
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 4px', background: 'none', border: 'none', cursor: 'default', borderRadius: 6, color: '#65676b', fontSize: '13px', fontWeight: 600 }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d={icon}/>
+                                </svg>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="row" style={{ gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                      {normalizePlatforms(post.target_platforms).map(p => {
-                        const meta = PLATFORM_META[p] || {}
-                        return (
-                          <span key={p} style={{ fontSize: 12, display: 'flex', gap: 4, alignItems: 'center', color: 'var(--ink-500)' }}>
-                            <Icon name={meta.icon} size={12} style={{ color: meta.color }} />
-                            {meta.label}
-                          </span>
-                        )
-                      })}
-                    </div>
-
-                    <div style={{ fontSize: 12, color: 'var(--ink-400)' }}>
-                      {post.publish_at
-                        ? `Scheduled: ${new Date(post.publish_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`
-                        : post.published_at
-                        ? `Published: ${timeAgo(post.published_at)}`
-                        : `Created: ${timeAgo(post.created_at)}`
-                      }
-                    </div>
-                  </div>
-                )
+                    )
+                  })()
               })}
             </div>
           )}

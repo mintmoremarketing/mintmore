@@ -268,7 +268,7 @@ const run = async () => {
         expected: [201],
         body: {
           caption: `Smoke social draft ${RUN_ID}`,
-          content_type: 'text',
+          content_type: 'image',
           target_platforms: ['facebook', 'instagram'],
         },
       });

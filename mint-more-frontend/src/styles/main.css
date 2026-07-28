@@ -1023,16 +1023,19 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   color: var(--ink-950);
 }
 .h-1 {
-  font-size: 28px;
-  line-height: 1.15;
+  font-size: 28px !important;
+  line-height: 1.15 !important;
+  height: auto !important;
 }
 .h-2 {
-  font-size: 22px;
-  line-height: 1.2;
+  font-size: 22px !important;
+  line-height: 1.2 !important;
+  height: auto !important;
 }
 .h-3 {
-  font-size: 17px;
-  line-height: 1.25;
+  font-size: 17px !important;
+  line-height: 1.25 !important;
+  height: auto !important;
 }
 .h-eyebrow {
   font-size: 11px;
@@ -10251,4 +10254,68 @@ kbd {
   justify-content: space-between;
   align-items: center;
   margin-top: 24px;
+}
+
+/* ── Post Composer Responsive Split & UI overrides ─────── */
+.composer-split-layout {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 28px;
+  align-items: start;
+}
+.composer-form-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.composer-preview-col {
+  position: sticky;
+  top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  padding: 4px;
+}
+
+/* Styled switch for scheduling toggle */
+.slider {
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+.slider::before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background: white;
+  border-radius: 50%;
+  transition: .3s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+input:checked + .slider::before {
+  transform: translateX(20px);
+}
+
+@media (max-width: 959px) {
+  .composer-split-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .composer-preview-col {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+/* Responsive grid for post list feed */
+.social-feed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 24px;
+  width: 100%;
+  margin-top: 10px;
 }

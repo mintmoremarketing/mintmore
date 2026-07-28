@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Outlet, Navigate, useNavigate } from 'react-router-dom'
+import { Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
@@ -102,7 +102,21 @@ export default function AppShell() {
     refetchInterval: 30_000,
   })
 
+  const location = useLocation()
+  const isOnboarding = location.pathname === '/onboarding'
+
   if (!isAuthed && !isGuest) return <Navigate to="/login" replace />
+
+  if (isOnboarding) {
+    return (
+      <div className="flex min-h-screen bg-mint-50/20 text-ink-900 font-sans w-full">
+        <main className="flex-1 flex flex-col min-w-0">
+          <Outlet />
+        </main>
+        <ToastHost toasts={toasts} />
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen bg-mint-50/20 text-ink-900 font-sans">

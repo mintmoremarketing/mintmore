@@ -207,6 +207,11 @@ const env = {
       clientSecret: process.env.YOUTUBE_CLIENT_SECRET,
       redirectUri:  process.env.YOUTUBE_REDIRECT_URI,
     },
+    googleBusinessProfile: {
+      clientId:     process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET,
+      redirectUri:  process.env.GOOGLE_BUSINESS_PROFILE_REDIRECT_URI || `${process.env.API_BASE_URL || 'http://localhost:5000'}/api/v1/social/callback/google_business_profile`,
+    },
     frontendUrl,
   },
 

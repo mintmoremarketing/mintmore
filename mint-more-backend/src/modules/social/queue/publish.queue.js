@@ -50,8 +50,8 @@ const schedulePost = async (postId, publishAt = null) => {
  * Cancel a scheduled post (remove from queue).
  */
 const cancelScheduledPost = async (queueJobId) => {
-  const queue = getPublishQueue();
   try {
+    const queue = getPublishQueue();
     const job = await queue.getJob(queueJobId);
     if (job) await job.remove();
     return true;

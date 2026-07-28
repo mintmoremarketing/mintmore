@@ -226,6 +226,15 @@ export default function ClientDashboard() {
     }
   }, [pushToast, searchParams, setSearchParams])
 
+  useEffect(() => {
+    if (profileData && !isGuest) {
+      const prof = profileData.profile || profileData || {}
+      if (!prof.onboarding_checklist?.profile) {
+        navigate('/onboarding')
+      }
+    }
+  }, [profileData, isGuest, navigate])
+
   const profile = profileData?.profile || profileData || {}
   const accounts = accountsData?.accounts || []
   const connectedAccounts = accounts.filter(account => account.is_active)
@@ -275,6 +284,30 @@ export default function ClientDashboard() {
           {greeting}, {user?.full_name?.split(' ')[0] || 'there'}.
         </h1>
       </div>
+
+      {/* Brand Profile Completion Reach Boost Banner */}
+      {user?.role === 'client' && setupDone < 4 && (
+        <div className="bg-gradient-to-r from-mint-500/10 via-mint-500/5 to-transparent border border-mint-500/20 rounded-2xl p-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_right,_rgba(16,185,129,0.05),_transparent_50%)]" />
+          <div className="flex items-start gap-4 relative z-10">
+            <div className="w-12 h-12 rounded-xl bg-mint-500/20 text-mint-600 flex items-center justify-center shrink-0">
+              <Icon name="trending" size={24} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-ink-950 m-0">Boost Your Reach by 45% 🚀</h3>
+              <p className="text-sm text-ink-600 m-0 mt-1 max-w-2xl leading-relaxed">
+                Complete your brand profile details (brand colors, logos, local occasion preferences) to let our AI auto-generate highly customized creatives and caption schedules for your business.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => navigate('/settings?section=brand-assets')}
+            className="btn primary relative z-10 shrink-0 self-start md:self-auto"
+          >
+            Complete Brand Setup
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {flags.calendar_creatives !== false ? (
