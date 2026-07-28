@@ -1604,6 +1604,7 @@ export default function Social() {
   const [editingPost, setEditingPost] = useState(null)
   const [connectPrompt, setConnectPrompt] = useState(null)
   const [postFilter, setPostFilter] = useState('all')
+  const [loadingDraftId, setLoadingDraftId] = useState(null)
   const [activeMenuId, setActiveMenuId] = useState(null)
   const composeRequested = searchParams.get('compose') === '1'
   const composePublishDate = searchParams.get('publish_at') || ''

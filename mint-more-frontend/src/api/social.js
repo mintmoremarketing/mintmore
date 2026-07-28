@@ -10,6 +10,9 @@ export const socialApi = {
   disconnect: (id) =>
     api.delete(`/social/accounts/${id}`),
 
+  disconnectAccount: (id) =>
+    api.delete(`/social/accounts/${id}`),
+
   // OAuth — opens in same tab
   connectFacebook: (accessToken) => {
     window.location.href = `${BASE}/social/connect/facebook?token=${encodeURIComponent(accessToken)}`
@@ -39,6 +42,7 @@ export const socialApi = {
   getAnalytics:(id)    => api.get(`/social/posts/${id}/analytics`),
   getAnalyticsSummary: (params) => api.get('/social/analytics/summary', { params }),
   refreshFromMeta: () => api.post('/social/accounts/refresh'),
+  syncAccounts:    () => api.post('/social/accounts/refresh'),
   getHealth: () => api.get('/social/health'),
   getMediaLibrary: () => api.get('/social/media-library'),
 
