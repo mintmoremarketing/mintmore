@@ -31,6 +31,18 @@ import SharedFile        from './pages/public/SharedFile'
 import Landing           from './pages/public/Landing'
 import Membership        from './pages/client/Membership'
 import Onboarding        from './pages/client/Onboarding'
+import WorkspaceDetailsPage from './pages/client/onboarding/WorkspaceDetailsPage'
+import BusinessBasicsPage from './pages/client/onboarding/BusinessBasicsPage'
+import BrandVoicePage from './pages/client/onboarding/BrandVoicePage'
+import BrandAssetsPage from './pages/client/onboarding/BrandAssetsPage'
+import VisualPalettePage from './pages/client/onboarding/VisualPalettePage'
+import ContentCadencePage from './pages/client/onboarding/ContentCadencePage'
+import FestivalsPage from './pages/client/onboarding/FestivalsPage'
+import ApprovalRulesPage from './pages/client/onboarding/ApprovalRulesPage'
+import ConnectChannelsPage from './pages/client/onboarding/ConnectChannelsPage'
+import WhatsappRemindersPage from './pages/client/onboarding/WhatsappRemindersPage'
+import ContentGenerationPage from './pages/client/onboarding/ContentGenerationPage'
+import PreviewApprovePage from './pages/client/onboarding/PreviewApprovePage'
 import Disputes          from './pages/shared/Disputes'
 import Support           from './pages/shared/Support'
 import Privacy           from './pages/public/Privacy'
@@ -215,7 +227,21 @@ export default function App() {
           {/* Client-only routes */}
           <Route path="/addons"            element={<ClientOnly><ClientFeature flag="wallet_ui"><Addons /></ClientFeature></ClientOnly>} />
           <Route path="/membership"        element={<ClientOnly><Membership /></ClientOnly>} />
-          <Route path="/onboarding"        element={<ClientOnly><Onboarding /></ClientOnly>} />
+          <Route path="/onboarding"        element={<ClientOnly><Onboarding /></ClientOnly>}>
+            <Route index element={<Navigate to="step-1" replace />} />
+            <Route path="step-1" element={<WorkspaceDetailsPage />} />
+            <Route path="step-2" element={<BusinessBasicsPage />} />
+            <Route path="step-3" element={<BrandVoicePage />} />
+            <Route path="step-4" element={<BrandAssetsPage />} />
+            <Route path="step-5" element={<VisualPalettePage />} />
+            <Route path="step-6" element={<ContentCadencePage />} />
+            <Route path="step-7" element={<FestivalsPage />} />
+            <Route path="step-8" element={<ApprovalRulesPage />} />
+            <Route path="step-9" element={<ConnectChannelsPage />} />
+            <Route path="step-10" element={<WhatsappRemindersPage />} />
+            <Route path="step-11" element={<ContentGenerationPage />} />
+            <Route path="step-12" element={<PreviewApprovePage />} />
+          </Route>
           <Route path="/freelancers"       element={<ClientOnly><ClientFeature flag="marketplace"><Freelancers /></ClientFeature></ClientOnly>} />
           <Route path="/freelancers/:freelancerId" element={<ClientOnly><ClientFeature flag="marketplace"><FreelancerProfile /></ClientFeature></ClientOnly>} />
           <Route path="/social"            element={<ClientOnly><ClientFeature flag="social_insights"><Social /></ClientFeature></ClientOnly>} />

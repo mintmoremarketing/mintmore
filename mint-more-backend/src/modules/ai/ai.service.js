@@ -1786,9 +1786,90 @@ const getUsageSummary = async (userId, filters = {}) => {
     },
   };
 };
+const generateOnboardingTopics = async (payload) => {
+  const { business_name, business_type, description, preferred_language, address_state, festival_mode } = payload;
+  
+  // Fetch upcoming festivals from the DB (next 35 days)
+  let upcomingFestivals = [];
+  try {
+    const res = await query(`
+      SELECT id, title, description, event_date 
+      FROM creative_events 
+      WHERE event_date >= CURRENT_DATE 
+        AND event_date <= CURRENT_DATE + interval '35 days'
+        AND status = 'active'
+      ORDER BY event_date ASC
+    `);
+    upcomingFestivals = res.rows;
+  } catch (err) {
+    logger.error('Failed to fetch upcoming festivals for AI:', err);
+  }
+
+  const systemPrompt = "You are an expert social media content strategist. Output strictly valid JSON format. Make sure all strings are enclosed in double quotes.";
+  
+  const prompt = `Create a 15-topic content strategy for a business with the following details:
+Business Name: ${business_name || 'My Business'}
+Industry/Type: ${business_type || 'Retail'}
+Customer Profile/Description: ${description || 'General audience'}
+Language: ${preferred_language || 'English'}
+Region/State: ${address_state || 'India'}
+Festival Mode: ${festival_mode || 'autopilot'}
+
+We have the following upcoming festivals in the next 35 days:
+${upcomingFestivals.map(f => `- ${f.title} (${f.event_date.toISOString().split('T')[0]}): ${f.description || ''} [ID: ${f.id}]`).join('\n') || 'None'}
+
+Your task:
+1. Select up to 5 MOST RELEVANT festivals for this business based on their region and industry (if Festival Mode is autopilot). If manual, you can still recommend them.
+2. Generate highly engaging brand-specific topics for the remaining slots to make exactly 15 topics in total.
+3. Every topic must have a "type" field: either "festival" or "brand".
+4. If it's a festival, include the "festival_id" and "date" exactly as provided above.
+5. Keep titles punchy and descriptions clear (1-2 sentences).
+
+CRITICAL: Return ONLY a raw JSON array of 15 objects. Ensure all keys and string values are enclosed in double quotes. Do not include markdown code blocks.
+Example Format:
+[
+  { "title": "Top 5 benefits of our service", "desc": "Educational carousel highlighting key advantages.", "type": "brand" },
+  { "title": "Happy Diwali", "desc": "Wishing our customers a bright and prosperous Diwali.", "type": "festival", "festival_id": "uuid-here", "date": "2026-11-12" }
+]`;
+
+  const response = await generateText('openrouter/free', prompt, { max_tokens: 2000, temperature: 0.7 }, systemPrompt);
+  
+  try {
+    let rawContent = (response.text || '').trim();
+    if (rawContent.startsWith('```json')) {
+      rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+    }
+    const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return JSON.parse(rawContent);
+  } catch (error) {
+    logger.error('Failed to parse onboarding AI topics:', error);
+    // Fallback if AI messes up the JSON formatting completely
+    return [
+      { title: `Top 5 benefits of our ${business_type || 'service'}`, desc: 'Educational carousel highlighting key advantages.', type: 'brand' },
+      { title: `Behind the scenes at ${business_name || 'our company'}`, desc: 'Showcasing our workspace and team.', type: 'brand' },
+      { title: `Customer Success Story`, desc: 'Sharing a glowing review from a happy client.', type: 'brand' },
+      { title: `Did you know? (Industry Fact)`, desc: 'An interesting fact about your industry.', type: 'brand' },
+      { title: `How to choose the right ${business_type || 'product'}`, desc: 'A buyer\'s guide style post.', type: 'brand' },
+      { title: `Common misconceptions`, desc: 'Busting popular myths.', type: 'brand' },
+      { title: `Product Spotlight`, desc: 'Focusing on your top offering.', type: 'brand' },
+      { title: `A day in the life`, desc: 'Personal branding and connection.', type: 'brand' },
+      { title: `Why we started`, desc: 'Sharing your origin story.', type: 'brand' },
+      { title: `Quick tips`, desc: 'Value-driven instructional content.', type: 'brand' },
+      { title: `Sneak peek`, desc: 'Building excitement for the future.', type: 'brand' },
+      { title: `FAQ`, desc: 'Addressing common customer queries.', type: 'brand' },
+      { title: `Weekend Motivation`, desc: 'A light-hearted inspirational quote.', type: 'brand' },
+      { title: `Industry Trends`, desc: 'Educational deep-dive into your niche.', type: 'brand' },
+      { title: `Flash Sale Announcement`, desc: 'Promotional content to drive immediate sales.', type: 'brand' }
+    ];
+  }
+};
 
 module.exports = {
   AI_PROGRESS_CHANNEL,
+  generateOnboardingTopics,
   createGeneration,
   processGeneration,
   getEngineModels,

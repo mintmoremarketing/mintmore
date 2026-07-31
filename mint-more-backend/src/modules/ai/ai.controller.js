@@ -8,6 +8,7 @@ const { getAllModelTraffic, getModelTraffic } = require('./models/model.traffic'
 const { fetchOpenRouterVideoModels } = require('./providers/openrouter.provider');
 const { sendSuccess } = require('../../utils/apiResponse');
 const AppError = require('../../utils/AppError');
+const logger = require('../../utils/logger');
 
 // ── Model Discovery ───────────────────────────────────────────────────────────
 
@@ -67,6 +68,18 @@ const generate = async (req, res, next) => {
       statusCode: 201,
     });
   } catch (err) { next(err); }
+};
+
+const generateOnboardingTopics = async (req, res, next) => {
+  try {
+    logger.info('🚀 Received request for generateOnboardingTopics', req.body);
+    const topics = await aiService.generateOnboardingTopics(req.body);
+    logger.info('✅ Successfully generated topics', { count: topics?.length });
+    return sendSuccess(res, { data: topics });
+  } catch (err) { 
+    logger.error('❌ Error in generateOnboardingTopics controller:', err);
+    next(err); 
+  }
 };
 
 const getGeneration = async (req, res, next) => {
@@ -300,13 +313,14 @@ const adminSyncOpenRouterModels = async (req, res, next) => {
 
 module.exports = {
   getModels,
-  getSingleModelTraffic,
-  generate,
   getEngineModels,
+  getSingleModelTraffic,
   getStylePresets,
   uploadReference,
   generateEngineImage,
   generateEngineVideo,
+  generate,
+  generateOnboardingTopics,
   getGeneration,
   getMyGenerations,
   getPublishedPosts,

@@ -103,7 +103,7 @@ export default function AppShell() {
   })
 
   const location = useLocation()
-  const isOnboarding = location.pathname === '/onboarding'
+  const isOnboarding = location.pathname.startsWith('/onboarding')
 
   if (!isAuthed && !isGuest) return <Navigate to="/login" replace />
 

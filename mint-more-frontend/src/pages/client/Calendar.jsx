@@ -205,7 +205,6 @@ function DayPanel({ date, posts, events, pendingIds, togglePending, onClose, onE
     return Array.from({ length: HOUR_RANGE_END - HOUR_RANGE_START + 1 }, (_, i) => i + HOUR_RANGE_START)
   }, [showFull])
 
-  // Scroll to first post automatically
   useEffect(() => {
     if (!timelineRef.current || !posts.length) return
     const firstTs = posts.reduce((earliest, p) => {
@@ -224,172 +223,179 @@ function DayPanel({ date, posts, events, pendingIds, togglePending, onClose, onE
   const isToday  = sameDay(date, new Date())
 
   return (
-    <div className="cal-day-panel">
-      {/* Panel header */}
-      <div className="cal-panel-head">
+    <div className="w-full lg:w-[380px] flex flex-col shrink-0 bg-gradient-to-b from-ink-950 to-ink-900 text-white relative overflow-hidden border-l border-ink-800">
+      {/* Decorative Background Elements */}
+      <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 -ml-8 -mb-8 w-32 h-32 rounded-full bg-primary/20 blur-2xl pointer-events-none" />
+      
+      {/* Header */}
+      <div className="p-6 pb-4 border-b border-white/10 shrink-0 relative z-10 flex justify-between items-start">
         <div>
-          <div className="cal-panel-eyebrow">
-            {isToday && <span className="cal-today-badge">Today</span>}
-          </div>
-          <h3 className="cal-panel-title">{dayLabel}</h3>
-          <p className="cal-panel-sub">
+          <div className="text-xs font-bold text-orange-500 uppercase tracking-wider mb-1 flex items-center gap-2">
+            {isToday && <span className="bg-orange-500/20 px-2 py-0.5 rounded text-[10px] mr-2">Today</span>}
             {posts.length === 0 ? 'No posts' : `${posts.length} post${posts.length !== 1 ? 's' : ''} scheduled`}
-          </p>
+          </div>
+          <h3 className="text-xl font-bold">{dayLabel}</h3>
         </div>
-        <button className="cal-panel-close" type="button" onClick={onClose} aria-label="Close">
+        <button className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-ink-300 hover:text-white hover:bg-white/10 transition-colors" onClick={onClose}>
           <Icon name="x" size={16} />
         </button>
       </div>
 
-      {/* Quick actions */}
-      {!isPastDay(date) && (
-        <div className="cal-panel-actions">
-          <button
-            className="btn dark small"
-            type="button"
-            onClick={() => onNavigateToCompose(date)}
-          >
-            <Icon name="plus" size={13} /> Schedule post
-          </button>
-          <button
-            className="btn ghost small"
-            type="button"
-            onClick={() => onNavigateToRequest(date)}
-            style={{ color: 'var(--ink-800)', border: '1px solid var(--hairline-strong)' }}
-          >
-            <Icon name="sparkles" size={13} style={{ color: 'var(--mint-600)' }} /> Custom request
-          </button>
-        </div>
-      )}
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col relative z-10" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}>
+        
+        {/* Quick actions */}
+        {!isPastDay(date) && (
+          <div className="flex items-center gap-3 mb-8">
+            <button className="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors" onClick={() => onNavigateToCompose(date)}>
+              <Icon name="send" size={14} /> Schedule Post
+            </button>
+            <button className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-bold flex items-center justify-center gap-2 hover:bg-white/10 transition-colors" onClick={() => onNavigateToRequest(date)}>
+              <Icon name="sparkles" size={14} className="text-orange-400" /> Custom Request
+            </button>
+          </div>
+        )}
 
-      {/* Creative Moments */}
-      {events && events.length > 0 && (
-        <div style={{ padding: '0 16px', marginBottom: 18 }}>
-          <div className="cal-panel-section-label" style={{ marginBottom: 8 }}>CREATIVE MOMENTS</div>
-          <div className="stack" style={{ gap: 8 }}>
-            {events.map(event => {
-              const saved = Boolean(event.selection)
-              const staged = pendingIds.includes(event.id)
-              const status = event.selection?.status
-              return (
-                <div
-                  key={event.id}
-                  className={`cal-detail-row${saved ? ' saved' : ''}${staged ? ' staged' : ''}`}
-                  onClick={() => !saved && togglePending(event.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    width: '100%',
-                    padding: '12px 14px',
-                    borderRadius: '10px',
-                    border: `1px solid ${staged ? 'var(--mint-500)' : 'var(--hairline-strong)'}`,
-                    background: staged ? 'rgba(247,127,0,0.03)' : 'var(--paper)',
-                    textAlign: 'left',
-                    cursor: saved ? 'default' : 'pointer'
-                  }}
-                >
-                  <div>
-                    <strong style={{ display: 'block', fontSize: '13.5px', color: 'var(--ink-900)' }}>{event.title}</strong>
-                    <span style={{ fontSize: '11px', color: 'var(--ink-500)', textTransform: 'capitalize' }}>
-                      {event.asset_type?.replace(/_/g, ' ') || 'creative'}
-                    </span>
+        {/* Creative Moments */}
+        {events && events.length > 0 && (
+          <div className="mb-8">
+            <h4 className="text-xs font-bold tracking-widest uppercase text-ink-400 mb-3 flex items-center gap-2">
+              <Icon name="sparkles" size={12} className="text-orange-500" /> Creative Moments
+            </h4>
+            <div className="flex flex-col gap-2">
+              {events.map(event => {
+                const saved = Boolean(event.selection)
+                const staged = pendingIds.includes(event.id)
+                const status = event.selection?.status
+                return (
+                  <div
+                    key={event.id}
+                    onClick={() => !saved && togglePending(event.id)}
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                      saved ? 'bg-white/5 border-transparent cursor-default opacity-80' : 
+                      staged ? 'bg-orange-500/10 border-orange-500/40 cursor-pointer shadow-[0_0_15px_rgba(var(--orange-500),0.1)]' : 
+                      'bg-white/5 border-white/10 hover:border-white/20 cursor-pointer'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-bold text-[13px] text-white leading-tight">{event.title}</div>
+                      <div className="text-[10px] text-ink-400 capitalize mt-0.5">{event.asset_type?.replace(/_/g, ' ') || 'creative'}</div>
+                    </div>
+                    <div>
+                      {saved ? (
+                        <span className="text-[10px] font-bold bg-white/10 px-2 py-1 rounded-md text-ink-300">{statusLabel[status] || status}</span>
+                      ) : (
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${staged ? 'bg-orange-500 text-white' : 'bg-white/10 text-ink-300'}`}>
+                          {staged ? 'Selected' : `${Number(event.coin_cost || 1)} coin`}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    {saved ? (
-                      <span className="badge neutral" style={{ textTransform: 'capitalize' }}>
-                        {statusLabel[status] || status}
-                      </span>
-                    ) : (
-                      <span className={`badge ${staged ? 'mint' : 'neutral'}`}>
-                        {staged ? 'Selected' : `${Number(event.coin_cost || 1)} coin`}
-                      </span>
-                    )}
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Timeline */}
+        {posts.length === 0 && (!events || events.length === 0) ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50 py-10">
+            <Icon name="calendar" size={32} className="mb-3 text-ink-500" />
+            <p className="text-sm text-ink-300">No creative moments or scheduled posts for this day.</p>
+          </div>
+        ) : posts.length > 0 ? (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-bold tracking-widest uppercase text-ink-400">Time Chart</span>
+              <button className="text-[10px] font-bold text-primary hover:text-white transition-colors" onClick={() => setShowFull(v => !v)}>
+                {showFull ? 'Show 6AM–11PM' : 'Show full day'}
+              </button>
+            </div>
+            
+            <div className="flex flex-col gap-0 border-l border-white/10 ml-4 pl-4 relative" ref={timelineRef}>
+              {displayedHours.map(h => {
+                const postsHere = posts.filter(p => {
+                  const ts = p.publish_at || p.published_at
+                  return ts && new Date(ts).getHours() === h
+                })
+                
+                return (
+                  <div key={h} className={`timeline-hour-row relative py-3 ${postsHere.length ? '' : 'opacity-40'}`}>
+                    <div className="absolute -left-[21px] top-4 w-2 h-2 rounded-full bg-ink-900 border border-white/20 z-10" />
+                    <div className="text-[10px] font-bold text-ink-400 absolute -left-12 top-3 w-8 text-right">{fmtHourLabel(h)}</div>
+                    
+                    <div className="flex flex-col gap-2">
+                      {postsHere.map(post => (
+                        <button
+                          key={post.id}
+                          onClick={() => setFocusPost(post)}
+                          className="text-left p-3 rounded-xl bg-white/5 border border-white/10 hover:border-primary/50 transition-colors w-full group"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex gap-1">
+                              {(post.platforms || []).map(p => {
+                                const meta = PLATFORM_META[p]
+                                return meta ? <span key={p} className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: meta.color }}><Icon name={meta.icon} size={8} className="text-white" /></span> : null
+                              })}
+                            </div>
+                            <StatusDot status={post.status} />
+                          </div>
+                          <div className="text-[13px] font-semibold text-white leading-tight mb-1 group-hover:text-primary transition-colors">{(post.caption || post.title || 'Untitled').slice(0, 50)}...</div>
+                          <div className="text-[10px] text-ink-400 font-medium">
+                            {post.publish_at || post.published_at ? fmt12(post.publish_at || post.published_at) : '—'}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 text-center border border-dashed border-white/10 rounded-2xl bg-white/5">
+            <Icon name="send" size={20} className="text-ink-500 mx-auto mb-2" />
+            <p className="text-xs font-bold text-ink-300">No social posts scheduled yet.</p>
+          </div>
+        )}
+        
+        {/* Post Detail Modal */}
+        {focusPost && (
+          <div className="absolute inset-0 bg-ink-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="bg-ink-900 rounded-2xl border border-white/10 shadow-2xl p-5 w-full flex flex-col">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10">
+                <div className="flex gap-1.5">
+                  {(focusPost.platforms || []).map(p => {
+                    const meta = PLATFORM_META[p]
+                    return meta ? <span key={p} className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: meta.color }}><Icon name={meta.icon} size={10} className="text-white" /></span> : null
+                  })}
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Timeline or empty state */}
-      {posts.length === 0 && (!events || events.length === 0) ? (
-        <div className="cal-panel-empty">
-          <Icon name="calendar" size={24} />
-          <p>No creative moments or scheduled posts for this day.</p>
-        </div>
-      ) : (
-        <>
-          {posts.length > 0 ? (
-            <>
-              <div className="cal-panel-section-label">
-                <span>TIME CHART</span>
-                <button
-                  type="button"
-                  className="cal-panel-toggle-full"
-                  onClick={() => setShowFull(v => !v)}
-                >
-                  {showFull ? 'Show 6AM–11PM' : 'Show full day'}
-                </button>
+                <button onClick={() => setFocusPost(null)} className="text-ink-400 hover:text-white"><Icon name="x" size={16} /></button>
               </div>
-              <div className="day-panel-timeline" ref={timelineRef}>
-                {displayedHours.map(h => (
-                  <TimelineRow
-                    key={h}
-                    hour={h}
-                    posts={posts}
-                    onPostClick={setFocusPost}
-                  />
-                ))}
+              
+              <div className="text-sm text-white mb-4 leading-relaxed">{focusPost.caption || focusPost.title || 'Untitled'}</div>
+              
+              <div className="flex items-center justify-between mb-6">
+                <span className="text-xs font-medium text-ink-300 flex items-center gap-1.5">
+                  <Icon name="clock" size={12} /> {focusPost.publish_at || focusPost.published_at ? fmt12(focusPost.publish_at || focusPost.published_at) : '—'}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-1 rounded bg-white/10 text-white">
+                  {STATUS_META[focusPost.status]?.label || focusPost.status}
+                </span>
               </div>
-            </>
-          ) : (
-            <div style={{ padding: '24px 16px', textAlign: 'center', border: '1px dashed var(--hairline-strong)', borderRadius: '12px', background: 'var(--paper)', margin: '0 16px 16px' }}>
-              <Icon name="send" size={16} style={{ color: 'var(--ink-400)', marginBottom: 8 }} />
-              <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--ink-500)', fontWeight: 550 }}>No social posts scheduled for this day yet.</p>
+              
+              {focusPost.media?.[0]?.thumbnail_url && (
+                <img src={focusPost.media[0].thumbnail_url} alt="" className="w-full h-32 object-cover rounded-xl mb-4 border border-white/10" />
+              )}
+              
+              <div className="flex items-center gap-2 mt-auto">
+                <button className="flex-1 py-2 rounded-lg bg-white/10 text-white text-xs font-bold hover:bg-white/20 transition-colors" onClick={() => onEdit(focusPost)}>Edit</button>
+                <button className="flex-1 py-2 rounded-lg border border-red-500/30 text-red-400 text-xs font-bold hover:bg-red-500/10 transition-colors" onClick={() => onDelete(focusPost)}>Delete</button>
+              </div>
             </div>
-          )}
-        </>
-      )}
-
-      {/* Focused post detail */}
-      {focusPost && (
-        <div className="cal-focused-post">
-          <div className="cal-focused-post-head">
-            <div className="cal-focused-platforms">
-              {(focusPost.platforms || []).map(p => (
-                <PlatformDot key={p} platform={p} size={14} />
-              ))}
-            </div>
-            <button type="button" className="icon-btn small" onClick={() => setFocusPost(null)}>
-              <Icon name="x" size={12} />
-            </button>
           </div>
-          <p className="cal-focused-caption">{focusPost.caption || focusPost.title || 'Untitled'}</p>
-          {(focusPost.publish_at || focusPost.published_at) && (
-            <p className="cal-focused-time">
-              <Icon name="clock" size={12} />
-              {fmt12(focusPost.publish_at || focusPost.published_at)}
-            </p>
-          )}
-          <div className={`cal-focused-status cal-status-${focusPost.status}`}>
-            <StatusDot status={focusPost.status} />
-            {STATUS_META[focusPost.status]?.label || focusPost.status}
-          </div>
-          {focusPost.media?.[0]?.thumbnail_url && (
-            <img src={focusPost.media[0].thumbnail_url} alt="" className="cal-focused-thumb" />
-          )}
-          <div className="cal-focused-btns">
-            <button type="button" className="btn ghost small" onClick={() => onEdit(focusPost)}>
-              <Icon name="edit" size={12} /> Edit
-            </button>
-            <button type="button" className="btn ghost small danger" onClick={() => onDelete(focusPost)}>
-              <Icon name="trash" size={12} /> Delete
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

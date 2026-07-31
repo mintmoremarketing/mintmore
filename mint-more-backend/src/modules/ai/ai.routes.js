@@ -32,6 +32,9 @@ router.post('/engine/video/generate', requireEntitlement('can_use_ai'), controll
 // POST /api/v1/ai/generate                       — create generation (all tools)
 router.post('/generate', requireEntitlement('can_use_ai'), controller.generate);
 
+// POST /api/v1/ai/onboarding-topics              — generate 15 topics for onboarding
+router.post('/onboarding-topics', controller.generateOnboardingTopics);
+
 // GET  /api/v1/ai/generations                    — history
 router.get('/generations', controller.getMyGenerations);
 router.get('/published-posts', controller.getPublishedPosts);

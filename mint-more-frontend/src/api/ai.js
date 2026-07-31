@@ -20,6 +20,9 @@ export const aiApi = {
   generate: (data) =>
     api.post('/ai/generate', data),
 
+  generateOnboardingTopics: (data) =>
+    api.post('/ai/onboarding-topics', data),
+
   generateEngineImage: (data) =>
     api.post('/ai/engine/image/generate', data),
 

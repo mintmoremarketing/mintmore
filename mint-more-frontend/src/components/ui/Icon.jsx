@@ -73,6 +73,7 @@ import {
     RiInstagramFill,
     RiYoutubeFill,
     RiWhatsappFill,
+    RiMetaFill,
 } from '@remixicon/react'
 
 const ICONS = {
@@ -162,6 +163,7 @@ const ICONS = {
     instagram: RiInstagramFill,
     youtube: RiYoutubeFill,
     whatsapp: RiWhatsappFill,
+    meta: RiMetaFill,
 }
 
 const BRAND_PATHS = {

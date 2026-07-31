@@ -76,21 +76,32 @@ const generateText = async (openrouterId, prompt, params = {}, systemPromptOverr
     { role: 'user',   content: prompt },
   ];
 
-  const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
-    method:  'POST',
-    headers: {
-      Authorization:  `Bearer ${env.ai.openrouterKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://mintmoremarketing.com',
-      'X-Title':      'CREATYV AI',
-    },
-    body: JSON.stringify({
-      model:       openrouterId,
-      messages,
-      temperature,
-      max_tokens,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+
+  let response;
+  try {
+    response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+      method:  'POST',
+      headers: {
+        Authorization:  `Bearer ${env.ai.openrouterKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://mintmoremarketing.com',
+        'X-Title':      'CREATYV AI',
+      },
+      body: JSON.stringify({
+        model:       openrouterId,
+        messages,
+        temperature,
+        max_tokens,
+      }),
+      signal: controller.signal
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw markProviderError(new Error(`OpenRouter fetch failed: ${err.message}`), 'Network Error');
+  }
+  clearTimeout(timeoutId);
 
   const data = await response.json();
 
