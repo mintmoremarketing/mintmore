@@ -69,6 +69,7 @@ export default function AdminOperations() {
     coin_cost: 1,
     description: '',
     tags: '',
+    priority: 'important',
   })
   const [editingEventId, setEditingEventId] = useState(null)
   const [suggestedEvents, setSuggestedEvents] = useState([])
@@ -98,7 +99,7 @@ export default function AdminOperations() {
         title: duplicate ? 'Duplicate skipped' : editingEventId ? 'Calendar event updated' : 'Calendar event published',
         body: duplicate ? 'An event with this name already exists for this month.' : undefined,
       })
-      setEventForm({ title: '', event_date: today(), asset_type: 'social_post', coin_cost: 1, description: '', tags: '' })
+      setEventForm({ title: '', event_date: today(), asset_type: 'social_post', coin_cost: 1, description: '', tags: '', priority: 'important' })
       setEditingEventId(null)
       queryClient.invalidateQueries({ queryKey: ['admin-creative-overview'] })
     },
@@ -111,7 +112,7 @@ export default function AdminOperations() {
       pushToast({ title: 'Calendar event removed' })
       if (editingEventId) {
         setEditingEventId(null)
-        setEventForm({ title: '', event_date: today(), asset_type: 'social_post', coin_cost: 1, description: '', tags: '' })
+        setEventForm({ title: '', event_date: today(), asset_type: 'social_post', coin_cost: 1, description: '', tags: '', priority: 'important' })
       }
       queryClient.invalidateQueries({ queryKey: ['admin-creative-overview'] })
     },
@@ -127,12 +128,13 @@ export default function AdminOperations() {
       coin_cost: Number(event.coin_cost || 1),
       description: event.description || '',
       tags: Array.isArray(event.tags) ? event.tags.join(', ') : '',
+      priority: event.priority || 'important',
     })
   }
 
   const clearEventForm = () => {
     setEditingEventId(null)
-    setEventForm({ title: '', event_date: today(), asset_type: 'social_post', coin_cost: 1, description: '', tags: '' })
+    setEventForm({ title: '', event_date: today(), asset_type: 'social_post', coin_cost: 1, description: '', tags: '', priority: 'important' })
   }
 
   const suggestEvents = useMutation({
@@ -162,6 +164,7 @@ export default function AdminOperations() {
           description: event.description || '',
           tags: event.tags || [],
           status: 'published',
+          priority: event.priority || 'important',
           metadata: { source: event.source || 'suggested' },
         })
         if (res.data?.data?.event?.duplicate) result.skipped += 1
@@ -354,9 +357,17 @@ export default function AdminOperations() {
                 <Field label="Title"><input className="input" value={eventForm.title} onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))} placeholder="Father's Day creative" /></Field>
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Date"><input className="input" type="date" value={eventForm.event_date} onChange={e => setEventForm(f => ({ ...f, event_date: e.target.value }))} /></Field>
-                  <Field label="MintCoins"><input className="input" type="number" min="0" value={eventForm.coin_cost} onChange={e => setEventForm(f => ({ ...f, coin_cost: e.target.value }))} /></Field>
+
                 </div>
-                <Field label="Asset type"><input className="input" value={eventForm.asset_type} onChange={e => setEventForm(f => ({ ...f, asset_type: e.target.value }))} placeholder="social_post" /></Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Asset type"><input className="input" value={eventForm.asset_type} onChange={e => setEventForm(f => ({ ...f, asset_type: e.target.value }))} placeholder="social_post" /></Field>
+                  <Field label="Priority">
+                    <select className="input" value={eventForm.priority} onChange={e => setEventForm(f => ({ ...f, priority: e.target.value }))}>
+                      <option value="important">Important (Priority)</option>
+                      <option value="regional">Regional (Optional)</option>
+                    </select>
+                  </Field>
+                </div>
                 <Field label="Description"><textarea className="textarea min-h-[100px]" value={eventForm.description} onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))} /></Field>
                 <Field label="Tags"><input className="input" value={eventForm.tags} onChange={e => setEventForm(f => ({ ...f, tags: e.target.value }))} placeholder="festival, offer, local" /></Field>
                 <button className="w-full py-3 bg-mint-500 hover:bg-mint-600 text-white font-bold rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-50 mt-2" disabled={createEvent.isPending} onClick={() => createEvent.mutate()}>
@@ -409,6 +420,18 @@ export default function AdminOperations() {
                           </div>
                           <div className="flex flex-wrap items-center gap-3">
                             <DateBadge value={event.event_date} />
+                            <select 
+                              className="input px-2 py-1 h-auto text-xs bg-white text-ink-900 min-w-[120px]" 
+                              value={event.priority || 'important'}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => {
+                                const newPriority = e.target.value;
+                                setSuggestedEvents(prev => prev.map((ev, i) => i === index ? { ...ev, priority: newPriority } : ev));
+                              }}
+                            >
+                              <option value="important">Important</option>
+                              <option value="regional">Regional</option>
+                            </select>
                             <span className="text-sm font-medium text-ink-500">{event.description}</span>
                           </div>
                         </button>
@@ -428,7 +451,7 @@ export default function AdminOperations() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="px-3 py-1.5 bg-mint-50 text-mint-700 font-bold text-xs rounded-full whitespace-nowrap">{Number(event.coin_cost || 0)} coin</span>
+
                     <button className="w-10 h-10 rounded-full flex items-center justify-center text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" onClick={() => startEditEvent(event)}>
                       <Icon name="edit" size={16} />
                     </button>
@@ -480,7 +503,7 @@ export default function AdminOperations() {
                       disabled={approveRequest.isPending || rejectRequest.isPending} 
                       onClick={() => approveRequest.mutate({ id: request.id, coin_cost: request.coin_cost || 1 })}
                     >
-                      <Icon name="check" size={16} /> Approve {Number(request.coin_cost || 1)} coin
+                      <Icon name="check" size={16} /> Approve
                     </button>
                   </div>
                 </div>
@@ -584,7 +607,7 @@ export default function AdminOperations() {
                           disabled={approveSelection.isPending}
                           onClick={() => approveSelection.mutate({ id: selection.id, coin_cost: selection.coin_cost || 1 })}
                         >
-                          <Icon name="check" size={16} /> Approve {Number(selection.coin_cost || 1)} coin
+                          <Icon name="check" size={16} /> Approve
                         </button>
                       </>
                     )}

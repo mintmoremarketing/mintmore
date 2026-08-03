@@ -50,7 +50,7 @@ const ageSegments = [
   { id: 'seniors', name: 'Seniors & Elder Gen (66+)', label: 'Seniors' },
 ]
 
-const sampleFestivals = [
+const defaultSampleFestivals = [
   { id: 'diwali', name: 'Diwali (Festival of Lights)', region: 'National' },
   { id: 'holi', name: 'Holi (Festival of Colors)', region: 'National' },
   { id: 'durgapuja', name: 'Durga Puja / Navratri', region: 'East & West' },
@@ -210,6 +210,20 @@ export default function Onboarding() {
     const next = nextCalendar?.events || []
     return [...curr, ...next]
   }, [currCalendar, nextCalendar])
+
+  const dynamicSampleFestivals = useMemo(() => {
+    const apiFestivals = onboardingEvents
+      .filter(e => e.tags?.includes('holiday') || e.source === 'admin_festival')
+      .map(e => ({
+        id: e.id,
+        name: e.title,
+        description: e.description,
+        region: 'Upcoming',
+        date: e.event_date
+      }))
+    
+    return apiFestivals
+  }, [onboardingEvents])
 
   const calendarState = useCalendarState(form, onboardingEvents)
 
@@ -601,6 +615,35 @@ export default function Onboarding() {
         }
       }
 
+      // Save generated scheduled days as drafts
+      if (calendarState && calendarState.scheduledDays) {
+        const postsToSave = calendarState.scheduledDays.filter(
+          (d) => d.hasPost && d.topic
+        )
+        
+        for (const day of postsToSave) {
+          try {
+            // Default publish time to 10 AM local time
+            const publishDate = new Date(day.date)
+            publishDate.setHours(10, 0, 0, 0)
+            
+            let ctype = day.format || day.topic.format || 'image';
+            if (ctype === 'post') ctype = 'image';
+
+            await socialApi.createPost({
+              title: day.topic.title,
+              caption: day.topic.captionPreview || day.topic.description || '',
+              status: 'draft',
+              content_type: ctype,
+              publish_at: publishDate.toISOString(),
+              target_platforms: form.connected_platforms?.length ? form.connected_platforms : ['facebook']
+            })
+          } catch (err) {
+            console.error('Failed to save draft post', err)
+          }
+        }
+      }
+
       pushToast({ title: 'Onboarding completed!', body: 'Welcome to your Autopilot dashboard.', icon: 'check' })
       navigate('/dashboard')
     } catch {
@@ -678,7 +721,7 @@ export default function Onboarding() {
     queryClient,
     removeOnboardingLogo,
     sampleCopyPreview,
-    sampleFestivals,
+    sampleFestivals: dynamicSampleFestivals,
     saveMutation,
     setPaletteCustomized,
     socialApi,
@@ -871,7 +914,7 @@ export default function Onboarding() {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden bg-[var(--paper)]">
-        {currentStep.number !== 12 && (
+        {currentStep.number < 11 && (
           <div className="px-6 pt-6 sm:px-10 sm:pt-8 md:px-16 md:pt-10 flex justify-between items-center shrink-0">
             <div style={{ fontSize: 12, fontWeight: 750, color: 'var(--mint-500)', textTransform: 'uppercase', tracking: '0.1em' }}>
               Autopilot Configuration
@@ -879,8 +922,11 @@ export default function Onboarding() {
           </div>
         )}
 
-        <div className={currentStep.number === 12 ? "flex-1 overflow-y-auto flex flex-col min-h-0 p-0" : "flex-1 overflow-y-auto px-6 py-6 sm:px-10 sm:py-8 md:px-16 md:py-10"}>
-          <div className={currentStep.number === 12 ? "w-full h-full flex flex-col flex-1 min-h-0" : "w-full max-w-[640px] mx-auto lg:mx-0"}>
+        <div className={currentStep.number >= 11 ? "flex-1 overflow-hidden flex flex-col min-h-0 p-0" : "flex-1 overflow-y-auto px-6 py-6 sm:px-10 sm:py-8 md:px-16 md:py-10"}>
+          <div className={
+            currentStep.number >= 11 ? "w-full h-full flex flex-col flex-1 min-h-0" :
+            "w-full max-w-[640px] mx-auto lg:mx-0"
+          }>
             <Outlet context={onboardingContext} />
           </div>
         </div>

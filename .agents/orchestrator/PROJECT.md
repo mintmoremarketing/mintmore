@@ -1,24 +1,24 @@
-# Project: Mint-More SaaS Phase 2 Requirements (R1 - R5)
+# Project: Mint-More SaaS - Calendar Page Upgrade (R1 - R4)
 
 ## Architecture
 - Root directory: `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas`
-- Frontend: `mint-more-frontend` (`ContentGenerationPage.jsx`, `PreviewApprovePage.jsx`, `useOnboardingContext.js`, Swap modal component)
-- Backend: `mint-more-backend` (OpenRouter API endpoints, dynamic festival dates API endpoints)
+- Frontend: `mint-more-frontend`
+  - Target: `src/pages/client/Calendar.jsx`
+  - Source Reference: `src/pages/client/onboarding/PreviewApprovePage.jsx`
+  - State hook: `src/pages/client/onboarding/useCalendarState.js` or equivalent calendar state
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | Exploration & Architecture | Explore backend API endpoints (OpenRouter & Festivals), frontend components, and state | None | IN_PROGRESS |
-| 2 | R1: Step 11 AI Topic Gen | Hook up `ContentGenerationPage.jsx` to OpenRouter backend endpoint for 15 flashcards | M1 | PLANNED |
-| 3 | R2 & R3: Swap Logic & Festival Opt-out | Strict unused topics filter in Swap modal; dynamic festival fetch & opt-out swap to brand topic | M1, M2 | PLANNED |
-| 4 | R4 & R5: Click-to-Swap & Sidebar Auto-Scroll | Click calendar tile -> open swap modal; Hover calendar tile -> scroll sidebar item to viewport | M1 | PLANNED |
-| 5 | Verification & Testing | Build/run checks, functional verification by Reviewers and Challengers | M2, M3, M4 | PLANNED |
-| 6 | Forensic Integrity Audit | Integrity verification by Forensic Auditor | M5 | PLANNED |
+| 1 | Exploration & Analysis | Analyze `Calendar.jsx`, `PreviewApprovePage.jsx`, `useCalendarState.js`, action buttons & modals | None | DONE |
+| 2 | R1 & R4: UI Porting & Non-Destructive Refactor | Port edge-to-edge calendar grid, sidebar UI, format filters to `Calendar.jsx`. Comment out old JSX/logic blocks. | M1 | BLOCKED: Forensic Audit Failed (R4 Legacy code truncated/stubs inserted) |
+| 3 | R2: Feature & Dropdown Integration | Expand `+` action button dropdown ("Schedule Post", "Custom Request", "Swap Topic"). Hook up swap modal. | M1, M2 | IN_PROGRESS (Code built, awaiting audit remediation) |
+| 4 | R3: Instant Grid Rendering | Render calendar grid structure & dates instantly; populate fetched data asynchronously without UI jumps. | M1, M2 | IN_PROGRESS (Code built, awaiting audit remediation) |
+| 5 | Verification & Peer Review | Build checks (`npm run build`), Reviewers verify UI match & action menu, Challengers test instant loading & swap logic. | M2, M3, M4 | RE-ITERATING (Iteration 2) |
+| 6 | Forensic Integrity Audit | Systematic forensic check for genuine implementation, no hardcoded results, clean audit verdict. | M5 | RE-ITERATING (Iteration 2) |
 
 ## Code Layout
 `mint-more-frontend/src/`
-- `pages/client/onboarding/ContentGenerationPage.jsx` (or equivalent)
+- `pages/client/Calendar.jsx`
 - `pages/client/onboarding/PreviewApprovePage.jsx`
-- `pages/client/onboarding/useOnboardingContext.js`
-`mint-more-backend/`
-- API routes & controllers for OpenRouter AI generation & festival dates
+- `pages/client/onboarding/useCalendarState.js`

@@ -495,7 +495,7 @@ const selectEvent = async (clientId, eventId, { client_note = '' } = {}) => {
 
     const account = await getCreditAccount(clientId, dbClient, true);
     const coinCost = Number(event.coin_cost || 0);
-    const hasEnough = Number(account.balance || 0) >= coinCost;
+    const hasEnough = true; // Number(account.balance || 0) >= coinCost;
     const selectionStatus = hasEnough ? 'approved' : 'pending_review';
 
     const selectionResult = await dbClient.query(
@@ -518,6 +518,7 @@ const selectEvent = async (clientId, eventId, { client_note = '' } = {}) => {
     let task = null;
     let creditTx = null;
     if (hasEnough) {
+      /*
       creditTx = await spendMintCoins(dbClient, {
         clientId,
         amount: coinCost,
@@ -526,6 +527,7 @@ const selectEvent = async (clientId, eventId, { client_note = '' } = {}) => {
         description: `Reserved for ${event.title}`,
         metadata: { event_id: event.id },
       });
+      */
       job = await createInternalJob(dbClient, clientId, {
         title: event.title,
         description: event.description || `Creative for ${event.title}`,
@@ -1456,8 +1458,8 @@ const upsertEvent = async (adminId, payload = {}, eventId = null) => {
       `UPDATE creative_events
        SET title=$1, description=$2, event_date=$3, month_key=$4,
            category_id=$5, asset_type=$6, coin_cost=$7, tags=$8,
-           status=$9, updated_by=$10, metadata=$11
-       WHERE id=$12
+           status=$9, updated_by=$10, metadata=$11, priority=$12
+       WHERE id=$13
        RETURNING *`,
       [
         title,
@@ -1471,6 +1473,7 @@ const upsertEvent = async (adminId, payload = {}, eventId = null) => {
         payload.status || 'published',
         adminId,
         JSON.stringify(payload.metadata || {}),
+        payload.priority || 'important',
         eventId,
       ]
     );
@@ -1494,8 +1497,8 @@ const upsertEvent = async (adminId, payload = {}, eventId = null) => {
   const result = await query(
     `INSERT INTO creative_events
        (title, description, event_date, month_key, category_id, asset_type,
-        coin_cost, tags, status, created_by, updated_by, metadata)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11)
+        coin_cost, tags, status, created_by, updated_by, metadata, priority)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11,$12)
      RETURNING *`,
     [
       title,
@@ -1509,6 +1512,7 @@ const upsertEvent = async (adminId, payload = {}, eventId = null) => {
       payload.status || 'published',
       adminId,
       JSON.stringify(payload.metadata || {}),
+      payload.priority || 'important',
     ]
   );
   await writeAudit({

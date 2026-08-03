@@ -69,3 +69,37 @@ When a user hovers over a calendar tile, the sidebar must expand that day's topi
 ### System Stability
 - [ ] The frontend and backend compile and run successfully without any errors.
 
+## 2026-08-01T07:52:30Z
+
+# Teamwork Project Prompt — Draft
+
+> Status: Launched
+
+Upgrade the in-app Calendar page to match the new, premium sleek UI and functionality from the onboarding PreviewApprovePage. This includes porting over the sidebar grid layout, format filters, and swapping mechanics, while retaining all existing in-app calendar features (e.g., scheduling posts, custom request buttons).
+
+Working directory: src/pages/client/
+Integrity mode: development
+
+## Requirements
+
+### R1. Port Premium UI Elements
+Migrate the sleek calendar grid, sidebar UI, and format filters from `PreviewApprovePage.jsx` over to `Calendar.jsx`. The layout should mimic the dense edge-to-edge layout created previously.
+
+### R2. Feature Integration
+Retain the existing `+` action button in the Calendar, but expand its dropdown. It should now contain options for "Schedule Post", "Custom Request", and the new "Swap Topic" functionality.
+
+### R3. Instant Rendering (No UI Jumps)
+The calendar structure (the grid and dates) must be visible instantly upon loading. Data should fetch in the background and populate into the existing structure. Do not wait for data to render the calendar wrapper itself.
+
+### R4. Non-Destructive Refactoring
+Do not delete existing code during the refactor. Comment out the old UI/logic blocks so the user can easily revert if necessary.
+
+## Acceptance Criteria
+
+### Verification
+- [ ] **UI Match**: Launch the dev server, compare `PreviewApprovePage` and `Calendar` page. They should use the exact same structural CSS grid layouts and icon styles.
+- [ ] **Action Menu**: Clicking the `+` button opens a dropdown containing exactly the requested options, and Swap Topic opens the swap modal.
+- [ ] **Instant Load**: By artificially throttling the network (or putting a `setTimeout` on the backend mock), the calendar grid renders immediately before data resolves.
+- [ ] **Code Integrity**: A manual review of `Calendar.jsx` confirms that old JSX blocks are commented out rather than deleted.
+
+

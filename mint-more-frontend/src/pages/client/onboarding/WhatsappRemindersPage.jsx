@@ -12,12 +12,29 @@ export default function WhatsappRemindersPage() {
 
       <div className="field">
         <label className="field-label">WhatsApp Phone Number</label>
-        <input
-          className="input"
-          value={form.whatsapp_number}
-          onChange={e => updateField('whatsapp_number', e.target.value)}
-          placeholder="+91 XXXXX XXXXX"
-        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <select
+            className="input"
+            style={{ width: '120px', flexShrink: 0 }}
+            value={form.whatsapp_country_code || '+91'}
+            onChange={e => updateField('whatsapp_country_code', e.target.value)}
+          >
+            <option value="+91">+91 (IN)</option>
+            <option value="+1">+1 (US/CA)</option>
+            <option value="+44">+44 (UK)</option>
+            <option value="+61">+61 (AU)</option>
+            <option value="+971">+971 (UAE)</option>
+            <option value="+65">+65 (SG)</option>
+          </select>
+          <input
+            className="input"
+            style={{ flex: 1 }}
+            value={form.whatsapp_number || ''}
+            onChange={e => updateField('whatsapp_number', e.target.value)}
+            placeholder="XXXXX XXXXX"
+            type="tel"
+          />
+        </div>
       </div>
 
       <label style={{ display: 'flex', gap: 10, cursor: 'pointer' }}>

@@ -51,7 +51,7 @@ export default function PreviewApprovePage() {
   }, [scheduledDays])
 
   const unusedTopics = useMemo(() => {
-    return (topics || []).filter(t => !scheduledTopicIds.has(t.id))
+    return (topics || []).filter(t => !scheduledTopicIds.has(t.id) && t.category !== 'festival')
   }, [topics, scheduledTopicIds])
 
   const activeDateItem = scheduledDays?.find(d => d.dateKey === swapModalState?.targetDateKey)
@@ -79,12 +79,13 @@ export default function PreviewApprovePage() {
       const baseFestTopic = (topics || []).find(t => t.category === 'festival')
       handleSwapTopic(swapModalState.targetDateKey, null, {
         title: `${selectedSwapFestival.name} Greeting`,
-        description: baseFestTopic?.description || `Festive celebration post for ${selectedSwapFestival.name}`,
+        description: selectedSwapFestival.description || `Festive celebration post for ${selectedSwapFestival.name}`,
         captionPreview: `Warmest wishes on ${selectedSwapFestival.name} from all of us at ${brandName}! 🎉✨`,
         visualPrompt: `Festive celebration graphic for ${selectedSwapFestival.name} in brand palette.`,
         format: 'reel',
         category: 'festival',
         festivalName: selectedSwapFestival.name,
+        date: selectedSwapFestival.date,
         hashtags: ['#festivevibes', `#${selectedSwapFestival.name.replace(/[^a-zA-Z0-9]/g, '')}`, '#celebrations'],
       })
       setSelectedSwapFestival(null)
@@ -103,7 +104,7 @@ export default function PreviewApprovePage() {
             Step 12 of 12 • Autopilot Schedule Review
           </div>
           <h1 className="text-xl md:text-2xl font-bold text-ink-950 tracking-tight">
-            Review Your 28-Day Content Calendar
+            Review Your Monthly Content Calendar
           </h1>
           <p className="text-xs text-ink-500 mt-1 max-w-xl">
             Tailored schedule for <strong className="text-ink-900">{(form?.business_name || '').trim() || 'your brand'}</strong> based on {form?.posting_frequency || '3'} posts/week. Click any day tile or hover to inspect or swap scheduled topics.
@@ -114,9 +115,9 @@ export default function PreviewApprovePage() {
         <div className="flex items-center gap-1 bg-paper-tint p-1 rounded-xl border border-hairline shrink-0 self-start sm:self-center">
           {[
             { id: 'all', label: 'All', icon: 'grid' },
-            { id: 'reel', label: 'Reels 📹', icon: 'video' },
-            { id: 'carousel', label: 'Carousels 🖼️', icon: 'image' },
-            { id: 'post', label: 'Posts 📝', icon: 'fileText' },
+            { id: 'reel', label: 'Reels', icon: 'video' },
+            { id: 'carousel', label: 'Carousels', icon: 'image' },
+            { id: 'post', label: 'Posts', icon: 'file' },
           ].map(pill => (
             <button
               key={pill.id}
@@ -128,6 +129,7 @@ export default function PreviewApprovePage() {
                   : 'text-ink-600 hover:text-ink-900 hover:bg-paper'
               }`}
             >
+              <Icon name={pill.icon} size={14} className={formatFilter === pill.id ? "text-white" : "text-ink-400"} />
               {pill.label}
             </button>
           ))}
@@ -137,7 +139,7 @@ export default function PreviewApprovePage() {
       {/* Main Grid + Sidebar Container (Full-bleed Edge-to-Edge) */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_360px] border-t border-l border-hairline w-full min-h-0 overflow-hidden">
         
-        {/* Left: 28-Day 7-Column Edge-to-Edge Calendar Grid */}
+        {/* Left: 5-Week (35-Day) Edge-to-Edge Calendar Grid */}
         <div className="flex flex-col flex-1 border-r border-hairline overflow-y-auto min-h-0 bg-paper">
           {/* Weekday Header */}
           <div className="grid grid-cols-7 border-b border-hairline bg-paper-tint sticky top-0 z-10">
@@ -161,7 +163,12 @@ export default function PreviewApprovePage() {
               return (
                 <div
                   key={day.dateKey}
-                  onMouseEnter={() => setHoveredDateKey(day.dateKey)}
+                  onMouseEnter={() => {
+                    setHoveredDateKey(day.dateKey)
+                    if (day.hasPost && day.topic?.id) {
+                      setExpandedTopicId(day.topic.id)
+                    }
+                  }}
                   onMouseLeave={() => setHoveredDateKey(null)}
                   /* R4: Clicking directly on a scheduled tile opens the Swap Scheduled Topic modal */
                   onClick={() => {
@@ -174,7 +181,7 @@ export default function PreviewApprovePage() {
                     }
                   }}
                   className={`min-h-[110px] p-2 border-b border-r border-hairline flex flex-col transition-all cursor-pointer relative ${
-                    day.isPast ? 'bg-ink-50/50 opacity-40' : 'bg-white'
+                    !day.isCurrentMonth ? 'bg-ink-50/50 opacity-40' : day.isPast ? 'bg-ink-50/30 text-ink-600' : 'bg-white'
                   } ${day.isToday ? 'bg-mint-50/20' : ''} ${
                     isHovered ? 'ring-2 ring-mint-500 ring-inset z-10 bg-mint-50/10' : ''
                   }`}
@@ -208,7 +215,7 @@ export default function PreviewApprovePage() {
                     >
                       <div className="flex items-center justify-between gap-1 mb-1">
                         <span
-                          className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          className={`text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm ${
                             day.format === 'reel'
                               ? 'bg-pink-500 text-white'
                               : day.format === 'carousel'
@@ -216,7 +223,7 @@ export default function PreviewApprovePage() {
                               : 'bg-mint-600 text-white'
                           }`}
                         >
-                          {day.format}
+                          {day.format === 'social_post' ? 'post' : day.format}
                         </span>
                       </div>
                       <p className="text-[11px] font-bold text-ink-950 line-clamp-2 leading-tight">
@@ -240,7 +247,7 @@ export default function PreviewApprovePage() {
                 {hoveredDateKey ? `Focused: ${hoveredDateKey}` : 'Scheduled Topics'}
               </h3>
               <p className="text-[11px] text-ink-500 mt-0.5">
-                {scheduledDays?.filter(d => d.hasPost).length || 0} posts planned across 4 weeks
+                {scheduledDays?.filter(d => d.hasPost).length || 0} posts planned this month
               </p>
             </div>
             {hoveredDateKey && (
@@ -255,62 +262,66 @@ export default function PreviewApprovePage() {
           </div>
 
           {/* Scrollable Topics List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {scheduledDays
-              ?.filter(d => d.hasPost)
-              .map((day) => {
-                const isExpanded = expandedTopicId === day.topic?.id
-                const isHighlighted = hoveredDateKey === day.dateKey
+          <div className="flex-1 overflow-y-auto">
+            <div className="w-full flex flex-col divide-y divide-hairline">
+              {scheduledDays
+                ?.filter(d => d.hasPost)
+                .map((day) => {
+                  const isExpanded = expandedTopicId === day.topic?.id
+                  const isHighlighted = hoveredDateKey === day.dateKey
 
-                return (
-                  <div
-                    key={day.dateKey}
-                    /* R5: DOM Ref assignment mapping dateKey to DOM element for smooth auto-scroll */
-                    ref={(el) => {
-                      if (el) {
-                        sidebarItemRefs.current[day.dateKey] = el
-                      } else {
-                        delete sidebarItemRefs.current[day.dateKey]
-                      }
-                    }}
-                    className={`p-3.5 rounded-xl border transition-all bg-white ${
-                      isHighlighted
-                        ? 'border-mint-500 ring-2 ring-mint-500/30 shadow-md bg-mint-50/10'
-                        : 'border-hairline hover:border-hairline-strong'
-                    }`}
-                  >
-                    {/* Topic Header Card */}
+                  return (
                     <div
-                      className="cursor-pointer flex items-start justify-between gap-2"
+                      key={day.dateKey}
+                      /* R5: DOM Ref assignment mapping dateKey to DOM element for smooth auto-scroll */
+                      ref={(el) => {
+                        if (el) {
+                          sidebarItemRefs.current[day.dateKey] = el
+                        } else {
+                          delete sidebarItemRefs.current[day.dateKey]
+                        }
+                      }}
+                      className={`px-4 py-3.5 transition-all cursor-pointer group ${
+                        isHighlighted
+                          ? 'bg-mint-50 shadow-[inset_4px_0_0_0_#0f766e]'
+                          : 'bg-white hover:bg-ink-50/50'
+                      }`}
                       onClick={() => setExpandedTopicId(isExpanded ? null : day.topic?.id)}
                     >
-                      <div>
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-[10px] font-bold text-ink-400">
-                            {day.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </span>
-                          <span
-                            className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                              day.format === 'reel'
-                                ? 'bg-pink-100 text-pink-700 border border-pink-200'
-                                : day.format === 'carousel'
-                                ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                                : 'bg-mint-100 text-mint-800 border border-mint-200'
-                            }`}
-                          >
-                            {day.format}
-                          </span>
+                      {/* Topic Grid Row Template */}
+                      <div className="w-full grid grid-cols-[70px_1fr_auto_20px] items-center gap-3">
+                        {/* 1. Date Column */}
+                        <div className="text-[10px] font-bold text-ink-500 tabular-nums uppercase tracking-wide">
+                          {day.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                         </div>
-                        <h4 className="text-xs font-bold text-ink-950 leading-tight">
+
+                        {/* 2. Title Column */}
+                        <div className={`text-xs font-bold truncate transition-colors ${isHighlighted ? 'text-mint-900' : 'text-ink-950 group-hover:text-ink-900'}`}>
                           {day.topic?.title}
-                        </h4>
+                        </div>
+
+                        {/* 3. Format Badge Column */}
+                        <div
+                          className={`text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm ${
+                            day.format === 'reel'
+                              ? 'bg-pink-100 text-pink-700'
+                              : day.format === 'carousel'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-orange-100 text-orange-800'
+                          }`}
+                        >
+                          {day.format === 'social_post' ? 'post' : day.format}
+                        </div>
+
+                        {/* 4. Chevron Column */}
+                        <div className="flex justify-end">
+                          <Icon
+                            name={isExpanded ? 'chevronUp' : 'chevronDown'}
+                            size={14}
+                            className={`transition-colors ${isHighlighted ? 'text-mint-600' : 'text-ink-300 group-hover:text-ink-500'}`}
+                          />
+                        </div>
                       </div>
-                      <Icon
-                        name={isExpanded ? 'chevronUp' : 'chevronDown'}
-                        size={14}
-                        className="text-ink-400 shrink-0 mt-0.5"
-                      />
-                    </div>
 
                     {/* Accordion Inline Expansion View */}
                     {isExpanded && day.topic && (
@@ -334,14 +345,6 @@ export default function PreviewApprovePage() {
                           </div>
                         )}
 
-                        {day.topic?.visualPrompt && (
-                          <div className="p-2.5 rounded-lg bg-paper-tint border border-hairline text-[11px]">
-                            <div className="font-bold text-[9px] uppercase tracking-wider text-ink-400 mb-1">
-                              Visual Concept
-                            </div>
-                            <p className="text-ink-700 italic leading-normal">{day.topic?.visualPrompt}</p>
-                          </div>
-                        )}
 
                         {day.topic?.hashtags && (
                           <div className="flex flex-wrap gap-1">
@@ -382,6 +385,7 @@ export default function PreviewApprovePage() {
                   </div>
                 )
               })}
+            </div>
           </div>
         </div>
       </div>
@@ -511,15 +515,24 @@ export default function PreviewApprovePage() {
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-bold text-mint-600 bg-mint-50 px-2 py-0.5 rounded">
-                          {fest.region}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-mint-600 bg-mint-50 px-2 py-0.5 rounded">
+                            {fest.region}
+                          </span>
+                          {fest.date && (
+                            <span className="text-[10px] font-medium text-ink-500">
+                              {new Date(fest.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+                          )}
+                        </div>
                         {selectedSwapFestival?.id === fest.id && (
                           <span className="text-[10px] font-bold text-mint-600">Selected</span>
                         )}
                       </div>
                       <h4 className="text-xs font-bold text-ink-950">{fest.name}</h4>
-                      <p className="text-[11px] text-ink-500 mt-0.5">Automated festival post greeting for {fest.name}.</p>
+                      <p className="text-[11px] text-ink-500 mt-0.5">
+                        {fest.description || `Automated festival post greeting for ${fest.name}.`}
+                      </p>
                     </div>
                   ))}
                 </div>

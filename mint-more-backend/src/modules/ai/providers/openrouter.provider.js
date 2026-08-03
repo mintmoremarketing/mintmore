@@ -57,6 +57,19 @@ const markProviderError = (error, message = '') => {
 /**
  * Generate text via OpenRouter.
  */
+
+const fixMojibake = (str) => {
+  if (!str || typeof str !== 'string') return str;
+  if (/^[\x00-\xFF]*$/.test(str) && /(ðŸ|â€)/.test(str)) {
+    try {
+      return Buffer.from(str, 'latin1').toString('utf8');
+    } catch(e) {
+      return str;
+    }
+  }
+  return str;
+};
+
 const generateText = async (openrouterId, prompt, params = {}, systemPromptOverride = null) => {
   assertConfigured();
   const startTime = Date.now();
@@ -120,7 +133,7 @@ const generateText = async (openrouterId, prompt, params = {}, systemPromptOverr
   }
 
   return {
-    text:          data.choices?.[0]?.message?.content || '',
+    text:          fixMojibake(data.choices?.[0]?.message?.content || ''),
     tokens_input:  data.usage?.prompt_tokens     || 0,
     tokens_output: data.usage?.completion_tokens || 0,
     duration_ms:   Date.now() - startTime,

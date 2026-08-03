@@ -63,7 +63,7 @@ export default function Topbar({
 
   return (
     <header className="topbar">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         {isMobile && (
           <button
             onClick={onMenuClick}
@@ -111,8 +111,10 @@ export default function Topbar({
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-        {mintCoinBalance !== null && mintCoinBalance !== undefined && (
+      <div id="topbar-center-slot" className="flex-1 flex items-center justify-between px-4 min-w-0" />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexShrink: 0 }}>
+        {/* {mintCoinBalance !== null && mintCoinBalance !== undefined && (
           <div
             className="mintcoin-chip-wrap"
             onMouseEnter={() => setMintPopoverOpen(true)}
@@ -174,7 +176,7 @@ export default function Topbar({
               </div>
             )}
           </div>
-        )}
+        )} */}
 
         {walletBalance !== null && walletBalance !== undefined && (
           <button

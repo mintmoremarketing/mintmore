@@ -32,16 +32,27 @@
 }
 
 :root {
-  --mint-50: #fff7ed;
-  --mint-100: #ffedd5;
-  --mint-200: #fed7aa;
-  --mint-300: #fdba74;
-  --mint-400: #fb923c;
-  --mint-500: #f77f00;
-  --mint-600: #ea6f00;
-  --mint-700: #c95c00;
-  --mint-800: #9f4700;
-  --mint-900: #7c3500;
+  --mint-50: #fdf3f0;
+  --mint-100: #fae3dc;
+  --mint-200: #f4c1b2;
+  --mint-300: #ed9982;
+  --mint-400: #e76746;
+  --mint-500: #e83b03;
+  --mint-600: #cb2b00;
+  --mint-700: #aa1f00;
+  --mint-800: #8c1a00;
+  --mint-900: #741902;
+
+  --orange-50: #fdf3f0;
+  --orange-100: #fae3dc;
+  --orange-200: #f4c1b2;
+  --orange-300: #ed9982;
+  --orange-400: #e76746;
+  --orange-500: #e83b03;
+  --orange-600: #cb2b00;
+  --orange-700: #aa1f00;
+  --orange-800: #8c1a00;
+  --orange-900: #741902;
 
   --ink-950: #0b0f14;
   --ink-900: #11161d;
@@ -59,8 +70,8 @@
   --paper-tint: #f7f7f4;
   --paper-deep: #f0f0ec;
 
-  --amber: #d97706;
-  --amber-bg: #fef6e7;
+  --amber: #e83b03;
+  --amber-bg: #fdf3f0;
   --rose: #e11d48;
   --rose-bg: #fef2f2;
   --sky: #0369a1;
@@ -8386,6 +8397,28 @@ kbd {
   flex-shrink: 0;
   display: flex;
   align-items: center;
+}
+
+/* ── Inline Skeleton Hydration (R3) ────────────────────────── */
+@keyframes calShimmer {
+  0% { opacity: 0.4; }
+  50% { opacity: 0.85; }
+  100% { opacity: 0.4; }
+}
+
+.cal-cell-skeleton-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 2px;
+}
+
+.cal-inline-skeleton-bar {
+  background: var(--hairline-strong, #e2e8f0);
+  height: 12px;
+  border-radius: 4px;
+  animation: calShimmer 1.5s infinite ease-in-out;
 }
 
 .cal-chip-badge {

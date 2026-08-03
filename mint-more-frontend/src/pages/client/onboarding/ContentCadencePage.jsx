@@ -14,10 +14,10 @@ export default function ContentCadencePage() {
         <label className="field-label" style={{ marginBottom: 12 }}>Posting Frequency</label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[
-            { value: '1', label: '1 Post / wk', desc: 'A light presence' },
-            { value: '3', label: '3 Posts / wk', desc: 'Balanced growth' },
-            { value: '5', label: '5 Posts / wk', desc: 'Aggressive reach' },
-            { value: '7', label: 'Daily posts', desc: 'Maximum visibility' },
+            { value: '4', label: '4 Posts / mo', desc: 'A light presence' },
+            { value: '8', label: '8 Posts / mo', desc: 'Balanced growth' },
+            { value: '12', label: '12 Posts / mo', desc: 'Aggressive reach' },
+            { value: '15', label: '15 Posts / mo', desc: 'Maximum visibility' },
           ].map(opt => {
             const active = form.posting_frequency === opt.value
             return (
@@ -40,7 +40,7 @@ export default function ContentCadencePage() {
                   position: 'relative',
                 }}
               >
-                {opt.value === '3' && (
+                {opt.value === '8' && (
                   <div style={{ position: 'absolute', top: 10, right: 10, background: 'var(--primary)', color: 'white', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase' }}>
                     Recommended
                   </div>

@@ -1,70 +1,41 @@
-# Handoff Report — Project Orchestrator (Succession Handoff)
+# Succession Handoff Report — Orchestrator (Gen 1)
 
-**Date**: 2026-07-31  
-**From Generation**: Gen 1 Orchestrator  
-**To Generation**: Gen 2 Orchestrator (Successor)  
-**Workspace**: `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\orchestrator`
+## Mission State & Progress Summary
+- **Mission**: Upgrade in-app Calendar page (`Calendar.jsx`) to match premium sleek UI from `PreviewApprovePage.jsx` (R1-R4).
+- **Milestone State**:
+  - Milestone 1 (Exploration): **DONE** (Explorers 7, 8, 9)
+  - Milestone 2 & 4 (UI Porting, R4 Legacy Preservation): **DONE & AUDITED CLEAN** (Auditor 5 confirmed 100% legacy preservation, 0 fake stubs)
+  - Milestone 3 (Feature & Dropdown Integration): **DONE & AUDITED CLEAN** (Action menu expanded, SwapTopicModal integrated)
+  - Milestone 4 (Instant Grid Rendering): **DONE & AUDITED CLEAN** (Frame 0 base grid rendering, zero layout shifts)
+  - Milestone 5 & 6 (Verification & Forensic Audit): **AUDITED CLEAN by Auditor 5, APPROVED by Reviewers 8 & 9 and Challenger 6**.
+  - **Remaining Remediation Task**: Fix 3 minor edge-case interaction bugs flagged by Challenger 7 in `Calendar.jsx`.
 
----
+## Challenger 7 Findings & Fix Instructions for Worker 8
+1. **Format Filter Consistency**:
+   - Issue: Creative events (`cellEvents`) appear in grid cells under `'reel'`/`'carousel'` format filters, but are excluded from the sidebar list.
+   - Fix: In `Calendar.jsx`, update grid cell `cellEvents` filter logic to match format filter consistency, or update `matchesFormatFilter` so both grid cells and sidebar items filter creative events consistently.
+2. **Swap Topic Modal Action Handlers**:
+   - Issue: Tab 2 (`'festivals'`) selection sets `selectedSwapFestival`, but `handleConfirmSwap` does not swap the festival. Tab 1 (`'unused'`) confirm triggers success toast even if no topic is selected.
+   - Fix: Update `handleConfirmSwap` in `Calendar.jsx`:
+     - For `'unused'`: Verify `selectedSwapTopicId` is not null before confirming; show error toast if null.
+     - For `'festivals'`: If `selectedSwapFestival` is selected, perform the festival swap via `select.mutate` or override state.
+3. **Sidebar Ref Cleanup**:
+   - Issue: `sidebarItemRefs.current` uses `item.dateKey`. When unmounting an item, `delete sidebarItemRefs.current[item.dateKey]` removes the date entry even if other items exist on that date.
+   - Fix: Update cleanup to use unique item key e.g. `item.id || item.dateKey` or check if remaining items exist for `dateKey` before deleting ref entry.
 
-## 1. Milestone State
+## Active Subagents
+- None currently running. All 16 subagents (Explorers 7-10, Workers 6-7, Reviewers 6-9, Challengers 4-7, Auditors 4-5) have delivered their handoff reports.
 
-| Milestone | Status | Notes |
-|-----------|--------|-------|
-| Phase 1: Calendar UI & Sidebar Restoration | DONE | Successfully implemented, verified, and audited CLEAN |
-| Phase 2 M1: Requirements R1-R5 Exploration | DONE | Completed by Explorers 4, 5, 6 |
-| Phase 2 M2: R1 Step 11 AI Topic Gen Hookup | READY | Tech spec ready from Explorer 4 |
-| Phase 2 M3: R2 Strict Unused & R3 Festival Logic | READY | Tech spec ready from Explorer 5 |
-| Phase 2 M4: R4 Click-to-Swap & R5 Hover Scroll | READY | Tech spec ready from Explorer 6 |
-| Phase 2 M5: Verification & Review | PLANNED | Reviewers & Challengers |
-| Phase 2 M6: Forensic Integrity Audit | PLANNED | Forensic Auditor |
+## Pending Decisions & Immediate Next Steps for Successor (Gen 2)
+1. Initialize Gen 2 orchestrator environment (reset spawn count to 0, start new heartbeat cron).
+2. Dispatch **Worker 8** (`teamwork_preview_worker`) to execute the 3 minor edge-case fixes in `Calendar.jsx` as detailed above.
+3. Have Worker 8 run `npm run build` in `mint-more-frontend` to confirm clean compilation.
+4. Dispatch Reviewer/Challenger/Auditor for final verification and present project completion to user/parent.
 
----
-
-## 2. Technical Findings & Implementation Specifications
-
-### Requirement R1: Step 11 AI Topic Generation (OpenRouter Endpoint)
-- **Backend Route**: `POST /api/v1/ai/onboarding-topics` (`mint-more-backend/src/modules/ai/ai.routes.js:36`, controller `ai.controller.js:73`, service `ai.service.js:1789`). Queries `creative_events`, calls OpenRouter (`openrouter/free`), returns 15 topics.
-- **Frontend Hookup**:
-  1. `mint-more-frontend/src/api/ai.js` already exports `aiApi.generateOnboardingTopics(data)`.
-  2. `Onboarding.jsx` / `ContentGenerationPage.jsx`: Replace fake 6.2s `setTimeout` timer in Step 11 with actual API call to `aiApi.generateOnboardingTopics`.
-  3. Render an interactive 15-topic Yes/No Flashcard Deck UI in `ContentGenerationPage.jsx`.
-  4. Update `useCalendarState.js` to accept the 15 AI-generated topics and map them across the 28-day calendar in Step 12 (`PreviewApprovePage.jsx`).
-
-### Requirement R2: Strict Unused Topics Logic
-- **Target File**: `mint-more-frontend/src/pages/client/onboarding/PreviewApprovePage.jsx` (and `useCalendarState.js`).
-- **Fix**: In the Swap modal (Tab 1), calculate `scheduledTopicIds = new Set(scheduledDays.filter(d => d.hasPost && d.topic?.id).map(d => d.topic.id))`. Filter unused topics using `topics.filter(t => !scheduledTopicIds.has(t.id))`. Ensure no topic scheduled anywhere on the calendar appears in the unused topics list. Add empty state if all topics are scheduled.
-
-### Requirement R3: Festival Handling & Opt-outs
-- **Backend APIs**: `GET /api/v1/creative/calendar`, `GET /api/v1/creative/events/suggestions`, `POST /api/v1/ai/onboarding-topics`.
-- **Fix**: In `useCalendarState.js` and `PreviewApprovePage.jsx`, when a user opts out of a festival slot in the swap modal (or toggles festival mode), automatically swap that slot with an unassigned standard brand topic while maintaining `hasPost: true` on that date. Total posting frequency (e.g. 12 posts) is strictly preserved.
-
-### Requirement R4: UI/UX Click-to-Swap
-- **Target File**: `mint-more-frontend/src/pages/client/onboarding/PreviewApprovePage.jsx`.
-- **Fix**: Update the calendar day tile `<div onClick>` and topic card click handlers so that clicking directly on a scheduled calendar tile calls `openSwapModal(day.dateKey)` and sets `expandedTopicId(day.topic.id)`, opening the Swap Topic modal instantly for that date.
-
-### Requirement R5: UI/UX Sidebar Hover Auto-Scroll
-- **Target File**: `mint-more-frontend/src/pages/client/onboarding/PreviewApprovePage.jsx`.
-- **Fix**: Attach `sidebarItemRefs = useRef({})` to topic card components in the right sidebar. Add a `useEffect` watching `hoveredDateKey`. When `hoveredDateKey` changes, invoke `targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' })` on the matching ref to bring off-screen hovered topics into the visible sidebar viewport.
-
----
-
-## 3. Concrete Next Steps for Successor (Gen 2)
-
-1. Reset spawn count to 0 for Gen 2 generation.
-2. Dispatch **Worker 4** (`teamwork_preview_worker`) to implement R1, R2, R3, R4, R5 in `mint-more-frontend` and ensure seamless integration with `mint-more-backend`.
-3. Dispatch **Reviewer 4** and **Reviewer 5** (`teamwork_preview_reviewer`) to review the implementation and verify build stability.
-4. Dispatch **Challenger 3** (`teamwork_preview_challenger`) to run empirical tests on unused topic filtering, festival opt-outs, tile click-to-swap, and hover auto-scroll.
-5. Dispatch **Auditor 3** (`teamwork_preview_auditor`) to perform the mandatory Forensic Integrity Audit.
-6. Verify all criteria pass and report victory to parent.
-
----
-
-## 4. Key Artifact Index
-- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\orchestrator\ORIGINAL_REQUEST.md`
-- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\orchestrator\PROJECT.md`
-- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\orchestrator\BRIEFING.md`
-- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\orchestrator\progress.md`
-- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\explorer_4\handoff.md`
-- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\explorer_5\handoff.md`
-- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\explorer_6\handoff.md`
+## Key Artifacts Index
+- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\orchestrator\ORIGINAL_REQUEST.md` — Original User Request
+- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\orchestrator\PROJECT.md` — Project Plan & Milestones
+- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\orchestrator\progress.md` — Progress Tracking
+- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\auditor_5\handoff.md` — Forensic Auditor 5 CLEAN Report
+- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\challenger_7\handoff.md` — Challenger 7 Findings Report
+- `c:\Users\devde\OneDrive\Desktop\Demo projects\Mint-more\saas\.agents\worker_7\handoff.md` — Worker 7 Remediation Report

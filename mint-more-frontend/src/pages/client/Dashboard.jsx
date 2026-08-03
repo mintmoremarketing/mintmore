@@ -229,7 +229,7 @@ export default function ClientDashboard() {
   useEffect(() => {
     if (profileData && !isGuest) {
       const prof = profileData.profile || profileData || {}
-      if (!prof.onboarding_checklist?.profile) {
+      if (!prof.onboarding_checklist?.profile && !prof.business_name) {
         navigate('/onboarding')
       }
     }

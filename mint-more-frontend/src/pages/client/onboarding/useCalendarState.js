@@ -246,23 +246,81 @@ export function useCalendarState(form, onboardingEvents = []) {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    const start = new Date(today)
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+    const start = new Date(firstOfMonth)
     start.setDate(start.getDate() - start.getDay()) // Align to nearest Sunday
 
-    const frequency = parseInt(form?.posting_frequency || '3', 10)
+    const frequency = parseInt(form?.posting_frequency || '8', 10)
     const postDaysPattern = {
       1: [3],
       3: [1, 3, 5],
       5: [1, 2, 3, 4, 5],
       7: [0, 1, 2, 3, 4, 5, 6],
-    }[frequency] || [1, 3, 5]
+      4: [3], // 4 per month ~ 1 per week (Wed)
+      8: [2, 5], // 8 per month ~ 2 per week (Tue, Fri)
+      12: [1, 3, 5], // 12 per month ~ 3 per week (Mon, Wed, Fri)
+      15: [1, 3, 4, 6], // 15 per month ~ 4 per week (Mon, Wed, Thu, Sat)
+    }[frequency] || [2, 5]
 
     const safeTopics = topics && topics.length > 0 ? topics : generateTopicsForBrand(form)
+
+    // 1. Identify Admin Events to slot
+    const brandState = (form?.address_state || '').toLowerCase()
+    const brandCity = (form?.address_city || '').toLowerCase()
+    const brandDesc = (form?.description || '').toLowerCase()
+
+    const adminEventsByDate = {}
+    let adminEventsInCurrentMonthCount = 0
+
+    onboardingEvents.forEach(evt => {
+      if (evt.status !== 'published') return;
+      const evtDate = new Date(evt.event_date)
+      evtDate.setHours(0, 0, 0, 0)
+      if (evtDate < today) return;
+
+      const isImportant = evt.priority === 'important' || !evt.priority;
+      const tags = (evt.tags || []).join(' ').toLowerCase();
+      const desc = (evt.description || '').toLowerCase();
+      
+      const isRegional = evt.priority === 'regional';
+      
+      let matchesLocation = false;
+      if (brandState && (tags.includes(brandState) || desc.includes(brandState))) matchesLocation = true;
+      if (brandCity && (tags.includes(brandCity) || desc.includes(brandCity))) matchesLocation = true;
+      if (brandDesc && (tags.includes(brandDesc) || desc.includes(brandDesc))) matchesLocation = true;
+
+      if (isImportant || (isRegional && matchesLocation)) {
+        const year = evtDate.getFullYear()
+        const month = String(evtDate.getMonth() + 1).padStart(2, '0')
+        const day = String(evtDate.getDate()).padStart(2, '0')
+        const dateKey = `${year}-${month}-${day}`
+        
+        // Slot it
+        adminEventsByDate[dateKey] = evt
+        if (evtDate.getMonth() === today.getMonth()) {
+          adminEventsInCurrentMonthCount++
+        }
+      }
+    })
+
+    // Also count manual festival overrides so they consume the brand post budget
+    Object.keys(calendarOverrides || {}).forEach(key => {
+      const override = calendarOverrides[key]
+      if (override?.festivalName && override?.hasPost) {
+        const ovDate = new Date(key)
+        if (ovDate.getMonth() === today.getMonth() && !adminEventsByDate[key]) {
+          adminEventsInCurrentMonthCount++
+        }
+      }
+    })
+
+    const brandPostsNeeded = Math.max(0, frequency - adminEventsInCurrentMonthCount)
+    let brandPostsSlotted = 0
 
     const result = []
     let topicIndex = 0
 
-    for (let i = 0; i < 28; i++) {
+    for (let i = 0; i < 42; i++) {
       const d = new Date(start)
       d.setDate(d.getDate() + i)
 
@@ -273,15 +331,36 @@ export function useCalendarState(form, onboardingEvents = []) {
 
       const isPast = d < today
       const isToday = d.getTime() === today.getTime()
+      const isCurrentMonth = d.getMonth() === today.getMonth()
       const dayOfWeek = d.getDay()
 
       const override = calendarOverrides[dateKey]
-      const defaultHasPost = !isPast && postDaysPattern.includes(dayOfWeek)
-      const hasPost = override?.hasPost !== undefined ? override.hasPost : defaultHasPost
+      
+      let hasPost = false;
+      let assignedTopic = null;
+      let assignedFormat = null;
+      let status = 'draft';
 
-      let assignedTopic = null
-      let assignedFormat = null
-      let status = 'draft'
+      const adminEvent = adminEventsByDate[dateKey];
+
+      if (override?.hasPost !== undefined) {
+         hasPost = override.hasPost;
+      } else if (adminEvent) {
+         hasPost = true;
+      } else if (!isPast && isCurrentMonth && postDaysPattern.includes(dayOfWeek) && brandPostsSlotted < brandPostsNeeded) {
+         // Check if adjacent to an admin event or swapped festival
+         const prev = new Date(d); prev.setDate(d.getDate() - 1);
+         const next = new Date(d); next.setDate(d.getDate() + 1);
+         const prevKey = `${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,'0')}-${String(prev.getDate()).padStart(2,'0')}`;
+         const nextKey = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}-${String(next.getDate()).padStart(2,'0')}`;
+         
+         const isPrevFestival = adminEventsByDate[prevKey] || calendarOverrides[prevKey]?.festivalName;
+         const isNextFestival = adminEventsByDate[nextKey] || calendarOverrides[nextKey]?.festivalName;
+         
+         if (!isPrevFestival && !isNextFestival) {
+           hasPost = true;
+         }
+      }
 
       if (hasPost) {
         if (override?.topicId) {
@@ -294,10 +373,51 @@ export function useCalendarState(form, onboardingEvents = []) {
             captionPreview: override.customCaption || 'Custom topic content',
             festivalName: override.festivalName || null,
           }
+        } else if (adminEvent && !override) {
+          assignedTopic = {
+            id: adminEvent.id,
+            title: adminEvent.title,
+            description: adminEvent.description,
+            format: adminEvent.asset_type || 'post',
+            category: 'festival',
+            festivalName: adminEvent.title,
+            captionPreview: adminEvent.description,
+          }
         } else {
-          assignedTopic = safeTopics[topicIndex % safeTopics.length]
+          // Brand Topic
+          const baseTopic = safeTopics[topicIndex % safeTopics.length]
+          const cycle = Math.floor(topicIndex / safeTopics.length)
+
+          if (cycle > 0) {
+            const distinctStories = [
+              'Origin Story & Roots',
+              'Meet the Team',
+              'Quality Deep Dive',
+              'Community Favorite',
+              'Myth Busting',
+              'Quick Tip of the Day',
+              'Behind the Process',
+              'Secret Menu/Feature',
+              'Customer Spotlight',
+              'Future Vision',
+              'Sustainability & Values',
+              'Local Love'
+            ]
+            const angle = distinctStories[topicIndex % distinctStories.length]
+            
+            assignedTopic = {
+              ...baseTopic,
+              id: `${baseTopic.id}-v${cycle}`,
+              title: `${baseTopic.title.split(':')[0]} - ${angle}`,
+              description: `A unique perspective on ${baseTopic.title.toLowerCase()}, telling a completely different story focused on ${angle.toLowerCase()}.`,
+            }
+          } else {
+            assignedTopic = baseTopic
+          }
+          topicIndex++;
+          if (isCurrentMonth) brandPostsSlotted++;
         }
-        topicIndex++
+        
         assignedFormat = override?.format || assignedTopic?.format || 'post'
         const isApproved = assignedTopic ? (approvedTopicIds || []).includes(assignedTopic.id) : false
         if (override?.topicId) {
@@ -314,6 +434,7 @@ export function useCalendarState(form, onboardingEvents = []) {
         dayOfWeek,
         isPast,
         isToday,
+        isCurrentMonth,
         hasPost,
         topic: assignedTopic,
         format: assignedFormat,
@@ -321,8 +442,78 @@ export function useCalendarState(form, onboardingEvents = []) {
       })
     }
 
+    // Fallback pass: intelligently distribute remaining brand posts to weeks with the fewest posts
+    let fallbackSafety = 0
+    while (brandPostsSlotted < brandPostsNeeded && fallbackSafety < 20) {
+      fallbackSafety++
+      
+      // Calculate posts per week (only counting current month)
+      const weeklyPostCounts = [0, 0, 0, 0, 0, 0]
+      for (let i = 0; i < result.length; i++) {
+        if (result[i].isCurrentMonth && result[i].hasPost) {
+          weeklyPostCounts[Math.floor(i / 7)]++
+        }
+      }
+
+      // Find valid available slots for each week
+      const validSlotsPerWeek = Array(6).fill(null).map(() => [])
+      for (let i = 0; i < result.length; i++) {
+        const item = result[i]
+        if (!item.isPast && item.isCurrentMonth && !item.hasPost) {
+          const prevKey = result[i-1]?.dateKey
+          const nextKey = result[i+1]?.dateKey
+          const isPrevFestival = prevKey && (adminEventsByDate[prevKey] || calendarOverrides[prevKey]?.festivalName)
+          const isNextFestival = nextKey && (adminEventsByDate[nextKey] || calendarOverrides[nextKey]?.festivalName)
+          
+          if (!isPrevFestival && !isNextFestival) {
+             validSlotsPerWeek[Math.floor(i / 7)].push(i)
+          }
+        }
+      }
+
+      // Find the week that has the minimum posts AND has at least one valid slot available
+      let targetWeekIndex = -1
+      let minPosts = Infinity
+      for (let w = 0; w < 6; w++) {
+        if (validSlotsPerWeek[w].length > 0 && weeklyPostCounts[w] < minPosts) {
+          minPosts = weeklyPostCounts[w]
+          targetWeekIndex = w
+        }
+      }
+
+      if (targetWeekIndex === -1) {
+        break // No valid slots left anywhere
+      }
+
+      // Pick the first available slot in the target week
+      const slotIndex = validSlotsPerWeek[targetWeekIndex][0]
+      const item = result[slotIndex]
+
+      item.hasPost = true
+      const baseTopic = safeTopics[topicIndex % safeTopics.length]
+      const cycle = Math.floor(topicIndex / safeTopics.length)
+      
+      let assignedTopic = baseTopic
+      if (cycle > 0) {
+        const distinctStories = ['Origin Story', 'Meet the Team', 'Deep Dive', 'Spotlight']
+        const angle = distinctStories[topicIndex % distinctStories.length]
+        assignedTopic = {
+          ...baseTopic,
+          id: `${baseTopic.id}-fallback-v${cycle}`,
+          title: `${baseTopic.title.split(':')[0]} - ${angle}`
+        }
+      }
+      
+      item.topic = assignedTopic
+      item.format = assignedTopic.format || 'post'
+      item.status = (approvedTopicIds || []).includes(assignedTopic.id) ? 'approved' : 'draft'
+      
+      topicIndex++
+      brandPostsSlotted++
+    }
+
     return result
-  }, [form?.posting_frequency, form?.business_name, form?.business_type, calendarOverrides, topics, approvedTopicIds])
+  }, [form?.posting_frequency, form?.address_state, form?.address_city, form?.description, form?.business_name, form?.business_type, calendarOverrides, topics, approvedTopicIds, onboardingEvents])
 
   const handleSwapTopic = useCallback((dateKey, newTopicId, customData = null) => {
     if (customData) {
@@ -340,18 +531,46 @@ export function useCalendarState(form, onboardingEvents = []) {
       }
       setTopics(prev => [...(prev || []), newTopic])
       setApprovedTopicIds(prev => [...(prev || []), customId])
-      setCalendarOverrides(prev => ({
-        ...prev,
-        [dateKey]: {
-          ...prev[dateKey],
-          topicId: customId,
-          customTitle: newTopic.title,
-          customDesc: newTopic.description,
-          customCaption: newTopic.captionPreview,
-          festivalName: newTopic.festivalName,
-          status: 'swapped',
-        },
-      }))
+      
+      let festivalDateKey = null;
+      if (customData.date) {
+        const fd = new Date(customData.date);
+        festivalDateKey = `${fd.getFullYear()}-${String(fd.getMonth()+1).padStart(2,'0')}-${String(fd.getDate()).padStart(2,'0')}`;
+      }
+      
+      if (festivalDateKey && festivalDateKey !== dateKey) {
+        setCalendarOverrides(prev => ({
+          ...prev,
+          [dateKey]: {
+            ...prev[dateKey],
+            hasPost: false,
+          },
+          [festivalDateKey]: {
+            ...prev[festivalDateKey],
+            topicId: customId,
+            customTitle: newTopic.title,
+            customDesc: newTopic.description,
+            customCaption: newTopic.captionPreview,
+            festivalName: newTopic.festivalName,
+            status: 'swapped',
+            hasPost: true,
+          }
+        }))
+      } else {
+        setCalendarOverrides(prev => ({
+          ...prev,
+          [dateKey]: {
+            ...prev[dateKey],
+            topicId: customId,
+            customTitle: newTopic.title,
+            customDesc: newTopic.description,
+            customCaption: newTopic.captionPreview,
+            festivalName: newTopic.festivalName,
+            status: 'swapped',
+            hasPost: true,
+          },
+        }))
+      }
     } else {
       setCalendarOverrides(prev => ({
         ...prev,
@@ -359,6 +578,7 @@ export function useCalendarState(form, onboardingEvents = []) {
           ...prev[dateKey],
           topicId: newTopicId,
           status: 'swapped',
+          hasPost: true,
         },
       }))
     }

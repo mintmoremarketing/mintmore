@@ -1807,7 +1807,7 @@ const generateOnboardingTopics = async (payload) => {
 
   const systemPrompt = "You are an expert social media content strategist. Output strictly valid JSON format. Make sure all strings are enclosed in double quotes.";
   
-  const prompt = `Create a 15-topic content strategy for a business with the following details:
+  const prompt = `Create a 30-topic content strategy for a business with the following details:
 Business Name: ${business_name || 'My Business'}
 Industry/Type: ${business_type || 'Retail'}
 Customer Profile/Description: ${description || 'General audience'}
@@ -1819,13 +1819,13 @@ We have the following upcoming festivals in the next 35 days:
 ${upcomingFestivals.map(f => `- ${f.title} (${f.event_date.toISOString().split('T')[0]}): ${f.description || ''} [ID: ${f.id}]`).join('\n') || 'None'}
 
 Your task:
-1. Select up to 5 MOST RELEVANT festivals for this business based on their region and industry (if Festival Mode is autopilot). If manual, you can still recommend them.
-2. Generate highly engaging brand-specific topics for the remaining slots to make exactly 15 topics in total.
+1. Select up to 10 MOST RELEVANT festivals for this business based on their region and industry (if Festival Mode is autopilot). If manual, you can still recommend them.
+2. Generate highly engaging brand-specific topics for the remaining slots to make exactly 30 topics in total.
 3. Every topic must have a "type" field: either "festival" or "brand".
 4. If it's a festival, include the "festival_id" and "date" exactly as provided above.
 5. Keep titles punchy and descriptions clear (1-2 sentences).
 
-CRITICAL: Return ONLY a raw JSON array of 15 objects. Ensure all keys and string values are enclosed in double quotes. Do not include markdown code blocks.
+CRITICAL: Return ONLY a raw JSON array of 30 objects. Ensure all keys and string values are enclosed in double quotes. Do not include markdown code blocks.
 Example Format:
 [
   { "title": "Top 5 benefits of our service", "desc": "Educational carousel highlighting key advantages.", "type": "brand" },
@@ -1862,7 +1862,22 @@ Example Format:
       { title: `FAQ`, desc: 'Addressing common customer queries.', type: 'brand' },
       { title: `Weekend Motivation`, desc: 'A light-hearted inspirational quote.', type: 'brand' },
       { title: `Industry Trends`, desc: 'Educational deep-dive into your niche.', type: 'brand' },
-      { title: `Flash Sale Announcement`, desc: 'Promotional content to drive immediate sales.', type: 'brand' }
+      { title: `Flash Sale Announcement`, desc: 'Promotional content to drive immediate sales.', type: 'brand' },
+      { title: `Brand Spotlight #1`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #2`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #3`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #4`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #5`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #6`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #7`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #8`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #9`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #10`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #11`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #12`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #13`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #14`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
+      { title: `Brand Spotlight #15`, desc: 'Engaging customer story & promotional post.', type: 'brand' }
     ];
   }
 };

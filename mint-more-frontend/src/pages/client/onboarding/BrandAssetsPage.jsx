@@ -35,53 +35,42 @@ export default function BrandAssetsPage() {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {form.logos.length === 0 ? (
-          <>
-            <div style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--hairline-strong)', display: 'grid', placeItems: 'center', background: 'var(--ink-50)' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-500)' }}>Logo Light</span>
-            </div>
-            <div style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--hairline-strong)', display: 'grid', placeItems: 'center', background: 'var(--ink-950)', color: 'white' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-300)' }}>Logo Dark</span>
-            </div>
-          </>
-        ) : (
-          form.logos.map((logo, index) => (
-            <div key={logo.id || index} style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--hairline-strong)' }} className="group">
-              <img
-                src={logo.preview_url || logo.url}
-                alt={logo.label || logo.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  removeOnboardingLogo(logo.id)
-                }}
-                style={{
-                  position: 'absolute',
-                  top: 4,
-                  right: 4,
-                  background: 'rgba(239, 68, 68, 0.9)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: 20,
-                  height: 20,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  fontWeight: 'bold',
-                  zIndex: 10,
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))
-        )}
+        {form.logos.map((logo, index) => (
+          <div key={logo.id || index} style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--hairline-strong)' }} className="group">
+            <img
+              src={logo.preview_url || logo.url}
+              alt={logo.label || logo.name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                removeOnboardingLogo(logo.id)
+              }}
+              style={{
+                position: 'absolute',
+                top: 4,
+                right: 4,
+                background: 'rgba(239, 68, 68, 0.9)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: 20,
+                height: 20,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 'bold',
+                zIndex: 10,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   )

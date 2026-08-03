@@ -56,10 +56,15 @@ export default function DocumentUploader({
   );
   const helperText = description ?? `${formatAcceptedFormats(acceptedFormats)}. Max ${maxFileSizeMb} MB.`;
 
+  const onFilesChangeRef = useRef(onFilesChange);
+  useEffect(() => {
+    onFilesChangeRef.current = onFilesChange;
+  }, [onFilesChange]);
+
   useEffect(() => {
     itemsRef.current = items;
-    onFilesChange?.(items.map((item) => item.file));
-  }, [items, onFilesChange]);
+    onFilesChangeRef.current?.(items.map((item) => item.file));
+  }, [items]);
 
   useEffect(() => {
     return () => {

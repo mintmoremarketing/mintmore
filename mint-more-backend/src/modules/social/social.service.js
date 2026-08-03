@@ -2066,7 +2066,6 @@ const getCalendarPosts = async (userId, { month } = {}) => {
          OR sp.published_at BETWEEN $2 AND $3
          OR (sp.publish_at IS NULL AND sp.published_at IS NULL AND sp.created_at BETWEEN $2 AND $3)
        )
-       AND sp.status != 'deleted'
      ORDER BY COALESCE(sp.publish_at, sp.published_at, sp.created_at) ASC`,
     [userId, start.toISOString(), end.toISOString()]
   );
