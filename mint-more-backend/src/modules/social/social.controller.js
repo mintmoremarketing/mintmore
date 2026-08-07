@@ -89,6 +89,14 @@ const disconnectAccount = async (req, res, next) => {
 const createPost = async (req, res, next) => {
   try {
     validateCreatePost(req.body);
+
+    if (req.user.impersonated_by) {
+      req.body.metadata = {
+        ...(req.body.metadata || {}),
+        impersonated_by: req.user.impersonated_by,
+      };
+    }
+
     const post = await socialService.createPost(req.user.sub, req.body);
     return sendSuccess(res, {
       data:       { post },
@@ -100,6 +108,12 @@ const createPost = async (req, res, next) => {
 
 const updatePost = async (req, res, next) => {
   try {
+    if (req.user.impersonated_by) {
+      req.body.metadata = {
+        ...(req.body.metadata || {}),
+        impersonated_by: req.user.impersonated_by,
+      };
+    }
     const post = await socialService.updatePost(req.params.postId, req.user.sub, req.body);
     return sendSuccess(res, {
       data: { post },
@@ -245,7 +259,7 @@ const getAnalyticsSummary = async (req, res, next) => {
 
 const getCalendarPosts = async (req, res, next) => {
   try {
-    const result = await socialService.getCalendarPosts(req.user.sub, { month: req.query.month });
+    const result = await socialService.getCalendarPosts(req.user.sub, { month: req.query.month, year: req.query.year });
     return sendSuccess(res, { data: result });
   } catch (err) { next(err); }
 };

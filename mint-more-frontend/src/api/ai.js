@@ -23,6 +23,9 @@ export const aiApi = {
   generateOnboardingTopics: (data) =>
     api.post('/ai/onboarding-topics', data),
 
+  extractWebsite: (data) =>
+    api.post('/ai/extract-website', data),
+
   generateEngineImage: (data) =>
     api.post('/ai/engine/image/generate', data),
 

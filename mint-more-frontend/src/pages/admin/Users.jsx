@@ -10,6 +10,7 @@ import Tabs from '../../components/ui/Tabs'
 import { rupee, timeAgo } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 import { useEntitlements } from '../../hooks/useEntitlements'
+import { useAuthStore } from '../../store/auth'
 
 function WalletAdjustModal({ user, onClose }) {
   const queryClient = useQueryClient()
@@ -412,6 +413,25 @@ function UserDetailModal({ userId, onClose }) {
     },
   })
 
+  const impersonateStore = useAuthStore(s => s.impersonate)
+
+  const impersonateMutation = useMutation({
+    mutationFn: () => api.post(`/admin/users/${userId}/impersonate`),
+    onSuccess: (res) => {
+      const { user, accessToken, refreshToken } = res.data.data
+      pushToast({ title: `Impersonating ${user.full_name}`, icon: 'user-check' })
+      impersonateStore(user, accessToken, refreshToken)
+      onClose()
+      window.location.href = '/' // redirect to home as the impersonated user
+    },
+    onError: (err) => pushToast({
+      title: 'Failed to impersonate',
+      body: err.response?.data?.message || 'Try again',
+      tone: 'amber',
+      icon: 'x',
+    }),
+  })
+
   const setLevelMutation = useMutation({
     mutationFn: (level) => api.patch(`/admin/users/${userId}/level`, { level }),
     onSuccess: () => {
@@ -666,9 +686,22 @@ function UserDetailModal({ userId, onClose }) {
               Suspend user
             </button>
           )}
+
+          {user.role !== 'admin' && user.is_active && (
+            <button
+              className="btn secondary"
+              style={{ marginLeft: 'auto' }}
+              onClick={() => impersonateMutation.mutate()}
+              disabled={impersonateMutation.isPending}
+            >
+              <Icon name="user-check" size={13} /> 
+              {impersonateMutation.isPending ? 'Switching...' : 'Impersonate'}
+            </button>
+          )}
+
           <button
             className="btn ghost"
-            style={{ color: 'var(--rose)', marginLeft: 'auto' }}
+            style={{ color: 'var(--rose)', marginLeft: user.role !== 'admin' && user.is_active ? 0 : 'auto' }}
             onClick={() => setShowDeleteUser(true)}
           >
             <Icon name="trash" size={13} /> Delete user data

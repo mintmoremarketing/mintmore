@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { socialApi } from '../../api/social'
 import { creativeApi } from '../../api/creative'
+import { aiApi } from '../../api/ai'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import {
@@ -249,7 +250,7 @@ export default function Onboarding() {
       festival_mode: postingPref.festival_mode === 'managed' ? 'autopilot' : (postingPref.festival_mode || 'autopilot'),
       selected_festivals: Array.isArray(postingPref.festivals) ? postingPref.festivals : ['diwali', 'holi'],
       whatsapp_number: profile.whatsapp_number || '',
-      approval_policy: postingPref.approval_mode === 'app_or_whatsapp' ? 'every_post' : 'every_post',
+      approval_policy: postingPref.approval_mode || 'every_post',
     }))
   }, [profile])
 
@@ -271,7 +272,7 @@ export default function Onboarding() {
         festival_lead_days: parseInt(form.festival_lead_days || '5', 10),
         cadence: 'weekly',
         evergreen_ratio: parseInt(form.evergreen_ratio || '50', 10),
-        approval_mode: 'app_or_whatsapp',
+        approval_mode: form.approval_policy,
       }
 
       const payload = {
@@ -501,75 +502,30 @@ export default function Onboarding() {
     uploadAssetMutation.mutate({ file, kind: 'logo', palette: slicedPalette })
   }
 
-  const handleImportFromWebsite = () => {
+  const handleImportFromWebsite = async () => {
     if (!form.website.trim()) {
       pushToast({ title: 'Please enter a website link first', tone: 'amber' })
       return
     }
     pushToast({ title: 'Importing website details...', icon: 'sparkles' })
 
-    setTimeout(() => {
+    try {
       let cleanUrl = form.website.trim()
-      cleanUrl = cleanUrl.replace(/^(https?:\/\/)?(www\.)?/, '')
-      const parts = cleanUrl.split('/')
-      const domain = parts[0] || ''
-      const namePart = domain.replace(/\.(com|in|co\.in|net|org|edu|gov|io|biz|info|in|me)$/i, '')
-      const words = namePart.split(/[-_.]+/).map(w => w.charAt(0).toUpperCase() + w.slice(1))
-      let businessName = words.join(' ')
-      const lowerUrl = cleanUrl.toLowerCase()
-      let businessType = 'other'
-      let typeLabel = 'local business'
-
-      if (lowerUrl.includes('hotel') || lowerUrl.includes('resort') || lowerUrl.includes('stay') || lowerUrl.includes('inn') || lowerUrl.includes('lodge') || lowerUrl.includes('retreat')) {
-        businessType = 'hotel'
-        typeLabel = 'boutique stay'
-      } else if (lowerUrl.includes('cafe') || lowerUrl.includes('restaurant') || lowerUrl.includes('dhaba') || lowerUrl.includes('food') || lowerUrl.includes('pizza') || lowerUrl.includes('bakery') || lowerUrl.includes('kitchen') || lowerUrl.includes('bites')) {
-        businessType = 'restaurant'
-        typeLabel = 'restaurant and cafe'
-      } else if (lowerUrl.includes('gym') || lowerUrl.includes('fitness') || lowerUrl.includes('yoga') || lowerUrl.includes('wellness') || lowerUrl.includes('fit') || lowerUrl.includes('studio')) {
-        businessType = 'fitness'
-        typeLabel = 'fitness and wellness studio'
-      } else if (lowerUrl.includes('coaching') || lowerUrl.includes('edu') || lowerUrl.includes('academy') || lowerUrl.includes('learn') || lowerUrl.includes('class') || lowerUrl.includes('institute') || lowerUrl.includes('training')) {
-        businessType = 'education'
-        typeLabel = 'coaching and training institute'
-      } else if (lowerUrl.includes('wedding') || lowerUrl.includes('event') || lowerUrl.includes('planner') || lowerUrl.includes('marriage') || lowerUrl.includes('banquet')) {
-        businessType = 'wedding'
-        typeLabel = 'wedding planning and venue services'
-      } else if (lowerUrl.includes('salon') || lowerUrl.includes('spa') || lowerUrl.includes('parlour') || lowerUrl.includes('grooming') || lowerUrl.includes('hair') || lowerUrl.includes('beauty')) {
-        businessType = 'salon'
-        typeLabel = 'premium salon and spa'
-      } else if (lowerUrl.includes('boutique') || lowerUrl.includes('fashion') || lowerUrl.includes('cloth') || lowerUrl.includes('wear') || lowerUrl.includes('store') || lowerUrl.includes('shop') || lowerUrl.includes('retail')) {
-        businessType = 'fashion'
-        typeLabel = 'clothing and lifestyle boutique'
-      }
-
-      if (businessType !== 'other' && !lowerUrl.includes(businessType) && !lowerUrl.includes(typeLabel.split(' ')[0])) {
-        const typeSuffix = businessType.charAt(0).toUpperCase() + businessType.slice(1)
-        businessName += ` ${typeSuffix}`
-      }
-
-      let description = `Welcome to ${businessName}. We are a premium ${typeLabel} dedicated to offering exceptional services, high-quality standards, and a customer-first experience.`
-      if (businessType === 'hotel') {
-        description = `${businessName} is a cozy ${typeLabel} offering beautiful rooms, exceptional hospitality, premium amenities, and a peaceful atmosphere for a perfect getaway.`
-      } else if (businessType === 'restaurant') {
-        description = `${businessName} is a popular ${typeLabel} serving delicious dishes, freshly prepared local delicacies, and premium beverages in a warm, welcoming environment.`
-      } else if (businessType === 'fitness') {
-        description = `${businessName} is a modern ${typeLabel} offering professional trainers, customized workout regimens, wellness classes, and state-of-the-art equipment.`
-      } else if (businessType === 'education') {
-        description = `${businessName} is a leading ${typeLabel} providing high-quality classes, experienced faculty, specialized mentorship, and comprehensive test prep.`
-      } else if (businessType === 'wedding') {
-        description = `${businessName} provides premium ${typeLabel} to curate memorable events, beautiful wedding themes, full-service catering, and flawless coordination.`
-      } else if (businessType === 'salon') {
-        description = `${businessName} is a premium ${typeLabel} offering expert hair styling, makeup services, relaxing wellness treatments, and complete personal grooming.`
-      } else if (businessType === 'fashion') {
-        description = `${businessName} is a trendy ${typeLabel} showcasing curated apparel, custom tailoring, accessories, and the latest modern and ethnic wear collections.`
-      }
-
-      updateField('business_name', businessName)
-      updateField('business_type', businessType)
-      updateField('description', description)
-      pushToast({ title: 'Import completed successfully!', icon: 'check' })
-    }, 1200)
+      const res = await aiApi.extractWebsite({ url: cleanUrl })
+      const data = res.data.data
+      
+      if (data.business_name) updateField('business_name', data.business_name)
+      if (data.business_type) updateField('business_type', data.business_type)
+      if (data.description) updateField('description', data.description)
+      if (data.products_services) updateField('products_services', data.products_services)
+      if (data.customer_profile) updateField('customer_profile', data.customer_profile)
+      if (data.target_ages) updateField('target_ages', data.target_ages)
+      if (data.preferred_language) updateField('preferred_language', data.preferred_language)
+      
+      pushToast({ title: 'Website details imported!', icon: 'check', tone: 'mint' })
+    } catch (err) {
+      pushToast({ title: 'Failed to extract info', body: err.response?.data?.message || err.message, tone: 'amber' })
+    }
   }
 
   const goToStep = (stepNumber) => {
@@ -624,9 +580,13 @@ export default function Onboarding() {
         for (const day of postsToSave) {
           try {
             // Default publish time to 10 AM local time
-            const publishDate = new Date(day.date)
+            let publishDate = new Date(day.date)
             publishDate.setHours(10, 0, 0, 0)
-            
+
+            if (publishDate <= new Date()) {
+              publishDate = null
+            }
+
             let ctype = day.format || day.topic.format || 'image';
             if (ctype === 'post') ctype = 'image';
 
@@ -635,11 +595,11 @@ export default function Onboarding() {
               caption: day.topic.captionPreview || day.topic.description || '',
               status: 'draft',
               content_type: ctype,
-              publish_at: publishDate.toISOString(),
+              publish_at: publishDate ? publishDate.toISOString() : null,
               target_platforms: form.connected_platforms?.length ? form.connected_platforms : ['facebook']
             })
           } catch (err) {
-            console.error('Failed to save draft post', err)
+            console.error('Failed to save draft post:', err.response?.data || err.message)
           }
         }
       }
@@ -914,7 +874,7 @@ export default function Onboarding() {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden bg-[var(--paper)]">
-        {currentStep.number < 11 && (
+        {currentStep.number < 12 && (
           <div className="px-6 pt-6 sm:px-10 sm:pt-8 md:px-16 md:pt-10 flex justify-between items-center shrink-0">
             <div style={{ fontSize: 12, fontWeight: 750, color: 'var(--mint-500)', textTransform: 'uppercase', tracking: '0.1em' }}>
               Autopilot Configuration
@@ -922,16 +882,16 @@ export default function Onboarding() {
           </div>
         )}
 
-        <div className={currentStep.number >= 11 ? "flex-1 overflow-hidden flex flex-col min-h-0 p-0" : "flex-1 overflow-y-auto px-6 py-6 sm:px-10 sm:py-8 md:px-16 md:py-10"}>
+        <div className={currentStep.number >= 12 ? "flex-1 overflow-hidden flex flex-col min-h-0 p-0" : "flex-1 overflow-y-auto px-6 py-6 sm:px-10 sm:py-8 md:px-16 md:py-10"}>
           <div className={
-            currentStep.number >= 11 ? "w-full h-full flex flex-col flex-1 min-h-0" :
+            currentStep.number >= 12 ? "w-full h-full flex flex-col flex-1 min-h-0" :
             "w-full max-w-[640px] mx-auto lg:mx-0"
           }>
             <Outlet context={onboardingContext} />
           </div>
         </div>
 
-        {currentStep.number < 11 && (
+        {currentStep.number < 12 && (
           <div className="bg-[var(--paper-tint)] border-t border-[var(--hairline-strong)] py-4 px-6 sm:px-10 md:px-16 flex items-center justify-between shrink-0">
             {currentStep.number > 1 ? (
               <button type="button" onClick={handleBackStep} className="btn ghost">

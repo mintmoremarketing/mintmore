@@ -2017,6 +2017,11 @@ export default function Social() {
                             ))}
                             <StatusBadge status={post.status} />
                             {imported && <span style={{ fontSize: '10px', color: '#94a3b8', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 999 }}>Imported</span>}
+                            {post.metadata?.impersonated_by && (
+                              <span style={{ fontSize: '10px', color: '#b45309', background: '#fef3c7', padding: '2px 8px', borderRadius: 999, fontWeight: 600, border: '1px solid #fcd34d' }}>
+                                Auto published by Mintmore
+                              </span>
+                            )}
                             {isInstagramTextOnly && (
                               <span title="Instagram requires media — this post may fail." style={{ fontSize: 13, cursor: 'help' }}>⚠️</span>
                             )}

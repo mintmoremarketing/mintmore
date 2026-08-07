@@ -74,7 +74,11 @@ const generateOnboardingTopics = async (req, res, next) => {
   try {
     logger.info('🚀 Received request for generateOnboardingTopics', req.body);
     const topics = await aiService.generateOnboardingTopics(req.body);
-    logger.info('✅ Successfully generated topics', { count: topics?.length });
+    if (topics.isFallback) {
+      logger.warn('⚠️ Fallback topics generated due to AI parsing or generation failure', { count: topics?.length });
+    } else {
+      logger.info('✅ Successfully generated topics using AI', { count: topics?.length });
+    }
     return sendSuccess(res, { data: topics });
   } catch (err) { 
     logger.error('❌ Error in generateOnboardingTopics controller:', err);
@@ -311,6 +315,20 @@ const adminSyncOpenRouterModels = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const extractWebsite = async (req, res, next) => {
+  try {
+    const { url } = req.body;
+    if (!url) throw ApiError.badRequest('Missing URL');
+    
+    const result = await aiService.extractWebsiteData(url);
+    
+    return sendSuccess(res, {
+      data: result,
+      message: 'Website data extracted successfully',
+    });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   getModels,
   getEngineModels,
@@ -321,6 +339,7 @@ module.exports = {
   generateEngineVideo,
   generate,
   generateOnboardingTopics,
+  extractWebsite,
   getGeneration,
   getMyGenerations,
   getPublishedPosts,

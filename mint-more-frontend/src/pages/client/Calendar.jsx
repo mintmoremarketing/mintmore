@@ -6,6 +6,8 @@ import { socialApi } from '../../api/social'
 import { creativeApi } from '../../api/creative'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
+import { YearlyCalendarView } from './components/YearlyCalendarView'
+import { DailyTimelineView } from './components/DailyTimelineView'
 
 const statusLabel = {
   approved: 'Queued',
@@ -422,6 +424,7 @@ export default function Calendar() {
   const [formatFilter, setFormatFilter]       = useState('all') // 'all' | 'reel' | 'carousel' | 'post'
   const [hoveredDateKey, setHoveredDateKey]   = useState(null)
   const [expandedTopicId, setExpandedTopicId] = useState(null)
+  const [calendarView, setCalendarView]       = useState('month') // 'day' | 'month' | 'year'
 
   // R2 Swap Topic Modal State
   const [swapModalState, setSwapModalState]   = useState({ isOpen: false, targetDateKey: null, targetDate: null })
@@ -451,14 +454,19 @@ export default function Calendar() {
   }, [openDayMenuKey])
   const [pendingIds, setPendingIds] = useState([])
 
+  const { year, monthNum } = parseMonth(month)
+
   const { data: creativeData, isLoading: isCreativeLoading } = useQuery({
     queryKey: ['creative-calendar', month],
     queryFn: () => creativeApi.calendar({ month }).then(r => r.data.data),
   })
 
   const { data: socialData, isLoading: isSocialLoading } = useQuery({
-    queryKey: ['social-calendar', month],
-    queryFn: () => socialApi.getCalendarPosts(month).then(r => r.data.data),
+    queryKey: ['social-calendar', calendarView === 'year' ? { year } : { month }],
+    queryFn: () => socialApi.getCalendarPosts(
+      calendarView === 'year' ? undefined : month, 
+      calendarView === 'year' ? year : undefined
+    ).then(r => r.data.data),
   })
 
   const deleteMutation = useMutation({
@@ -499,7 +507,6 @@ export default function Calendar() {
   const isLoading = isCreativeLoading || isSocialLoading
   const creativeEvents = creativeData?.events || []
 
-  const { year, monthNum } = parseMonth(month)
 
   const navigateMonth = (dir) => {
     const d = new Date(year, monthNum + dir, 1)
@@ -657,7 +664,8 @@ export default function Calendar() {
   const openCell = useCallback((cell) => {
     if (cell.blank) return
     setActiveDateKey(cell.dateKey)
-    setPanelOpen(true)
+    setCalendarView('day')
+    setPanelOpen(false)
   }, [])
 
   const openCompose = useCallback((date) => {
@@ -785,24 +793,60 @@ export default function Calendar() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-auto">
-            {/* Month Navigator */}
+            <button
+              type="button"
+              onClick={() => {
+                const now = new Date()
+                setMonth(monthKey(now))
+                setActiveDateKey(toLocalDateKey(now))
+              }}
+              className="px-3 py-1.5 rounded-xl text-[11px] font-bold border border-hairline bg-white hover:bg-paper-tint text-ink-700 transition-colors shadow-sm"
+            >
+              Today
+            </button>
+            {/* Dynamic Navigator */}
             <div className="flex items-center bg-paper-tint p-1 rounded-xl border border-hairline">
               <button
                 type="button"
                 className="p-1 rounded-lg hover:bg-paper text-ink-600 hover:text-ink-900 transition-colors"
-                onClick={() => navigateMonth(-1)}
-                aria-label="Previous month"
+                onClick={() => {
+                  if (calendarView === 'month') navigateMonth(-1)
+                  else if (calendarView === 'year') setMonth(monthKey(new Date(year - 1, monthNum, 1)))
+                  else if (calendarView === 'day') {
+                    const [y, m, d] = (activeDateKey || toLocalDateKey(new Date())).split('-').map(Number)
+                    const current = new Date(y, m - 1, d - 1)
+                    const newKey = toLocalDateKey(current)
+                    setActiveDateKey(newKey)
+                    setMonth(newKey.substring(0, 7))
+                  }
+                }}
+                aria-label="Previous"
               >
                 <Icon name="chevronLeft" size={14} />
               </button>
-              <span className="text-[11px] font-bold text-ink-900 px-1 min-w-[70px] md:min-w-[90px] text-center">
-                {MONTHS[monthNum]} {year}
+              <span className="text-[11px] font-bold text-ink-900 px-1 min-w-[70px] md:min-w-[120px] text-center">
+                {calendarView === 'month' && `${MONTHS[monthNum]} ${year}`}
+                {calendarView === 'year' && `${year}`}
+                {calendarView === 'day' && (() => {
+                  const [y, m, d] = (activeDateKey || toLocalDateKey(new Date())).split('-').map(Number)
+                  return new Date(y, m - 1, d).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+                })()}
               </span>
               <button
                 type="button"
                 className="p-1 rounded-lg hover:bg-paper text-ink-600 hover:text-ink-900 transition-colors"
-                onClick={() => navigateMonth(1)}
-                aria-label="Next month"
+                onClick={() => {
+                  if (calendarView === 'month') navigateMonth(1)
+                  else if (calendarView === 'year') setMonth(monthKey(new Date(year + 1, monthNum, 1)))
+                  else if (calendarView === 'day') {
+                    const [y, m, d] = (activeDateKey || toLocalDateKey(new Date())).split('-').map(Number)
+                    const current = new Date(y, m - 1, d + 1)
+                    const newKey = toLocalDateKey(current)
+                    setActiveDateKey(newKey)
+                    setMonth(newKey.substring(0, 7))
+                  }
+                }}
+                aria-label="Next"
               >
                 <Icon name="chevronRight" size={14} />
               </button>
@@ -828,6 +872,28 @@ export default function Calendar() {
                 >
                   <Icon name={pill.icon} size={12} className={formatFilter === pill.id ? "text-white" : "text-ink-400"} />
                   {pill.label}
+                </button>
+              ))}
+            </div>
+
+            {/* View Toggles */}
+            <div className="flex items-center gap-0.5 bg-paper-tint p-1 rounded-xl border border-hairline">
+              {[
+                { id: 'day', label: 'Day' },
+                { id: 'month', label: 'Month' },
+                { id: 'year', label: 'Year' },
+              ].map(view => (
+                <button
+                  key={view.id}
+                  type="button"
+                  onClick={() => setCalendarView(view.id)}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                    calendarView === view.id
+                      ? 'bg-ink-950 text-white shadow-sm'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-paper'
+                  }`}
+                >
+                  {view.label}
                 </button>
               ))}
             </div>
@@ -904,9 +970,10 @@ export default function Calendar() {
       */}
 
       {/* Left Column: Calendar Grid */}
-      <div className="flex flex-col flex-1 border-r border-hairline overflow-y-auto min-h-0 bg-paper">
+      {calendarView === 'month' && (
+      <div className="flex flex-col flex-1 border-r border-hairline overflow-y-auto min-h-0 bg-white">
           {/* Weekday Header */}
-          <div className="grid grid-cols-7 border-b border-hairline bg-paper-tint sticky top-0 z-10">
+          <div className="grid grid-cols-7 border-b border-hairline bg-white sticky top-0 z-20 shadow-sm">
             {WEEKDAYS.map(day => (
               <div
                 key={day}
@@ -943,7 +1010,10 @@ export default function Calendar() {
                   key={cell.key}
                   onMouseEnter={() => setHoveredDateKey(cell.dateKey)}
                   onMouseLeave={() => setHoveredDateKey(null)}
-                  onClick={() => openSwapModal(cell.dateKey, cell.date)}
+                  onClick={() => {
+                    setActiveDateKey(cell.dateKey)
+                    setCalendarView('day')
+                  }}
                   className={`min-h-[110px] p-2 border-b border-r border-hairline flex flex-col transition-all cursor-pointer relative ${
                     isPast ? 'bg-ink-50/40 opacity-60' : 'bg-white'
                   } ${isToday ? 'bg-mint-50/20' : ''} ${
@@ -1071,6 +1141,15 @@ export default function Calendar() {
                           )}
                         </div>
                       )}
+
+                      {/* Empty State Indicator */}
+                      {!hasEvents && !hasPosts && !isPast && (
+                        <div className="opacity-0 group-hover:opacity-100 mt-auto flex items-center justify-center py-2 transition-opacity">
+                          <span className="text-[10px] text-ink-300 font-medium flex items-center gap-1 cursor-pointer hover:text-ink-500" onClick={(e) => { e.stopPropagation(); openCompose(cell.date); }}>
+                            <Icon name="plus" size={10} /> Schedule
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1078,6 +1157,32 @@ export default function Calendar() {
             })}
           </div>
         </div>
+      )}
+      
+      {calendarView === 'day' && (
+        <DailyTimelineView
+          dateKey={activeDateKey || hoveredDateKey || toLocalDateKey(new Date())}
+          posts={socialData?.posts || []}
+          onSelectPost={(post) => navigate(`/posts?edit=${post.id}`)}
+        />
+      )}
+
+      {calendarView === 'year' && (
+        <YearlyCalendarView
+          year={year}
+          posts={socialData?.posts || []}
+          eventsByDateKey={eventsByDateKey}
+          onSelectMonth={(m) => {
+            setMonth(monthKey(new Date(year, m, 1)))
+            setCalendarView('month')
+          }}
+          onSelectDate={(dk) => {
+            setActiveDateKey(dk)
+            setMonth(dk.substring(0, 7))
+            setCalendarView('day')
+          }}
+        />
+      )}
 
       {/* Right Column: Interactive Dual-Mode Sidebar */}
       <div className="bg-paper-tint flex flex-col overflow-hidden shrink-0 w-full lg:w-[360px] lg:m-4 lg:rounded-2xl lg:border lg:border-hairline lg:shadow-sm">

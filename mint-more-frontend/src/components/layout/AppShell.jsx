@@ -17,8 +17,34 @@ import TopUpModal from '../shared/TopUpModal'
 import MintcoinModal from '../shared/MintcoinModal'
 import GuestBanner from '../shared/GuestBanner'
 import { useEntitlements } from '../../hooks/useEntitlements'
+import Icon from '../ui/Icon'
 
 const DEFAULT_FLAGS = { wallet_ui: false, marketplace: false, freelancer_portal: false, freelancer_matching: false, negotiation: false }
+
+function AdminImpersonationBanner() {
+  const isAdminImpersonating = !!sessionStorage.getItem('mm_admin_auth')
+  const stopImpersonating = useAuthStore(s => s.stopImpersonating)
+  
+  if (!isAdminImpersonating) return null
+
+  return (
+    <div className="bg-rose-500 text-white px-4 py-2 flex flex-col md:flex-row items-center justify-between z-[100] relative text-sm font-medium gap-2">
+      <div className="flex items-center gap-2 text-center md:text-left">
+        <Icon name="user-check" size={16} />
+        You are impersonating a user. Social posts will be badged with "Auto published by Mintmore".
+      </div>
+      <button 
+        onClick={() => {
+          stopImpersonating()
+          window.location.href = '/admin/users'
+        }}
+        className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors whitespace-nowrap"
+      >
+        Return to Admin
+      </button>
+    </div>
+  )
+}
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
@@ -152,6 +178,7 @@ export default function AppShell() {
         !isMobile ? (sidebarCollapsed ? 'ml-16' : 'ml-56') : ''
       } ${isMobile ? 'pb-16' : ''}`}>
 
+        <AdminImpersonationBanner />
         <GuestBanner />
 
         <div className="flex-1 flex flex-col w-full h-full relative">

@@ -9,6 +9,8 @@ export const creativeApi = {
   cancelSelection: (selectionId, payload = {}) => api.delete(`/creative/selections/${selectionId}`, { data: payload }),
   designerTasks: () => api.get('/creative/designer/tasks'),
   updateDesignerTask: (taskId, payload) => api.patch(`/creative/designer/tasks/${taskId}`, payload),
+  designerSocialQueue: () => api.get('/creative/designer/social-queue'),
+  uploadCreativeToSocialPost: (postId, payload) => api.patch(`/creative/designer/social-queue/${postId}/upload`, payload),
   brandContext: (userId) => api.get(`/creative/brands/${userId}/context`),
   adminOverview: () => api.get('/creative/admin/overview'),
   eventSuggestions: (params) => api.get('/creative/admin/events/suggestions', { params }),

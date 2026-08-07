@@ -427,6 +427,9 @@ export function useCalendarState(form, onboardingEvents = []) {
         }
       }
 
+      const defaultTimes = ['09:00', '12:00', '15:00', '18:00']
+      const scheduledTime = hasPost ? defaultTimes[d.getDate() % defaultTimes.length] : null
+
       result.push({
         dateKey,
         date: d,
@@ -439,6 +442,7 @@ export function useCalendarState(form, onboardingEvents = []) {
         topic: assignedTopic,
         format: assignedFormat,
         status,
+        scheduledTime,
       })
     }
 
@@ -504,10 +508,11 @@ export function useCalendarState(form, onboardingEvents = []) {
         }
       }
       
+      const defaultTimes = ['09:00', '12:00', '15:00', '18:00']
       item.topic = assignedTopic
       item.format = assignedTopic.format || 'post'
       item.status = (approvedTopicIds || []).includes(assignedTopic.id) ? 'approved' : 'draft'
-      
+      item.scheduledTime = defaultTimes[item.dayNum % defaultTimes.length]
       topicIndex++
       brandPostsSlotted++
     }

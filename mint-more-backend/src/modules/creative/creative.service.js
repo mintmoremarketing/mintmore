@@ -1103,6 +1103,75 @@ const listDesignerTasks = async (designerId) => {
   return { tasks: result.rows };
 };
 
+const listDesignerSocialQueue = async (designerId) => {
+  const result = await query(
+    `SELECT sp.*,
+            u.full_name AS client_name,
+            u.business_name AS client_business_name,
+            u.business_type AS client_business_type,
+            u.brand_assets,
+            u.onboarding_answers,
+            p.posting_preferences
+     FROM social_posts sp
+     JOIN users u ON u.id = sp.user_id
+     LEFT JOIN profiles p ON p.user_id = sp.user_id
+     WHERE sp.status = 'draft'
+       AND sp.content_type IN ('image', 'video', 'carousel')
+     ORDER BY sp.publish_at ASC, sp.created_at DESC`
+  );
+  return { posts: result.rows };
+};
+
+const uploadCreativeToSocialPost = async (designerId, postId, payload) => {
+  if (!payload.creative_url) throw new AppError('creative_url is required', 400);
+
+  const beforeResult = await query(
+    `SELECT sp.*, p.posting_preferences
+     FROM social_posts sp
+     JOIN users u ON u.id = sp.user_id
+     LEFT JOIN profiles p ON p.user_id = sp.user_id
+     WHERE sp.id = $1`,
+    [postId]
+  );
+  const before = beforeResult.rows[0];
+  if (!before) throw new AppError('Post not found', 404);
+  if (before.status !== 'draft' && before.status !== 'in_review') {
+    throw new AppError(`Post is no longer a draft (status: ${before.status})`, 409);
+  }
+
+  const isAutopilot = before.posting_preferences?.festival_mode === 'managed';
+  const newStatus = isAutopilot ? 'scheduled' : 'in_review';
+
+  const result = await query(
+    `UPDATE social_posts
+     SET creative_url = $1,
+         status = $2,
+         updated_at = NOW()
+     WHERE id = $3
+     RETURNING *`,
+    [payload.creative_url, newStatus, postId]
+  );
+  
+  // Notification logic
+  if (newStatus === 'in_review' && before.posting_preferences?.approval_mode !== 'weekly_batch') {
+    try {
+      await notificationService.createNotification({
+        type: 'work_delivered',
+        user_id: before.user_id,
+        title: 'Creative Ready for Review',
+        body: `A new creative for your upcoming post is ready to be reviewed.`,
+        entity_type: 'social_post',
+        entity_id: postId,
+        dedupe_key: `creative_review_${postId}`,
+      });
+    } catch (err) {
+      logger.error('Failed to send creative review notification', { error: err.message, postId });
+    }
+  }
+
+  return result.rows[0];
+};
+
 const getTaskSheetRows = async () => {
   const result = await query(
     `SELECT task.id, task.title, task.description, task.status, task.client_status,
@@ -1914,6 +1983,8 @@ module.exports = {
   updateDesignerTask,
   cancelClientWorkItem,
   syncTaskSheet,
+  listDesignerSocialQueue,
+  uploadCreativeToSocialPost,
   suggestCalendarEvents,
   upsertEvent,
   archiveEvent,

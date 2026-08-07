@@ -4,6 +4,7 @@ const logger = require('../../utils/logger');
 const { hashPassword } = require('../../utils/hash');
 const { writeAudit } = require('../audit/audit.service');
 const { sanitizeSubmissions } = require('../kyc/kyc.service');
+const { signAccessToken, signRefreshToken } = require('../../utils/jwt');
 
 // ── User Management ───────────────────────────────────────────────────────────
 
@@ -126,6 +127,65 @@ const getUserById = async (userId) => {
     kyc_submissions: sanitizeSubmissions(kycResult.rows),
     portfolio_items: portfolioResult.rows,
     membership: membershipResult.rows[0] || null,
+  };
+};
+
+/**
+ * Impersonate a user (generate tokens for them).
+ */
+const impersonateUser = async (targetUserId, adminId) => {
+  if (targetUserId === adminId) {
+    throw new AppError('You cannot impersonate yourself', 400);
+  }
+
+  const result = await query(
+    `SELECT id, email, role, is_active FROM users WHERE id = $1`,
+    [targetUserId]
+  );
+  const user = result.rows[0];
+  
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+  if (!user.is_active) {
+    throw new AppError('User account is deactivated', 403);
+  }
+  if (user.role === 'admin') {
+    throw new AppError('Cannot impersonate another admin', 403);
+  }
+
+  // Generate tokens with impersonated_by flag
+  const payload = {
+    sub: user.id,
+    email: user.email,
+    role: user.role,
+    impersonated_by: adminId, // Include this flag for audit and social tracking
+  };
+
+  const accessToken = signAccessToken(payload);
+  const refreshToken = signRefreshToken(payload); // Generating a refresh token so the app doesn't break if it expects one, but it won't be saved to DB to prevent overriding the user's actual session completely.
+
+  logger.warn('Admin initiated user impersonation', { adminId, targetUserId });
+  
+  await writeAudit({
+    actorId: adminId,
+    actorRole: 'admin',
+    action: 'admin.impersonated_user',
+    entityType: 'user',
+    entityId: targetUserId,
+    metadata: {
+      targetEmail: user.email
+    }
+  });
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    },
+    accessToken,
+    refreshToken,
   };
 };
 
@@ -818,6 +878,7 @@ const getAllCategoryPriceRanges = async () => {
 module.exports = {
   getUsers,
   getUserById,
+  impersonateUser,
   setUserApproval,
   createAdminUser,
   createDesignerUser,

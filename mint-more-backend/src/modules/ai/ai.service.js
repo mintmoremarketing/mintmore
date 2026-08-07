@@ -1786,8 +1786,11 @@ const getUsageSummary = async (userId, filters = {}) => {
     },
   };
 };
+const axios = require('axios');
+const cheerio = require('cheerio');
+
 const generateOnboardingTopics = async (payload) => {
-  const { business_name, business_type, description, preferred_language, address_state, festival_mode } = payload;
+  const { business_name, business_type, description, preferred_language, address_state, festival_mode, website } = payload;
   
   // Fetch upcoming festivals from the DB (next 35 days)
   let upcomingFestivals = [];
@@ -1805,34 +1808,68 @@ const generateOnboardingTopics = async (payload) => {
     logger.error('Failed to fetch upcoming festivals for AI:', err);
   }
 
-  const systemPrompt = "You are an expert social media content strategist. Output strictly valid JSON format. Make sure all strings are enclosed in double quotes.";
+  // Scrape website if available
+  let websiteContext = '';
+  if (website && website.startsWith('http')) {
+    try {
+      const response = await axios.get(website, { timeout: 8000 });
+      const $ = cheerio.load(response.data);
+      // Remove scripts, styles, noscript, etc.
+      $('script, style, noscript, iframe, img, svg, link').remove();
+      const text = $('body').text().replace(/\s+/g, ' ').trim();
+      if (text) {
+        websiteContext = text.substring(0, 1500); // Take first 1500 chars
+        logger.info(`🌐 Successfully scraped website for AI context: ${website}`);
+      }
+    } catch (err) {
+      logger.warn(`⚠️ Failed to scrape website ${website}: ${err.message}`);
+    }
+  }
+
+  const systemPrompt = "You are an expert, Gen-Z fluent social media content strategist. Output strictly valid JSON format. Make sure all strings are enclosed in double quotes.";
   
-  const prompt = `Create a 30-topic content strategy for a business with the following details:
+  const prompt = `Create a 15-topic content strategy for a business with the following details:
 Business Name: ${business_name || 'My Business'}
 Industry/Type: ${business_type || 'Retail'}
 Customer Profile/Description: ${description || 'General audience'}
 Language: ${preferred_language || 'English'}
 Region/State: ${address_state || 'India'}
 Festival Mode: ${festival_mode || 'autopilot'}
+${websiteContext ? `\nExtracted Website Context (Use this to specific products/services):\n${websiteContext}\n` : ''}
 
 We have the following upcoming festivals in the next 35 days:
 ${upcomingFestivals.map(f => `- ${f.title} (${f.event_date.toISOString().split('T')[0]}): ${f.description || ''} [ID: ${f.id}]`).join('\n') || 'None'}
 
 Your task:
-1. Select up to 10 MOST RELEVANT festivals for this business based on their region and industry (if Festival Mode is autopilot). If manual, you can still recommend them.
-2. Generate highly engaging brand-specific topics for the remaining slots to make exactly 30 topics in total.
+1. Select up to 5 MOST RELEVANT festivals for this business based on their region and industry (if Festival Mode is autopilot). If manual, you can still recommend them.
+2. Generate highly engaging, creative, and modern brand-specific topics for the remaining slots to make exactly 15 topics in total.
 3. Every topic must have a "type" field: either "festival" or "brand".
 4. If it's a festival, include the "festival_id" and "date" exactly as provided above.
-5. Keep titles punchy and descriptions clear (1-2 sentences).
+5. KEEP TITLES PUNCHY AND EMOJI-RICH.
 
-CRITICAL: Return ONLY a raw JSON array of 30 objects. Ensure all keys and string values are enclosed in double quotes. Do not include markdown code blocks.
+CRITICAL CONTENT FORMATS (USE THESE FOR BRAND POSTS):
+Do not use basic "Educational" or "About Us" topics. Use highly engaging, modern social media formats with STRONG, punchy titles featuring emojis. Tailor these completely to the specific industry and extracted website context.
+
+Examples of strong hook structures (ADAPT THESE TO THE BUSINESS):
+- ✨ ASMR/Satisfying (e.g., "What's inside?" or "Watch us prep...")
+- 🎥 POV Reels (e.g., "POV: You finally switched to our premium service.")
+- 📦 Unboxing/First Impressions (Highlighting the product/service experience)
+- ❓ This or That (Comparing two popular offerings, e.g., Option A vs Option B)
+- 💚 Guess the Detail (Close-up shots with interactive polls)
+- 🧘 60-Second Break (Relaxing visual loops related to the brand)
+- 💼 Survival Kit / Hack (Tips for a specific customer demographic)
+- 🌧️ Seasonal/Weather Aesthetic (Tailoring the vibe to the current season)
+- 👩‍🍳 Quick Tutorial/Hack (Showing a creative way to use the offering)
+- 🗣️ Types of Customers (E.g., "The Workaholic", "The Night Owl")
+
+CRITICAL: Return ONLY a raw JSON array of 15 objects. Ensure all keys and string values are enclosed in double quotes. Do not include markdown code blocks.
 Example Format:
 [
-  { "title": "Top 5 benefits of our service", "desc": "Educational carousel highlighting key advantages.", "type": "brand" },
-  { "title": "Happy Diwali", "desc": "Wishing our customers a bright and prosperous Diwali.", "type": "festival", "festival_id": "uuid-here", "date": "2026-11-12" }
+  { "title": "🎥 POV: When you finally try our best-seller", "desc": "A relatable POV reel showing a customer's genuine reaction.", "type": "brand" },
+  { "title": "✨ Happy Diwali", "desc": "Wishing our customers a bright and prosperous Diwali.", "type": "festival", "festival_id": "uuid-here", "date": "2026-11-12" }
 ]`;
 
-  const response = await generateText('openrouter/free', prompt, { max_tokens: 2000, temperature: 0.7 }, systemPrompt);
+  const response = await generateText('cohere/north-mini-code:free', prompt, { max_tokens: 3000, temperature: 0.8 }, systemPrompt);
   
   try {
     let rawContent = (response.text || '').trim();
@@ -1845,46 +1882,116 @@ Example Format:
     }
     return JSON.parse(rawContent);
   } catch (error) {
-    logger.error('Failed to parse onboarding AI topics:', error);
+    logger.warn(`Failed to parse onboarding AI topics (possible truncation/format error). Using fallback topics.`);
     // Fallback if AI messes up the JSON formatting completely
-    return [
-      { title: `Top 5 benefits of our ${business_type || 'service'}`, desc: 'Educational carousel highlighting key advantages.', type: 'brand' },
-      { title: `Behind the scenes at ${business_name || 'our company'}`, desc: 'Showcasing our workspace and team.', type: 'brand' },
-      { title: `Customer Success Story`, desc: 'Sharing a glowing review from a happy client.', type: 'brand' },
-      { title: `Did you know? (Industry Fact)`, desc: 'An interesting fact about your industry.', type: 'brand' },
-      { title: `How to choose the right ${business_type || 'product'}`, desc: 'A buyer\'s guide style post.', type: 'brand' },
-      { title: `Common misconceptions`, desc: 'Busting popular myths.', type: 'brand' },
-      { title: `Product Spotlight`, desc: 'Focusing on your top offering.', type: 'brand' },
-      { title: `A day in the life`, desc: 'Personal branding and connection.', type: 'brand' },
-      { title: `Why we started`, desc: 'Sharing your origin story.', type: 'brand' },
-      { title: `Quick tips`, desc: 'Value-driven instructional content.', type: 'brand' },
-      { title: `Sneak peek`, desc: 'Building excitement for the future.', type: 'brand' },
-      { title: `FAQ`, desc: 'Addressing common customer queries.', type: 'brand' },
-      { title: `Weekend Motivation`, desc: 'A light-hearted inspirational quote.', type: 'brand' },
-      { title: `Industry Trends`, desc: 'Educational deep-dive into your niche.', type: 'brand' },
-      { title: `Flash Sale Announcement`, desc: 'Promotional content to drive immediate sales.', type: 'brand' },
-      { title: `Brand Spotlight #1`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #2`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #3`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #4`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #5`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #6`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #7`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #8`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #9`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #10`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #11`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #12`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #13`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #14`, desc: 'Engaging customer story & promotional post.', type: 'brand' },
-      { title: `Brand Spotlight #15`, desc: 'Engaging customer story & promotional post.', type: 'brand' }
+    const fallback = [
+      { title: `✨ "What's inside?"`, desc: `ASMR style close-up reel highlighting our best ${business_type || 'service'}.`, type: 'brand' },
+      { title: `🎥 POV: "You finally switched to premium"`, desc: `A relatable POV reel showing a customer's genuine reaction.`, type: 'brand' },
+      { title: `📦 Unboxing / First Look`, desc: `Premium first impressions of our top ${business_type || 'offering'}.`, type: 'brand' },
+      { title: `❓ This or That`, desc: `Interactive comparison between two of our most popular options.`, type: 'brand' },
+      { title: `💚 Guess the Detail`, desc: `Close-up macro shots with interactive polls for the audience.`, type: 'brand' },
+      { title: `🧘 60-Second Break`, desc: `Relaxing visual loops with calming aesthetics related to our brand.`, type: 'brand' },
+      { title: `💼 Professional's Survival Kit`, desc: `Hacks and quick tips for busy customers using our ${business_type || 'product'}.`, type: 'brand' },
+      { title: `🌧️ Seasonal Aesthetic`, desc: `Cozy vibes tailored for the current weather/season.`, type: 'brand' },
+      { title: `👩‍🍳 Quick Hack/Tutorial`, desc: `A fast tutorial showing a creative way to use what we offer.`, type: 'brand' },
+      { title: `🗣️ Types of Customers`, desc: `A humorous take on the different personalities that visit us.`, type: 'brand' },
+      { title: `✨ Behind the Scenes`, desc: `A raw, unfiltered look at how we create the magic.`, type: 'brand' },
+      { title: `🚀 Flash Drop Alert`, desc: `Building hype and urgency for a limited-time offering.`, type: 'brand' },
+      { title: `💬 "I can't believe I waited so long"`, desc: `Sharing a glowing, authentic review from a happy client.`, type: 'brand' },
+      { title: `🤔 Myth vs Reality`, desc: `Busting popular misconceptions in our industry.`, type: 'brand' },
+      { title: `💡 Life Hack`, desc: `Value-driven instructional content that solves a real problem.`, type: 'brand' },
+      { title: `🤫 Sneak Peek`, desc: `Teasing an upcoming launch or exciting new feature.`, type: 'brand' },
+      { title: `🙋‍♂️ You Asked, We Answered`, desc: `Addressing the most common FAQs from our community.`, type: 'brand' },
+      { title: `🔥 Trending Now`, desc: `Our take on a current social media trend or audio.`, type: 'brand' },
+      { title: `🛠️ The Ultimate Starter Kit`, desc: `A buyer's guide style post for beginners.`, type: 'brand' },
+      { title: `📉 "Stop doing this..."`, desc: `Calling out common mistakes and offering our solution.`, type: 'brand' },
+      { title: `🔥 3 Things I Wish I Knew Sooner`, desc: `Educational value wrapped in a personal, relatable hook.`, type: 'brand' },
+      { title: `💬 Read the caption for the secret`, desc: `Visually satisfying hook driving engagement to the caption.`, type: 'brand' },
+      { title: `🎁 Ultimate Guide`, desc: `Curated recommendations solving a specific customer problem.`, type: 'brand' },
+      { title: `🤯 Did we just do that?`, desc: `Showcasing an unexpected application or extreme test.`, type: 'brand' },
+      { title: `⏱️ 5-Minute Transformation`, desc: `Quick before & after highlighting our effectiveness.`, type: 'brand' },
+      { title: `🛒 Restock with Me`, desc: `Satisfying ASMR organizing inventory or restocking supplies.`, type: 'brand' },
+      { title: `👀 "Wait for it..."`, desc: `A suspenseful short video leading to a big reveal.`, type: 'brand' },
+      { title: `💡 "I Was Today Years Old When..."`, desc: `Sharing a mind-blowing industry fact or clever hack.`, type: 'brand' },
+      { title: `🤝 Rapid-Fire Q&A`, desc: `Quick, engaging answers to the most weird/fun questions.`, type: 'brand' },
+      { title: `🏆 Why it's a Best-Seller`, desc: `Breaking down exactly why this one item is so popular.`, type: 'brand' }
     ];
+    fallback.isFallback = true;
+    return fallback;
+  }
+};
+
+const extractWebsiteData = async (website) => {
+  let websiteContext = '';
+  if (!website || !website.startsWith('http')) {
+    website = 'https://' + website; // Fallback
+  }
+  
+  try {
+    const response = await axios.get(website, { timeout: 8000 });
+    const $ = cheerio.load(response.data);
+    // Remove scripts, styles, noscript, etc.
+    $('script, style, noscript, iframe, img, svg, link').remove();
+    const text = $('body').text().replace(/\s+/g, ' ').trim();
+    if (text) {
+      websiteContext = text.substring(0, 3000); // Take first 3000 chars for richer context
+      logger.info(`🌐 Successfully scraped website for extraction: ${website}`);
+    }
+  } catch (err) {
+    logger.warn(`⚠️ Failed to scrape website ${website} for extraction: ${err.message}`);
+    throw new Error('Could not read website content. Please ensure the URL is correct and accessible.');
+  }
+
+  const systemPrompt = "You are an expert business analyst and data extractor. Output strictly valid JSON format. Make sure all strings are enclosed in double quotes.";
+  
+  const prompt = `Analyze the following website text and extract key business details to populate an onboarding form.
+
+Website Text:
+${websiteContext}
+
+Your task is to extract or infer the following information and return it as a raw JSON object (not an array):
+1. "business_name": The name of the business/company.
+2. "business_type": The industry category. Choose the closest match from this exact list: ["restaurant", "real_estate", "fashion", "fitness", "tech", "healthcare", "education", "beauty", "travel", "finance", "events", "other"].
+3. "description": A comprehensive and detailed description (at least 4-6 sentences, ~100-150 words) of what the business does, its brand identity, core values, and unique selling propositions. This text will be given to a designer to understand the brand's vibe and design creatives accordingly, so be descriptive.
+4. "products_services": A comma-separated string of their main products or services.
+5. "customer_profile": A brief description of their target audience/customer.
+6. "target_ages": The target age group. Choose from: ["13-17", "18-24", "25-34", "35-44", "45-54", "55+", "all"].
+7. "preferred_language": The primary language the website is written in (e.g., "English", "Hindi", "Spanish", etc).
+
+CRITICAL: Return ONLY a raw JSON object. Do not include markdown code blocks like \`\`\`json.
+Example Format:
+{
+  "business_name": "Mintmore",
+  "business_type": "tech",
+  "description": "Mintmore is an AI-powered social media management platform.",
+  "products_services": "Social media scheduling, AI content generation, Analytics",
+  "customer_profile": "Small business owners and social media managers looking to save time.",
+  "target_ages": "25-34",
+  "preferred_language": "English"
+}`;
+
+  const response = await generateText('google/gemma-4-31b-it:free', prompt, { max_tokens: 1000, temperature: 0.2 }, systemPrompt);
+  
+  try {
+    let rawContent = (response.text || '').trim();
+    if (rawContent.startsWith('```json')) {
+      rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+    }
+    const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return JSON.parse(rawContent);
+  } catch (error) {
+    logger.warn('Failed to parse website extraction JSON, returning empty object instead:', { raw: response.text, error: error.message });
+    return {}; // Return empty object so the frontend auto-fill just skips fields rather than crashing
   }
 };
 
 module.exports = {
   AI_PROGRESS_CHANNEL,
   generateOnboardingTopics,
+  extractWebsiteData,
   createGeneration,
   processGeneration,
   getEngineModels,

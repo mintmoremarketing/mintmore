@@ -57,6 +57,16 @@ const getBrandWorkspace = async (req, res, next) => {
   }
 };
 
+const impersonateUser = async (req, res, next) => {
+  try {
+    const result = await adminService.impersonateUser(req.params.userId, req.user.sub);
+    return sendSuccess(res, {
+      data: result,
+      message: 'Impersonation token generated',
+    });
+  } catch (err) { next(err); }
+};
+
 const setUserApproval = async (req, res, next) => {
   try {
     validateApproveUser(req.body);
@@ -251,6 +261,7 @@ module.exports = {
   getUserById,
   getBrandWorkspaces,
   getBrandWorkspace,
+  impersonateUser,
   setUserApproval,
   setUserTier,
   createAdminUser,

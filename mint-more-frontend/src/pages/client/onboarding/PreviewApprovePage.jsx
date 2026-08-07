@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import Icon from '../../../components/ui/Icon'
 import { useOnboardingContext } from './useOnboardingContext'
+import { YearlyCalendarView } from './YearlyCalendarView'
+import { DailyTimelineView } from './DailyTimelineView'
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
 export default function PreviewApprovePage() {
   const {
@@ -28,6 +30,8 @@ export default function PreviewApprovePage() {
   const [selectedSwapTopicId, setSelectedSwapTopicId] = useState(null)
   const [selectedSwapFestival, setSelectedSwapFestival] = useState(null)
   const [customSwapText, setCustomSwapText] = useState('')
+  const [calendarView, setCalendarView] = useState('month') // 'day', 'month', 'year'
+  const [selectedDay, setSelectedDay] = useState(null) // For the daily timeline view
 
   // R5: Sidebar Hover Auto-Scroll Ref Mapping & Effect
   const sidebarItemRefs = useRef({})
@@ -111,50 +115,99 @@ export default function PreviewApprovePage() {
           </p>
         </div>
 
-        {/* Format Filter Bar */}
-        <div className="flex items-center gap-1 bg-paper-tint p-1 rounded-xl border border-hairline shrink-0 self-start sm:self-center">
-          {[
-            { id: 'all', label: 'All', icon: 'grid' },
-            { id: 'reel', label: 'Reels', icon: 'video' },
-            { id: 'carousel', label: 'Carousels', icon: 'image' },
-            { id: 'post', label: 'Posts', icon: 'file' },
-          ].map(pill => (
-            <button
-              key={pill.id}
-              type="button"
-              onClick={() => setFormatFilter(pill.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                formatFilter === pill.id
-                  ? 'bg-ink-950 text-white shadow-sm'
-                  : 'text-ink-600 hover:text-ink-900 hover:bg-paper'
-              }`}
-            >
-              <Icon name={pill.icon} size={14} className={formatFilter === pill.id ? "text-white" : "text-ink-400"} />
-              {pill.label}
-            </button>
-          ))}
+        {/* Format & View Filters Container */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0 self-start sm:self-center">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 bg-paper-tint p-1 rounded-xl border border-hairline">
+            {[
+              { id: 'day', label: 'Day', icon: 'clock' },
+              { id: 'month', label: 'Month', icon: 'calendar' },
+              { id: 'year', label: 'Year', icon: 'grid' },
+            ].map(pill => (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => setCalendarView(pill.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  calendarView === pill.id
+                    ? 'bg-ink-950 text-white shadow-sm'
+                    : 'text-ink-600 hover:text-ink-900 hover:bg-paper'
+                }`}
+              >
+                <Icon name={pill.icon} size={14} className={calendarView === pill.id ? "text-white" : "text-ink-400"} />
+                {pill.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Format Filter Bar */}
+          {calendarView === 'month' && (
+            <div className="flex items-center gap-1 bg-paper-tint p-1 rounded-xl border border-hairline">
+              {[
+                { id: 'all', label: 'All', icon: 'layers' },
+                { id: 'reel', label: 'Reels', icon: 'video' },
+                { id: 'carousel', label: 'Carousels', icon: 'image' },
+                { id: 'post', label: 'Posts', icon: 'file' },
+              ].map(pill => (
+                <button
+                  key={pill.id}
+                  type="button"
+                  onClick={() => setFormatFilter(pill.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    formatFilter === pill.id
+                      ? 'bg-ink-950 text-white shadow-sm'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-paper'
+                  }`}
+                >
+                  <Icon name={pill.icon} size={14} className={formatFilter === pill.id ? "text-white" : "text-ink-400"} />
+                  {pill.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Main Grid + Sidebar Container (Full-bleed Edge-to-Edge) */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_360px] border-t border-l border-hairline w-full min-h-0 overflow-hidden">
-        
-        {/* Left: 5-Week (35-Day) Edge-to-Edge Calendar Grid */}
-        <div className="flex flex-col flex-1 border-r border-hairline overflow-y-auto min-h-0 bg-paper">
-          {/* Weekday Header */}
-          <div className="grid grid-cols-7 border-b border-hairline bg-paper-tint sticky top-0 z-10">
-            {WEEKDAYS.map(day => (
-              <div
-                key={day}
-                className="py-2.5 px-2 text-center text-[10px] font-bold text-ink-400 uppercase tracking-wider border-r last:border-r-0 border-hairline"
-              >
-                {day}
-              </div>
-            ))}
-          </div>
+        {/* Main View Area */}
+        {calendarView === 'day' && (
+          <DailyTimelineView 
+            selectedDay={selectedDay} 
+            scheduledDays={scheduledDays} 
+            onSelectPost={(dateKey) => {
+              setHoveredDateKey(dateKey);
+            }} 
+          />
+        )}
 
-          {/* Grid Cells */}
-          <div className="grid grid-cols-7 flex-1">
+        {calendarView === 'year' && (
+          <YearlyCalendarView 
+            frequency={parseInt(form?.posting_frequency || '12', 10)} 
+            onSelectMonth={(monthIdx) => setCalendarView('month')}
+            onSelectDate={(dateKey) => {
+              setSelectedDay(dateKey);
+              setCalendarView('day');
+            }}
+          />
+        )}
+
+        {calendarView === 'month' ? (
+          <div className="flex flex-col flex-1 border-r border-hairline overflow-y-auto min-h-0 bg-paper">
+            {/* Weekday Header */}
+            <div className="grid grid-cols-7 border-b border-hairline bg-paper sticky top-0 z-10 shadow-sm">
+              {WEEKDAYS.map(day => (
+                <div
+                  key={day}
+                  className="py-2.5 px-2 text-center text-[10px] font-bold text-ink-400 tracking-wider border-r last:border-r-0 border-hairline"
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Grid Cells */}
+            <div className="grid grid-cols-7 flex-1">
             {scheduledDays?.map((day) => {
               const isHovered = hoveredDateKey === day.dateKey
               const isFilteredOut = formatFilter !== 'all' && day.format !== formatFilter
@@ -205,7 +258,7 @@ export default function PreviewApprovePage() {
                   </div>
 
                   {/* Scheduled Topic Content Card */}
-                  {day.hasPost && day.topic && !isFilteredOut && (
+                  {day.hasPost && day.topic && !isFilteredOut ? (
                     <div
                       className={`mt-auto p-2 rounded-lg border transition-all text-left ${
                         isSwapped
@@ -230,13 +283,14 @@ export default function PreviewApprovePage() {
                         {day.topic?.title}
                       </p>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )
             })}
           </div>
         </div>
-
+        ) : null}
+        
         {/* Right: Interactive Dual-Mode Sidebar */}
         <div className="bg-paper-tint flex flex-col border-b lg:border-b-0 border-hairline overflow-hidden shrink-0">
           {/* Sidebar Header */}

@@ -94,6 +94,20 @@ const updateDesignerTask = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const designerSocialQueue = async (req, res, next) => {
+  try {
+    const data = await service.listDesignerSocialQueue(req.user.sub);
+    return sendSuccess(res, { data });
+  } catch (error) { next(error); }
+};
+
+const uploadCreativeToSocialPost = async (req, res, next) => {
+  try {
+    const post = await service.uploadCreativeToSocialPost(req.user.sub, req.params.postId, req.body);
+    return sendSuccess(res, { data: { post }, message: 'Creative uploaded successfully.' });
+  } catch (error) { next(error); }
+};
+
 const syncTaskSheet = async (req, res, next) => {
   try {
     const data = await service.syncTaskSheet(req.user.sub);
@@ -189,6 +203,8 @@ module.exports = {
   designerTasks,
   getBrandContext,
   updateDesignerTask,
+  designerSocialQueue,
+  uploadCreativeToSocialPost,
   syncTaskSheet,
   suggestEvents,
   createEvent,

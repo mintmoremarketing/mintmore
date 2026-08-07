@@ -44,6 +44,7 @@ export default function ContentGenerationPage() {
       preferred_language: form?.preferred_language || 'en',
       address_state: form?.address_state || '',
       festival_mode: form?.festival_mode || 'autopilot',
+      website: form?.website || '',
     }
 
     aiApi
@@ -180,8 +181,8 @@ export default function ContentGenerationPage() {
     if (setApprovedTopicIds) setApprovedTopicIds(topicListToSave.map(t => t.id))
 
     pushToast({ title: `${topicListToSave.length} topics locked into your calendar!`, icon: 'check' })
-    const step12 = getOnboardingStepByNumber(12)
-    navigate(`/onboarding/${step12 ? step12.slug : 'step-12'}`)
+    const step13 = getOnboardingStepByNumber(13)
+    navigate(`/onboarding/${step13 ? step13.slug : 'step-13'}`)
   }, [generatedTopics, setTopics, setApprovedTopicIds, pushToast, navigate])
 
   const handleSwipe = (approved) => {

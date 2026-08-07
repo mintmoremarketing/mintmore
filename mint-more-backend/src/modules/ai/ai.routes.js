@@ -35,6 +35,9 @@ router.post('/generate', requireEntitlement('can_use_ai'), controller.generate);
 // POST /api/v1/ai/onboarding-topics              — generate 15 topics for onboarding
 router.post('/onboarding-topics', controller.generateOnboardingTopics);
 
+// POST /api/v1/ai/extract-website                — auto-fill onboarding info from URL
+router.post('/extract-website', controller.extractWebsite);
+
 // GET  /api/v1/ai/generations                    — history
 router.get('/generations', controller.getMyGenerations);
 router.get('/published-posts', controller.getPublishedPosts);

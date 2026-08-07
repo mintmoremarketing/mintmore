@@ -2015,12 +2015,21 @@ const getAnalyticsSummary = async (userId, requestedDays = null) => {
 // ── Calendar view ─────────────────────────────────────────────────────────────
 // Returns all posts for a given month, grouped by date (YYYY-MM-DD).
 // month param: "2026-07" (YYYY-MM)
-const getCalendarPosts = async (userId, { month } = {}) => {
-  // Default to current month
-  const key = month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-  const [year, mon] = key.split('-').map(Number);
-  const start = new Date(year, mon - 1, 1);
-  const end   = new Date(year, mon, 1); // exclusive
+const getCalendarPosts = async (userId, { month, year } = {}) => {
+  let start, end;
+  
+  if (year && year !== 'undefined' && !isNaN(Number(year))) {
+    const parsedYear = Number(year);
+    start = new Date(parsedYear, 0, 1);
+    end   = new Date(parsedYear + 1, 0, 1);
+  } else {
+    // Default to current month
+    const validMonth = (month && month !== 'undefined') ? month : null;
+    const key = validMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const [y, m] = key.split('-').map(Number);
+    start = new Date(y, m - 1, 1);
+    end   = new Date(y, m, 1); // exclusive
+  }
 
   const result = await query(
     `SELECT

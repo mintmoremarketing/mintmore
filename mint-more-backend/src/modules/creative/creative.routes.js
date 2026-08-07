@@ -15,6 +15,8 @@ router.delete('/selections/:selectionId', authorize('client'), controller.cancel
 
 router.get('/designer/tasks', authorize('designer'), controller.designerTasks);
 router.patch('/designer/tasks/:taskId', authorize('designer'), controller.updateDesignerTask);
+router.get('/designer/social-queue', authorize('designer'), controller.designerSocialQueue);
+router.patch('/designer/social-queue/:postId/upload', authorize('designer'), controller.uploadCreativeToSocialPost);
 router.get('/brands/:userId/context', authorize('admin', 'designer'), controller.getBrandContext);
 
 router.get(

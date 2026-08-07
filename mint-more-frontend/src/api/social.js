@@ -46,6 +46,6 @@ export const socialApi = {
   getHealth: () => api.get('/social/health'),
   getMediaLibrary: () => api.get('/social/media-library'),
 
-  // Calendar — posts grouped by date for a given month (YYYY-MM)
-  getCalendarPosts: (month) => api.get('/social/calendar', { params: { month } }),
+  // Calendar — posts grouped by date for a given month (YYYY-MM) or year (YYYY)
+  getCalendarPosts: (month, year) => api.get('/social/calendar', { params: { month, year } }),
 }

@@ -109,6 +109,7 @@ export default function DesignerTasks() {
   const queryClient = useQueryClient()
   const pushToast = useUIStore(s => s.pushToast)
   const [brandTask, setBrandTask] = useState(null)
+  const [activeTab, setActiveTab] = useState('marketplace') // 'marketplace' or 'social'
   const { data, isLoading } = useQuery({
     queryKey: ['designer-tasks'],
     queryFn: () => creativeApi.designerTasks().then(res => res.data.data),
@@ -154,49 +155,64 @@ export default function DesignerTasks() {
             </p>
           </div>
           <div className="row wrap" style={{ gap: 8, justifyContent: 'flex-end' }}>
-            <button className="btn ghost" onClick={() => openCsv(tasks)} disabled={!tasks.length}>
+            <button className="btn ghost" onClick={() => openCsv(tasks)} disabled={!tasks.length || activeTab !== 'marketplace'}>
               <Icon name="eye" /> Open CSV
             </button>
-            <button className="btn ghost" onClick={() => downloadCsv(tasks)} disabled={!tasks.length}>
+            <button className="btn ghost" onClick={() => downloadCsv(tasks)} disabled={!tasks.length || activeTab !== 'marketplace'}>
               <Icon name="download" /> Export CSV
             </button>
           </div>
         </div>
       </div>
 
-      <div className="designer-task-stats">
-        {[
-          ['Assigned', tasks.filter(t => t.status === 'assigned').length],
-          ['In progress', tasks.filter(t => t.status === 'in_progress').length],
-          ['Needs slot', tasks.filter(t => !t.work_slot && !['delivered', 'completed'].includes(t.status)).length],
-          ['Delivered', delivered.length],
-        ].map(([label, value]) => (
-          <div key={label} className="card" style={{ padding: 18 }}>
-            <div className="h-eyebrow">{label}</div>
-            <div className="mono" style={{ fontSize: 30, fontWeight: 800, marginTop: 8 }}>{value}</div>
-          </div>
-        ))}
+      <div className="tabs row" style={{ gap: 16, borderBottom: '1px solid var(--border)', paddingBottom: 8, marginBottom: 16 }}>
+        <button className={`btn ghost ${activeTab === 'marketplace' ? 'active' : ''}`} onClick={() => setActiveTab('marketplace')}>
+          Marketplace Tasks
+        </button>
+        <button className={`btn ghost ${activeTab === 'social' ? 'active' : ''}`} onClick={() => setActiveTab('social')}>
+          Social Queue (Autopilot)
+        </button>
       </div>
 
-      {isLoading ? (
-        <div className="card" style={{ padding: 20 }}>Loading tasks...</div>
-      ) : tasks.length === 0 ? (
-        <div className="empty">
-          <div className="empty-glyph"><Icon name="briefcase" size={20} /></div>
-          <h3>No assigned work yet</h3>
-          <p>When ops assigns a creative task to you, it will appear here.</p>
-        </div>
+      {activeTab === 'social' ? (
+        <SocialQueue onOpenBrandContext={setBrandTask} />
       ) : (
         <>
-          <div className="stack" style={{ gap: 10 }}>
-            <div className="h-eyebrow">Active queue</div>
-            {active.length ? active.map(task => <TaskCard key={task.id} task={{ ...task, onBrandContext: () => setBrandTask(task) }} onStatus={onStatus} />) : <div className="card" style={{ padding: 18 }}>No active tasks.</div>}
+          <div className="designer-task-stats">
+            {[
+              ['Assigned', tasks.filter(t => t.status === 'assigned').length],
+              ['In progress', tasks.filter(t => t.status === 'in_progress').length],
+              ['Needs slot', tasks.filter(t => !t.work_slot && !['delivered', 'completed'].includes(t.status)).length],
+              ['Delivered', delivered.length],
+            ].map(([label, value]) => (
+              <div key={label} className="card" style={{ padding: 18 }}>
+                <div className="h-eyebrow">{label}</div>
+                <div className="mono" style={{ fontSize: 30, fontWeight: 800, marginTop: 8 }}>{value}</div>
+              </div>
+            ))}
           </div>
-          {delivered.length > 0 && (
-            <div className="stack" style={{ gap: 10 }}>
-              <div className="h-eyebrow">Delivered</div>
-              {delivered.map(task => <TaskCard key={task.id} task={{ ...task, onBrandContext: () => setBrandTask(task) }} onStatus={onStatus} />)}
+
+          {isLoading ? (
+            <div className="card" style={{ padding: 20 }}>Loading tasks...</div>
+          ) : tasks.length === 0 ? (
+            <div className="empty">
+              <div className="empty-glyph"><Icon name="briefcase" size={20} /></div>
+              <h3>No assigned work yet</h3>
+              <p>When ops assigns a creative task to you, it will appear here.</p>
             </div>
+          ) : (
+            <>
+              <div className="stack" style={{ gap: 10 }}>
+                <div className="h-eyebrow">Active queue</div>
+                {active.length ? active.map(task => <TaskCard key={task.id} task={{ ...task, onBrandContext: () => setBrandTask(task) }} onStatus={onStatus} />) : <div className="card" style={{ padding: 18 }}>No active tasks.</div>}
+              </div>
+              {delivered.length > 0 && (
+                <div className="stack" style={{ gap: 10 }}>
+                  <div className="h-eyebrow">Delivered</div>
+                  {delivered.map(task => <TaskCard key={task.id} task={{ ...task, onBrandContext: () => setBrandTask(task) }} onStatus={onStatus} />)}
+                </div>
+              )}
+            </>
           )}
         </>
       )}

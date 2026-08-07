@@ -33,6 +33,7 @@ import Membership        from './pages/client/Membership'
 import Onboarding        from './pages/client/Onboarding'
 import WorkspaceDetailsPage from './pages/client/onboarding/WorkspaceDetailsPage'
 import BusinessBasicsPage from './pages/client/onboarding/BusinessBasicsPage'
+import AccountVerificationPage from './pages/client/onboarding/AccountVerificationPage'
 import BrandVoicePage from './pages/client/onboarding/BrandVoicePage'
 import BrandAssetsPage from './pages/client/onboarding/BrandAssetsPage'
 import VisualPalettePage from './pages/client/onboarding/VisualPalettePage'
@@ -231,16 +232,17 @@ export default function App() {
             <Route index element={<Navigate to="step-1" replace />} />
             <Route path="step-1" element={<WorkspaceDetailsPage />} />
             <Route path="step-2" element={<BusinessBasicsPage />} />
-            <Route path="step-3" element={<BrandVoicePage />} />
-            <Route path="step-4" element={<BrandAssetsPage />} />
-            <Route path="step-5" element={<VisualPalettePage />} />
-            <Route path="step-6" element={<ContentCadencePage />} />
-            <Route path="step-7" element={<FestivalsPage />} />
-            <Route path="step-8" element={<ApprovalRulesPage />} />
-            <Route path="step-9" element={<ConnectChannelsPage />} />
-            <Route path="step-10" element={<WhatsappRemindersPage />} />
-            <Route path="step-11" element={<ContentGenerationPage />} />
-            <Route path="step-12" element={<PreviewApprovePage />} />
+            <Route path="step-3" element={<AccountVerificationPage />} />
+            <Route path="step-4" element={<BrandVoicePage />} />
+            <Route path="step-5" element={<BrandAssetsPage />} />
+            <Route path="step-6" element={<VisualPalettePage />} />
+            <Route path="step-7" element={<ContentCadencePage />} />
+            <Route path="step-8" element={<FestivalsPage />} />
+            <Route path="step-9" element={<ApprovalRulesPage />} />
+            <Route path="step-10" element={<ConnectChannelsPage />} />
+            <Route path="step-11" element={<WhatsappRemindersPage />} />
+            <Route path="step-12" element={<ContentGenerationPage />} />
+            <Route path="step-13" element={<PreviewApprovePage />} />
           </Route>
           <Route path="/freelancers"       element={<ClientOnly><ClientFeature flag="marketplace"><Freelancers /></ClientFeature></ClientOnly>} />
           <Route path="/freelancers/:freelancerId" element={<ClientOnly><ClientFeature flag="marketplace"><FreelancerProfile /></ClientFeature></ClientOnly>} />

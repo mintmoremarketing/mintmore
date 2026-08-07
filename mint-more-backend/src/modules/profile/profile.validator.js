@@ -97,7 +97,7 @@ const validatePostingPreferences = (value, errors) => {
   const enums = {
     festival_mode: ['manual', 'managed', 'hybrid'],
     content_mode: ['admin_first', 'client_first', 'mixed'],
-    approval_mode: ['app_or_whatsapp', 'app_only', 'whatsapp_only'],
+    approval_mode: ['app_or_whatsapp', 'app_only', 'whatsapp_only', 'every_post', 'autopilot'],
     publish_mode: ['managed', 'manual', 'hybrid'],
     cadence: ['monthly', 'weekly', 'custom'],
   };
