@@ -711,11 +711,13 @@ export default function Onboarding() {
     toggleTargetAge,
     updateField,
     uploadAssetMutation,
+    isExtractingWebsite,
     ...calendarState,
   }), [
     connectedAccounts,
     form,
     generationPhase,
+    isExtractingWebsite,
     handleFinishOnboarding,
     onboardingEvents,
     profile,

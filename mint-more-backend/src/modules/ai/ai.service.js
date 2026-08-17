@@ -1869,21 +1869,31 @@ Example Format:
   { "title": "✨ Happy Diwali", "desc": "Wishing our customers a bright and prosperous Diwali.", "type": "festival", "festival_id": "uuid-here", "date": "2026-11-12" }
 ]`;
 
-  const response = await generateText('poolside/laguna-s-2.1:free', prompt, { max_tokens: 3000, temperature: 0.8 }, systemPrompt);
-  
-  try {
-    let rawContent = (response.text || '').trim();
-    if (rawContent.startsWith('```json')) {
-      rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+  let attempts = 0;
+  while (attempts < 4) {
+    try {
+      const response = await generateText('poolside/laguna-s-2.1:free', prompt, { max_tokens: 3000, temperature: 0.8 }, systemPrompt);
+      let rawContent = (response.text || '').trim();
+      if (rawContent.startsWith('```json')) {
+        rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+      }
+      const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      return JSON.parse(rawContent);
+    } catch (error) {
+      attempts++;
+      logger.warn(`Failed AI generation for onboarding topics (attempt ${attempts}/4): ${error.message}`);
+      if (attempts >= 4) {
+        logger.warn(`Failed to parse onboarding AI topics (possible truncation/format error). Using fallback topics.`);
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
-    const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    return JSON.parse(rawContent);
-  } catch (error) {
-    logger.warn(`Failed to parse onboarding AI topics (possible truncation/format error). Using fallback topics.`);
-    // Fallback if AI messes up the JSON formatting completely
+  }
+
+  // Fallback if AI messes up the JSON formatting completely
     const fallback = [
       { title: `✨ "What's inside?"`, desc: `ASMR style close-up reel highlighting our best ${business_type || 'service'}.`, type: 'brand' },
       { title: `🎥 POV: "You finally switched to premium"`, desc: `A relatable POV reel showing a customer's genuine reaction.`, type: 'brand' },
@@ -1972,21 +1982,28 @@ Example Format:
   "address_city": "Kolkata"
 }`;
 
-  const response = await generateText('poolside/laguna-s-2.1:free', prompt, { max_tokens: 1000, temperature: 0.2 }, systemPrompt);
-  
-  try {
-    let rawContent = (response.text || '').trim();
-    if (rawContent.startsWith('```json')) {
-      rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+  let attempts = 0;
+  while (attempts < 4) {
+    try {
+      const response = await generateText('poolside/laguna-s-2.1:free', prompt, { max_tokens: 1000, temperature: 0.2 }, systemPrompt);
+      let rawContent = (response.text || '').trim();
+      if (rawContent.startsWith('```json')) {
+        rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+      }
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      return JSON.parse(rawContent);
+    } catch (error) {
+      attempts++;
+      logger.warn(`Failed website extraction JSON (attempt ${attempts}/4): ${error.message}`);
+      if (attempts >= 4) {
+        logger.warn('Failed to parse website extraction JSON, returning empty object instead', { error: error.message });
+        return {}; // Return empty object so the frontend auto-fill just skips fields rather than crashing
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
-    const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    return JSON.parse(rawContent);
-  } catch (error) {
-    logger.warn('Failed to parse website extraction JSON, returning empty object instead', { raw: response.text, error: error.message });
-    return {}; // Return empty object so the frontend auto-fill just skips fields rather than crashing
   }
 };
 
