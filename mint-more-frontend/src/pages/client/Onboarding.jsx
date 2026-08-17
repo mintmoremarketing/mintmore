@@ -137,6 +137,7 @@ export default function Onboarding() {
   const [isExtractingWebsite, setIsExtractingWebsite] = useState(false)
   const [hasImportedWebsite, setHasImportedWebsite] = useState(false)
   const [generationPhase, setGenerationPhase] = useState(0)
+  const [hoveredGroupIndex, setHoveredGroupIndex] = useState(null)
   
   const getInitialForm = () => {
     try {
@@ -798,7 +799,10 @@ export default function Onboarding() {
         }}
       />
 
-      <div className="hidden lg:flex flex-col w-80 shrink-0 bg-[var(--ink-950)] text-white p-8 border-r border-[var(--ink-800)]">
+      <div 
+        className="hidden lg:flex flex-col w-80 shrink-0 bg-[var(--ink-950)] text-white p-8 border-r border-[var(--ink-800)]"
+        onMouseLeave={() => setHoveredGroupIndex(null)}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40 }}>
           <img src="/logo-dark.png" alt="" style={{ width: 32, height: 32, objectFit: 'contain' }} />
           <span style={{ fontSize: 18, fontWeight: 700, tracking: '0.05em' }}>CREAT<span className="text-mint-500">YV</span></span>
@@ -808,75 +812,83 @@ export default function Onboarding() {
           {ONBOARDING_SECTION_GROUPS.map((item, idx, arr) => {
             const nextStep = arr[idx + 1] ? arr[idx + 1].step : ONBOARDING_STEPS.length + 1
             const isCompleted = currentStep.number >= nextStep
-            const isActive = currentStep.number >= item.step && currentStep.number < nextStep
+            const isActiveGroup = currentStep.number >= item.step && currentStep.number < nextStep
+            const isOpen = hoveredGroupIndex !== null ? hoveredGroupIndex === idx : isActiveGroup
 
             return (
-              <div key={item.label} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div 
+                key={item.label} 
+                style={{ display: 'flex', flexDirection: 'column' }}
+                onMouseEnter={() => setHoveredGroupIndex(idx)}
+              >
                 <div
                   onClick={() => goToStep(item.step)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}
+                  className="group"
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 14, 
+                    cursor: 'pointer',
+                    marginBottom: isOpen ? 12 : 0,
+                    transition: 'margin 0.3s ease'
+                  }}
                 >
                   <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: '50%',
-                      background: isCompleted ? 'var(--mint-500)' : isActive ? 'var(--paper)' : 'rgba(255,255,255,0.05)',
-                      color: isCompleted ? 'white' : isActive ? 'var(--ink-950)' : 'var(--ink-500)',
-                      display: 'grid',
-                      placeItems: 'center',
-                      fontSize: 11,
-                      fontWeight: 700,
-                    }}
+                    className={`grid place-items-center rounded-full text-[11px] font-bold w-6 h-6 transition-colors duration-200 ${
+                      isCompleted ? 'bg-[var(--mint-500)] text-white' : 
+                      isActiveGroup ? 'bg-[var(--paper)] text-[var(--ink-950)]' : 
+                      'bg-white/5 text-[var(--ink-500)] group-hover:text-[var(--ink-300)] group-hover:bg-white/10'
+                    }`}
                   >
                     {isCompleted ? <Icon name="check" size={12} /> : idx + 1}
                   </div>
                   <span
-                    style={{
-                      fontSize: 13.5,
-                      fontWeight: isActive ? 600 : 500,
-                      color: isActive ? 'white' : isCompleted ? 'var(--ink-300)' : 'var(--ink-500)',
-                    }}
+                    className={`text-[13.5px] transition-colors duration-200 ${
+                      isActiveGroup ? 'font-semibold text-white' : 
+                      isCompleted ? 'font-medium text-[var(--ink-300)] group-hover:text-white' : 
+                      'font-medium text-[var(--ink-500)] group-hover:text-[var(--ink-300)]'
+                    }`}
                   >
                     {item.label}
                   </span>
                 </div>
 
-                {isActive && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingLeft: 38, marginTop: -2 }}>
-                    {item.subSteps.map(sub => {
-                      const isSubActive = currentStep.number === sub.step
-                      const isSubCompleted = currentStep.number > sub.step
-                      return (
-                        <div
-                          key={sub.step}
-                          onClick={() => goToStep(sub.step)}
-                          style={{
-                            fontSize: 12,
-                            cursor: 'pointer',
-                            color: isSubActive ? 'white' : isSubCompleted ? 'var(--ink-300)' : 'var(--ink-500)',
-                            fontWeight: isSubActive ? 600 : 400,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            transition: 'all 0.15s ease',
-                          }}
-                        >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateRows: isOpen ? '1fr' : '0fr',
+                    transition: 'grid-template-rows 0.3s ease',
+                  }}
+                >
+                  <div style={{ overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingLeft: 38, marginTop: -2 }}>
+                      {item.subSteps.map(sub => {
+                        const isSubActive = currentStep.number === sub.step
+                        const isSubCompleted = currentStep.number > sub.step
+                        return (
                           <div
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: '50%',
-                              background: isSubActive ? 'white' : isSubCompleted ? 'var(--ink-500)' : 'transparent',
-                              border: isSubActive || isSubCompleted ? 'none' : '1px solid var(--ink-600)',
-                            }}
-                          />
-                          {sub.label}
-                        </div>
-                      )
-                    })}
+                            key={sub.step}
+                            onClick={() => goToStep(sub.step)}
+                            className={`group flex items-center gap-2 text-xs cursor-pointer transition-colors duration-200 ${
+                              isSubActive ? 'font-semibold text-white' : 
+                              isSubCompleted ? 'font-normal text-[var(--ink-300)] hover:text-white' : 
+                              'font-normal text-[var(--ink-500)] hover:text-[var(--ink-300)]'
+                            }`}
+                          >
+                            <div
+                              className={`w-1.5 h-1.5 rounded-full transition-colors duration-200 ${
+                                isSubActive ? 'bg-white' : 
+                                isSubCompleted ? 'bg-[var(--ink-500)] group-hover:bg-[var(--ink-300)]' : 
+                                'bg-transparent border border-[var(--ink-600)] group-hover:border-[var(--ink-400)]'
+                              }`}
+                            />
+                            {sub.label}
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             )
           })}
