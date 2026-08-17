@@ -26,6 +26,9 @@ export const aiApi = {
   extractWebsite: (data) =>
     api.post('/ai/extract-website', data),
 
+  generateTonePreview: (data) =>
+    api.post('/ai/generate-tone-preview', data),
+
   generateEngineImage: (data) =>
     api.post('/ai/engine/image/generate', data),
 

@@ -38,6 +38,7 @@ const tones = [
   { id: 'bold', name: 'Bold & Creative', description: 'Energetic, modern style designed to stand out in feeds.' },
   { id: 'professional', name: 'Professional & Trustworthy', description: 'Clean, clear formatting focusing on value and quality.' },
   { id: 'local', name: 'Authentic Local', description: 'Casual, relatable local language focused on community.' },
+  { id: 'other', name: 'Custom Tone', description: 'Write a custom prompt for your unique brand voice.' },
 ]
 
 const ageSegments = [
@@ -156,6 +157,8 @@ export default function Onboarding() {
     customer_profile: '',
     target_ages: [],
     tone: 'friendly',
+    custom_tone: '',
+    custom_tone_preview: '',
     avoided_words: '',
     mandatory_words: '',
     palette: [],
@@ -549,6 +552,8 @@ export default function Onboarding() {
         updateField('target_ages', Array.isArray(data.target_ages) ? data.target_ages : [data.target_ages])
       }
       if (data.tone) updateField('tone', data.tone)
+      if (data.custom_tone) updateField('custom_tone', data.custom_tone)
+      if (data.custom_tone_preview) updateField('custom_tone_preview', data.custom_tone_preview)
       if (data.preferred_language) updateField('preferred_language', data.preferred_language)
       if (data.address_city) updateField('address_city', data.address_city)
       
@@ -644,6 +649,10 @@ export default function Onboarding() {
   }
 
   const sampleCopyPreview = useMemo(() => {
+    if (form.tone === 'other') {
+      return form.custom_tone_preview || "Your custom tone preview will appear here..."
+    }
+
     const name = form.business_name || 'My Brand'
     const type = form.business_type || 'restaurant'
 
@@ -933,6 +942,7 @@ export default function Onboarding() {
         <div className={currentStep.number >= 12 ? "flex-1 overflow-hidden flex flex-col min-h-0 p-0" : "flex-1 overflow-y-auto px-6 py-6 sm:px-10 sm:py-8 md:px-16 md:py-10"}>
           <div className={
             currentStep.number >= 12 ? "w-full h-full flex flex-col flex-1 min-h-0" :
+            currentStep.number === 4 ? "w-full max-w-[1200px] mx-auto xl:mx-0" :
             "w-full max-w-[640px] mx-auto lg:mx-0"
           }>
             <Outlet context={onboardingContext} />

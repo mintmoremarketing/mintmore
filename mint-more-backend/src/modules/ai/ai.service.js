@@ -1964,10 +1964,12 @@ Your task is to extract or infer the following information and return it as a ra
 3. "description": A comprehensive and detailed description (at least 4-6 sentences, ~100-150 words) of what the business does, its brand identity, core values, and unique selling propositions. This text will be given to a designer to understand the brand's vibe and design creatives accordingly, so be descriptive.
 4. "products_services": A comma-separated string of their main products or services.
 5. "customer_profile": A brief description of their target audience/customer.
-6. "target_ages": The target age group. Choose from: ["13-17", "18-24", "25-34", "35-44", "45-54", "55+", "all"]. Return a single string.
+6. "target_ages": The target age group. Choose from exactly these IDs: ["babies", "preschoolers", "children", "teenagers", "young_adults", "middle_aged", "mature_adults", "seniors"]. Return a single string.
 7. "preferred_language": The primary language the website is written in (e.g., "English", "Hindi", "Spanish", etc).
 8. "address_city": The main operating city, state, or neighborhood of the business. If not found, leave blank.
-9. "tone": The brand's tone of voice. Choose the closest match from this exact list: ["friendly", "professional", "humorous", "inspirational", "edgy"].
+9. "tone": The brand's tone of voice. You MUST output exactly "other" for this field. You MUST ALSO provide two additional fields:
+   - "custom_tone": A 1-2 sentence description of the unique brand voice.
+   - "custom_tone_preview": A short, 1-2 sentence realistic sample social media post demonstrating this custom tone (include emojis and hashtags).
 
 CRITICAL: Return ONLY a raw JSON object. Do not include markdown code blocks like \`\`\`json.
 Example Format:
@@ -1977,7 +1979,7 @@ Example Format:
   "description": "Mintmore is an AI-powered social media management platform.",
   "products_services": "Social media scheduling, AI content generation, Analytics",
   "customer_profile": "Small business owners and social media managers looking to save time.",
-  "target_ages": "25-34",
+  "target_ages": "young_adults",
   "preferred_language": "English",
   "tone": "professional",
   "address_city": "Kolkata"
@@ -2008,10 +2010,21 @@ Example Format:
   }
 };
 
+const generateTonePreview = async ({ business_name, business_type, custom_tone }) => {
+  const systemPrompt = `You are an expert social media copywriter. Generate exactly one realistic social media post (1-2 sentences with emojis and hashtags) that perfectly embodies the requested brand voice tone. Do NOT include any explanations, just the post content itself.`;
+  const prompt = `Business Name: ${business_name || 'My Brand'}
+Business Type: ${business_type || 'Retail'}
+Requested Tone: ${custom_tone}`;
+
+  const response = await generateText('poolside/laguna-s-2.1:free', prompt, { max_tokens: 150, temperature: 0.7 }, systemPrompt);
+  return (response.text || '').trim().replace(/^"|"$/g, '');
+};
+
 module.exports = {
   AI_PROGRESS_CHANNEL,
   generateOnboardingTopics,
   extractWebsiteData,
+  generateTonePreview,
   createGeneration,
   processGeneration,
   getEngineModels,

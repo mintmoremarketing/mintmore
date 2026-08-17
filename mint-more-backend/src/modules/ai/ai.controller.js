@@ -329,6 +329,20 @@ const extractWebsite = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const generateTonePreview = async (req, res, next) => {
+  try {
+    const { business_name, business_type, custom_tone } = req.body;
+    if (!custom_tone) throw ApiError.badRequest('Missing custom_tone');
+
+    const result = await aiService.generateTonePreview({ business_name, business_type, custom_tone });
+
+    return sendSuccess(res, {
+      data: result,
+      message: 'Tone preview generated successfully',
+    });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   getModels,
   getEngineModels,
@@ -340,6 +354,7 @@ module.exports = {
   generate,
   generateOnboardingTopics,
   extractWebsite,
+  generateTonePreview,
   getGeneration,
   getMyGenerations,
   getPublishedPosts,
