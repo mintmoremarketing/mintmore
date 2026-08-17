@@ -90,8 +90,8 @@ export default function BrandVoicePage() {
     <div className="lg:flex lg:justify-between gap-8 xl:gap-12">
       <div className="w-full lg:max-w-[640px] flex flex-col gap-8">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--ink-950)]">Establish your brand voice</h1>
-          <p className="text-[13.5px] text-[var(--ink-500)] mt-1.5">Tone dictates all future AI-generated post copy.</p>
+          <h1 className="h-display h-1" style={{ margin: 0 }}>Establish your brand voice</h1>
+          <p className="muted" style={{ marginTop: 8 }}>Tone dictates all future AI-generated post copy.</p>
         </div>
 
         <div className="space-y-4">
