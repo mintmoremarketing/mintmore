@@ -132,11 +132,14 @@ const generateText = async (openrouterId, prompt, params = {}, systemPromptOverr
     throw markProviderError(new Error(errorMsg), errorMsg);
   }
 
+  logger.info(`OpenRouter generation successful. Requested: ${openrouterId}, Actual: ${data.model}`);
+
   return {
     text:          fixMojibake(data.choices?.[0]?.message?.content || ''),
     tokens_input:  data.usage?.prompt_tokens     || 0,
     tokens_output: data.usage?.completion_tokens || 0,
     duration_ms:   Date.now() - startTime,
+    actual_model:  data.model,
   };
 };
 

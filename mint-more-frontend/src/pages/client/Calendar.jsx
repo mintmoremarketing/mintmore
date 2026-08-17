@@ -977,9 +977,10 @@ export default function Calendar() {
             {WEEKDAYS.map(day => (
               <div
                 key={day}
-                className="py-2.5 px-2 text-center text-[10px] font-bold text-ink-400 uppercase tracking-wider border-r last:border-r-0 border-hairline"
+                className="py-2.5 px-1 sm:px-2 text-center text-[10px] font-bold text-ink-400 uppercase tracking-tight sm:tracking-wider border-r last:border-r-0 border-hairline truncate"
               >
-                {day}
+                <span className="hidden sm:inline">{day}</span>
+                <span className="inline sm:hidden">{day.charAt(0)}</span>
               </div>
             ))}
           </div>
@@ -1021,7 +1022,7 @@ export default function Calendar() {
                   } ${isSelected ? 'ring-2 ring-ink-950 ring-inset z-10' : ''}`}
                 >
                   {/* Cell Top Header Row - Always Rendered Synchronously (Frame 0) */}
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex flex-wrap items-start sm:items-center justify-between gap-1 mb-1 overflow-hidden">
                     <span
                       className={`text-xs font-bold ${
                         isToday

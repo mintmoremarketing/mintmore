@@ -8,6 +8,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { statusAccent } from '../../components/ui/statusMeta'
 import StatusSelect from '../../components/ui/StatusSelect'
 import { useUIStore } from '../../store/ui'
+import SocialQueue from './SocialQueue'
 
 const statusOptions = ['assigned', 'in_progress', 'delivered', 'revision', 'blocked']
 

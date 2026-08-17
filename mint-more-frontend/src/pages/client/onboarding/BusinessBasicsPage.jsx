@@ -1,7 +1,9 @@
 import { useOnboardingContext } from './useOnboardingContext'
 
+import Icon from '../../../components/ui/Icon'
+
 export default function BusinessBasicsPage() {
-  const { form, updateField } = useOnboardingContext()
+  const { form, updateField, isExtractingWebsite } = useOnboardingContext()
 
   return (
     <div className="stack" style={{ gap: 24 }}>
@@ -11,7 +13,9 @@ export default function BusinessBasicsPage() {
       </div>
 
       <div className="field">
-        <label className="field-label">Business Description</label>
+        <label className="field-label flex items-center gap-2">
+          Business Description {isExtractingWebsite && <Icon name="loader-2" className="spin muted" size={12} />}
+        </label>
         <textarea
           className="textarea"
           rows={4}
@@ -22,7 +26,9 @@ export default function BusinessBasicsPage() {
       </div>
 
       <div className="field">
-        <label className="field-label">Key Products / Services</label>
+        <label className="field-label flex items-center gap-2">
+          Key Products / Services {isExtractingWebsite && <Icon name="loader-2" className="spin muted" size={12} />}
+        </label>
         <input
           className="input"
           value={form.products_services}

@@ -1659,7 +1659,7 @@ export default function Social() {
     },
   })
 
-  const posts = postsData?.posts || []
+  const posts = (postsData?.posts || []).filter(p => !p.metadata?.is_topic)
   const summary = analyticsData?.summary
   const accountTotals = useMemo(() => connectedAccounts.reduce((totals, account) => {
     const stats = account.stats || {}

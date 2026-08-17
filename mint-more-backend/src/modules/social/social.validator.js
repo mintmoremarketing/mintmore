@@ -3,8 +3,11 @@ const AppError = require('../../utils/AppError');
 const PLATFORMS      = ['facebook', 'instagram', 'youtube', 'google_business_profile'];
 const CONTENT_TYPES  = ['text', 'image', 'video', 'carousel', 'reel', 'short', 'story'];
 const CONTENT_RULES  = {
-  instagram: ['image', 'carousel', 'reel'],
-  google_business_profile: ['text', 'image', 'video'],
+  instagram: ['image', 'carousel', 'reel', 'video', 'story'],
+  google_business_profile: ['text', 'image', 'video', 'reel', 'short'],
+  youtube: ['video', 'short', 'reel'],
+  facebook: ['text', 'image', 'video', 'reel', 'carousel', 'story'],
+  linkedin: ['text', 'image', 'video', 'carousel']
 };
 
 const validateCreatePost = (body) => {

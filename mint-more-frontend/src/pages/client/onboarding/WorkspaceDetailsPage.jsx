@@ -2,7 +2,7 @@ import Icon from '../../../components/ui/Icon'
 import { useOnboardingContext } from './useOnboardingContext'
 
 export default function WorkspaceDetailsPage() {
-  const { form, handleImportFromWebsite, industries, languages, updateField } = useOnboardingContext()
+  const { form, handleImportFromWebsite, industries, languages, updateField, isExtractingWebsite } = useOnboardingContext()
 
   return (
     <div className="stack" style={{ gap: 24 }}>
@@ -21,15 +21,18 @@ export default function WorkspaceDetailsPage() {
             placeholder="https://mybusiness.com"
             style={{ flex: 1 }}
           />
-          <button className="btn ghost shrink-0" type="button" onClick={handleImportFromWebsite}>
-            <Icon name="sparkles" size={13} /> Import info
+          <button className="btn ghost shrink-0" type="button" onClick={handleImportFromWebsite} disabled={isExtractingWebsite}>
+            {isExtractingWebsite ? <Icon name="loader-2" className="spin" size={13} /> : <Icon name="sparkles" size={13} />} 
+            {isExtractingWebsite ? 'Importing...' : 'Import info'}
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="field">
-          <label className="field-label">Business Name</label>
+          <label className="field-label flex items-center gap-2">
+            Business Name {isExtractingWebsite && <Icon name="loader-2" className="spin muted" size={12} />}
+          </label>
           <input
             className="input"
             value={form.business_name}
@@ -39,7 +42,9 @@ export default function WorkspaceDetailsPage() {
         </div>
 
         <div className="field">
-          <label className="field-label">Industry Category</label>
+          <label className="field-label flex items-center gap-2">
+            Industry Category {isExtractingWebsite && <Icon name="loader-2" className="spin muted" size={12} />}
+          </label>
           <select
             className="input"
             value={form.business_type}
@@ -63,7 +68,9 @@ export default function WorkspaceDetailsPage() {
         </div>
 
         <div className="field">
-          <label className="field-label">Location (City)</label>
+          <label className="field-label flex items-center gap-2">
+            Location (City) {isExtractingWebsite && <Icon name="loader-2" className="spin muted" size={12} />}
+          </label>
           <input
             className="input"
             value={form.address_city}

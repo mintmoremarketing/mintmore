@@ -2016,16 +2016,17 @@ const getAnalyticsSummary = async (userId, requestedDays = null) => {
 // Returns all posts for a given month, grouped by date (YYYY-MM-DD).
 // month param: "2026-07" (YYYY-MM)
 const getCalendarPosts = async (userId, { month, year } = {}) => {
-  let start, end;
+  let start, end, key;
   
   if (year && year !== 'undefined' && !isNaN(Number(year))) {
     const parsedYear = Number(year);
     start = new Date(parsedYear, 0, 1);
     end   = new Date(parsedYear + 1, 0, 1);
+    key = parsedYear.toString();
   } else {
     // Default to current month
     const validMonth = (month && month !== 'undefined') ? month : null;
-    const key = validMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    key = validMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
     const [y, m] = key.split('-').map(Number);
     start = new Date(y, m - 1, 1);
     end   = new Date(y, m, 1); // exclusive

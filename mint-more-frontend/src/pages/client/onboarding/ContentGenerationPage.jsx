@@ -5,6 +5,11 @@ import { useOnboardingContext } from './useOnboardingContext'
 import { aiApi } from '../../../api/ai'
 import { getOnboardingStepByNumber } from './config'
 
+  // Module-level cache to prevent multiple requests across remounts
+let globalTopicsPromise = null;
+let globalTopicsPayloadStr = null;
+let globalTopicsResult = null;
+
 export default function ContentGenerationPage() {
   const navigate = useNavigate()
   const {
@@ -15,6 +20,8 @@ export default function ContentGenerationPage() {
   } = useOnboardingContext()
 
   const [status, setStatus] = useState('generating') // 'generating' | 'deck'
+  const [regenerateAttempts, setRegenerateAttempts] = useState(0)
+  const [cooldownLeft, setCooldownLeft] = useState(0)
   const [generationPhase, setGenerationPhase] = useState(0)
   const [generatedTopics, setGeneratedTopics] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -31,6 +38,14 @@ export default function ContentGenerationPage() {
   const backendResolved = useRef(false)
   const backendTopics = useRef(null)
 
+  // Cooldown timer for regenerate button
+  useEffect(() => {
+    if (cooldownLeft > 0) {
+      const timer = setTimeout(() => setCooldownLeft(prev => prev - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [cooldownLeft])
+
   // Trigger OpenRouter AI generation API call on mount
   useEffect(() => {
     if (hasFetched.current) return
@@ -46,134 +61,192 @@ export default function ContentGenerationPage() {
       festival_mode: form?.festival_mode || 'autopilot',
       website: form?.website || '',
     }
+    
+    const payloadStr = JSON.stringify(payload)
 
-    aiApi
-      .generateOnboardingTopics(payload)
-      .then(res => {
-        if (!isMounted) return
-        const raw = res.data?.data || res.data || []
-        const rawList = Array.isArray(raw) ? raw : []
-
-        const brandName = (form?.business_name || '').trim() || 'Your Brand'
-        const normalized = rawList
-          .filter(item => item.type !== 'festival')
-          .map((item, idx) => ({
-            id: `ai-topic-${idx + 1}-${Date.now()}`,
-            title: item.title || `Content Focus Topic ${idx + 1}`,
-            description: item.desc || item.description || `Tailored marketing strategy topic for ${brandName}.`,
-            format: item.format || (idx % 3 === 0 ? 'reel' : idx % 3 === 1 ? 'carousel' : 'post'),
-            category: idx % 2 === 0 ? 'evergreen' : 'promotional',
-            festivalName: null,
-            festival_id: null,
-            event_date: null,
-          }))
-
-        const final15 = [...normalized]
-        while (final15.length < 15) {
-          const idx = final15.length
-          final15.push({
-            id: `ai-topic-${idx + 1}-${Date.now()}`,
-            title: `Brand Spotlight #${idx + 1}`,
-            description: `Engaging customer story & promotional post for ${brandName}.`,
-            format: idx % 3 === 0 ? 'reel' : idx % 3 === 1 ? 'carousel' : 'post',
-            category: 'evergreen',
-            festivalName: null,
-          })
+    // Check localStorage cache
+    try {
+      const cached = localStorage.getItem('mintmore_generated_cards_cache')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed.payloadStr === payloadStr) {
+          backendTopics.current = parsed.topics
+          backendResolved.current = true
+          return () => { isMounted = false }
         }
+      }
+    } catch (e) {}
 
-        backendTopics.current = final15.slice(0, 15)
-        backendResolved.current = true
-      })
-      .catch(err => {
-        if (!isMounted) return
-        console.warn('AI generation API fallback:', err)
-        const brandName = (form?.business_name || '').trim() || 'Your Brand'
-        const fallback15 = Array.from({ length: 15 }, (_, idx) => ({
-          id: `ai-topic-fallback-${idx + 1}-${Date.now()}`,
-          title: `Brand Topic ${idx + 1}: ${brandName} Feature`,
-          description: `Custom generated topic designed to drive engagement for ${brandName}.`,
-          format: idx % 3 === 0 ? 'reel' : idx % 3 === 1 ? 'carousel' : 'post',
+    // Check if we already have a fully resolved result for this payload
+    if (globalTopicsResult && globalTopicsPayloadStr === payloadStr) {
+      backendTopics.current = globalTopicsResult
+      backendResolved.current = true
+      return () => { isMounted = false }
+    }
+
+    const processTopics = (rawList) => {
+      const brandName = (form?.business_name || '').trim() || 'Your Brand'
+      const normalized = rawList
+        .filter(item => item.type !== 'festival')
+        .map((item, idx) => ({
+          id: `ai-topic-${idx + 1}-${Date.now()}`,
+          title: item.title || `Content Focus Topic ${idx + 1}`,
+          description: item.desc || item.description || `Tailored marketing strategy topic for ${brandName}.`,
+          format: item.format || (idx % 3 === 0 ? 'reel' : idx % 3 === 1 ? 'carousel' : 'post'),
           category: idx % 2 === 0 ? 'evergreen' : 'promotional',
           festivalName: null,
+          festival_id: null,
+          event_date: null,
         }))
-        
-        backendTopics.current = fallback15
+
+      const final15 = [...normalized]
+      while (final15.length < 15) {
+        const idx = final15.length
+        final15.push({
+          id: `ai-topic-${idx + 1}-${Date.now()}`,
+          title: `Brand Spotlight #${idx + 1}`,
+          description: `Engaging customer story & promotional post for ${brandName}.`,
+          format: idx % 3 === 0 ? 'reel' : idx % 3 === 1 ? 'carousel' : 'post',
+          category: 'evergreen',
+          festivalName: null,
+        })
+      }
+      return final15.slice(0, 15)
+    }
+
+    const getFallback = () => {
+      const brandName = (form?.business_name || '').trim() || 'Your Brand'
+      return Array.from({ length: 15 }, (_, idx) => ({
+        id: `ai-topic-fallback-${idx + 1}-${Date.now()}`,
+        title: `Brand Topic ${idx + 1}: ${brandName} Feature`,
+        description: `Custom generated topic designed to drive engagement for ${brandName}.`,
+        format: idx % 3 === 0 ? 'reel' : idx % 3 === 1 ? 'carousel' : 'post',
+        category: idx % 2 === 0 ? 'evergreen' : 'promotional',
+        festivalName: null,
+      }))
+    }
+
+    // If a promise is already in flight for this exact payload, just attach to it
+    if (globalTopicsPromise && globalTopicsPayloadStr === payloadStr) {
+      globalTopicsPromise.then((finalTopics) => {
+        if (!isMounted) return
+        backendTopics.current = finalTopics
         backendResolved.current = true
+      })
+      return () => { isMounted = false }
+    }
+
+    // Otherwise, start a new request
+    globalTopicsPayloadStr = payloadStr
+    globalTopicsResult = null
+    
+    globalTopicsPromise = aiApi
+      .generateOnboardingTopics(payload)
+      .then(res => {
+        const raw = res.data?.data || res.data || []
+        const rawList = Array.isArray(raw) ? raw : []
+        const finalTopics = processTopics(rawList)
+        globalTopicsResult = finalTopics
+        try {
+          localStorage.setItem('mintmore_generated_cards_cache', JSON.stringify({
+            payloadStr: globalTopicsPayloadStr,
+            topics: finalTopics
+          }))
+        } catch(e) {}
+        if (isMounted) {
+          backendTopics.current = finalTopics
+          backendResolved.current = true
+        }
+        return finalTopics
+      })
+      .catch(err => {
+        console.warn('AI generation API fallback:', err)
+        const finalTopics = getFallback()
+        globalTopicsResult = finalTopics
+        try {
+          localStorage.setItem('mintmore_generated_cards_cache', JSON.stringify({
+            payloadStr: globalTopicsPayloadStr,
+            topics: finalTopics
+          }))
+        } catch(e) {}
+        if (isMounted) {
+          backendTopics.current = finalTopics
+          backendResolved.current = true
+        }
+        return finalTopics
       })
 
     return () => {
       isMounted = false
     }
-  }, [form])
+  }, [form, regenerateAttempts])
 
   // Choreographed Progress Counter Loop
   useEffect(() => {
-    if (status !== 'generating') return
-    let timeoutId
+    if (status !== 'generating') {
+      if (status === 'deck' && regenerateAttempts < 4) {
+        setCooldownLeft(20)
+      }
+      return
+    }
+    
+    let animationFrameId
     let isMounted = true
+    const startTime = Date.now()
+    const targetDuration = 15000 // 15 seconds
 
-    const loop = (currentProgress) => {
+    const loop = () => {
       if (!isMounted) return
 
-      // If backend is done, race to 100 and finish
+      const elapsed = Date.now() - startTime
+
       if (backendResolved.current) {
-        if (currentProgress < 100) {
-          const next = Math.min(100, currentProgress + 5)
-          setLoadingProgress(next)
-          timeoutId = setTimeout(() => loop(next), 40)
-          return
-        } else {
-          // At 100, transition to deck
-          timeoutId = setTimeout(() => {
-            if (isMounted && backendTopics.current) {
-              setGeneratedTopics(backendTopics.current)
-              setStatus('deck')
-              pushToast({ title: '15 AI Topics generated!', icon: 'sparkles' })
-            }
-          }, 300)
-          return
-        }
+        setLoadingProgress(prev => {
+          if (prev < 100) {
+            animationFrameId = requestAnimationFrame(loop)
+            return Math.min(100, prev + 2)
+          } else {
+            setTimeout(() => {
+              if (isMounted && backendTopics.current) {
+                setGeneratedTopics(backendTopics.current)
+                setStatus('deck')
+                pushToast({ title: '15 AI Topics generated!', icon: 'sparkles' })
+              }
+            }, 300)
+            return 100
+          }
+        })
+        return
       }
 
-      // Choreographed artificial pacing
-      if (currentProgress < 100) {
-        let increment = 1
-        let delay = 100
-
-        if (currentProgress < 10) {
-          increment = 1
-          delay = 300 // constant motion
-        } else if (currentProgress < 50) {
-          increment = 2
-          delay = 100 // runs faster
-        } else if (currentProgress < 55) {
-          increment = 1
-          delay = 800 // slowly
-        } else if (currentProgress < 95) {
-          increment = 3
-          delay = 80 // runs quickly
-        } else if (currentProgress < 99) {
-          increment = 1
-          delay = 1500 // slowly walks 96, 97, 98, 99
-        } else {
-          // At 99, wait infinitely for backendResolved.current
-          increment = 0
-          delay = 500
-        }
-
-        const next = Math.min(99, currentProgress + increment)
-        setLoadingProgress(next)
-        timeoutId = setTimeout(() => loop(next), delay)
-      }
+      let nextProgress = Math.min(99, (elapsed / targetDuration) * 100)
+      setLoadingProgress(Math.floor(nextProgress))
+      animationFrameId = requestAnimationFrame(loop)
     }
 
-    loop(0)
+    animationFrameId = requestAnimationFrame(loop)
 
     return () => {
       isMounted = false
-      clearTimeout(timeoutId)
+      cancelAnimationFrame(animationFrameId)
     }
-  }, [status, pushToast])
+  }, [status, pushToast, regenerateAttempts])
+
+  const handleRegenerate = () => {
+    if (regenerateAttempts >= 4 || cooldownLeft > 0) return
+    setRegenerateAttempts(prev => prev + 1)
+    setStatus('generating')
+    setLoadingProgress(0)
+    setGeneratedTopics([])
+    setCurrentIndex(0)
+    setApprovedSet(new Set())
+    setRejectedSet(new Set())
+    backendResolved.current = false
+    backendTopics.current = null
+    globalTopicsPromise = null
+    globalTopicsResult = null
+    try { localStorage.removeItem('mintmore_generated_cards_cache') } catch(e) {}
+  }
 
   const finishAndNavigate = useCallback((finalApprovedTopics) => {
     const topicListToSave = Array.isArray(finalApprovedTopics) ? finalApprovedTopics : generatedTopics
@@ -447,13 +520,26 @@ export default function ContentGenerationPage() {
                   Curate Your AI Topic Ideas
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={handleApproveAll}
-                className="text-xs font-bold text-mint-700 hover:text-mint-900 bg-mint-50 hover:bg-mint-100 border border-mint-200 px-4 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0 shadow-sm"
-              >
-                <Icon name="check" size={14} /> Approve All ({generatedTopics.length})
-              </button>
+              <div className="flex items-center gap-2">
+                {regenerateAttempts < 4 && (
+                  <button
+                    type="button"
+                    onClick={handleRegenerate}
+                    disabled={cooldownLeft > 0}
+                    className="text-xs font-bold text-ink-600 hover:text-ink-900 bg-white hover:bg-ink-50 border border-ink-200 px-4 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0 shadow-sm disabled:opacity-50"
+                  >
+                    <Icon name="refresh-cw" size={14} className={cooldownLeft > 0 ? "opacity-50" : ""} /> 
+                    {cooldownLeft > 0 ? `Try again in ${cooldownLeft}s` : 'Regenerate'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleApproveAll}
+                  className="text-xs font-bold text-mint-700 hover:text-mint-900 bg-mint-50 hover:bg-mint-100 border border-mint-200 px-4 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0 shadow-sm"
+                >
+                  <Icon name="check" size={14} /> Approve All ({generatedTopics.length})
+                </button>
+              </div>
             </div>
 
             {/* Main Interactive Flashcard Area (Perfectly Centered) */}

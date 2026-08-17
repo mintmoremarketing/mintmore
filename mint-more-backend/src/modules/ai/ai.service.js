@@ -1869,7 +1869,7 @@ Example Format:
   { "title": "✨ Happy Diwali", "desc": "Wishing our customers a bright and prosperous Diwali.", "type": "festival", "festival_id": "uuid-here", "date": "2026-11-12" }
 ]`;
 
-  const response = await generateText('cohere/north-mini-code:free', prompt, { max_tokens: 3000, temperature: 0.8 }, systemPrompt);
+  const response = await generateText('poolside/laguna-s-2.1:free', prompt, { max_tokens: 3000, temperature: 0.8 }, systemPrompt);
   
   try {
     let rawContent = (response.text || '').trim();
@@ -1957,6 +1957,7 @@ Your task is to extract or infer the following information and return it as a ra
 5. "customer_profile": A brief description of their target audience/customer.
 6. "target_ages": The target age group. Choose from: ["13-17", "18-24", "25-34", "35-44", "45-54", "55+", "all"].
 7. "preferred_language": The primary language the website is written in (e.g., "English", "Hindi", "Spanish", etc).
+8. "address_city": The main operating city, state, or neighborhood of the business. If not found, leave blank.
 
 CRITICAL: Return ONLY a raw JSON object. Do not include markdown code blocks like \`\`\`json.
 Example Format:
@@ -1967,10 +1968,11 @@ Example Format:
   "products_services": "Social media scheduling, AI content generation, Analytics",
   "customer_profile": "Small business owners and social media managers looking to save time.",
   "target_ages": "25-34",
-  "preferred_language": "English"
+  "preferred_language": "English",
+  "address_city": "Kolkata"
 }`;
 
-  const response = await generateText('google/gemma-4-31b-it:free', prompt, { max_tokens: 1000, temperature: 0.2 }, systemPrompt);
+  const response = await generateText('poolside/laguna-s-2.1:free', prompt, { max_tokens: 1000, temperature: 0.2 }, systemPrompt);
   
   try {
     let rawContent = (response.text || '').trim();
@@ -1983,7 +1985,7 @@ Example Format:
     }
     return JSON.parse(rawContent);
   } catch (error) {
-    logger.warn('Failed to parse website extraction JSON, returning empty object instead:', { raw: response.text, error: error.message });
+    logger.warn('Failed to parse website extraction JSON, returning empty object instead', { raw: response.text, error: error.message });
     return {}; // Return empty object so the frontend auto-fill just skips fields rather than crashing
   }
 };

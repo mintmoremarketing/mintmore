@@ -88,6 +88,10 @@ const disconnectAccount = async (req, res, next) => {
 
 const createPost = async (req, res, next) => {
   try {
+    console.log('--- Incoming createPost ---');
+    console.log('User ID:', req.user.sub);
+    console.log('Body:', req.body);
+    
     validateCreatePost(req.body);
 
     if (req.user.impersonated_by) {

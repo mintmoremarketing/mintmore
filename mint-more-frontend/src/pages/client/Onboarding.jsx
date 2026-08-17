@@ -133,10 +133,18 @@ export default function Onboarding() {
   const queryClient = useQueryClient()
   const pushToast = useUIStore(s => s.pushToast)
   const [paletteCustomized, setPaletteCustomized] = useState(false)
+  const [isGeneratingCadence, setIsGeneratingCadence] = useState(false)
+  const [isExtractingWebsite, setIsExtractingWebsite] = useState(false)
   const [generationPhase, setGenerationPhase] = useState(0)
-  const [form, setForm] = useState({
-    business_name: '',
-    business_type: 'restaurant',
+  
+  const getInitialForm = () => {
+    try {
+      const saved = localStorage.getItem('mintmore_onboarding_form')
+      if (saved) return JSON.parse(saved)
+    } catch (e) {}
+    return {
+      business_name: '',
+      business_type: 'restaurant',
     address_city: '',
     address_state: '',
     preferred_language: 'en',
@@ -160,7 +168,15 @@ export default function Onboarding() {
     whatsapp_consent: false,
     quiet_hours: '22:00-08:00',
     approval_policy: 'every_post',
-  })
+    }
+  }
+  const [form, setForm] = useState(getInitialForm)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mintmore_onboarding_form', JSON.stringify(form))
+    } catch (e) {}
+  }, [form])
 
   const currentStep = useMemo(() => {
     const slug = location.pathname.split('/').filter(Boolean).at(-1)
@@ -283,6 +299,7 @@ export default function Onboarding() {
         preferred_language: form.preferred_language,
         customer_profile: form.description,
         whatsapp_number: form.whatsapp_number,
+        content_pillars: form.content_pillars,
         brand_assets,
         posting_preferences,
         onboarding_checklist: {
@@ -510,6 +527,7 @@ export default function Onboarding() {
     pushToast({ title: 'Importing website details...', icon: 'sparkles' })
 
     try {
+      setIsExtractingWebsite(true)
       let cleanUrl = form.website.trim()
       const res = await aiApi.extractWebsite({ url: cleanUrl })
       const data = res.data.data
@@ -521,10 +539,13 @@ export default function Onboarding() {
       if (data.customer_profile) updateField('customer_profile', data.customer_profile)
       if (data.target_ages) updateField('target_ages', data.target_ages)
       if (data.preferred_language) updateField('preferred_language', data.preferred_language)
+      if (data.address_city) updateField('address_city', data.address_city)
       
       pushToast({ title: 'Website details imported!', icon: 'check', tone: 'mint' })
     } catch (err) {
       pushToast({ title: 'Failed to extract info', body: err.response?.data?.message || err.message, tone: 'amber' })
+    } finally {
+      setIsExtractingWebsite(false)
     }
   }
 
@@ -571,21 +592,19 @@ export default function Onboarding() {
         }
       }
 
-      // Save generated scheduled days as drafts
       if (calendarState && calendarState.scheduledDays) {
-        const postsToSave = calendarState.scheduledDays.filter(
-          (d) => d.hasPost && d.topic
+        const postsToSave = calendarState.scheduledDays.filter(day => 
+          day.hasPost && 
+          day.topic && 
+          !day.isPast && 
+          day.topic.category !== 'custom' && 
+          day.topic.category !== 'festival'
         )
-        
+
         for (const day of postsToSave) {
           try {
-            // Default publish time to 10 AM local time
             let publishDate = new Date(day.date)
             publishDate.setHours(10, 0, 0, 0)
-
-            if (publishDate <= new Date()) {
-              publishDate = null
-            }
 
             let ctype = day.format || day.topic.format || 'image';
             if (ctype === 'post') ctype = 'image';
@@ -595,11 +614,12 @@ export default function Onboarding() {
               caption: day.topic.captionPreview || day.topic.description || '',
               status: 'draft',
               content_type: ctype,
-              publish_at: publishDate ? publishDate.toISOString() : null,
-              target_platforms: form.connected_platforms?.length ? form.connected_platforms : ['facebook']
+              publish_at: publishDate.toISOString(),
+              target_platforms: form.connected_platforms?.length ? form.connected_platforms : ['facebook'],
+              metadata: { is_topic: true }
             })
           } catch (err) {
-            console.error('Failed to save draft post:', err.response?.data || err.message)
+            console.error('Failed to save scheduled topic:', err.response?.data || err.message)
           }
         }
       }
@@ -616,51 +636,51 @@ export default function Onboarding() {
     const type = form.business_type || 'restaurant'
 
     if (type === 'hotel') {
-      if (form.tone === 'friendly') return `Looking for a peaceful getaway? ðŸŒ´ Welcome to ${name}! Enjoy spacious rooms, beautiful views, and warm local hospitality with your loved ones. Book your weekend stay with us today! #traveldiaries #vacation`
-      if (form.tone === 'bold') return `Pack your bags, adventure is calling! ðŸŽ’ Experience ultimate comfort and boutique luxury at ${name}. Premium vibes, stunning surroundings, and unbeatable views. Direct book today! #staycation #wanderlust`
+      if (form.tone === 'friendly') return `Looking for a peaceful getaway? 🌴 Welcome to ${name}! Enjoy spacious rooms, beautiful views, and warm local hospitality with your loved ones. Book your weekend stay with us today! #traveldiaries #vacation`
+      if (form.tone === 'bold') return `Pack your bags, adventure is calling! 🧳 Experience ultimate comfort and boutique luxury at ${name}. Premium vibes, stunning surroundings, and unbeatable views. Direct book today! #staycation #wanderlust`
       if (form.tone === 'professional') return `Discover premium comfort and hospitality at ${name}. We offer well-appointed suites, modern amenities, and dedicated service for leisure and business travelers. Inquire about reservations. #hospitality #boutiquehotel`
-      return `Ready to unwind? ðŸŒŠ Enjoy a relaxing stay at ${name} with cozy rooms and warm local service. Your home away from home. Drop us a message for special regional rates! #localstay #boutiqueresort`
+      return `Ready to unwind? 🌊 Enjoy a relaxing stay at ${name} with cozy rooms and warm local service. Your home away from home. Drop us a message for special regional rates! #localstay #boutiqueresort`
     }
 
     if (type === 'fashion') {
-      if (form.tone === 'friendly') return `Add some fresh style to your wardrobe! âœ¨ Welcome to ${name}. Discover our hand-picked collection of premium, comfortable clothing for every occasion. Drop by today! #fashionwear #boutique`
-      if (form.tone === 'bold') return `Turn heads wherever you go! ðŸ’¥ Get the trendiest designs, vibrant patterns, and premium fits only at ${name}. Upgrade your style game today. Visited us yet? #fashioninspo #shoplocal`
+      if (form.tone === 'friendly') return `Add some fresh style to your wardrobe! ✨ Welcome to ${name}. Discover our hand-picked collection of premium, comfortable clothing for every occasion. Drop by today! #fashionwear #boutique`
+      if (form.tone === 'bold') return `Turn heads wherever you go! 🔥 Get the trendiest designs, vibrant patterns, and premium fits only at ${name}. Upgrade your style game today. Visited us yet? #fashioninspo #shoplocal`
       if (form.tone === 'professional') return `Elevate your style with curated premium apparel from ${name}. We specialize in custom fits, high-quality fabrics, and timeless designs for everyday and formal wear. #fashionboutique #qualitywear`
-      return `New arrivals have dropped at ${name}! ðŸ›ï¸ Beautiful colors, local styles, and comfortable fits at great prices. Come shop with us today! #boutiqueshopping #localboutique`
+      return `New arrivals have dropped at ${name}! 🛍️ Beautiful colors, local styles, and comfortable fits at great prices. Come shop with us today! #boutiqueshopping #localboutique`
     }
 
     if (type === 'salon') {
-      if (form.tone === 'friendly') return `Treat yourself to some well-deserved pampering! ðŸ’‡â€â™€ï¸ Welcome to ${name}! Enjoy professional hair styling, skincare, and beauty treatments in a relaxing environment. Book your slot today! #saloncare #pamperyourself`
-      if (form.tone === 'bold') return `New look, new you! ðŸ”¥ Transform your style with expert styling, bold makeovers, and premium grooming at ${name}. You deserve to shine. Book now! #makeover #styletransform`
+      if (form.tone === 'friendly') return `Treat yourself to some well-deserved pampering! 💇‍♀️ Welcome to ${name}! Enjoy professional hair styling, skincare, and beauty treatments in a relaxing environment. Book your slot today! #saloncare #pamperyourself`
+      if (form.tone === 'bold') return `New look, new you! 🔥 Transform your style with expert styling, bold makeovers, and premium grooming at ${name}. You deserve to shine. Book now! #makeover #styletransform`
       if (form.tone === 'professional') return `Experience premium grooming and aesthetic care at ${name}. Our certified professionals deliver tailored hair, skin, and spa services using high-quality products. #salonservices #professionalgrooming`
-      return `Time for a refresh? ðŸŒŸ Book a haircut or relaxing spa treatment at ${name}. Local care, expert hands, and friendly service. See you soon! #localsalon #spaday`
+      return `Time for a refresh? 🌟 Book a haircut or relaxing spa treatment at ${name}. Local care, expert hands, and friendly service. See you soon! #localsalon #spaday`
     }
 
     if (type === 'fitness') {
-      if (form.tone === 'friendly') return `Start your fitness journey with us! ðŸ’ª Welcome to ${name}. Join a supportive community, expert trainers, and reach your wellness goals in a positive environment. Stop by for a trial today! #fitnessgoals #gymlife`
-      if (form.tone === 'bold') return `NO EXCUSES! âš¡ Push your limits and crush your health goals at ${name}. State-of-the-art weights, high-energy workouts, and results that speak. Let's get fit! #noexcuses #beastmode`
+      if (form.tone === 'friendly') return `Start your fitness journey with us! 💪 Welcome to ${name}. Join a supportive community, expert trainers, and reach your wellness goals in a positive environment. Stop by for a trial today! #fitnessgoals #gymlife`
+      if (form.tone === 'bold') return `NO EXCUSES! ⚡ Push your limits and crush your health goals at ${name}. State-of-the-art weights, high-energy workouts, and results that speak. Let's get fit! #noexcuses #beastmode`
       if (form.tone === 'professional') return `Commit to long-term health and strength at ${name}. We provide structured training regimens, certified physical trainers, and premium fitness equipment. #fitnessstudio #strengthtraining`
-      return `Get active, stay healthy! ðŸƒâ€â™‚ï¸ Join our local community classes at ${name}. Friendly coaches, personalized workouts, and clean facilities. Drop in today! #localgym #wellnessstudio`
+      return `Get active, stay healthy! 🏃‍♂️ Join our local community classes at ${name}. Friendly coaches, personalized workouts, and clean facilities. Drop in today! #localgym #wellnessstudio`
     }
 
     if (type === 'education') {
-      if (form.tone === 'friendly') return `Unlock your full potential! ðŸ“š Welcome to ${name}. We provide supportive mentors, comprehensive study materials, and interactive classes to help students succeed. Join us today! #coachingclasses #learnmore`
-      if (form.tone === 'bold') return `Crack your exams with confidence! ðŸš€ Get top-tier mentorship, result-focused preparation, and shortcut methods only at ${name}. Enroll now to secure your future! #examprep #success`
+      if (form.tone === 'friendly') return `Unlock your full potential! 📚 Welcome to ${name}. We provide supportive mentors, comprehensive study materials, and interactive classes to help students succeed. Join us today! #coachingclasses #learnmore`
+      if (form.tone === 'bold') return `Crack your exams with confidence! 🚀 Get top-tier mentorship, result-focused preparation, and shortcut methods only at ${name}. Enroll now to secure your future! #examprep #success`
       if (form.tone === 'professional') return `Achieve academic excellence at ${name}. We offer structured tutoring programs, experienced subject faculty, and personalized progress assessments for all students. #educationcentre #academicsuccess`
-      return `Empowering local students to achieve their dreams! ðŸŽ“ Admissions are open at ${name}. Quality teaching, personalized attention, and proven results. Inquire today! #localcoaching #tuitioncenter`
+      return `Empowering local students to achieve their dreams! 🎓 Admissions are open at ${name}. Quality teaching, personalized attention, and proven results. Inquire today! #localcoaching #tuitioncenter`
     }
 
     if (type === 'wedding') {
-      if (form.tone === 'friendly') return `Let us make your special day absolutely perfect! ðŸ’ Welcome to ${name}. We design beautiful themes, coordinate details, and handle arrangements so you can enjoy every moment. Contact us today! #weddingplanner #dreamwedding`
-      if (form.tone === 'bold') return `Celebrate your love in style! âœ¨ Make your wedding a breathtaking, high-energy, and unforgettable event at ${name}. Stunning themes, premium decor, and perfect planning. Let's design it! #weddingplanner #granddecor`
+      if (form.tone === 'friendly') return `Let us make your special day absolutely perfect! 💍 Welcome to ${name}. We design beautiful themes, coordinate details, and handle arrangements so you can enjoy every moment. Contact us today! #weddingplanner #dreamwedding`
+      if (form.tone === 'bold') return `Celebrate your love in style! ✨ Make your wedding a breathtaking, high-energy, and unforgettable event at ${name}. Stunning themes, premium decor, and perfect planning. Let's design it! #weddingplanner #granddecor`
       if (form.tone === 'professional') return `Curate a flawless wedding event with ${name}. We deliver complete venue coordination, professional catering management, and sophisticated decor curation tailored to your theme. #weddingvenue #eventplanning`
-      return `Celebrate your family moments beautifully! ðŸŒ¸ Custom event decor and venue management by ${name}. Beautiful settings, local coordinators, and perfect coordination. Book your date today! #localvenue #marriagehall`
+      return `Celebrate your family moments beautifully! 🌸 Custom event decor and venue management by ${name}. Beautiful settings, local coordinators, and perfect coordination. Book your date today! #localvenue #marriagehall`
     }
 
-    if (form.tone === 'friendly') return `Welcome to ${name}! ðŸ˜Š Craving some hot delicious food? Come on in and enjoy our local specialties with your friends and family. We serve hot, fresh meals cooked with love. #supportlocal #foodie`
-    if (form.tone === 'bold') return `BOOM! ðŸ”¥ Your tastebuds aren't ready for this! Get the most delicious local dishes only at ${name}. Dynamic spices, vibrant vibe, and unforgettable taste. Visited us yet? #flavorbomb #food`
+    if (form.tone === 'friendly') return `Welcome to ${name}! 😊 Craving some hot delicious food? Come on in and enjoy our local specialties with your friends and family. We serve hot, fresh meals cooked with love. #supportlocal #foodie`
+    if (form.tone === 'bold') return `BOOM! 🔥 Your tastebuds aren't ready for this! Get the most delicious local dishes only at ${name}. Dynamic spices, vibrant vibe, and unforgettable taste. Visited us yet? #flavorbomb #food`
     if (form.tone === 'professional') return `Experience the highest standards of culinary quality and service at ${name}. Prepared daily with fresh ingredients, our menu delivers consistently excellent flavor. Book your table now. #professionaldining #hospitality`
-    return `Kemon acho! ðŸ¦€ Hot piping local specialties are ready here at ${name}. Fresh ingredients, great taste, and a friendly seating environment. Drop by today! #localflavour #seafood`
+    return `Kemon acho! 🍤 Hot piping local specialties are ready here at ${name}. Fresh ingredients, great taste, and a friendly seating environment. Drop by today! #localflavour #seafood`
   }, [form.business_name, form.business_type, form.tone])
 
   const onboardingContext = useMemo(() => ({
@@ -673,6 +693,7 @@ export default function Onboarding() {
     handleLogoColorExtraction,
     handleSuggestPalette,
     industries,
+    isExtractingWebsite,
     languages,
     onboardingEvents,
     presetPalettes,
