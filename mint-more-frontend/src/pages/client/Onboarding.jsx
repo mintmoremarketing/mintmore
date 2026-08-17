@@ -545,7 +545,10 @@ export default function Onboarding() {
       if (data.description) updateField('description', data.description)
       if (data.products_services) updateField('products_services', data.products_services)
       if (data.customer_profile) updateField('customer_profile', data.customer_profile)
-      if (data.target_ages) updateField('target_ages', data.target_ages)
+      if (data.target_ages) {
+        updateField('target_ages', Array.isArray(data.target_ages) ? data.target_ages : [data.target_ages])
+      }
+      if (data.tone) updateField('tone', data.tone)
       if (data.preferred_language) updateField('preferred_language', data.preferred_language)
       if (data.address_city) updateField('address_city', data.address_city)
       
