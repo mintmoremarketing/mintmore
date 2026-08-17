@@ -702,7 +702,7 @@ export default function Onboarding() {
     if (form.tone === 'bold') return `BOOM! 🔥 Your tastebuds aren't ready for this! Get the most delicious local dishes only at ${name}. Dynamic spices, vibrant vibe, and unforgettable taste. Visited us yet? #flavorbomb #food`
     if (form.tone === 'professional') return `Experience the highest standards of culinary quality and service at ${name}. Prepared daily with fresh ingredients, our menu delivers consistently excellent flavor. Book your table now. #professionaldining #hospitality`
     return `Kemon acho! 🍤 Hot piping local specialties are ready here at ${name}. Fresh ingredients, great taste, and a friendly seating environment. Drop by today! #localflavour #seafood`
-  }, [form.business_name, form.business_type, form.tone])
+  }, [form.business_name, form.business_type, form.tone, form.custom_tone_preview])
 
   const onboardingContext = useMemo(() => ({
     ageSegments,
