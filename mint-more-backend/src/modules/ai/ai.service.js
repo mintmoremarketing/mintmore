@@ -1928,7 +1928,6 @@ Example Format:
     ];
     fallback.isFallback = true;
     return fallback;
-  }
 };
 
 const extractWebsiteData = async (website) => {
