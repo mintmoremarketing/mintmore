@@ -254,20 +254,26 @@ export default function Onboarding() {
     const postingPref = profile.posting_preferences || {}
     setForm(current => ({
       ...current,
-      business_name: profile.business_name || '',
-      business_type: profile.business_type || 'restaurant',
-      address_city: profile.address_city || '',
-      address_state: profile.address_state || '',
-      preferred_language: profile.preferred_language || 'en',
-      description: profile.customer_profile || '',
-      palette: Array.isArray(brandAssets.palette) && brandAssets.palette.length > 0
-        ? brandAssets.palette.map(c => typeof c === 'string' ? c : (c.hex || '#111111'))
-        : (presetPalettes[profile.business_type || 'restaurant']?.[0] || presetPalettes.other[0]),
-      logos: Array.isArray(brandAssets.logos) ? brandAssets.logos : [],
-      festival_mode: postingPref.festival_mode === 'managed' ? 'autopilot' : (postingPref.festival_mode || 'autopilot'),
-      selected_festivals: Array.isArray(postingPref.festivals) ? postingPref.festivals : ['diwali', 'holi'],
-      whatsapp_number: profile.whatsapp_number || '',
-      approval_policy: postingPref.approval_mode || 'every_post',
+      business_name: current.business_name || profile.business_name || '',
+      business_type: current.business_type || profile.business_type || 'restaurant',
+      address_city: current.address_city || profile.address_city || '',
+      address_state: current.address_state || profile.address_state || '',
+      preferred_language: current.preferred_language || profile.preferred_language || 'en',
+      description: current.description || profile.customer_profile || '',
+      palette: current.palette?.length > 0
+        ? current.palette
+        : (Array.isArray(brandAssets.palette) && brandAssets.palette.length > 0
+          ? brandAssets.palette.map(c => typeof c === 'string' ? c : (c.hex || '#111111'))
+          : (presetPalettes[profile.business_type || 'restaurant']?.[0] || presetPalettes.other[0])),
+      logos: current.logos?.length > 0 
+        ? current.logos 
+        : (Array.isArray(brandAssets.logos) ? brandAssets.logos : []),
+      festival_mode: current.festival_mode || (postingPref.festival_mode === 'managed' ? 'autopilot' : (postingPref.festival_mode || 'autopilot')),
+      selected_festivals: current.selected_festivals?.length > 0 
+        ? current.selected_festivals 
+        : (Array.isArray(postingPref.festivals) ? postingPref.festivals : ['diwali', 'holi']),
+      whatsapp_number: current.whatsapp_number || profile.whatsapp_number || '',
+      approval_policy: current.approval_policy || postingPref.approval_mode || 'every_post',
     }))
   }, [profile])
 

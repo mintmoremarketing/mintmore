@@ -28,51 +28,63 @@ export default function BusinessBasicsPage() {
 
       <div className="field">
         <label className="field-label">Business Description</label>
-        {isExtractingWebsite ? (
-          <div className="textarea flex items-center justify-center" style={{ color: '#9ca3af', minHeight: 110 }}>
-            <Icon name="loader-2" className="spin" size={20} />
-          </div>
-        ) : (
           <div className="relative">
             <textarea
-              className="textarea"
-              style={hasImportedWebsite ? { paddingLeft: 36 } : {}}
+              className={`textarea ${isExtractingWebsite ? 'skeleton' : ''}`}
+              style={
+                isExtractingWebsite
+                  ? { 
+                      color: 'transparent', 
+                      userSelect: 'none', 
+                      borderColor: 'transparent',
+                      backgroundImage: 'linear-gradient(90deg, #f3f4f6 0%, #d1d5db 50%, #f3f4f6 100%)'
+                    }
+                  : hasImportedWebsite
+                  ? { paddingLeft: 36 }
+                  : {}
+              }
               rows={4}
               value={form.description}
               onChange={e => updateField('description', e.target.value)}
               placeholder="Describe your business, offerings, and unique value proposition..."
+              readOnly={isExtractingWebsite}
             />
-            {hasImportedWebsite && (
+            {!isExtractingWebsite && hasImportedWebsite && (
               <div className="absolute left-3 top-3 pop-in-textarea" style={{ color: '#10b981' }}>
                 <Icon name="check" size={16} />
               </div>
             )}
           </div>
-        )}
       </div>
 
       <div className="field">
         <label className="field-label">Key Products / Services</label>
-        {isExtractingWebsite ? (
-          <div className="input flex items-center justify-center" style={{ color: '#9ca3af' }}>
-            <Icon name="loader-2" className="spin" size={18} />
-          </div>
-        ) : (
           <div className="relative">
             <input
-              className="input"
-              style={hasImportedWebsite ? { paddingLeft: 36 } : {}}
+              className={`input ${isExtractingWebsite ? 'skeleton' : ''}`}
+              style={
+                isExtractingWebsite
+                  ? { 
+                      color: 'transparent', 
+                      userSelect: 'none', 
+                      borderColor: 'transparent',
+                      backgroundImage: 'linear-gradient(90deg, #f3f4f6 0%, #d1d5db 50%, #f3f4f6 100%)'
+                    }
+                  : hasImportedWebsite
+                  ? { paddingLeft: 36 }
+                  : {}
+              }
               value={form.products_services}
               onChange={e => updateField('products_services', e.target.value)}
               placeholder="e.g. Tandoori Chicken, Ocean View Rooms, Spa Treatment"
+              readOnly={isExtractingWebsite}
             />
-            {hasImportedWebsite && (
+            {!isExtractingWebsite && hasImportedWebsite && (
               <div className="absolute left-3 top-1/2 pop-in" style={{ color: '#10b981', transform: 'translateY(-50%)' }}>
                 <Icon name="check" size={16} />
               </div>
             )}
           </div>
-        )}
       </div>
     </div>
   )

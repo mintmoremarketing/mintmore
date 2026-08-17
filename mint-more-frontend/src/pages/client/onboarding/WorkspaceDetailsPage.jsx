@@ -39,51 +39,64 @@ export default function WorkspaceDetailsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="field">
           <label className="field-label">Business Name</label>
-          {isExtractingWebsite ? (
-            <div className="input flex items-center justify-center" style={{ color: '#9ca3af' }}>
-              <Icon name="loader-2" className="spin" size={18} />
-            </div>
-          ) : (
-            <div className="relative">
-              <input
-                className="input"
-                style={hasImportedWebsite ? { paddingLeft: 36 } : {}}
-                value={form.business_name}
-                onChange={e => updateField('business_name', e.target.value)}
-                placeholder="e.g. Bhouter Bari Hotel"
-              />
-              {hasImportedWebsite && (
-                <div className="absolute left-3 top-1/2 pop-in" style={{ color: '#10b981', transform: 'translateY(-50%)' }}>
-                  <Icon name="check" size={16} />
-                </div>
-              )}
-            </div>
-          )}
+          <div className="relative">
+            <input
+              className={`input ${isExtractingWebsite ? 'skeleton' : ''}`}
+              style={
+                isExtractingWebsite
+                  ? { 
+                      color: 'transparent', 
+                      userSelect: 'none', 
+                      borderColor: 'transparent',
+                      backgroundImage: 'linear-gradient(90deg, #f3f4f6 0%, #d1d5db 50%, #f3f4f6 100%)'
+                    }
+                  : hasImportedWebsite
+                  ? { paddingLeft: 36 }
+                  : {}
+              }
+              value={form.business_name}
+              onChange={e => updateField('business_name', e.target.value)}
+              placeholder="e.g. Bhouter Bari Hotel"
+              readOnly={isExtractingWebsite}
+            />
+            {!isExtractingWebsite && hasImportedWebsite && (
+              <div className="absolute left-3 top-1/2 pop-in" style={{ color: '#10b981', transform: 'translateY(-50%)' }}>
+                <Icon name="check" size={16} />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="field">
           <label className="field-label">Industry Category</label>
-          {isExtractingWebsite ? (
-            <div className="input flex items-center justify-center" style={{ color: '#9ca3af' }}>
-              <Icon name="loader-2" className="spin" size={18} />
-            </div>
-          ) : (
-            <div className="relative">
-              <select
-                className="input"
-                style={hasImportedWebsite ? { paddingLeft: 36 } : {}}
-                value={form.business_type}
-                onChange={e => updateField('business_type', e.target.value)}
-              >
-                {industries.map(([val, name]) => <option key={val} value={val}>{name}</option>)}
-              </select>
-              {hasImportedWebsite && (
-                <div className="absolute left-3 top-1/2 pop-in" style={{ color: '#10b981', transform: 'translateY(-50%)' }}>
-                  <Icon name="check" size={16} />
-                </div>
-              )}
-            </div>
-          )}
+          <div className="relative">
+            <select
+              className={`input ${isExtractingWebsite ? 'skeleton' : ''}`}
+              style={
+                isExtractingWebsite
+                  ? { 
+                      color: 'transparent', 
+                      userSelect: 'none', 
+                      appearance: 'none', 
+                      borderColor: 'transparent',
+                      backgroundImage: 'linear-gradient(90deg, #f3f4f6 0%, #d1d5db 50%, #f3f4f6 100%)'
+                    }
+                  : hasImportedWebsite
+                  ? { paddingLeft: 36 }
+                  : {}
+              }
+              value={form.business_type}
+              onChange={e => updateField('business_type', e.target.value)}
+              disabled={isExtractingWebsite}
+            >
+              {industries.map(([val, name]) => <option key={val} value={val}>{name}</option>)}
+            </select>
+            {!isExtractingWebsite && hasImportedWebsite && (
+              <div className="absolute left-3 top-1/2 pop-in" style={{ color: '#10b981', transform: 'translateY(-50%)' }}>
+                <Icon name="check" size={16} />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -101,26 +114,32 @@ export default function WorkspaceDetailsPage() {
 
         <div className="field">
           <label className="field-label">Location (City)</label>
-          {isExtractingWebsite ? (
-            <div className="input flex items-center justify-center" style={{ color: '#9ca3af' }}>
-              <Icon name="loader-2" className="spin" size={18} />
-            </div>
-          ) : (
-            <div className="relative">
-              <input
-                className="input"
-                style={hasImportedWebsite ? { paddingLeft: 36 } : {}}
-                value={form.address_city}
-                onChange={e => updateField('address_city', e.target.value)}
-                placeholder="e.g. Mandarmoni"
-              />
-              {hasImportedWebsite && (
-                <div className="absolute left-3 top-1/2 pop-in" style={{ color: '#10b981', transform: 'translateY(-50%)' }}>
-                  <Icon name="check" size={16} />
-                </div>
-              )}
-            </div>
-          )}
+          <div className="relative">
+            <input
+              className={`input ${isExtractingWebsite ? 'skeleton' : ''}`}
+              style={
+                isExtractingWebsite
+                  ? { 
+                      color: 'transparent', 
+                      userSelect: 'none', 
+                      borderColor: 'transparent',
+                      backgroundImage: 'linear-gradient(90deg, #f3f4f6 0%, #d1d5db 50%, #f3f4f6 100%)'
+                    }
+                  : hasImportedWebsite
+                  ? { paddingLeft: 36 }
+                  : {}
+              }
+              value={form.address_city}
+              onChange={e => updateField('address_city', e.target.value)}
+              placeholder="e.g. Mandarmoni"
+              readOnly={isExtractingWebsite}
+            />
+            {!isExtractingWebsite && hasImportedWebsite && (
+              <div className="absolute left-3 top-1/2 pop-in" style={{ color: '#10b981', transform: 'translateY(-50%)' }}>
+                <Icon name="check" size={16} />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
