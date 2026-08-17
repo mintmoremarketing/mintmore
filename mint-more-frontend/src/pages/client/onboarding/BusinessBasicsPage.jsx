@@ -3,7 +3,7 @@ import { useOnboardingContext } from './useOnboardingContext'
 import Icon from '../../../components/ui/Icon'
 
 export default function BusinessBasicsPage() {
-  const { form, updateField, isExtractingWebsite } = useOnboardingContext()
+  const { form, updateField, isExtractingWebsite, hasImportedWebsite } = useOnboardingContext()
 
   return (
     <div className="stack" style={{ gap: 24 }}>
@@ -13,28 +13,48 @@ export default function BusinessBasicsPage() {
       </div>
 
       <div className="field">
-        <label className="field-label flex items-center gap-2">
-          Business Description {isExtractingWebsite && <Icon name="loader-2" className="spin muted" size={12} />}
-        </label>
-        <textarea
-          className="textarea"
-          rows={4}
-          value={form.description}
-          onChange={e => updateField('description', e.target.value)}
-          placeholder="Describe your business, offerings, and unique value proposition..."
-        />
+        <label className="field-label">Business Description</label>
+        <div className="relative">
+          <textarea
+            className={`textarea ${isExtractingWebsite || hasImportedWebsite ? 'pl-9' : ''}`}
+            rows={4}
+            value={form.description}
+            onChange={e => updateField('description', e.target.value)}
+            placeholder="Describe your business, offerings, and unique value proposition..."
+          />
+          {isExtractingWebsite && (
+            <div className="absolute left-3 top-3 text-mint-500">
+              <Icon name="loader-2" className="spin" size={14} />
+            </div>
+          )}
+          {!isExtractingWebsite && hasImportedWebsite && (
+            <div className="absolute left-3 top-3 text-mint-500">
+              <Icon name="check" size={14} />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="field">
-        <label className="field-label flex items-center gap-2">
-          Key Products / Services {isExtractingWebsite && <Icon name="loader-2" className="spin muted" size={12} />}
-        </label>
-        <input
-          className="input"
-          value={form.products_services}
-          onChange={e => updateField('products_services', e.target.value)}
-          placeholder="e.g. Tandoori Chicken, Ocean View Rooms, Spa Treatment"
-        />
+        <label className="field-label">Key Products / Services</label>
+        <div className="relative">
+          <input
+            className={`input ${isExtractingWebsite || hasImportedWebsite ? 'pl-9' : ''}`}
+            value={form.products_services}
+            onChange={e => updateField('products_services', e.target.value)}
+            placeholder="e.g. Tandoori Chicken, Ocean View Rooms, Spa Treatment"
+          />
+          {isExtractingWebsite && (
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-mint-500">
+              <Icon name="loader-2" className="spin" size={14} />
+            </div>
+          )}
+          {!isExtractingWebsite && hasImportedWebsite && (
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-mint-500">
+              <Icon name="check" size={14} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

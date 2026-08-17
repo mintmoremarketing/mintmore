@@ -135,6 +135,7 @@ export default function Onboarding() {
   const [paletteCustomized, setPaletteCustomized] = useState(false)
   const [isGeneratingCadence, setIsGeneratingCadence] = useState(false)
   const [isExtractingWebsite, setIsExtractingWebsite] = useState(false)
+  const [hasImportedWebsite, setHasImportedWebsite] = useState(false)
   const [generationPhase, setGenerationPhase] = useState(0)
   
   const getInitialForm = () => {
@@ -541,6 +542,7 @@ export default function Onboarding() {
       if (data.preferred_language) updateField('preferred_language', data.preferred_language)
       if (data.address_city) updateField('address_city', data.address_city)
       
+      setHasImportedWebsite(true)
       pushToast({ title: 'Website details imported!', icon: 'check', tone: 'mint' })
     } catch (err) {
       pushToast({ title: 'Failed to extract info', body: err.response?.data?.message || err.message, tone: 'amber' })
@@ -712,12 +714,14 @@ export default function Onboarding() {
     updateField,
     uploadAssetMutation,
     isExtractingWebsite,
+    hasImportedWebsite,
     ...calendarState,
   }), [
     connectedAccounts,
     form,
     generationPhase,
     isExtractingWebsite,
+    hasImportedWebsite,
     handleFinishOnboarding,
     onboardingEvents,
     profile,
