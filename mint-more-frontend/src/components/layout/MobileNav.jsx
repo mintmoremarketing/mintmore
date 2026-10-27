@@ -4,6 +4,7 @@ import { filterNavItems, navForRole } from './navigation'
 import { useEntitlements } from '../../hooks/useEntitlements'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
+import { useFreelancerApproved } from '../freelancer/completionApi'
 
 const PRIMARY_ROUTES = {
   client: ['/dashboard', '/services', '/orders', '/chat', '/notifications'],
@@ -12,7 +13,54 @@ const PRIMARY_ROUTES = {
   admin: ['/admin', '/admin/operations', '/admin/users', '/support', '/chat'],
 }
 
+const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }
+const FREELANCER_TABS = [
+  { route: '/dashboard', label: 'Home', icon: active => <svg viewBox="0 0 24 24" width="24" height="24" {...stroke} fill={active ? 'currentColor' : 'none'}><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" /></svg> },
+  { route: '/chat', label: 'Chat', icon: () => <svg viewBox="0 0 24 24" width="24" height="24" {...stroke}><path d="M21 12a9 9 0 0 1-13.4 7.9L3 21l1.1-4.6A9 9 0 1 1 21 12Z" /><path d="M8 12h.01M12 12h.01M16 12h.01" strokeWidth="2.6" /></svg> },
+  { route: '/assessments', label: 'Assessments', icon: () => <svg viewBox="0 0 24 24" width="24" height="24" {...stroke}><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" /><path d="M8 13h6M8 17h4" /><circle cx="18" cy="6" r="3.5" /><path d="m16.6 6 1 1 1.8-1.9" /></svg> },
+  { route: '/upskill', label: 'Upskill', icon: () => <svg viewBox="0 0 24 24" width="24" height="24" {...stroke}><path d="M2 5a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H3a1 1 0 0 1-1-1z" /><path d="M22 5a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h6a1 1 0 0 0 1-1z" /></svg> },
+]
+// Once approved, the Assessments slot becomes My Work.
+const WORK_TAB = { route: '/work', label: 'My Work', icon: () => <svg viewBox="0 0 24 24" width="24" height="24" {...stroke}><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><path d="M2 13h20" /></svg> }
+
+/** Freelancer bottom bar, same order as the reference: Home, Chat, Assessments, Upskill, Profile (avatar). */
+function FreelancerMobileNav() {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const user = useAuthStore(s => s.user)
+  const approved = useFreelancerApproved()
+  const tabs = FREELANCER_TABS.map(item => (approved && item.route === '/assessments' ? WORK_TAB : item))
+  const isOn = route => (route === '/dashboard' ? pathname === route : pathname === route || pathname.startsWith(`${route}/`))
+  const profileOn = isOn('/profile')
+  const initial = (user?.full_name || '').match(/\p{L}/u)?.[0]?.toUpperCase() || 'C'
+  const tab = 'relative flex h-full w-full flex-col items-center justify-center gap-1 transition-colors duration-150'
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-ink-100 bg-white pb-safe font-store" aria-label="Main">
+      {tabs.map(item => {
+        const active = isOn(item.route)
+        return (
+          <button key={item.route} type="button" aria-current={active ? 'page' : undefined} onClick={() => navigate(item.route)} className={`${tab} ${active ? 'text-ink-900' : 'text-ink-500 hover:text-ink-800'}`}>
+            {item.icon(active)}
+            <span className={`text-[11px] leading-none ${active ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
+          </button>
+        )
+      })}
+      <button type="button" aria-current={profileOn ? 'page' : undefined} onClick={() => navigate('/profile')} className={`${tab} ${profileOn ? 'text-ink-900' : 'text-ink-500 hover:text-ink-800'}`}>
+        <span className={`grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-mint-100 text-[11px] font-semibold text-ink-900 ${profileOn ? 'ring-2 ring-ink-900 ring-offset-1' : ''}`}>
+          {user?.avatar_url ? <img src={user.avatar_url} alt="" className="h-full w-full object-cover" /> : initial}
+        </span>
+        <span className={`text-[11px] leading-none ${profileOn ? 'font-semibold' : 'font-medium'}`}>Profile</span>
+      </button>
+    </nav>
+  )
+}
+
 export default function MobileNav({ role }) {
+  if (role === 'freelancer') return <FreelancerMobileNav />
+  return <RoleMobileNav role={role} />
+}
+
+function RoleMobileNav({ role }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { data: access } = useEntitlements()

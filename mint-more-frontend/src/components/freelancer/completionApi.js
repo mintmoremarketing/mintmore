@@ -1,8 +1,19 @@
+import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
 
 export const COMPLETION_QUERY_KEY = ['profile-completion']
 
 export const fetchCompletion = () => api.get('/profile/me/completion').then(res => res.data.data.completion)
+
+/**
+ * True once the freelancer is approved to take orders. Until there is a graded
+ * assessment, approval means a complete profile (KYC verified, qualified for a
+ * service). The Assessments tab turns into My Work at that point.
+ */
+export function useFreelancerApproved() {
+	const { data } = useQuery({ queryKey: COMPLETION_QUERY_KEY, queryFn: fetchCompletion, staleTime: 30_000 })
+	return Boolean(data?.isComplete)
+}
 
 // Pages that change a checklist field fire this so the panel refetches.
 export const PROFILE_UPDATED_EVENT = 'creatyv:profile-updated'

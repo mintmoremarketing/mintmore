@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { servicesApi } from '../../api/services'
@@ -8,7 +8,7 @@ import { CATEGORY_STYLE } from '../../components/storefront/storefrontUtils'
 import StoreStack from '../../components/storefront/StoreStack'
 import ShopperHero from '../../components/storefront/ShopperHero'
 import { useAuthStore } from '../../store/auth'
-import { USE_REFERENCE_PHOTOS, referenceCategoryTile } from '../../components/storefront/referencePhotos'
+import { USE_REFERENCE_PHOTOS, referenceCategoryTile, referenceVideos } from '../../components/storefront/referencePhotos'
 
 function CategoryTile({ category }) {
 	const style = CATEGORY_STYLE[category.slug] || {}
@@ -41,6 +41,47 @@ function CategoryTile({ category }) {
 					: <ImageSlot title={category.name} category={category.slug} className="opacity-90 shadow-lg" rounded="rounded-2xl" />}
 			</div>
 		</Link>
+	)
+}
+
+/** A muted reel that plays only while most of it is on screen. */
+function ReelClip({ clip }) {
+	const ref = useRef(null)
+	useEffect(() => {
+		const video = ref.current
+		if (!video || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+		// The src is attached on first view, so off-screen clips never download.
+		const io = new IntersectionObserver(([entry]) => {
+			if (entry.isIntersecting) {
+				if (!video.src) video.src = clip.src
+				video.play().catch(() => {})
+			} else video.pause()
+		}, { threshold: 0.6 })
+		io.observe(video)
+		return () => io.disconnect()
+	}, [clip.src])
+	return (
+		<Link to={`/services/${clip.slug}`} className="group w-[168px] shrink-0 snap-start md:w-[216px]">
+			<div className="aspect-[9/16] overflow-hidden rounded-2xl bg-ink-900">
+				<video ref={ref} poster={clip.poster || undefined} muted loop playsInline preload="none" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+			</div>
+			<p className="mt-2 line-clamp-1 text-[15px] font-medium text-ink-900 group-hover:underline">{clip.title}</p>
+		</Link>
+	)
+}
+
+/** TEMP-REFERENCE-VIDEOS: strip of work-sample reels, each linking to its service. */
+function WorkReels() {
+	const clips = referenceVideos()
+	if (!clips.length) return null
+	return (
+		<section className="mt-20">
+			<h2 className="text-3xl font-medium tracking-tight text-ink-900 md:text-[40px]">See the work</h2>
+			<p className="mt-2 text-[15px] text-ink-600">Reels in the styles you can book. Tap one to open the service.</p>
+			<div className="-mx-4 mt-6 flex snap-x gap-3 overflow-x-auto px-4 pb-2 md:-mx-8 md:gap-4 md:px-8">
+				{clips.map(clip => <ReelClip key={clip.slug} clip={clip} />)}
+			</div>
+		</section>
 	)
 }
 
@@ -141,6 +182,8 @@ export default function StoreHome({ embedded = false }) {
 			</section>
 
 			{data?.rows.map(row => <StoreRow key={row.title} title={row.title} services={row.services} />)}
+
+			<WorkReels />
 
 			{/* LAUNCH-HIDDEN: "Trusted by 200K+ users" and creator testimonial strips — add once we have our own numbers and creators. */}
 
