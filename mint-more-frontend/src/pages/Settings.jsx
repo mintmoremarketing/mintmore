@@ -10,6 +10,8 @@ import VerificationPanel from '../components/settings/VerificationPanel'
 import { socialApi } from '../api/social'
 import AccountManager from '../components/social/AccountManager'
 
+const HIDDEN_CLIENT_SECTIONS = new Set(['brand-assets', 'social', 'google-business', 'posting-preferences', 'smart-festival-plan', 'setup'])
+
 const GOOGLE_PLACES_SCRIPT_ID = 'creatyv-google-places-script'
 let googlePlacesPromise = null
 
@@ -233,7 +235,9 @@ const normalizeHex = (value) => {
 
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const section = searchParams.get('section') || 'profile'
+  // Social-agency setup sections are hidden for the services launch.
+  const requestedSection = searchParams.get('section') || 'profile'
+  const section = HIDDEN_CLIENT_SECTIONS.has(requestedSection) ? 'profile' : requestedSection
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
   const { user, setAuth, refreshToken, accessToken, logout } = useAuthStore()
@@ -833,11 +837,13 @@ export default function Settings() {
 
   const sections = [
     ['profile', 'user', user?.role === 'client' ? 'Business profile' : 'Profile'],
-    ...(user?.role === 'client' ? [['brand-assets', 'image', 'Brand assets']] : []),
-    ...(user?.role === 'client' ? [['social', 'layers', 'Social accounts']] : []),
-    ...(user?.role === 'client' ? [['google-business', 'globe', 'Google Business']] : []),
-    ...(user?.role === 'client' ? [['posting-preferences', 'calendar', 'Posting cadence']] : []),
-    ...(user?.role === 'client' ? [['smart-festival-plan', 'sparkles', 'Smart Festival Plan']] : []),
+    ...(user?.role === 'client' ? [
+      ['brand-assets', 'image', 'Brand assets'],
+      ['social', 'layers', 'Social accounts'],
+      ['google-business', 'globe', 'Google Business'],
+      ['posting-preferences', 'calendar', 'Posting cadence'],
+      ['smart-festival-plan', 'sparkles', 'Smart Festival Plan'],
+    ].filter(([id]) => !HIDDEN_CLIENT_SECTIONS.has(id)) : []),
     ...(!['admin', 'designer'].includes(user?.role) ? [['verification', 'shield', 'Verification']] : []),
     ['security', 'lock', 'Password & security'],
     ['account', 'settings', 'Account info'],
@@ -845,28 +851,29 @@ export default function Settings() {
 
   return (
     <div className="flex flex-col md:flex-row gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
-      <aside className="w-full md:w-64 shrink-0 flex flex-col gap-1 md:sticky md:top-24 self-start">
-        <div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-2 px-3">Settings</div>
+      {/* Phones: the sections become one scrolling row so the content starts on the first screen. */}
+      <aside className="w-full md:w-64 shrink-0 flex flex-row md:flex-col gap-1 md:sticky md:top-24 self-start overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:none]">
+        <h1 className="hidden md:block mb-2 px-3 text-2xl font-display font-bold tracking-tight text-ink-900">Settings</h1>
         {sections.map(([id, icon, label]) => (
-          <button key={id} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${section === id ? 'bg-white shadow-sm border border-ink-200 text-ink-900' : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'}`} onClick={() => setSearchParams({ section: id })}>
+          <button key={id} className={`flex shrink-0 items-center gap-3 whitespace-nowrap px-3 py-2.5 rounded-lg text-sm font-medium transition-[background-color,color,transform] duration-150 active:scale-[0.97] ${section === id ? 'bg-white shadow-sm border border-ink-200 text-ink-900' : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'}`} onClick={() => setSearchParams({ section: id })}>
             <Icon name={icon} size={16} /> {label}
           </button>
         ))}
-        <hr className="my-2 border-ink-200" />
+        <hr className="hidden md:block my-2 border-ink-200" />
         <button 
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-red-600 hover:bg-red-50" 
+          className="flex shrink-0 items-center gap-3 whitespace-nowrap px-3 py-2.5 rounded-lg text-sm font-medium transition-[background-color,transform] duration-150 active:scale-[0.97] text-red-600 hover:bg-red-50" 
           onClick={logout}
         >
           <Icon name="arrowRight" size={16} /> Sign out
         </button>
       </aside>
       <div className="flex-1 flex flex-col gap-6 min-w-0">
-      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 mb-6">
-        <h1 className="text-3xl md:text-4xl font-display font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-ink-950 to-ink-600 m-0 pb-1">
+      <div className="mb-2">
+        <h2 className="text-3xl md:text-4xl font-display font-bold tracking-tight text-ink-950 m-0 pb-1">
           {sections.find(([id]) => id === section)?.[2] || 'Account settings'}
-        </h1>
-        <p className="text-ink-500 text-lg md:text-xl font-medium max-w-2xl mt-2 mb-0">
-          Manage your personal and business details, connected accounts, and system preferences.
+        </h2>
+        <p className="text-ink-500 text-sm md:text-base max-w-2xl mt-2 mb-0">
+          Manage your profile, verification and sign-in details.
         </p>
       </div>
 
@@ -888,8 +895,8 @@ export default function Settings() {
               </div>
               <div className="flex flex-col items-start">
                 <div className="text-xl font-bold text-ink-950 mb-1">{profile.full_name}</div>
-                <div className="text-sm font-medium text-ink-500 capitalize mb-4">
-                  {profile.role} • {profile.email}
+                <div className="text-sm font-medium text-ink-500 mb-4">
+                  <span className="capitalize">{profile.role}</span> · {profile.email}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <input

@@ -1,0 +1,2642 @@
+{
+  "source": "https://unjob.ai",
+  "extracted_at": "2026-10-26T12:15:13.492Z",
+  "categories": [
+    {
+      "slug": "video-editing",
+      "name": "Video Editing"
+    },
+    {
+      "slug": "design",
+      "name": "Design"
+    },
+    {
+      "slug": "ai-service",
+      "name": "AI Services"
+    },
+    {
+      "slug": "content-writing",
+      "name": "Content Writing"
+    },
+    {
+      "slug": "consultation",
+      "name": "Consultation"
+    }
+  ],
+  "sections": [
+    {
+      "category": "video-editing",
+      "name": "Reels"
+    },
+    {
+      "category": "video-editing",
+      "name": "YouTube"
+    },
+    {
+      "category": "video-editing",
+      "name": "Events"
+    },
+    {
+      "category": "design",
+      "name": "Thumbnails"
+    },
+    {
+      "category": "design",
+      "name": "Social media posts"
+    },
+    {
+      "category": "design",
+      "name": "Branding"
+    },
+    {
+      "category": "design",
+      "name": "UI Design"
+    },
+    {
+      "category": "design",
+      "name": "Illustration"
+    },
+    {
+      "category": "design",
+      "name": "Professional Presentation"
+    },
+    {
+      "category": "design",
+      "name": "Packaging Design"
+    },
+    {
+      "category": "design",
+      "name": "Book &amp; Publication Design"
+    },
+    {
+      "category": "design",
+      "name": "Merchandise Design"
+    },
+    {
+      "category": "ai-service",
+      "name": "AI Videos"
+    },
+    {
+      "category": "content-writing",
+      "name": "Scripts"
+    },
+    {
+      "category": "content-writing",
+      "name": "LinkedIn"
+    },
+    {
+      "category": "consultation",
+      "name": "Social Media Consultation"
+    }
+  ],
+  "homepage": [
+    {
+      "title": "Best Sellers",
+      "slugs": [
+        "engaging-reel",
+        "ugc-ad-creative-reel",
+        "ai-ugc-video",
+        "advanced-retention-edit"
+      ]
+    },
+    {
+      "title": "Video Editing for You",
+      "slugs": [
+        "engaging-reel",
+        "advanced-retention-edit",
+        "cuts-with-captions-reel",
+        "talking-head-edit-upto-10-min"
+      ]
+    },
+    {
+      "title": "Trending AI content services",
+      "slugs": [
+        "ai-ugc-video",
+        "ai-fashion-video-45-seconds",
+        "ai-prompted-design-post",
+        "ai-avatar-video"
+      ]
+    },
+    {
+      "title": "Design for You",
+      "slugs": [
+        "basic-thumbnail",
+        "high-ctr-thumbnail",
+        "website-ui-5-screens",
+        "app-ui-10-screens"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "engaging-reel",
+      "title": "Engaging Talking-Head Reel",
+      "unit": "Reel",
+      "option_group": "Reel length",
+      "base_option": "<60 seconds",
+      "price": 999,
+      "mrp": 1299,
+      "payout": 500,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "B-Rolls Integration",
+        "Subtitles+ SFX",
+        "Single cam talking head"
+      ],
+      "excludes": [
+        "Motion Graphics",
+        "Multi cam shoots",
+        "Editable Project files"
+      ],
+      "tools": [
+        "Premiere Pro",
+        "Capcut"
+      ],
+      "highlights": [
+        "Clean cuts & seamless transitions",
+        "Dynamic captions/subtitles",
+        "Copyright-free background music",
+        "Relevant B-roll integration",
+        "Color correction & enhancement",
+        "Hook-focused opening",
+        "Export in HD quality"
+      ],
+      "sort": 1,
+      "faqs": [
+        {
+          "q": "Who edits my video?",
+          "a": "We have a pool of 5 lakh+ vetted editors on Unjob. Once you book a service, our AI algorithm instantly assigns the best rated available editor based on your service requirements."
+        },
+        {
+          "q": "Can I speak directly with the editor?",
+          "a": "Yes. Once your payment is completed, a chat with your assigned editor opens automatically. You can directly communicate with them and share your assets, videos, references, and instructions."
+        },
+        {
+          "q": "What is the delivery timeline?",
+          "a": "The delivery timeline as mentioned is maximum 24 hours. Most videos are usually completed within 6–12 hours, depending on the editor’s availability and the complexity and effort required for the project."
+        },
+        {
+          "q": "Can I rebook the same editor again?",
+          "a": "Yes. If you liked your editor, you can book the same editor again. On your next booking, you’ll get an option at checkout to select and rebook an editor you’ve worked with before."
+        }
+      ],
+      "options": [
+        {
+          "ref": "37e8cdf2-deb9-44e0-b0c6-63ef6de4a3b8",
+          "label": "<90 seconds",
+          "price": 1249,
+          "mrp": 1699,
+          "payout": 650,
+          "delivery_days": 1
+        },
+        {
+          "ref": "1f13504c-5236-4ff3-bb69-a04aa71581f3",
+          "label": "<180 seconds",
+          "price": 2498,
+          "mrp": 3398,
+          "payout": 1200,
+          "delivery_days": 2
+        }
+      ],
+      "packs": [
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 2699,
+          "mrp": 3899,
+          "payout": 1500,
+          "delivery_days": 2
+        },
+        {
+          "option_ref": "37e8cdf2-deb9-44e0-b0c6-63ef6de4a3b8",
+          "count": 3,
+          "price": 3299,
+          "mrp": 5097,
+          "payout": 1750,
+          "delivery_days": 1
+        },
+        {
+          "option_ref": "1f13504c-5236-4ff3-bb69-a04aa71581f3",
+          "count": 3,
+          "price": 6749,
+          "mrp": 9999,
+          "payout": 3500,
+          "delivery_days": 3
+        },
+        {
+          "option_ref": null,
+          "count": 10,
+          "price": 8499,
+          "mrp": 12990,
+          "payout": 4700,
+          "delivery_days": 7
+        },
+        {
+          "option_ref": "37e8cdf2-deb9-44e0-b0c6-63ef6de4a3b8",
+          "count": 10,
+          "price": 9999,
+          "mrp": 16990,
+          "payout": 6000,
+          "delivery_days": 7
+        },
+        {
+          "option_ref": "1f13504c-5236-4ff3-bb69-a04aa71581f3",
+          "count": 10,
+          "price": 20099,
+          "mrp": 33980,
+          "payout": 11000,
+          "delivery_days": 7
+        }
+      ]
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "advanced-retention-edit",
+      "title": "Advanced Retention Reel",
+      "unit": "Reel",
+      "option_group": "Reel Length",
+      "base_option": "<60 seconds",
+      "price": 1499,
+      "mrp": 1799,
+      "payout": 1100,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Video duration up to 90 seconds",
+        "Professional storyline editing",
+        "Premium animated captions",
+        "Little bit of Motion graphics & icons"
+      ],
+      "excludes": [
+        "Stock footage purchase (premium/licensed)",
+        "Multi-language subtitles",
+        "Sharing project file"
+      ],
+      "tools": [
+        "Premiere Pro",
+        "After Effects"
+      ],
+      "highlights": [
+        "Hook-focused editing style",
+        "Dynamic captions & zoom cuts",
+        "Engagement-driven pacing",
+        "Viral reel optimization"
+      ],
+      "sort": 2,
+      "faqs": [],
+      "options": [
+        {
+          "ref": "37ba94a0-6377-4ea5-810a-cfe0f9ce3bfe",
+          "label": "<90 seconds",
+          "price": 1999,
+          "mrp": 2399,
+          "payout": 1500,
+          "delivery_days": 2
+        },
+        {
+          "ref": "b053b7d8-ce5a-4454-8431-15c64f9bc144",
+          "label": "<180 seconds",
+          "price": 3998,
+          "mrp": 4799,
+          "payout": 3000,
+          "delivery_days": 2
+        }
+      ],
+      "packs": [
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 3999,
+          "mrp": 5397,
+          "payout": 2999,
+          "delivery_days": 2
+        },
+        {
+          "option_ref": "37ba94a0-6377-4ea5-810a-cfe0f9ce3bfe",
+          "count": 3,
+          "price": 5399,
+          "mrp": 7199,
+          "payout": 4000,
+          "delivery_days": 3
+        },
+        {
+          "option_ref": "b053b7d8-ce5a-4454-8431-15c64f9bc144",
+          "count": 3,
+          "price": 10749,
+          "mrp": 14397,
+          "payout": 8100,
+          "delivery_days": 4
+        },
+        {
+          "option_ref": null,
+          "count": 10,
+          "price": 12749,
+          "mrp": 17990,
+          "payout": 8500,
+          "delivery_days": 7
+        },
+        {
+          "option_ref": "37ba94a0-6377-4ea5-810a-cfe0f9ce3bfe",
+          "count": 10,
+          "price": 16999,
+          "mrp": 23990,
+          "payout": 13000,
+          "delivery_days": 7
+        },
+        {
+          "option_ref": "b053b7d8-ce5a-4454-8431-15c64f9bc144",
+          "count": 10,
+          "price": 33999,
+          "mrp": 47990,
+          "payout": 26000,
+          "delivery_days": 10
+        }
+      ]
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "enterprise-level-reel-editing",
+      "title": "Enterprise Level Reel Editing",
+      "unit": "reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 3999,
+      "mrp": 4999,
+      "payout": 2000,
+      "delivery_days": 2,
+      "revisions": 5,
+      "includes": [
+        "Up to 90-second Reel",
+        "Advanced cuts, transitions & pacing",
+        "Motion graphics & typography",
+        "Professional color grading"
+      ],
+      "excludes": [
+        "Video shooting / production",
+        "Advanced 3D animation or CGI",
+        "Scriptwriting & content strategy",
+        "Voice-over recording"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "After Effects",
+        "DaVinci Resolve",
+        "Photoshop"
+      ],
+      "highlights": [
+        "Premium, brand-focused editing for high-impact content",
+        "Advanced storytelling, pacing and visual composition",
+        "Professional motion graphics and typography",
+        "Cinematic color grading and polished sound design",
+        "Consistent visual language aligned with brand guidelines",
+        "Optimized for social media and marketing campaigns"
+      ],
+      "sort": 3,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "cuts-with-captions-reel",
+      "title": "Cuts with Captions Reel",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 749,
+      "mrp": 999,
+      "payout": 400,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Cuts",
+        "Captions",
+        "Music"
+      ],
+      "excludes": [
+        "Advanced animation"
+      ],
+      "tools": [
+        "CapCut",
+        "Inshots",
+        "VN",
+        "Edits app"
+      ],
+      "highlights": [
+        "Subtitle integration",
+        "Clean transitions",
+        "Social-media-ready export",
+        "Fast turnaround delivery"
+      ],
+      "sort": 3,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "podcast-reel-edit",
+      "title": "Podcast Clipping Reel (from LIVE youtube podcast)",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 499,
+      "mrp": 599,
+      "payout": 400,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Trimming + captions",
+        "Clipping from live YouTube link"
+      ],
+      "excludes": [
+        "Multi-cam switching",
+        "B rolls",
+        "Motion graphics",
+        "Clipping from raw unedited podcast"
+      ],
+      "tools": [
+        "CapCut",
+        "Filmora"
+      ],
+      "highlights": [
+        "Clipping from a podcast which is already live on YouTube",
+        "Short-form podcast clipping",
+        "Captions integration",
+        "Reel-ready pacing",
+        "Platform-ready formatting",
+        "This service doesn't include making a reel out of an unedited raw podcast. It only clips the reel from an already existing uploaded podcast on YouTube"
+      ],
+      "sort": 4,
+      "faqs": [],
+      "options": [],
+      "packs": [
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 1349,
+          "mrp": 1797,
+          "payout": 1080,
+          "delivery_days": 2
+        },
+        {
+          "option_ref": null,
+          "count": 10,
+          "price": 4199,
+          "mrp": 5990,
+          "payout": 3400,
+          "delivery_days": 7
+        }
+      ]
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "ugc-ad-creative-reel",
+      "title": "UGC Ad Creative Editing",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 999,
+      "mrp": 1199,
+      "payout": 750,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Hook, CTA, subtitles",
+        "Up to 90-second Reel"
+      ],
+      "excludes": [
+        "Script writing",
+        "Advanced VFX / 3D animation"
+      ],
+      "tools": [
+        "Premiere Pro",
+        "CapCut"
+      ],
+      "highlights": [
+        "Scroll-stopping hook creation",
+        "CTA-focused editing",
+        "Subtitle integration",
+        "Performance ad formatting"
+      ],
+      "sort": 5,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "daily-vlog-reel",
+      "title": "Daily Vlog Reel",
+      "unit": "video",
+      "option_group": null,
+      "base_option": null,
+      "price": 799,
+      "mrp": 999,
+      "payout": 500,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Video duration up to 90 seconds",
+        "Basic storytelling edit"
+      ],
+      "excludes": [
+        "Advanced motion graphics"
+      ],
+      "tools": [
+        "Premiere PRO"
+      ],
+      "highlights": [
+        "Clean cuts & smooth transitions",
+        "Dynamic captions & subtitles",
+        "Copyright-free background music",
+        "Basic color correction",
+        "Story-driven pacing",
+        "HD export (1080p)"
+      ],
+      "sort": 6,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "travel-slow-cinematic-reel-editing",
+      "title": "Travel Slow Cinematic Reel Editing",
+      "unit": null,
+      "option_group": null,
+      "base_option": null,
+      "price": 1499,
+      "mrp": 1799,
+      "payout": 1100,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Cinematic color grading",
+        "Smooth transitions & music sync",
+        "Basic speed ramping / slow motion"
+      ],
+      "excludes": [
+        "Advanced VFX & 3D animation",
+        "Extensive motion graphics",
+        "Heavy AI-generated scenes",
+        "Raw footage cleanup / restoration"
+      ],
+      "tools": [
+        "Adobe Premiere Pro / DaVinci Resolve"
+      ],
+      "highlights": [
+        "Cinematic travel footage with a slow, immersive feel",
+        "Smooth cuts and seamless transitions",
+        "Color grading for a cinematic travel look",
+        "Slow-motion and speed-ramping where required",
+        "Music sync with cinematic pacing",
+        "Clean, premium storytelling with minimal effects"
+      ],
+      "sort": 7,
+      "faqs": [],
+      "options": [],
+      "packs": [
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 4049,
+          "mrp": 5097,
+          "payout": 3249,
+          "delivery_days": 2
+        },
+        {
+          "option_ref": null,
+          "count": 10,
+          "price": 12799,
+          "mrp": 16990,
+          "payout": 10249,
+          "delivery_days": 2
+        }
+      ]
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "product-review-reel-editing",
+      "title": "Product Review Reel Editing",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 999,
+      "mrp": 1299,
+      "payout": 750,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Captions & product callouts",
+        "Music + sound effects",
+        "Basic transitions, zooms & color grading"
+      ],
+      "excludes": [
+        "Advanced 3D product animation",
+        "Complex VFX",
+        "AI-generated product visuals",
+        "Professional product photography"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "CapCut",
+        "DaVinci Resolve"
+      ],
+      "highlights": [
+        "Hook-focused editing to grab attention instantly",
+        "Clean cuts and pacing for product storytelling",
+        "Product close-ups, zooms and detail highlights",
+        "Captions and callouts for key features",
+        "Music, sound effects and beat synchronization",
+        "Polished color grading for a premium look"
+      ],
+      "sort": 8,
+      "faqs": [],
+      "options": [],
+      "packs": [
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 2699,
+          "mrp": 3597,
+          "payout": 2029,
+          "delivery_days": 2
+        },
+        {
+          "option_ref": null,
+          "count": 10,
+          "price": 8499,
+          "mrp": 11990,
+          "payout": 6399,
+          "delivery_days": 7
+        }
+      ]
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "grwm-reel-editing",
+      "title": "GRWM Reel Editing",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 599,
+      "mrp": 699,
+      "payout": 500,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Music & beat synchronization",
+        "Captions + basic motion effects",
+        "Basic color correction & transitions"
+      ],
+      "excludes": [
+        "Advanced VFX / 3D animation",
+        "AI-generated visuals",
+        "Complex motion graphics",
+        "Professional makeup/skin retouching"
+      ],
+      "tools": [
+        "Adobe Premiere Pro / CapCut / DaVinci Resolve"
+      ],
+      "highlights": [
+        "Clean, fast-paced cuts for a smooth GRWM flow",
+        "Beat-synced transitions and music",
+        "Captions for key dialogue and moments",
+        "Subtle zooms, effects and speed ramps",
+        "Skin-tone friendly color correction",
+        "Trendy, engaging edit optimized for Reels"
+      ],
+      "sort": 8,
+      "faqs": [],
+      "options": [],
+      "packs": [
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 1349,
+          "mrp": 1799,
+          "payout": 1080,
+          "delivery_days": 2
+        },
+        {
+          "option_ref": null,
+          "count": 6,
+          "price": 4249,
+          "mrp": 5990,
+          "payout": 3400,
+          "delivery_days": 7
+        }
+      ]
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "restaurant-video-editing",
+      "title": "Restaurant Video Editing",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 999,
+      "mrp": 1299,
+      "payout": 600,
+      "delivery_days": 3,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Food-focused cuts and transitions",
+        "Music and basic sound effects",
+        "Color grading and captions"
+      ],
+      "excludes": [
+        "Restaurant filming or photography",
+        "Advanced 3D animation or CGI",
+        "Voice-over recording",
+        "Social media posting or ad management"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "After Effects"
+      ],
+      "highlights": [
+        "Appetizing close-ups and cinematic food shots",
+        "Smooth cuts showcasing dishes and ambience",
+        "Beat-synced transitions with engaging pacing",
+        "Rich, natural color grading for food visuals",
+        "Music and sound effects for a premium feel",
+        "Story-driven edits for restaurant promotions"
+      ],
+      "sort": 9,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "product-unboxing-reel-editing",
+      "title": "Product Unboxing Reel Editing",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 999,
+      "mrp": 1299,
+      "payout": 750,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Product reveal transitions",
+        "Music + sound effects",
+        "Basic captions, zooms & color grading"
+      ],
+      "excludes": [
+        "Advanced 3D product animation",
+        "Complex VFX",
+        "AI-generated product scenes",
+        "Professional product photography"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "CapCut",
+        "DaVinci Resolve"
+      ],
+      "highlights": [
+        "Hook-driven editing to build anticipation",
+        "Clean cuts between unboxing moments",
+        "Close-up product reveals and detail shots",
+        "Smooth transitions with subtle sound effects",
+        "Music sync for satisfying reveal moments",
+        "Premium color grading for a polished finish"
+      ],
+      "sort": 9,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "gym-reel-editing",
+      "title": "Gym Reel Editing",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 499,
+      "mrp": 599,
+      "payout": 400,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Music & beat synchronization",
+        "Speed ramps + slow motion",
+        "Basic transitions, effects & color grading"
+      ],
+      "excludes": [
+        "Advanced VFX / 3D animation",
+        "Complex motion graphics",
+        "AI-generated visuals",
+        "Advanced body transformation / retouching"
+      ],
+      "tools": [
+        "Adobe Premiere Pro / CapCut / DaVinci Resolve"
+      ],
+      "highlights": [
+        "Fast-paced cuts for high-energy workout content",
+        "Beat-synced transitions and music",
+        "Slow-motion highlights for key movements",
+        "Dynamic zooms, speed ramps and impact effects",
+        "Clean color grading for a powerful gym aesthetic",
+        "Engaging pacing designed for higher retention"
+      ],
+      "sort": 9,
+      "faqs": [],
+      "options": [],
+      "packs": [
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 1349,
+          "mrp": 1797,
+          "payout": 1080,
+          "delivery_days": 2
+        },
+        {
+          "option_ref": null,
+          "count": 10,
+          "price": 4249,
+          "mrp": 5990,
+          "payout": 3400,
+          "delivery_days": 7
+        }
+      ]
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "dance-reel-editing",
+      "title": "Dance Reel Editing",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 499,
+      "mrp": 599,
+      "payout": 250,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Beat sync + music editing",
+        "Speed ramps & slow motion",
+        "Transitions & basic effects"
+      ],
+      "excludes": [
+        "Advanced VFX / 3D animation",
+        "Complex motion graphics",
+        "AI-generated visuals",
+        "Choreography or reshooting"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "After Effects",
+        "DaVinci Resolve"
+      ],
+      "highlights": [
+        "Beat-synced cuts matched to choreography",
+        "Smooth transitions between dance sequences",
+        "Speed ramps and slow motion for key moves",
+        "Dynamic zooms and motion effects",
+        "Music synchronization with clean sound design",
+        "Color grading for an energetic, polished look"
+      ],
+      "sort": 10,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "car-edit-reel",
+      "title": "Car Edit Reel",
+      "unit": null,
+      "option_group": null,
+      "base_option": null,
+      "price": 599,
+      "mrp": 799,
+      "payout": 400,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Cinematic color grading",
+        "Speed ramps + slow motion",
+        "Music & basic sound effects",
+        "Up to 90-second Reel"
+      ],
+      "excludes": [
+        "Advanced 3D/VFX effects",
+        "CGI car modifications",
+        "AI-generated scenes",
+        "Professional car photography"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "After Effects",
+        "DaVinci Resolve"
+      ],
+      "highlights": [
+        "Dynamic cuts synced with music and engine sounds",
+        "Cinematic color grading for a premium automotive look",
+        "Speed ramps for acceleration and motion shots",
+        "Smooth transitions between exterior and interior shots",
+        "Slow-motion highlights for key moments",
+        "Clean, high-retention pacing for automotive content"
+      ],
+      "sort": 10,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "faceless-reel-editing",
+      "title": "Faceless Reel Editing",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 699,
+      "mrp": 999,
+      "payout": 550,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Stock footage / B-roll selection",
+        "Captions + basic motion graphics",
+        "Music, SFX & color grading"
+      ],
+      "excludes": [
+        "Advanced 3D animation / VFX",
+        "Custom character animation",
+        "AI avatar videos",
+        "Voice-over recording"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "After Effects",
+        "CapCut",
+        "DaVinci Resolve"
+      ],
+      "highlights": [
+        "Stock footage and B-roll driven storytelling",
+        "Smooth cuts with strong visual pacing",
+        "Dynamic text and caption animations",
+        "Relevant visuals matched to the script",
+        "Music, sound effects and beat synchronization",
+        "Clean color grading for a polished finish"
+      ],
+      "sort": 11,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "food-vlog-reel-editing",
+      "title": "Food Vlog Reel Editing",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 599,
+      "mrp": 749,
+      "payout": 500,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Food-focused cuts & transitions",
+        "Music + basic sound effects",
+        "Color grading & captions"
+      ],
+      "excludes": [
+        "Advanced VFX / 3D animation",
+        "AI-generated food visuals",
+        "Food photography or reshooting",
+        "Professional voice-over recording"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "CapCut",
+        "DaVinci Resolve"
+      ],
+      "highlights": [
+        "Fast-paced cuts that keep the food and story engaging",
+        "Cinematic close-ups of dishes and textures",
+        "Smooth transitions between locations and shots",
+        "Beat-synced music with appetizing sound design",
+        "Color grading for rich, natural food tones",
+        "Clean captions for dish names, prices and key moments"
+      ],
+      "sort": 13,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "property-tour-reel-editing",
+      "title": "Property Tour Reel Editing",
+      "unit": null,
+      "option_group": null,
+      "base_option": null,
+      "price": 999,
+      "mrp": 1199,
+      "payout": 750,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Smooth property walkthrough editing",
+        "Music + basic sound effects",
+        "Color grading & transitions"
+      ],
+      "excludes": [
+        "3D floor plans / architectural animation",
+        "Advanced VFX",
+        "Drone footage creation",
+        "Property photography or reshooting"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "DaVinci Resolve",
+        "After Effects"
+      ],
+      "highlights": [
+        "Cinematic walkthrough with smooth pacing",
+        "Clean cuts between rooms and key spaces",
+        "Smooth speed ramps and transitions",
+        "Highlight property features and premium details",
+        "Background music with subtle sound design",
+        "Professional color grading for a premium real-estate look"
+      ],
+      "sort": 13,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Reels",
+      "slug": "couple-reel-editing",
+      "title": "Couple Reel Editing",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 999,
+      "mrp": 1199,
+      "payout": 750,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second Reel",
+        "Music + beat synchronization",
+        "Slow motion & cinematic transitions",
+        "Color grading + basic captions"
+      ],
+      "excludes": [
+        "Advanced VFX / 3D animation",
+        "AI-generated couple visuals",
+        "Professional couple photography",
+        "Voice-over recording"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "After Effects",
+        "DaVinci Resolve"
+      ],
+      "highlights": [
+        "Smooth, emotional cuts for couple moments",
+        "Beat-synced transitions and music",
+        "Cinematic slow-motion for special moments",
+        "Romantic color grading with natural skin tones",
+        "Subtle zooms, speed ramps and visual effects",
+        "Story-driven pacing for an emotional reel"
+      ],
+      "sort": 14,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "YouTube",
+      "slug": "advanced-storytelling-edit-upto-10-min",
+      "title": "Advanced Storytelling Long-Form Editing",
+      "unit": "video",
+      "option_group": "Video Length",
+      "base_option": "10 min",
+      "price": 2499,
+      "mrp": 2999,
+      "payout": 2000,
+      "delivery_days": 3,
+      "revisions": 3,
+      "includes": [
+        "B-roll",
+        "Little bit of motion graphics",
+        "Sound effects",
+        "Pacing"
+      ],
+      "excludes": [
+        "Script changes",
+        "2D or 3D Animation",
+        "Video shoots",
+        "Project file submission",
+        "Illustration"
+      ],
+      "tools": [
+        "Premiere Pro",
+        "After Effects"
+      ],
+      "highlights": [
+        "B-roll integration",
+        "Retention-focused storytelling",
+        "Sound effects and transitions",
+        "Audience engagement optimization",
+        "A little bit of motion graphics"
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [
+        {
+          "ref": "039e1623-b53d-4ec0-ba77-18d1f5ab4ac2",
+          "label": "15 min",
+          "price": 3599,
+          "mrp": 4498,
+          "payout": 2700,
+          "delivery_days": 3
+        },
+        {
+          "ref": "d863b77b-0cf7-4f39-8135-a85c03c45be5",
+          "label": "20 min",
+          "price": 4499,
+          "mrp": 5998,
+          "payout": 3800,
+          "delivery_days": 3
+        }
+      ],
+      "packs": [
+        {
+          "option_ref": "039e1623-b53d-4ec0-ba77-18d1f5ab4ac2",
+          "count": 3,
+          "price": 9699,
+          "mrp": 13494,
+          "payout": 7300,
+          "delivery_days": 7
+        },
+        {
+          "option_ref": "d863b77b-0cf7-4f39-8135-a85c03c45be5",
+          "count": 3,
+          "price": 11999,
+          "mrp": 17994,
+          "payout": 10250,
+          "delivery_days": 8
+        },
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 6749,
+          "mrp": 8997,
+          "payout": 5400,
+          "delivery_days": 7
+        },
+        {
+          "option_ref": null,
+          "count": 10,
+          "price": 21249,
+          "mrp": 29990,
+          "payout": 17000,
+          "delivery_days": 20
+        },
+        {
+          "option_ref": "039e1623-b53d-4ec0-ba77-18d1f5ab4ac2",
+          "count": 10,
+          "price": 29999,
+          "mrp": 44980,
+          "payout": 22950,
+          "delivery_days": 20
+        },
+        {
+          "option_ref": "d863b77b-0cf7-4f39-8135-a85c03c45be5",
+          "count": 10,
+          "price": 37999,
+          "mrp": 59999,
+          "payout": 30000,
+          "delivery_days": 25
+        }
+      ]
+    },
+    {
+      "category": "video-editing",
+      "section": "YouTube",
+      "slug": "talking-head-edit-upto-10-min",
+      "title": "Talking Head Long-Form Editing",
+      "unit": "video",
+      "option_group": "Video Length",
+      "base_option": "10 min",
+      "price": 1999,
+      "mrp": 2499,
+      "payout": 1400,
+      "delivery_days": 2,
+      "revisions": 3,
+      "includes": [
+        "Cuts, cleanup"
+      ],
+      "excludes": [
+        "Script changes"
+      ],
+      "tools": [
+        "Premiere Pro",
+        "Capcut",
+        "Filmora"
+      ],
+      "highlights": [
+        "Pause and silence removal",
+        "Audio cleanup and balancing",
+        "Professional pacing",
+        "YouTube-ready formatting"
+      ],
+      "sort": 2,
+      "faqs": [],
+      "options": [
+        {
+          "ref": "ae9223f6-427a-4076-b5f5-a6db0f78b548",
+          "label": "15 min",
+          "price": 2899,
+          "mrp": 3750,
+          "payout": 1200,
+          "delivery_days": 2
+        },
+        {
+          "ref": "4f21955d-4e38-4e6a-8cdb-376e8c663d8d",
+          "label": "20 min",
+          "price": 3499,
+          "mrp": 4999,
+          "payout": 1500,
+          "delivery_days": 2
+        }
+      ],
+      "packs": [
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 5397,
+          "mrp": 7497,
+          "payout": 2700,
+          "delivery_days": 3
+        },
+        {
+          "option_ref": "ae9223f6-427a-4076-b5f5-a6db0f78b548",
+          "count": 3,
+          "price": 7999,
+          "mrp": 11235,
+          "payout": 3800,
+          "delivery_days": 7
+        },
+        {
+          "option_ref": "4f21955d-4e38-4e6a-8cdb-376e8c663d8d",
+          "count": 3,
+          "price": 9499,
+          "mrp": 14997,
+          "payout": 5450,
+          "delivery_days": 20
+        },
+        {
+          "option_ref": null,
+          "count": 10,
+          "price": 16999,
+          "mrp": 24990,
+          "payout": 8500,
+          "delivery_days": 15
+        },
+        {
+          "option_ref": "ae9223f6-427a-4076-b5f5-a6db0f78b548",
+          "count": 10,
+          "price": 24499,
+          "mrp": 37450,
+          "payout": 12499,
+          "delivery_days": 16
+        },
+        {
+          "option_ref": "4f21955d-4e38-4e6a-8cdb-376e8c663d8d",
+          "count": 10,
+          "price": 29749,
+          "mrp": 49990,
+          "payout": 12750,
+          "delivery_days": 20
+        }
+      ]
+    },
+    {
+      "category": "video-editing",
+      "section": "YouTube",
+      "slug": "multi-cam-podcast-edit-less-than-1-hour-for-the-final-edit",
+      "title": "Multi-Cam Podcast (Upto 1 Hr.)",
+      "unit": "Hour",
+      "option_group": null,
+      "base_option": null,
+      "price": 7999,
+      "mrp": 9999,
+      "payout": 4999,
+      "delivery_days": 7,
+      "revisions": 3,
+      "includes": [
+        "Angle switching, audio sync"
+      ],
+      "excludes": [
+        "Clips extraction"
+      ],
+      "tools": [
+        "Premiere Pro",
+        "Final Cut Pro"
+      ],
+      "highlights": [
+        "Multi-angle camera switching",
+        "Audio-video synchronization",
+        "Professional podcast flow",
+        "HD export delivery"
+      ],
+      "sort": 3,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "YouTube",
+      "slug": "stand-up-comedy-editing",
+      "title": "Stand-Up Comedy Editing",
+      "unit": "Video",
+      "option_group": "Video Length",
+      "base_option": "1 Hour",
+      "price": 4999,
+      "mrp": 5999,
+      "payout": 3000,
+      "delivery_days": 3,
+      "revisions": 3,
+      "includes": [
+        "Up to 90-second comedy Reel",
+        "Cuts and timing optimization",
+        "Audio cleanup and laughter balancing",
+        "- Basic zooms, captions and color correction"
+      ],
+      "excludes": [
+        "Multi-camera synchronization",
+        "Advanced motion graphics or VFX",
+        "Audio dubbing or studio recording",
+        "- Full-length show editing"
+      ],
+      "tools": [
+        "Adobe Premiere Pro",
+        "Adobe After Effects"
+      ],
+      "highlights": [
+        "Tight cuts to maximize comedic timing",
+        "Remove pauses, dead air and unnecessary sections",
+        "Audience reactions and laughter enhancement",
+        "Dynamic punch-in zooms for punchlines",
+        "Clear audio cleanup and sound balancing",
+        "Engaging pacing with natural color grading"
+      ],
+      "sort": 5,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Events",
+      "slug": "corporate-event-reel",
+      "title": "Corporate Event: Reel",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 3999,
+      "mrp": 4999,
+      "payout": 2999,
+      "delivery_days": 4,
+      "revisions": 3,
+      "includes": [
+        "Branding text, smooth transitions"
+      ],
+      "excludes": [
+        "Voiceover"
+      ],
+      "tools": [
+        "Premiere Pro",
+        "Final Cut Pro"
+      ],
+      "highlights": [
+        "Professional brand-focused edit",
+        "Smooth transitions and pacing",
+        "Logo/text integration",
+        "Event highlight storytelling"
+      ],
+      "sort": 0,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "video-editing",
+      "section": "Events",
+      "slug": "wedding-highlight-reel",
+      "title": "Indian Wedding Highlight: Reel",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 3999,
+      "mrp": 4999,
+      "payout": 3200,
+      "delivery_days": 4,
+      "revisions": 3,
+      "includes": [
+        "Color grading, storytelling edit"
+      ],
+      "excludes": [
+        "Raw footage sorting beyond 2 hrs"
+      ],
+      "tools": [
+        "Premiere Pro",
+        "DaVinci Resolve"
+      ],
+      "highlights": [
+        "Cinematic storytelling edit",
+        "Emotional music sync",
+        "Color grading enhancement",
+        "Social-media-ready export"
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Thumbnails",
+      "slug": "high-ctr-thumbnail",
+      "title": "High CTR thumbnail",
+      "unit": "thumbnail",
+      "option_group": null,
+      "base_option": null,
+      "price": 999,
+      "mrp": null,
+      "payout": 799,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [],
+      "excludes": [],
+      "tools": [
+        "Photoshop",
+        "Canva"
+      ],
+      "highlights": [
+        "Click-focused composition",
+        "Facial/emotion enhancement",
+        "High-contrast layout",
+        "Multiple variation concepts"
+      ],
+      "sort": 0,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Thumbnails",
+      "slug": "basic-thumbnail",
+      "title": "Basic Thumbnail",
+      "unit": "Thumbnail",
+      "option_group": null,
+      "base_option": null,
+      "price": 499,
+      "mrp": null,
+      "payout": 400,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [],
+      "excludes": [],
+      "tools": [
+        "Canva",
+        "Photoshop"
+      ],
+      "highlights": [
+        "Attention-grabbing text layout",
+        "Visual enhancement",
+        "YouTube-ready sizing",
+        "Fast delivery"
+      ],
+      "sort": 0,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Social media posts",
+      "slug": "ai-prompted-design-post",
+      "title": "AI Prompted Design Post",
+      "unit": "design",
+      "option_group": null,
+      "base_option": null,
+      "price": 499,
+      "mrp": null,
+      "payout": 399,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Custom prompt based design on your product",
+        "High-quality lighting and realistic look",
+        "1 aspect ratio (1:1 or 4:5 or 16:9 or 9:16)",
+        "JPG/PNG delivery"
+      ],
+      "excludes": [
+        "Product photography",
+        "Logo or packaging design",
+        "Text-heavy ad creatives",
+        "Multiple aspect ratios",
+        "PSD/AI/source files",
+        "3D modeling or CGI"
+      ],
+      "tools": [
+        "ChatGPT",
+        "Midjourney",
+        "Kling"
+      ],
+      "highlights": [
+        "A premium AI-generated product post for your brand. Perfect for Instagram, websites, ads, and e-commerce. Get eye-catching, high-quality visuals without the cost of a professional photoshoot."
+      ],
+      "sort": 0,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Social media posts",
+      "slug": "basic-post",
+      "title": "Basic Post",
+      "unit": "post",
+      "option_group": null,
+      "base_option": null,
+      "price": 499,
+      "mrp": null,
+      "payout": 379,
+      "delivery_days": 1,
+      "revisions": 2,
+      "includes": [
+        "Template-based design"
+      ],
+      "excludes": [
+        "Custom illustrations"
+      ],
+      "tools": [
+        "Canva"
+      ],
+      "highlights": [
+        "Clean branded design",
+        "Social platform optimization",
+        "Template-based layout",
+        "Fast turnaround delivery"
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Social media posts",
+      "slug": "premium-branded-post",
+      "title": "Premium branded post",
+      "unit": "post",
+      "option_group": null,
+      "base_option": null,
+      "price": 999,
+      "mrp": null,
+      "payout": 780,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [],
+      "excludes": [],
+      "tools": [
+        "Photoshop",
+        "Illustrator",
+        "Canva"
+      ],
+      "highlights": [
+        "Custom visual styling",
+        "Brand color consistency",
+        "Modern social design",
+        "Engagement-focused layout"
+      ],
+      "sort": 2,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Social media posts",
+      "slug": "5-slide-carousel-post",
+      "title": "5-slide carousel post",
+      "unit": null,
+      "option_group": null,
+      "base_option": null,
+      "price": 1599,
+      "mrp": null,
+      "payout": 1040,
+      "delivery_days": 2,
+      "revisions": 4,
+      "includes": [],
+      "excludes": [],
+      "tools": [
+        "Canva",
+        "Figma"
+      ],
+      "highlights": [
+        "Consistent slide storytelling",
+        "Brand-focused visuals",
+        "Modern content structure",
+        "Mobile-first readability"
+      ],
+      "sort": 3,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Branding",
+      "slug": "logo-design",
+      "title": "Logo design",
+      "unit": "logo",
+      "option_group": null,
+      "base_option": null,
+      "price": 2999,
+      "mrp": null,
+      "payout": 1999,
+      "delivery_days": 3,
+      "revisions": 5,
+      "includes": [],
+      "excludes": [],
+      "tools": [],
+      "highlights": [
+        "Multiple logo concepts",
+        "Professional brand identity",
+        "High-resolution exports",
+        "Scalable logo formats"
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Branding",
+      "slug": "business-card-designing",
+      "title": "Business Card Designing",
+      "unit": "Design",
+      "option_group": null,
+      "base_option": null,
+      "price": 999,
+      "mrp": 1299,
+      "payout": 700,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Front & back card design",
+        "Custom layout and typography",
+        "Print-ready high-resolution files",
+        "PNG / JPG / PDF delivery"
+      ],
+      "excludes": [
+        "Logo designing",
+        "Complete brand identity",
+        "Printing & physical delivery",
+        "Multiple concepts beyond the agreed scope"
+      ],
+      "tools": [
+        "Adobe Illustrator",
+        "Photoshop",
+        "Canva"
+      ],
+      "highlights": [
+        "Professional, print-ready business card design",
+        "Clean layouts aligned with your brand identity",
+        "Custom typography, colors and visual elements",
+        "Front-and-back design options",
+        "High-resolution export for print and digital use",
+        "Modern, premium and business-focused aesthetics"
+      ],
+      "sort": 5,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "UI Design",
+      "slug": "app-ui-10-screens",
+      "title": "App UI (10 Screens)",
+      "unit": "10 screens",
+      "option_group": null,
+      "base_option": null,
+      "price": 9999,
+      "mrp": null,
+      "payout": 7200,
+      "delivery_days": 15,
+      "revisions": 3,
+      "includes": [],
+      "excludes": [],
+      "tools": [
+        "Figma"
+      ],
+      "highlights": [
+        "Mobile-first UI screens",
+        "UX-focused navigation",
+        "Interactive design flow",
+        "Design system consistency"
+      ],
+      "sort": 0,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "UI Design",
+      "slug": "website-ui-5-screens",
+      "title": "Website UI (5 Screens)",
+      "unit": "5 screens",
+      "option_group": null,
+      "base_option": null,
+      "price": 7999,
+      "mrp": null,
+      "payout": 4000,
+      "delivery_days": 10,
+      "revisions": 15,
+      "includes": [],
+      "excludes": [],
+      "tools": [
+        "Figma"
+      ],
+      "highlights": [
+        "PC view and mobile view both",
+        "Web layouts (Both PC and Mobile view)",
+        "Clean modern interface",
+        "User-focused structure",
+        "Figma-ready delivery"
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Illustration",
+      "slug": "children-book-character-illustration",
+      "title": "Children Book Character Illustration",
+      "unit": "design",
+      "option_group": null,
+      "base_option": null,
+      "price": 2999,
+      "mrp": null,
+      "payout": 2500,
+      "delivery_days": 4,
+      "revisions": 3,
+      "includes": [
+        "Custom children's book character design.",
+        "High-resolution PNG/JPG with transparent background (if required)."
+      ],
+      "excludes": [
+        "Logo, branding, or mascot design.",
+        "Character animation or 3D modelling."
+      ],
+      "tools": [
+        "Adobe Illustrator / Photoshop",
+        "Procreate"
+      ],
+      "highlights": [
+        "Custom character illustrations designed for children's books.",
+        "Expressive, colourful, and kid-friendly art style.",
+        "Consistent character design with multiple poses and expressions.",
+        "High-resolution, print-ready files suitable for publishing.",
+        "Ideal for storybooks, educational books, comics, and picture books."
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Illustration",
+      "slug": "anime-style-character-illustration",
+      "title": "Anime Style Character Illustration",
+      "unit": "Design",
+      "option_group": null,
+      "base_option": null,
+      "price": 6499,
+      "mrp": null,
+      "payout": 5000,
+      "delivery_days": 3,
+      "revisions": 3,
+      "includes": [
+        "One custom anime character illustration.",
+        "Full-body, half-body, or portrait character artwork.",
+        "High-resolution PNG/JPG delivery."
+      ],
+      "excludes": [
+        "Background illustrations (unless selected).",
+        "Multiple characters in one artwork."
+      ],
+      "tools": [
+        "Clip Studio Paint",
+        "Procreate",
+        "Adobe Photoshop",
+        "Adobe Illustrator"
+      ],
+      "highlights": [
+        "Custom anime-style character illustrations tailored to your vision.",
+        "Vibrant colours, expressive emotions, and dynamic poses.",
+        "Perfect for profile pictures, games, comics, VTubers, and merchandise.",
+        "High-resolution artwork with clean line art and professional shading.",
+        "Designed for personal or commercial use."
+      ],
+      "sort": 2,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Illustration",
+      "slug": "advanced-character-illustration",
+      "title": "Advanced Character Illustration",
+      "unit": "Design",
+      "option_group": null,
+      "base_option": null,
+      "price": 9999,
+      "mrp": 11999,
+      "payout": 8000,
+      "delivery_days": 3,
+      "revisions": 3,
+      "includes": [
+        "One premium custom character illustration.",
+        "Full-body character with detailed rendering.",
+        "Advanced lighting, shading, and colour treatment.",
+        "Commercial usage rights."
+      ],
+      "excludes": [
+        "Character animation or rigging.",
+        "Multiple characters in a single artwork."
+      ],
+      "tools": [
+        "Adobe Photoshop",
+        "Clip Studio Paint",
+        "Procreate",
+        "Adobe Illustrator (optional)"
+      ],
+      "highlights": [
+        "Highly detailed custom character illustrations with professional-quality artwork.",
+        "Designed with dynamic poses, realistic anatomy, and intricate costume details.",
+        "Ideal for games, comics, books, branding, concept art, and collectibles.",
+        "Advanced lighting, textures, and rendering for a premium finish.",
+        "Delivered in high resolution, ready for print and digital use."
+      ],
+      "sort": 3,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Professional Presentation",
+      "slug": "pitch-deck",
+      "title": "Pitch Deck",
+      "unit": "Presentation",
+      "option_group": null,
+      "base_option": null,
+      "price": 7999,
+      "mrp": null,
+      "payout": 4800,
+      "delivery_days": 3,
+      "revisions": 5,
+      "includes": [
+        "Layout + design"
+      ],
+      "excludes": [
+        "Data creation"
+      ],
+      "tools": [
+        "PowerPoint",
+        "Figma",
+        "Google Slides"
+      ],
+      "highlights": [
+        "Investor-ready presentation",
+        "Professional slide layouts",
+        "Visual storytelling",
+        "Brand consistency"
+      ],
+      "sort": 0,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Packaging Design",
+      "slug": "box-packaging-design",
+      "title": "Box Packaging Design",
+      "unit": "Design",
+      "option_group": null,
+      "base_option": null,
+      "price": 2999,
+      "mrp": null,
+      "payout": 2500,
+      "delivery_days": 7,
+      "revisions": 3,
+      "includes": [
+        "Custom box packaging design.",
+        "Front, back, top, bottom, and side panel design."
+      ],
+      "excludes": [
+        "Product label or logo design.",
+        "3D packaging mockups"
+      ],
+      "tools": [
+        "Adobe Illustrator",
+        "Adobe Photoshop",
+        "Adobe InDesign",
+        "CorelDRAW"
+      ],
+      "highlights": [
+        "Custom box packaging designed to enhance your brand identity.",
+        "Creative layouts with premium typography, colours, and graphics.",
+        "Print-ready designs tailored to your product dimensions.",
+        "Suitable for retail, e-commerce, gifting, and luxury packaging.",
+        "Optimized for both visual appeal and manufacturing requirements."
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Packaging Design",
+      "slug": "product-packaging-design",
+      "title": "Product Packaging Design",
+      "unit": "Design",
+      "option_group": null,
+      "base_option": null,
+      "price": 4999,
+      "mrp": null,
+      "payout": 4000,
+      "delivery_days": 3,
+      "revisions": 3,
+      "includes": [
+        "Custom food packaging design.",
+        "Front, back, and side panel design."
+      ],
+      "excludes": [
+        "Logo or brand identity design.",
+        "Product photography or 3D mockups."
+      ],
+      "tools": [
+        "Adobe Illustrator",
+        "Adobe Photoshop",
+        "Adobe InDesign",
+        "CorelDRAW"
+      ],
+      "highlights": [
+        "Custom food packaging designs that enhance your brand and product appeal.",
+        "Attractive, print-ready packaging for retail, takeaway, and e-commerce.",
+        "Designed with food safety labels, nutrition panels, and branding in mind.",
+        "Creative layouts optimized for maximum shelf visibility.",
+        "Suitable for snacks, beverages, frozen foods, bakery, spices, and FMCG products"
+      ],
+      "sort": 2,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Book &amp; Publication Design",
+      "slug": "minimal-book-cover-design",
+      "title": "Minimal Book Cover Design",
+      "unit": "Design",
+      "option_group": null,
+      "base_option": null,
+      "price": 2499,
+      "mrp": 2999,
+      "payout": 2000,
+      "delivery_days": 3,
+      "revisions": 3,
+      "includes": [
+        "Custom minimal book cover design.",
+        "Optimized for print and eBook platforms."
+      ],
+      "excludes": [
+        "Book formatting or interior page layout.",
+        "Logo, branding, or custom illustration creation."
+      ],
+      "tools": [
+        "Adobe Photoshop",
+        "Adobe Illustrator",
+        "Adobe InDesign",
+        "Canva (Optional)"
+      ],
+      "highlights": [
+        "Clean, modern book cover designs that capture your book's essence.",
+        "Minimal layouts with strong typography and balanced visual composition.",
+        "Perfect for novels, non-fiction, self-help, business, and eBooks.",
+        "Print-ready and optimized for Amazon KDP and digital publishing.",
+        "Designed to create a professional and memorable first impression."
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Book &amp; Publication Design",
+      "slug": "book-cover-illustration-graphic-design",
+      "title": "Book Cover Illustration & Graphic Design",
+      "unit": "Design",
+      "option_group": null,
+      "base_option": null,
+      "price": 3999,
+      "mrp": null,
+      "payout": 3000,
+      "delivery_days": 6,
+      "revisions": 3,
+      "includes": [
+        "Custom book cover illustration and graphic design.",
+        "Professional typography and layout composition."
+      ],
+      "excludes": [
+        "Interior page layout or book formatting.",
+        "Logo or complete brand identity design."
+      ],
+      "tools": [
+        "Adobe Photoshop",
+        "Adobe Illustrator",
+        "Procreate",
+        "Adobe InDesign"
+      ],
+      "highlights": [
+        "Custom illustrated book covers tailored to your story and genre.",
+        "Combines original artwork with professional typography and layout.",
+        "Ideal for novels, children's books, fantasy, romance, comics, and self-publishing.",
+        "Print-ready and eBook-optimized designs for all major publishing platforms.",
+        "Eye-catching covers designed to attract readers and strengthen your brand."
+      ],
+      "sort": 2,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Book &amp; Publication Design",
+      "slug": "advanced-illustration-book-cover-design",
+      "title": "Advanced Illustration Book Cover Design",
+      "unit": "Design",
+      "option_group": null,
+      "base_option": null,
+      "price": 5999,
+      "mrp": 7999,
+      "payout": 5000,
+      "delivery_days": 8,
+      "revisions": 4,
+      "includes": [
+        "Fully custom illustrated book cover.",
+        "Premium typography and layout composition."
+      ],
+      "excludes": [
+        "Interior book formatting or page layout.",
+        "Logo or complete brand identity design."
+      ],
+      "tools": [
+        "Adobe Photoshop",
+        "Adobe Illustrator",
+        "Procreate",
+        "Clip Studio Paint"
+      ],
+      "highlights": [
+        "Premium illustrated covers tailored to your story.",
+        "Detailed artwork with professional typography.",
+        "Perfect for all fiction and children's books.",
+        "Print-ready for KDP, paperback, hardcover, and eBooks.",
+        "Eye-catching covers designed to attract readers."
+      ],
+      "sort": 3,
+      "faqs": [],
+      "options": [],
+      "packs": [
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 15999,
+          "mrp": 20997,
+          "payout": 13500,
+          "delivery_days": 15
+        }
+      ]
+    },
+    {
+      "category": "design",
+      "section": "Merchandise Design",
+      "slug": "basic-t-shirt-design",
+      "title": "Basic T-shirt Design",
+      "unit": "Design",
+      "option_group": null,
+      "base_option": null,
+      "price": 2999,
+      "mrp": null,
+      "payout": 2000,
+      "delivery_days": 3,
+      "revisions": 4,
+      "includes": [
+        "1 custom T-shirt design",
+        "Print-ready source files"
+      ],
+      "excludes": [
+        "Logo or brand identity design",
+        "Hand-drawn illustrations"
+      ],
+      "tools": [
+        "Adobe Illustrator",
+        "Adobe Photoshop",
+        "Canva",
+        "Procreate (Optional)"
+      ],
+      "highlights": [
+        "Custom T-shirt designs for any purpose",
+        "Clean, modern, and print-ready artwork",
+        "Perfect for brands, events, and merchandise",
+        "Designed for all printing methods",
+        "Creative visuals with bold typography"
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "design",
+      "section": "Merchandise Design",
+      "slug": "advanced-t-shirt-design",
+      "title": "Advanced T-shirt Design",
+      "unit": "Design",
+      "option_group": null,
+      "base_option": null,
+      "price": 5999,
+      "mrp": null,
+      "payout": 4500,
+      "delivery_days": 10,
+      "revisions": 5,
+      "includes": [
+        "Custom premium T-shirt design",
+        "Print-ready source files"
+      ],
+      "excludes": [
+        "Full brand identity design",
+        "3D apparel mockup animation"
+      ],
+      "tools": [
+        "Adobe Illustrator",
+        "Adobe Photoshop",
+        "Procreate",
+        "Adobe Fresco (Optional)"
+      ],
+      "highlights": [
+        "Premium custom T-shirt artwork",
+        "Advanced illustrations and typography",
+        "Trend-driven streetwear designs",
+        "Print-ready with high-quality files",
+        "Built for premium merchandise"
+      ],
+      "sort": 2,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "ai-service",
+      "section": "AI Videos",
+      "slug": "hyper-realistic-level-ai-ad-less-than-1-minute",
+      "title": "Hyper Realistic AI ad (Less than 1 minute)",
+      "unit": "AI video",
+      "option_group": null,
+      "base_option": null,
+      "price": 14999,
+      "mrp": null,
+      "payout": 10000,
+      "delivery_days": 7,
+      "revisions": 5,
+      "includes": [
+        "AI-generated hyper-realistic video (up to 60 seconds).",
+        "Professional voiceover (AI or client-provided)."
+      ],
+      "excludes": [
+        "Licensed stock footage, premium music, or third-party assets.",
+        "Multiple language versions or regional adaptations."
+      ],
+      "tools": [
+        "Kling AI",
+        "Runway Gen-4",
+        "ElevenLabs (AI voiceover)",
+        "Luma Dream Machine"
+      ],
+      "highlights": [
+        "Hyper-realistic AI-generated advertisement up to 60 seconds.",
+        "Premium cinematic visuals with lifelike AI characters and environments.",
+        "Script-driven storytelling optimized for marketing and brand promotions.",
+        "High-quality transitions, motion graphics, sound effects, and background music.",
+        "Delivered in social media-ready formats (1080p/4K based on package)."
+      ],
+      "sort": 0,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "ai-service",
+      "section": "AI Videos",
+      "slug": "ai-ugc-video",
+      "title": "AI UGC Ad Creative (Less than 1 minute)",
+      "unit": "video",
+      "option_group": null,
+      "base_option": null,
+      "price": 2499,
+      "mrp": 2999,
+      "payout": 1499,
+      "delivery_days": 2,
+      "revisions": 3,
+      "includes": [
+        "Up to 60-second AI UGC ad",
+        "AI avatar + voiceover",
+        "Product integration",
+        "Captions, music & sound effects"
+      ],
+      "excludes": [
+        "Professional actor/model shoot",
+        "Advanced 3D/VFX",
+        "Complex product animation",
+        "Paid ad campaign management"
+      ],
+      "tools": [
+        "HeyGen",
+        "ElevenLabs",
+        "CapCut",
+        "Adobe After Effects"
+      ],
+      "highlights": [
+        "AI-generated UGC-style video for product promotion",
+        "Realistic AI avatar with natural delivery",
+        "Hook-driven script and ad structure",
+        "Product visuals, captions and dynamic pacing",
+        "Voiceover, music and sound effects",
+        "Optimized for social media ad performance"
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": [
+        {
+          "option_ref": null,
+          "count": 3,
+          "price": 6999,
+          "mrp": 8997,
+          "payout": 5000,
+          "delivery_days": 5
+        },
+        {
+          "option_ref": null,
+          "count": 10,
+          "price": 19999,
+          "mrp": 29999,
+          "payout": 15000,
+          "delivery_days": 9
+        }
+      ]
+    },
+    {
+      "category": "ai-service",
+      "section": "AI Videos",
+      "slug": "ai-avatar-video",
+      "title": "Your AI Clone Avatar Video (Less than 1 minute)",
+      "unit": "video",
+      "option_group": null,
+      "base_option": null,
+      "price": 2499,
+      "mrp": null,
+      "payout": 1299,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "- Single targeted neural audio profile generation mapping",
+        "- Audio-to-lip synchronization rendering configuration adjustments"
+      ],
+      "excludes": [
+        "- Deep software framework platform integrations or manual custom API overrides"
+      ],
+      "tools": [],
+      "highlights": [
+        "Professional avatar generation",
+        "High-quality voice synthesis",
+        "Corporate or social styling",
+        "Content-ready video export"
+      ],
+      "sort": 2,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "ai-service",
+      "section": "AI Videos",
+      "slug": "empty-fire-customised-trending-ai-video",
+      "title": "Empty Fire Customised Trending AI video",
+      "unit": "Reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 749,
+      "mrp": 999,
+      "payout": 500,
+      "delivery_days": 1,
+      "revisions": 4,
+      "includes": [
+        "Up to 20-second AI video",
+        "Custom AI-generated visuals",
+        "AI voiceover + music",
+        "Editing, transitions & basic VFX"
+      ],
+      "excludes": [
+        "Advanced 3D/CGI animation",
+        "Professional live-action shooting",
+        "Actor/model filming",
+        "Paid promotion or ad management"
+      ],
+      "tools": [
+        "Kling AI",
+        "Runway",
+        "Veo",
+        "ElevenLabs"
+      ],
+      "highlights": [
+        "Trend-based AI video tailored to your brand",
+        "Custom AI visuals, scenes and storytelling",
+        "Viral-style hooks and engaging pacing",
+        "Cinematic transitions and visual effects",
+        "AI voiceover, music and sound design",
+        "Optimized for Reels, Shorts and social media"
+      ],
+      "sort": 4,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "ai-service",
+      "section": "AI Videos",
+      "slug": "ai-fashion-video-45-seconds",
+      "title": "AI Fashion video (25-45 seconds)",
+      "unit": "video",
+      "option_group": null,
+      "base_option": null,
+      "price": 1499,
+      "mrp": 1999,
+      "payout": 999,
+      "delivery_days": 2,
+      "revisions": 3,
+      "includes": [
+        "Basic creative direction, editing, transitions, and music/sound design.",
+        "Custom visuals & models",
+        "Single model in one video"
+      ],
+      "excludes": [
+        "Professional model or photographer costs.",
+        "Physical product shoots or studio setup.",
+        "Additional revisions beyond the agreed scope.",
+        "Multiple models in one video"
+      ],
+      "tools": [],
+      "highlights": [
+        "AI-generated fashion video of 25-45 seconds.",
+        "Customised according to the brand’s product.",
+        "Customisable model but only one model per video per product.",
+        "Product-focused visuals with AI-generated models, styling, and environments.",
+        "Suitable for Instagram Reels, paid ads, and social media campaigns.",
+        "High quality product images required from the client."
+      ],
+      "sort": 4,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "content-writing",
+      "section": "Scripts",
+      "slug": "instagram-reel-script-30-90-seconds",
+      "title": "Instagram Reel Script (30-90 seconds)",
+      "unit": "reel",
+      "option_group": null,
+      "base_option": null,
+      "price": 399,
+      "mrp": 499,
+      "payout": 299,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "1 Reel script",
+        "up to 60 seconds"
+      ],
+      "excludes": [
+        "Video shooting",
+        "Editing",
+        "Posting",
+        "Different reel topics"
+      ],
+      "tools": [],
+      "highlights": [
+        "Get a professionally written Reel script built around a strong hook, engaging storytelling and a clear CTA, so you can directly record the video without figuring out what to say."
+      ],
+      "sort": 0,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "content-writing",
+      "section": "Scripts",
+      "slug": "youtube-script-less-than-10-minutes",
+      "title": "YouTube Script",
+      "unit": "Video",
+      "option_group": null,
+      "base_option": null,
+      "price": 1999,
+      "mrp": 2999,
+      "payout": 1200,
+      "delivery_days": 1,
+      "revisions": 3,
+      "includes": [
+        "Product upload + payment gateway"
+      ],
+      "excludes": [
+        "Ads setup"
+      ],
+      "tools": [
+        "Google Docs",
+        "Notion"
+      ],
+      "highlights": [
+        "Clear storytelling flow",
+        "Audience retention optimization",
+        "Structured acts and pacing",
+        "Engaging hook and CTA"
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "content-writing",
+      "section": "LinkedIn",
+      "slug": "linkedin-ghostwriting",
+      "title": "LinkedIn Post Writing",
+      "unit": "Post",
+      "option_group": null,
+      "base_option": null,
+      "price": 349,
+      "mrp": 499,
+      "payout": 270,
+      "delivery_days": 1,
+      "revisions": 2,
+      "includes": [
+        "1 LinkedIn post with hook",
+        "Body and CTA"
+      ],
+      "excludes": [
+        "Graphic design",
+        "posting",
+        "overall LinkedIn strategy"
+      ],
+      "tools": [],
+      "highlights": [
+        "Get a ready-to-publish LinkedIn post written to communicate your idea clearly while making your brand, expertise or personal profile more engaging.",
+        "Professional personal branding",
+        "Industry authority building",
+        "Engaging post structure"
+      ],
+      "sort": 1,
+      "faqs": [],
+      "options": [],
+      "packs": []
+    },
+    {
+      "category": "consultation",
+      "section": "Social Media Consultation",
+      "slug": "instagram-growth-strategy-consultation-1-hr",
+      "title": "Instagram Growth Strategy Consultation (1 Hr)",
+      "unit": "1 hour",
+      "option_group": "1 Hour",
+      "base_option": null,
+      "price": 4999,
+      "mrp": 9999,
+      "payout": 3999,
+      "delivery_days": 0,
+      "revisions": 0,
+      "includes": [
+        "Reels and content ideas",
+        "Niche positioning",
+        "content strategy",
+        "Organic growth strategies"
+      ],
+      "excludes": [
+        "Daily account management",
+        "Content creation or editing",
+        "Posting on your behalf",
+        "Paid ads management",
+        "Guaranteed followers or reach",
+        "Ongoing support after the session"
+      ],
+      "tools": [
+        "Google meet"
+      ],
+      "highlights": [
+        "$58"
+      ],
+      "sort": 0,
+      "faqs": [
+        {
+          "q": "Who is this consultation for?",
+          "a": "Creators, influencers, entrepreneurs, and businesses looking to grow their Instagram presence strategically."
+        },
+        {
+          "q": "What will we cover during the 1-hour session?",
+          "a": "Profile optimization, niche positioning, content strategy,  audience engagement, and organic growth."
+        },
+        {
+          "q": "Will I get a personalized strategy?",
+          "a": "The session will focus on your account, goals, current challenges, and growth opportunities. You will have to make notes in the session"
+        },
+        {
+          "q": "Do I need an existing Instagram account?",
+          "a": "An existing account is helpful for an audit, but beginners can also get guidance on building their account from scratch."
+        },
+        {
+          "q": "Will you guarantee followers or viral Reels?",
+          "a": "No. The consultation provides strategic guidance, not guaranteed growth or virality."
+        },
+        {
+          "q": "If I book the service now, what will be the timing for the consultation?",
+          "a": "The date and time can be mutually decided by the expert and the client through chat after the booking is complete. The consultation will take place over a 1-hour Google Meet session. Once the booking is completed, the service will be automatically marked as completed."
+        },
+        {
+          "q": "Is the booking refundable?",
+          "a": "No. Since this is a time-based consultation that requires the expert to allocate dedicated time for your session, all bookings are non-refundable once paid. Please ensure you have reviewed and are comfortable with the service details before placing your booking."
+        }
+      ],
+      "options": [],
+      "packs": []
+    }
+  ]
+}

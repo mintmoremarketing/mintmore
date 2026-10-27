@@ -59,7 +59,7 @@ const saveAvatarLocally = async (userId, file, filename) => {
 
 const PROFILE_SELECT_COLUMNS = [
   'id', 'email', 'phone', 'full_name', 'role', 'avatar_url',
-  'bio', 'skills', 'gender', 'date_of_birth',
+  'username', 'bio', 'skills', 'tools', 'languages', 'is_available', 'gender', 'date_of_birth',
   'address_line1', 'address_city', 'address_state', 'country',
   'preferred_language', 'business_name', 'business_type', 'customer_profile', 'onboarding_checklist',
   'brand_assets', 'google_business', 'posting_preferences', 'whatsapp_number',
@@ -69,8 +69,8 @@ const PROFILE_SELECT_COLUMNS = [
 ];
 
 const PROFILE_UPDATABLE_COLUMNS = [
-  'full_name', 'phone', 'bio', 'gender',
-  'date_of_birth', 'skills',
+  'full_name', 'phone', 'username', 'bio', 'gender',
+  'date_of_birth', 'skills', 'tools', 'is_available',
   'address_line1', 'address_city', 'address_state', 'country',
   'preferred_language', 'business_name', 'business_type', 'customer_profile', 'onboarding_checklist',
   'brand_assets', 'google_business', 'posting_preferences', 'whatsapp_number',
@@ -229,9 +229,38 @@ const updateProfile = async (userId, updates) => {
     }
   }
 
+  if (fields.includes('is_available') && updates.is_available === true) {
+    const completion = await getProfileCompletion(userId);
+    if (completion.role === 'freelancer' && !completion.isComplete) {
+      throw new AppError('Complete your profile to turn bookings on', 409);
+    }
+  }
+
+  if (fields.includes('username') && updates.username) {
+    const taken = await query(
+      'SELECT id FROM users WHERE lower(username) = lower($1) AND id != $2',
+      [updates.username, userId]
+    );
+    if (taken.rows.length > 0) {
+      throw new AppError('This username is already taken', 409);
+    }
+  }
+
   // Build parameterised SET clause: "full_name = $1, bio = $2, ..."
   const setClauses = fields.map((field, i) => `${field} = $${i + 1}`);
-  const values = fields.map((field) => updates[field]);
+  const values = fields.map((field) => {
+    if (field === 'username') return updates.username ? updates.username.trim().toLowerCase() : null;
+    if (field === 'tools') {
+      const seen = new Set();
+      return updates.tools.map((tool) => tool.trim()).filter((tool) => {
+        const key = tool.toLowerCase();
+        if (!tool || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+    return updates[field];
+  });
 
   // userId goes at the end for the WHERE clause
   values.push(userId);
@@ -240,7 +269,7 @@ const updateProfile = async (userId, updates) => {
     `UPDATE users
      SET ${setClauses.join(', ')}
      WHERE id = $${values.length}
-     RETURNING ${PROFILE_FIELDS}`,
+     RETURNING ${await getSafeProfileSelect() || PROFILE_FIELDS}`,
     values
   );
 
@@ -302,6 +331,106 @@ const updateAvatar = async (userId, file) => {
 
   logger.info('Avatar updated', { userId, publicUrl });
   return result.rows[0];
+};
+
+const removeAvatar = async (userId) => {
+  const result = await query(
+    `UPDATE users SET avatar_url = NULL WHERE id = $1
+     RETURNING ${await getSafeProfileSelect() || 'id, email, full_name, role, avatar_url'}`,
+    [userId]
+  );
+  logger.info('Avatar removed', { userId });
+  return result.rows[0];
+};
+
+const MIN_PORTFOLIO_POSTS = 3;
+const BASIC_DETAIL_KEYS = ['phone', 'firstName', 'lastName', 'email', 'avatar', 'username', 'bio'];
+
+/**
+ * Freelancer "Complete your profile" checklist.
+ * `fields` is the raw per-field state; `steps` groups it into the five steps
+ * the dashboard shows. A step is done only when every field behind it is.
+ */
+const getProfileCompletion = async (userId) => {
+  const result = await query(
+    `SELECT u.role, u.email, u.phone, u.full_name, u.avatar_url, u.username, u.bio,
+            u.tools, u.skills, u.languages, u.kyc_status, u.is_available,
+            (SELECT COUNT(*)::int FROM portfolio_items pi
+              WHERE pi.freelancer_id = u.id AND pi.is_visible IS NOT FALSE) AS post_count,
+            (SELECT COUNT(*)::int FROM freelancer_service_optins o
+              WHERE o.freelancer_id = u.id AND o.is_active) AS service_count
+     FROM users u WHERE u.id = $1`,
+    [userId]
+  );
+  const user = result.rows[0];
+  if (!user) throw new AppError('User not found', 404);
+
+  const [firstName = '', ...rest] = String(user.full_name || '').trim().split(/\s+/);
+  const filled = (value) => typeof value === 'string' && value.trim().length > 0;
+  const hasItems = (value) => Array.isArray(value) && value.length > 0;
+
+  const fields = [
+    { key: 'phone', ok: filled(user.phone), required: true },
+    { key: 'firstName', ok: filled(firstName), required: true },
+    { key: 'lastName', ok: filled(rest.join(' ')), required: true },
+    { key: 'email', ok: filled(user.email), required: true },
+    { key: 'avatar', ok: filled(user.avatar_url), required: true },
+    { key: 'username', ok: filled(user.username), required: true },
+    { key: 'bio', ok: filled(user.bio), required: true },
+    { key: 'service', ok: user.service_count > 0, required: true },
+    { key: 'tools', ok: hasItems(user.tools), required: true },
+    { key: 'posts', ok: user.post_count >= MIN_PORTFOLIO_POSTS, required: true },
+    { key: 'kyc', ok: user.kyc_status === 'verified', required: true },
+    { key: 'skills', ok: hasItems(user.skills), required: false },
+    { key: 'languages', ok: hasItems(user.languages), required: false },
+  ];
+  const ok = Object.fromEntries(fields.map((field) => [field.key, field.ok]));
+
+  const steps = [
+    { key: 'basic', done: BASIC_DETAIL_KEYS.every((key) => ok[key]) },
+    { key: 'tools', done: ok.tools },
+    { key: 'posts', done: ok.posts, count: user.post_count, required: MIN_PORTFOLIO_POSTS },
+    { key: 'kyc', done: ok.kyc, status: user.kyc_status },
+    { key: 'services', done: ok.service },
+  ];
+  const completed = steps.filter((step) => step.done).length;
+  const required = fields.filter((field) => field.required);
+
+  return {
+    role: user.role,
+    steps,
+    completed,
+    total: steps.length,
+    percent: Math.round((completed / steps.length) * 100),
+    fields,
+    missingRequired: required.filter((field) => !field.ok).map((field) => field.key),
+    missingOptional: fields.filter((field) => !field.required && !field.ok).map((field) => field.key),
+    isComplete: completed === steps.length,
+    isAvailable: Boolean(user.is_available),
+  };
+};
+
+/** Header numbers on the freelancer profile: paid out, completed orders, rating. */
+const getProfileStats = async (userId) => {
+  const result = await query(
+    `SELECT
+       COALESCE((SELECT SUM(b.freelancer_payout) FROM service_bookings b
+                 WHERE b.freelancer_id = u.id AND b.completed_at IS NOT NULL), 0)::numeric AS earned,
+       (SELECT COUNT(*)::int FROM service_bookings b
+         WHERE b.freelancer_id = u.id AND b.completed_at IS NOT NULL) AS hired,
+       (SELECT COALESCE(AVG(r.rating_overall), 0)::numeric(3,1) FROM reviews r
+         WHERE r.freelancer_id = u.id AND r.is_visible) AS rating,
+       (SELECT COUNT(*)::int FROM reviews r WHERE r.freelancer_id = u.id AND r.is_visible) AS reviews
+     FROM users u WHERE u.id = $1`,
+    [userId]
+  );
+  const row = result.rows[0] || {};
+  return {
+    earned: Number(row.earned || 0),
+    hired: row.hired || 0,
+    rating: Number(row.rating || 0),
+    reviews: row.reviews || 0,
+  };
 };
 
 const uploadBrandAsset = async (userId, file, { kind = 'reference', label = '' } = {}) => {
@@ -444,6 +573,9 @@ module.exports = {
   getProfile,
   updateProfile,
   updateAvatar,
+  removeAvatar,
+  getProfileCompletion,
+  getProfileStats,
   uploadBrandAsset,
   getPublicProfile,
   getFreelancerPricingGuidance,

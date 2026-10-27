@@ -1,3 +1,4 @@
+// LAUNCH-HIDDEN: agency marketing landing page. "/" now shows the storefront (pages/storefront/StoreHome).
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AskAnythingWidget from './landing/AskAnythingWidget'

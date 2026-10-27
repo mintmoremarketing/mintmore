@@ -1,6 +1,17 @@
 const portfolioService = require('./portfolio.service');
 const { sendSuccess }  = require('../../utils/apiResponse');
 
+const getFeed = async (req, res, next) => {
+	try {
+		const items = await portfolioService.getFeed({
+			page: req.query.page,
+			limit: req.query.limit,
+			freelancerId: req.query.freelancer_id,
+		});
+		return sendSuccess(res, { data: { items } });
+	} catch (err) { next(err); }
+};
+
 const getMyPortfolio = async (req, res, next) => {
 	try {
 		const items = await portfolioService.getMyPortfolio(req.user.sub);
@@ -37,4 +48,5 @@ const deleteItem = async (req, res, next) => {
 	} catch (err) { next(err); }
 };
 
-module.exports = { getMyPortfolio, createItem, updateItem, deleteItem };
+module.exports = {
+	getFeed, getMyPortfolio, createItem, updateItem, deleteItem };

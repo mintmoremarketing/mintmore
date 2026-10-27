@@ -9,6 +9,7 @@ export function useEntitlements() {
     queryKey: ['entitlements'],
     queryFn: () => commerceApi.entitlements().then(res => res.data.data),
     staleTime: 30_000,
+    retry: 1,
     enabled: isAuthed && !isGuest,
   })
 }

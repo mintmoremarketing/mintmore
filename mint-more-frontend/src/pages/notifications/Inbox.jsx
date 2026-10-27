@@ -6,6 +6,8 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import { timeAgo } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
+import { useAuthStore } from '../../store/auth'
+import { notificationTarget } from '../../utils/notificationTarget'
 
 const NOTIF_ICONS = {
 	job_matched: 'radar',
@@ -27,6 +29,18 @@ const NOTIF_ICONS = {
 	wallet: 'wallet',
 	admin_broadcast: 'bell',
 	system: 'bell',
+	calendar_completed: 'calendar',
+	designer_assigned: 'user',
+	creative_uploaded: 'upload',
+	creative_rejected_by_admin: 'refresh',
+	creative_rejected_admin: 'refresh',
+	creative_ready_client_review: 'eye',
+	creative_approved_admin: 'eye',
+	creative_scheduled: 'check',
+	creative_approved_client: 'check',
+	creative_rejected_by_client: 'x',
+	creative_rejected_client: 'x',
+	creative_published: 'share',
 }
 
 const NOTIF_COLORS = {
@@ -49,6 +63,18 @@ const NOTIF_COLORS = {
 	wallet: 'var(--amber)',
 	admin_broadcast: 'var(--ink-600)',
 	system: 'var(--ink-500)',
+	calendar_completed: 'var(--mint-500)',
+	designer_assigned: 'var(--violet)',
+	creative_uploaded: 'var(--orange-500)',
+	creative_rejected_by_admin: 'var(--amber)',
+	creative_rejected_admin: 'var(--amber)',
+	creative_ready_client_review: 'var(--violet)',
+	creative_approved_admin: 'var(--violet)',
+	creative_scheduled: 'var(--mint-500)',
+	creative_approved_client: 'var(--mint-500)',
+	creative_rejected_by_client: 'var(--rose)',
+	creative_rejected_client: 'var(--rose)',
+	creative_published: 'var(--mint-600)',
 }
 
 const JOB_TYPES = new Set([
@@ -61,6 +87,21 @@ const JOB_TYPES = new Set([
 	'revision_delivered',
 	'work_delivered',
 	'mintbox_seen',
+])
+
+const CREATIVE_TYPES = new Set([
+	'calendar_completed',
+	'designer_assigned',
+	'creative_uploaded',
+	'creative_rejected_by_admin',
+	'creative_rejected_admin',
+	'creative_ready_client_review',
+	'creative_approved_admin',
+	'creative_scheduled',
+	'creative_approved_client',
+	'creative_rejected_by_client',
+	'creative_rejected_client',
+	'creative_published',
 ])
 
 const SYSTEM_TYPES = new Set(['system', 'admin_broadcast', 'kyc_approved', 'kyc_rejected'])
@@ -93,21 +134,6 @@ function cleanNotifBody(body = '') {
 		.trim()
 }
 
-function getTarget(notification) {
-	const data = notification.data || {}
-	if (notification.entity_type === 'dispute' || data.dispute_id) {
-		return `/disputes?id=${notification.entity_id || data.dispute_id}`
-	}
-	const jobId =
-		notification.entity_type === 'job'
-			? notification.entity_id
-			: data.job_id || data.jobId || data.job?.id
-
-	if (jobId) return `/jobs/${jobId}`
-	if (notification.entity_type === 'wallet' || notification.type === 'wallet') return '/wallet'
-	return null
-}
-
 function Tabs({ value, onChange, items }) {
 	return (
 		<div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
@@ -119,7 +145,7 @@ function Tabs({ value, onChange, items }) {
 					style={{ fontSize: 12 }}
 				>
 					{item.label}
-					<span className="mono" style={{ opacity: 0.75 }}>{item.count}</span>
+					<span className="tabular-nums" style={{ opacity: 0.7 }}>{item.count}</span>
 				</button>
 			))}
 		</div>
@@ -128,6 +154,7 @@ function Tabs({ value, onChange, items }) {
 
 export default function NotificationsInbox() {
 	const navigate = useNavigate()
+	const role = useAuthStore(s => s.user?.role)
 	const queryClient = useQueryClient()
 	const pushToast = useUIStore((s) => s.pushToast)
 	const setUnreadCount = useUIStore((s) => s.setUnreadCount)
@@ -144,6 +171,7 @@ export default function NotificationsInbox() {
 	const counts = useMemo(() => ({
 		all: notifications.length,
 		unread: notifications.filter((n) => !n.is_read).length,
+		creative: notifications.filter((n) => CREATIVE_TYPES.has(n.type) || n.entity_type === 'social_post').length,
 		jobs: notifications.filter((n) => JOB_TYPES.has(n.type) || n.entity_type === 'job').length,
 		wallet: notifications.filter((n) => n.type === 'wallet' || n.entity_type === 'wallet').length,
 		system: notifications.filter((n) => SYSTEM_TYPES.has(n.type)).length,
@@ -152,6 +180,7 @@ export default function NotificationsInbox() {
 	const filtered = notifications.filter((n) => {
 		if (filter === 'all') return true
 		if (filter === 'unread') return !n.is_read
+		if (filter === 'creative') return CREATIVE_TYPES.has(n.type) || n.entity_type === 'social_post'
 		if (filter === 'jobs') return JOB_TYPES.has(n.type) || n.entity_type === 'job'
 		if (filter === 'wallet') return n.type === 'wallet' || n.entity_type === 'wallet'
 		if (filter === 'system') return SYSTEM_TYPES.has(n.type)
@@ -182,7 +211,7 @@ export default function NotificationsInbox() {
 
 	const openNotification = (notification) => {
 		if (!notification.is_read) markRead.mutate(notification.id)
-		const target = getTarget(notification)
+		const target = notificationTarget(notification, role)
 		if (target) navigate(target)
 	}
 
@@ -199,18 +228,17 @@ export default function NotificationsInbox() {
 		<div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
 			<div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 				<div>
-					<div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-2">Inbox</div>
 					<h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">Notifications</h1>
 					<p className="text-ink-500 text-sm md:text-base mt-2">
 						{counts.unread > 0 ? (
-							<>You have <strong className="text-ink-900 font-bold">{counts.unread} unread</strong> · live sync via CREATYV</>
+							<>You have <strong className="text-ink-900 font-bold">{counts.unread} unread</strong></>
 						) : (
-							<>You're all caught up · live sync via CREATYV</>
+							<>You're all caught up</>
 						)}
 					</p>
 				</div>
 				<button 
-					className="bg-white text-ink-900 border border-ink-200 shadow-sm px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" 
+					className="self-start bg-white text-ink-900 border border-ink-200 shadow-sm px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-50 disabled:opacity-50 disabled:cursor-not-allowed transition-[background-color,transform] duration-150 active:scale-[0.97]" 
 					onClick={() => markAllRead.mutate()} 
 					disabled={counts.unread === 0 || markAllRead.isPending}
 				>
@@ -226,15 +254,12 @@ export default function NotificationsInbox() {
 					items={[
 						{ value: 'all', label: 'All', count: counts.all },
 						{ value: 'unread', label: 'Unread', count: counts.unread },
-						{ value: 'jobs', label: 'Jobs', count: counts.jobs },
+						{ value: 'creative', label: 'Creative', count: counts.creative },
+						{ value: 'jobs', label: role === 'client' ? 'Orders' : 'Jobs', count: counts.jobs },
 						{ value: 'wallet', label: 'Wallet', count: counts.wallet },
 						{ value: 'system', label: 'System', count: counts.system },
-					]}
+					].filter(item => ['all', 'unread', filter].includes(item.value) || item.count > 0)}
 				/>
-				<div className="flex items-center gap-2 text-xs font-mono text-ink-500">
-					<span className="w-1.5 h-1.5 bg-mint-500 rounded-full animate-pulse" />
-					<span>Live</span>
-				</div>
 			</div>
 
 			<div className="bg-white rounded-2xl border border-ink-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -248,7 +273,7 @@ export default function NotificationsInbox() {
 					</div>
 				) : (
 					filtered.map((n, i) => {
-						const target = getTarget(n)
+						const target = notificationTarget(n, role)
 						const color = notifTone(n.type)
 						return (
 							<button
@@ -279,7 +304,7 @@ export default function NotificationsInbox() {
 											{cleanNotifBody(n.body)}
 										</div>
 									)}
-									<div className="text-[11px] text-ink-400 mt-1.5 font-mono">
+									<div className="text-[11px] text-ink-400 mt-1.5 tabular-nums">
 										{timeAgo(n.created_at)}
 									</div>
 								</div>

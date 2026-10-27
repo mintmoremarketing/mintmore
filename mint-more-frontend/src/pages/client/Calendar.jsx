@@ -487,7 +487,7 @@ export default function Calendar() {
       }
       return results
     },
-    onSuccess: (results) => {
+    onSuccess: async (results) => {
       const reviewCount = results.filter(result => result?.selection?.status === 'pending_review').length
       pushToast({
         title: reviewCount ? 'Selections sent for review' : 'Creatives queued',
@@ -496,6 +496,9 @@ export default function Calendar() {
           : 'Your selected creatives have been queued with Mint More.',
       })
       setPendingIds([])
+      try {
+        await creativeApi.completeCalendar()
+      } catch (_) {}
       queryClient.invalidateQueries({ queryKey: ['creative-calendar'] })
       queryClient.invalidateQueries({ queryKey: ['social-calendar'] })
       queryClient.invalidateQueries({ queryKey: ['creative-work'] })

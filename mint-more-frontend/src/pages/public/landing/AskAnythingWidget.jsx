@@ -65,7 +65,13 @@ function MessageText({ text }) {
   )
 }
 
-export default function AskAnythingWidget({ visible }) {
+export default function AskAnythingWidget({
+  visible,
+  intro = 'Ask me about CREATYV, MintCoins, custom design requests, Mintbox, or how to contact the team.',
+  questions = quickQuestions,
+  fallback = localAnswer,
+  audience,
+}) {
   const [open, setOpen] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [question, setQuestion] = useState('')
@@ -74,7 +80,7 @@ export default function AskAnythingWidget({ visible }) {
   const messagesRef = useRef(null)
   const messageIdRef = useRef(0)
   const [messages, setMessages] = useState([
-    { id: 'intro', role: 'assistant', text: 'Ask me about CREATYV, MintCoins, custom design requests, Mintbox, or how to contact the team.' },
+    { id: 'intro', role: 'assistant', text: intro },
   ])
 
   const nextMessageId = prefix => {
@@ -127,16 +133,16 @@ export default function AskAnythingWidget({ visible }) {
       const res = await fetch(base + '/public/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: cleaned }),
+        body: JSON.stringify(audience ? { question: cleaned, audience } : { question: cleaned }),
       })
       if (!res.ok) throw new Error('Q&A unavailable')
       const data = await res.json()
       const answer = data?.data?.answer || data?.data?.data?.answer
       setLoading(false)
-      await typeAssistantAnswer(answer || localAnswer(cleaned))
+      await typeAssistantAnswer(answer || fallback(cleaned))
     } catch {
       setLoading(false)
-      await typeAssistantAnswer(localAnswer(cleaned))
+      await typeAssistantAnswer(fallback(cleaned))
     } finally {
       setLoading(false)
     }
@@ -179,7 +185,7 @@ export default function AskAnythingWidget({ visible }) {
       <div className="landing-ask-controls">
         {(showSuggestions || open) && (
           <div className="landing-ask-collapsed-chips">
-            {quickQuestions.map(item => <button key={item} type="button" onClick={() => ask(item)}>{item}</button>)}
+            {questions.map(item => <button key={item} type="button" onClick={() => ask(item)}>{item}</button>)}
           </div>
         )}
         <form className="landing-ask-bar" onSubmit={onSubmit}>

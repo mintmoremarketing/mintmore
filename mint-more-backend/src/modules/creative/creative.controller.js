@@ -1,6 +1,110 @@
 const service = require('./creative.service');
 const brandService = require('../brand/brand.service');
+const validator = require('./creative.validator');
 const { sendSuccess } = require('../../utils/apiResponse');
+const AppError = require('../../utils/appError');
+
+// ── Milestone 2 Creative Workflow Controllers ──
+
+const completeCalendar = async (req, res, next) => {
+  try {
+    const data = await service.completeCalendar(req.user.sub);
+    return sendSuccess(res, { data, message: 'Calendar marked as complete.' });
+  } catch (error) { next(error); }
+};
+
+const listAdminClients = async (_req, res, next) => {
+  try {
+    const data = await service.listAdminClients();
+    return sendSuccess(res, { data });
+  } catch (error) { next(error); }
+};
+
+const listAdminDesigners = async (_req, res, next) => {
+  try {
+    const data = await service.listAdminDesigners();
+    return sendSuccess(res, { data });
+  } catch (error) { next(error); }
+};
+
+const assignDesignerToClient = async (req, res, next) => {
+  try {
+    validator.validateAssignDesigner(req.params, req.body);
+    const data = await service.assignDesignerToClient(req.user.sub, req.params.clientId, req.body?.designer_id);
+    return sendSuccess(res, { data, message: 'Designer assigned successfully.' });
+  } catch (error) { next(error); }
+};
+
+const designerSocialQueue = async (req, res, next) => {
+  try {
+    const data = await service.listDesignerSocialQueue(req.user.sub);
+    return sendSuccess(res, { data });
+  } catch (error) { next(error); }
+};
+
+const uploadCreativeToSocialPost = async (req, res, next) => {
+  try {
+    validator.validateUploadCreative(req.params, req.body);
+    const data = await service.uploadCreativeToSocialPost(req.user.sub, req.user.role, req.params.postId, req.body);
+    return sendSuccess(res, { data, message: 'Creative uploaded successfully.' });
+  } catch (error) { next(error); }
+};
+
+const listAdminReviewQueue = async (_req, res, next) => {
+  try {
+    const data = await service.listAdminReviewQueue();
+    return sendSuccess(res, { data });
+  } catch (error) { next(error); }
+};
+
+const adminApprovePost = async (req, res, next) => {
+  try {
+    validator.validateAdminApprove(req.params, req.body);
+    const data = await service.adminApprovePost(req.user.sub, req.params.postId, req.body);
+    return sendSuccess(res, { data, message: 'Post approved.' });
+  } catch (error) { next(error); }
+};
+
+const adminRejectPost = async (req, res, next) => {
+  try {
+    validator.validateRejection(req.params, req.body);
+    const data = await service.adminRejectPost(req.user.sub, req.params.postId, req.body);
+    return sendSuccess(res, { data, message: 'Post rejected with feedback.' });
+  } catch (error) { next(error); }
+};
+
+const listClientPendingReview = async (req, res, next) => {
+  try {
+    const data = await service.listClientPendingReview(req.user.sub);
+    return sendSuccess(res, { data });
+  } catch (error) { next(error); }
+};
+
+const clientApprovePost = async (req, res, next) => {
+  try {
+    validator.validateClientApprove(req.params);
+    const data = await service.clientApprovePost(req.user.sub, req.params.postId);
+    return sendSuccess(res, { data, message: 'Post approved and scheduled.' });
+  } catch (error) { next(error); }
+};
+
+const clientRejectPost = async (req, res, next) => {
+  try {
+    validator.validateRejection(req.params, req.body);
+    const data = await service.clientRejectPost(req.user.sub, req.params.postId, req.body);
+    return sendSuccess(res, { data, message: 'Post rejected with feedback.' });
+  } catch (error) { next(error); }
+};
+
+const adminDirectUpload = async (req, res, next) => {
+  try {
+    validator.validateDirectUpload(req.body);
+    const data = await service.adminDirectUpload(req.user.sub, req.body);
+    return sendSuccess(res, { data, message: 'Direct post created.', statusCode: 201 });
+  } catch (error) { next(error); }
+};
+
+// ── Legacy & Existing Calendar / Tasks Handlers ──
 
 const calendar = async (req, res, next) => {
   try {
@@ -94,20 +198,6 @@ const updateDesignerTask = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-const designerSocialQueue = async (req, res, next) => {
-  try {
-    const data = await service.listDesignerSocialQueue(req.user.sub);
-    return sendSuccess(res, { data });
-  } catch (error) { next(error); }
-};
-
-const uploadCreativeToSocialPost = async (req, res, next) => {
-  try {
-    const post = await service.uploadCreativeToSocialPost(req.user.sub, req.params.postId, req.body);
-    return sendSuccess(res, { data: { post }, message: 'Creative uploaded successfully.' });
-  } catch (error) { next(error); }
-};
-
 const syncTaskSheet = async (req, res, next) => {
   try {
     const data = await service.syncTaskSheet(req.user.sub);
@@ -192,7 +282,32 @@ const rejectSelection = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const { uploadFile } = require('../storage/app-storage.provider');
+
+const uploadAsset = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      throw new AppError('No file provided', 400);
+    }
+    const url = await uploadFile('creatives', req.file.originalname, req.file.buffer, req.file.mimetype);
+    return sendSuccess(res, { data: { url } });
+  } catch (error) { next(error); }
+};
+
 module.exports = {
+  completeCalendar,
+  listAdminClients,
+  listAdminDesigners,
+  assignDesignerToClient,
+  designerSocialQueue,
+  uploadCreativeToSocialPost,
+  listAdminReviewQueue,
+  adminApprovePost,
+  adminRejectPost,
+  listClientPendingReview,
+  clientApprovePost,
+  clientRejectPost,
+  adminDirectUpload,
   calendar,
   selectEvent,
   createRequest,
@@ -203,8 +318,6 @@ module.exports = {
   designerTasks,
   getBrandContext,
   updateDesignerTask,
-  designerSocialQueue,
-  uploadCreativeToSocialPost,
   syncTaskSheet,
   suggestEvents,
   createEvent,
@@ -215,4 +328,5 @@ module.exports = {
   rejectRequest,
   approveSelection,
   rejectSelection,
+  uploadAsset,
 };

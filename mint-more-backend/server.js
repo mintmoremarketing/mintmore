@@ -47,11 +47,15 @@ const bootstrap = async () => {
 
     if (redisReady) {
       // Start Redis-dependent background workers after Redis is ready
-      startPublishWorker();
-      startAIWorker();
+      // Social posting and AI workers are off for the services launch.
+      // Set ENABLE_SOCIAL_AI_WORKERS=true to bring them back.
+      if (process.env.ENABLE_SOCIAL_AI_WORKERS === 'true') {
+        startPublishWorker();
+        startAIWorker();
+        startSocialSchedulers();
+      }
       await startFulfillmentWorker();
       await startOutboxWorker();
-      startSocialSchedulers();
     }
 
     server = app.listen(env.port, () => {

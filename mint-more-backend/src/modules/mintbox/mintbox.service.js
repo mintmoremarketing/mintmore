@@ -17,9 +17,20 @@ const BYTES_PER_GB = 1024 * 1024 * 1024;
 const DEFAULT_REVISION_POLICY = { included_rounds: 3, paid_revision_price: 20, feedback_window_hours: 24 };
 const BRAND_LIBRARY_UPLOAD_PREFIX = 'brand-library';
 
-const getRevisionPolicy = async (dbClient = null) => {
+const getRevisionPolicy = async (dbClient = null, jobId = null) => {
   const configured = await getSetting('revisions', DEFAULT_REVISION_POLICY, dbClient);
-  return { ...DEFAULT_REVISION_POLICY, ...(configured || {}) };
+  const policy = { ...DEFAULT_REVISION_POLICY, ...(configured || {}), hard_limit: false };
+  if (!jobId) return policy;
+
+  // Fixed-price service bookings carry their own revision allowance and never
+  // sell extra paid rounds.
+  const executor = dbClient || { query: (sql, params) => query(sql, params) };
+  const jobResult = await executor.query('SELECT metadata FROM jobs WHERE id = $1', [jobId]);
+  const metadata = jobResult.rows[0]?.metadata || {};
+  if (metadata.source === 'service_booking' && metadata.included_revisions !== undefined) {
+    return { ...policy, included_rounds: Number(metadata.included_revisions), paid_revision_price: 0, hard_limit: true };
+  }
+  return policy;
 };
 
 const publishProjectActivity = (jobId, content) => {
@@ -91,11 +102,13 @@ const getRevisionSummary = async (jobId) => {
     [jobId]
   );
   const rounds = result.rows;
-  const policy = await getRevisionPolicy();
+  const policy = await getRevisionPolicy(null, jobId);
   return {
     definition: 'One revision includes all client feedback submitted within a single 24-hour window after delivery.',
     free_rounds: Number(policy.included_rounds),
     paid_revision_price: Number(policy.paid_revision_price),
+    hard_limit: policy.hard_limit,
+    rounds_used: rounds.length,
     completed_rounds: rounds.filter((round) => round.status === 'delivered').length,
     active_round: rounds.find((round) => round.status !== 'delivered') || null,
     rounds,
@@ -648,7 +661,11 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
       );
       if (dispute.rows[0]) throw new AppError('Deliveries are paused while support reviews this dispute', 409);
     }
-    if (role === 'client' && !['draft', 'open', 'matching'].includes(job.status)) {
+    // Fixed-price service orders share assets after payment, while work is underway.
+    const clientUploadStatuses = job.metadata?.source === 'service_booking'
+      ? ['matching', 'assigned', 'in_progress']
+      : ['draft', 'open', 'matching'];
+    if (role === 'client' && !clientUploadStatuses.includes(job.status)) {
       throw new AppError('Brief references can only be added before negotiation starts', 400);
     }
 
@@ -1319,7 +1336,10 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
           [file.job_id]
         );
         const roundNumber = Number(countResult.rows[0].count) + 1;
-        const policy = await getRevisionPolicy(dbClient);
+        const policy = await getRevisionPolicy(dbClient, file.job_id);
+        if (policy.hard_limit && roundNumber > Number(policy.included_rounds)) {
+          throw new AppError(`Revision limit reached. This service includes ${policy.included_rounds} revision${Number(policy.included_rounds) === 1 ? '' : 's'}.`, 400);
+        }
         const charge = roundNumber > Number(policy.included_rounds)
           ? Number(policy.paid_revision_price)
           : 0;

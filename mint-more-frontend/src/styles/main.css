@@ -32,6 +32,9 @@
 }
 
 :root {
+  /* Motion: strong ease-out for anything entering or reacting to a press. */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --press-scale: 0.97;
   --mint-50: #fdf3f0;
   --mint-100: #fae3dc;
   --mint-200: #f4c1b2;
@@ -524,7 +527,10 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   color: var(--ink-700);
   cursor: pointer;
   position: relative;
-  transition: all 0.15s ease;
+  transition: color 150ms ease, border-color 150ms ease, transform 160ms var(--ease-out-strong);
+}
+.icon-btn:active {
+  transform: scale(0.94);
 }
 .icon-btn:hover {
   color: var(--ink-950);
@@ -549,6 +555,61 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   position: relative;
 }
 
+/* Unread count: a pill pinned to the button's top-right edge, ringed in white so
+   it reads as sitting on top of the button rather than colliding with its border. */
+.notif-badge {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--mint-500);
+  box-shadow: 0 0 0 2px var(--paper, #fff), 0 1px 3px rgba(17, 17, 17, 0.18);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  transform-origin: center;
+  /* Remounted (keyed by count) whenever the number changes: a quick settle, no overshoot. */
+  animation: notifBadgeIn 200ms var(--ease-out-strong) both;
+}
+.notif-badge.cart-badge {
+  background: #0b7a41;
+}
+.notif-badge.mobile-nav-badge {
+  top: -6px;
+  right: -12px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 9.5px;
+}
+.notif-bell {
+  display: inline-flex;
+}
+
+@keyframes notifBadgeIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notif-badge { animation: notifBadgeFade 160ms ease both; }
+  .icon-btn:active { transform: none; }
+}
+@keyframes notifBadgeFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* ── Buttons ─────────────────────────────────────────────────── */
 
 .btn {
@@ -563,9 +624,12 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   border: 1px solid transparent;
   background: transparent;
   color: var(--ink-700);
-  transition: all 0.12s ease;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, opacity 140ms ease, transform 160ms var(--ease-out-strong);
   white-space: nowrap;
   letter-spacing: -0.005em;
+}
+.btn:active:not(:disabled) {
+  transform: scale(var(--press-scale));
 }
 .btn svg {
   width: 14px;
@@ -949,7 +1013,11 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   border-radius: var(--radius-sm);
   padding: 3px;
   gap: 1px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.tabs::-webkit-scrollbar { display: none; }
 .tab {
   padding: 6px 12px;
   border-radius: 6px;
@@ -959,7 +1027,9 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   background: transparent;
   border: 0;
   cursor: pointer;
-  transition: all 0.12s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 140ms ease, background-color 140ms ease, box-shadow 140ms ease, transform 160ms var(--ease-out-strong);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -972,7 +1042,9 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   color: var(--ink-950);
   box-shadow: var(--shadow-xs);
 }
+.tab:active { transform: scale(var(--press-scale)); }
 .tab .pill {
+  font-variant-numeric: tabular-nums;
   background: var(--ink-100);
   color: var(--ink-700);
   font-size: 10px;
@@ -1285,7 +1357,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   max-width: 480px;
   max-height: 90vh;
   overflow: auto;
-  animation: modalIn 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  animation: modalIn 0.22s var(--ease-out-strong);
 }
 @keyframes modalIn {
   from {
@@ -1343,8 +1415,8 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   border-radius: 50%;
   border: 1px solid var(--mint-300);
   background: var(--mint-100);
-  opacity: 0;
-  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  /* Static on purpose: pulsing status decoration was removed (see impeccable slop: pulsing status dot). */
+  opacity: 0.35;
 }
 .radar-pulse:nth-child(1) {
   width: 60px;
@@ -1437,7 +1509,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 .reveal {
   opacity: 0;
   transform: translateY(8px);
-  animation: reveal 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.1) forwards;
+  animation: reveal 0.5s var(--ease-out-strong) forwards;
 }
 .reveal[data-d="0"] {
   animation-delay: 0.02s;
@@ -2517,7 +2589,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 }
 .split-bar .seg {
   height: 100%;
-  transition: width 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  transition: width 0.6s var(--ease-out-strong);
 }
 .split-bar .seg.available {
   background: var(--mint-500);
@@ -4607,7 +4679,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 .designer-client-block span { display: block; color: var(--ink-500); font-size: 12px; margin-top: 2px; }
 .designer-client-avatar { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: var(--mint-100); color: var(--mint-800); font-weight: 800; font-family: var(--font-display); }
 .designer-task-brief { max-width: 760px; color: var(--ink-700); line-height: 1.55; margin: 0; }
-.designer-task-note { margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid var(--amber); background: rgba(245,158,11,.08); color: var(--ink-700); font-size: 12.5px; border-radius: 4px; }
+.designer-task-note { margin: 10px 0 0; padding: 10px 12px; border: 1px solid rgba(245,158,11,.25); background: rgba(245,158,11,.08); color: var(--ink-700); font-size: 12.5px; border-radius: 4px; }
 .designer-task-actions { gap: 8px; min-width: 220px; }
 
 .verification-intro { display: flex; justify-content: space-between; gap: 24px; padding: 22px; border: 1px solid rgba(247,127,0,.2); background: rgba(247,127,0,.055); border-radius: var(--radius-md); }
@@ -4707,18 +4779,54 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
 }
 
 .verification-banner {
-  background: rgba(247,127,0,0.06);
-  border-bottom: 1px solid rgba(247,127,0,0.15);
-  padding: 10px 24px;
+  background: var(--mint-50);
+  padding: 8px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
   flex-shrink: 0;
   color: var(--mint-700);
   font-size: 13px;
+  line-height: 1.35;
 }
+.verification-banner .verification-banner-link {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--mint-700);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+@media (min-width: 768px) {
+  .verification-banner { padding: 9px 24px; }
+}
+
+/* Initials avatar (Avatar.jsx and the sidebar/drawer user footers). */
+.avatar {
+  --avatar-size: 36px;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--mint-100);
+  color: var(--mint-700);
+  font-size: calc(var(--avatar-size) * 0.36);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  user-select: none;
+}
+.avatar.sm { --avatar-size: 30px; }
+.avatar.lg { --avatar-size: 48px; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .settings-shell {
   display: grid;
@@ -4973,7 +5081,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   padding: 12px 14px;
   margin-bottom: 8px;
   max-width: 75%;
-  animation: slideIn 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  animation: slideIn 0.32s var(--ease-out-strong);
 }
 .offer-card.them {
   margin-right: auto;
@@ -5041,7 +5149,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   background: var(--paper);
   border: 1px dashed var(--hairline-strong);
   border-radius: var(--radius-md);
-  animation: emptyIn 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  animation: emptyIn 0.4s var(--ease-out-strong);
 }
 .empty-glyph {
   width: 64px;
@@ -5150,8 +5258,7 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   height: 6px;
   border-radius: 50%;
   background: var(--mint-500);
-  box-shadow: 0 0 0 0 rgba(247, 127, 0, 0.4);
-  animation: pulseDot 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  /* Static on purpose: a status dot should not pulse when nothing is changing. */
 }
 @keyframes pulseDot {
   0%,
@@ -5331,7 +5438,8 @@ kbd {
   width: min(280px, 84vw);
   height: 100%;
   box-shadow: var(--shadow-lg);
-  animation: drawerIn 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  /* iOS drawer curve: no overshoot on a panel that slides against the screen edge. */
+  animation: drawerIn 0.32s cubic-bezier(0.32, 0.72, 0, 1);
   overflow: hidden;
   display: flex;
 }
@@ -5424,7 +5532,7 @@ kbd {
     border-top-right-radius: 20px;
     max-height: 92dvh;
     padding-bottom: env(safe-area-inset-bottom);
-    animation: sheetIn 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+    animation: sheetIn 0.28s var(--ease-out-strong);
   }
   @keyframes sheetIn {
     from {
@@ -8610,9 +8718,9 @@ kbd {
 }
 
 .timeline-post-block {
-  background: rgba(247, 127, 0, 0.04);
-  border-left: 3px solid var(--mint-500);
-  border-radius: 0 8px 8px 0;
+  background: rgba(247, 127, 0, 0.06);
+  border: 1px solid rgba(232, 59, 3, 0.15);
+  border-radius: 8px;
   padding: 8px 10px;
   display: flex;
   gap: 8px;
@@ -10351,4 +10459,192 @@ input:checked + .slider::before {
   gap: 24px;
   width: 100%;
   margin-top: 10px;
+}
+
+/* Typography floor: balanced headings, no single-word last lines in body copy. */
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+
+/* Public storefront shell: reuses the landing ticker, floating nav and Ask widget. */
+/* Accent tokens at :root so .landing-cta keeps its yellow inside the signed-in app too. */
+:root {
+  --landing-accent: #ffb21a;
+  --landing-accent-hover: #ffc247;
+  --landing-accent-ink: #4a2a05;
+  --landing-accent-wash: rgba(255,178,26,.1);
+  --landing-accent-glow: rgba(255,178,26,.18);
+}
+.store-public {
+  --landing-announcement-height: 36px;
+}
+.store-nav-spacer { height: calc(var(--landing-announcement-height) + 78px); }
+.store-nav-cart {
+  position: relative;
+  display: inline-flex;
+  padding: 8px;
+  color: #15120f;
+  border-radius: 999px;
+  transition: background-color 160ms var(--ease-out-strong), transform 160ms var(--ease-out-strong);
+}
+.store-nav-cart:hover { background: var(--landing-accent-wash); }
+.store-nav-cart:active { transform: scale(var(--press-scale)); }
+.store-nav-cart .notif-badge { top: -2px; right: -4px; }
+.landing-cta:active { transform: scale(var(--press-scale)); }
+
+/* Storefront hero: the landing's rolling headline, set large and allowed to wrap by word. */
+.store-hero-phrase {
+  display: inline-grid;
+  justify-items: center;
+  color: #15120f;
+  text-decoration: none;
+}
+.store-hero-line {
+  margin: 0;
+  font-family: "Creatyv Hero", "Microsoft YaHei Light", "Microsoft YaHei", Arial, sans-serif;
+  font-size: clamp(36px, 6.4vw, 92px);
+  font-weight: 300;
+  line-height: 1.04;
+  letter-spacing: -.055em;
+  text-align: center;
+  text-wrap: balance;
+}
+.store-hero-word {
+  display: inline-block;
+  overflow: hidden;
+  padding-block: .06em .12em;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.store-hero-phrase .landing-hero-cta-hint { opacity: 0; }
+.store-hero-phrase:is(:hover, :focus-visible) .landing-hero-cta-hint { opacity: 1; transform: translateY(0); }
+.store-hero-phrase:focus-visible { outline: 2px solid var(--landing-accent); outline-offset: 8px; border-radius: 12px; }
+
+@media (max-width: 640px) {
+  .store-public { --landing-announcement-height: 32px; }
+  .store-nav-spacer { height: calc(var(--landing-announcement-height) + 72px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-char { animation: none; opacity: 1; transform: none; }
+  .landing-announcement-track { animation-duration: 60s; }
+}
+
+/* Storefront scroll-stacked cards (landing's ScrollStack, storefront type and copy). */
+.store-stack {
+  --landing-card-width: 100%;
+  --landing-card-min: min(72svh, 620px);
+  --landing-card-radius: 20px;
+  margin-top: 80px;
+}
+.store-stack-intro { margin-bottom: 24px; }
+.store-stack-intro p {
+  margin: 0 0 10px;
+  color: var(--ink-500);
+  font: 600 14px/1 var(--font-store, "Poppins", sans-serif);
+}
+.store-stack-intro h2 {
+  max-width: 760px;
+  margin: 0;
+  color: #15120f;
+  font-family: "Poppins", sans-serif;
+  font-size: clamp(30px, 4.4vw, 56px);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+.store-stack-card {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(16px, 2.6svh, 28px);
+  text-align: center;
+  color: #15120f;
+  font-family: "Poppins", sans-serif;
+  box-shadow: 0 20px 60px rgba(21, 18, 15, .12);
+}
+.store-stack-card.orange { background: #ffb21b; }
+.store-stack-card.purple { background: #c49af5; }
+.store-stack-card.sand { background: #dfd4be; }
+.store-stack-card.cta { background: #15120f; color: #fff; }
+.store-stack-index {
+  position: absolute;
+  top: clamp(20px, 2vw, 32px);
+  left: clamp(22px, 2.2vw, 36px);
+  color: rgba(21, 18, 15, .55);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.store-stack-card.cta .store-stack-index { color: rgba(255, 255, 255, .55); }
+.store-stack-card h3 {
+  max-width: 14ch;
+  margin: 0;
+  font-size: clamp(40px, 7vw, 104px);
+  font-weight: 600;
+  line-height: .98;
+  letter-spacing: -.045em;
+  text-wrap: balance;
+}
+.store-stack-card p {
+  max-width: 34ch;
+  margin: 0;
+  color: rgba(21, 18, 15, .78);
+  font-size: clamp(16px, 1.4vw, 20px);
+  line-height: 1.5;
+}
+.store-stack-card.cta p { color: rgba(255, 255, 255, .75); }
+.store-stack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+.store-stack-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 24px;
+  border-radius: 999px;
+  background: #ffb21a;
+  color: #4a2a05;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 160ms var(--ease-out-strong), background-color 160ms var(--ease-out-strong);
+}
+.store-stack-actions a:hover { background: #ffc247; }
+.store-stack-actions a:active { transform: scale(var(--press-scale)); }
+.store-stack-actions a + a { background: rgba(255, 255, 255, .12); color: #fff; }
+.store-stack-actions a + a:hover { background: rgba(255, 255, 255, .2); }
+@media (max-width: 640px) {
+  .store-stack { --landing-card-min: 62svh; margin-top: 56px; }
+  .store-stack-card h3 { font-size: clamp(34px, 10vw, 48px); }
+  .store-stack-card p { font-size: 15px; }
+}
+
+/* Signed-in storefront: rolling "I need a …" word. Each swap remounts, so letters rise in once. */
+.shopper-word > span {
+  display: inline-block;
+  animation: shopperWordIn 420ms var(--ease-out-strong) both;
+}
+@keyframes shopperWordIn {
+  from { opacity: 0; transform: translateY(.45em); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shopper-word > span { animation: shopperWordFade 200ms ease both; }
+}
+@keyframes shopperWordFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Freelancer profile-completion checklist */
+@keyframes completionSlideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes completionSlideDown { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
+@keyframes completionFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kycModalIn { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+.completion-panel[data-state="in"] { animation: completionSlideUp .28s cubic-bezier(0.32,0.72,0,1) forwards; }
+.completion-panel[data-state="out"] { animation: completionSlideDown .28s cubic-bezier(0.32,0.72,0,1) forwards; }
+.completion-sheet { animation: completionSlideUp .32s cubic-bezier(0.32,0.72,0,1); }
+.completion-backdrop { animation: completionFade .2s ease-out; }
+.kyc-modal { animation: kycModalIn .2s var(--ease-out-strong); }
+@media (prefers-reduced-motion: reduce) {
+  .completion-panel[data-state], .completion-sheet, .completion-backdrop, .kyc-modal { animation: none; }
 }

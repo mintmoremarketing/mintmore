@@ -13,6 +13,7 @@ export default function ForgotPassword() {
 	const [newPassword, setNewPassword] = useState('')
 	const [showPassword, setShowPassword] = useState(false)
 	const [error, setError] = useState(null)
+	const [resetToken, setResetToken] = useState(null)
 	
 	const [cooldown, setCooldown] = useState(0)
 
@@ -50,7 +51,8 @@ export default function ForgotPassword() {
 			if (error) throw error
 			return data
 		},
-		onSuccess: () => {
+		onSuccess: (data) => {
+			setResetToken(data?.session?.access_token || null)
 			setStep(3)
 			setError(null)
 		},
@@ -63,7 +65,7 @@ export default function ForgotPassword() {
 	const resetPasswordMutation = useMutation({
 		mutationFn: async () => {
 			// This calls your custom Node.js backend to update the password!
-			await authApi.resetPassword(email, newPassword)
+			await authApi.resetPassword(email, newPassword, resetToken)
 		},
 		onSuccess: () => {
 			navigate('/login', { state: { message: 'Password reset successfully! Please log in.' } })

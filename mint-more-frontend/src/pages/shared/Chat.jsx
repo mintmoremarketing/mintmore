@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { chatApi } from '../../api/chat'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
@@ -16,6 +16,13 @@ const fileNameFromUrl = (url = '') => {
 		return 'Mintbox file'
 	}
 }
+
+const DONE_STATUSES = ['completed', 'cancelled', 'closed']
+const FILTERS = [
+	{ key: 'all', label: 'All' },
+	{ key: 'active', label: 'Active' },
+	{ key: 'completed', label: 'Completed' },
+]
 
 const deliveryAction = (message) => {
 	if (!message.attachment_url) return null
@@ -34,6 +41,8 @@ export default function Chat() {
 	const [attachmentUrl, setAttachmentUrl] = useState('')
 	const [showAttachment, setShowAttachment] = useState(false)
 	const [search, setSearch] = useState('')
+	const [filter, setFilter] = useState('all')
+	const navigate = useNavigate()
 
 	const { data: rooms = [], isLoading: roomsLoading } = useQuery({
 		queryKey: ['chat-rooms'],
@@ -42,10 +51,6 @@ export default function Chat() {
 	})
 	const selectedId = params.get('room') || rooms.find(room => room.job_id === params.get('job'))?.id || rooms[0]?.id || ''
 	const selectedRoom = rooms.find(room => room.id === selectedId)
-
-	useEffect(() => {
-		if (!params.get('room') && selectedId) setParams({ room: selectedId }, { replace: true })
-	}, [selectedId, params, setParams])
 
 	useEffect(() => {
 		chatApi.online().catch(() => {})
@@ -88,140 +93,165 @@ export default function Chat() {
 
 	const filteredRooms = useMemo(() => {
 		const needle = search.trim().toLowerCase()
-		if (!needle) return rooms
-		return rooms.filter(item => [item.job_title, item.client_name, item.freelancer_name, item.last_message_preview].some(value => String(value || '').toLowerCase().includes(needle)))
-	}, [rooms, search])
+		return rooms.filter(item => {
+			const done = DONE_STATUSES.includes(item.job_status)
+			if ((filter === 'active' && done) || (filter === 'completed' && !done)) return false
+			return !needle || [item.job_title, item.client_name, item.freelancer_name, item.last_message_preview].some(value => String(value || '').toLowerCase().includes(needle))
+		})
+	}, [rooms, search, filter])
 
+	// Clients see every room as the same anonymous channel, so lead with the service instead.
+	const roomTitle = item => (role === 'client' ? item.job_title || roomLabel(item) : roomLabel(item))
+	const roomSubtitle = item => (role === 'client' ? roomLabel(item) : item.job_title)
 	const roomLabel = item => role === 'admin'
 		? `${item.client_name} / ${item.freelancer_name}`
 		: role === 'client'
-			? item.mm_channel_name || 'CREATYV creative'
+			? item.freelancer_name || item.mm_channel_name || 'Your freelancer'
 			: item.client_name || 'Client'
 
-	return (
-		<div className="flex flex-col w-full h-[calc(100vh-64px)] bg-white">
-			<div className="flex flex-col md:flex-row md:items-start justify-between gap-4 p-4 md:px-8 border-b border-ink-100 shrink-0">
-				<div>
-					<div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-1">{role === 'admin' ? 'Admin' : 'Workspace'}</div>
-					<h1 className="text-3xl font-display font-bold text-ink-900 tracking-tight m-0">{role === 'admin' ? 'All chats' : 'Messages'}</h1>
-				</div>
-			</div>
+	const send = () => {
+		if ((draft.trim() || attachmentUrl.trim()) && !sendMutation.isPending) sendMutation.mutate()
+	}
+	// Phones show one pane at a time: the list, or the chat once a conversation is picked.
+	const chatOpen = Boolean(params.get('room') || params.get('job'))
+	const canSend = Boolean(draft.trim() || attachmentUrl.trim()) && !sendMutation.isPending
 
-			<div className="flex-1 grid grid-cols-1 md:grid-cols-[300px_1fr] min-h-0">
-				<aside className="border-r border-ink-100 flex flex-col min-w-0 bg-ink-50/30">
-					<div className="p-4 border-b border-ink-100 bg-white">
-						<div className="flex items-center justify-between mb-3">
-							<span className="text-sm font-bold text-ink-900">Conversations</span>
-							<span className="bg-ink-100 text-ink-600 text-[11px] font-bold px-2 py-0.5 rounded-full">{rooms.length}</span>
-						</div>
-						<div className="relative">
-							<Icon name="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-							<input className="w-full bg-ink-50 border border-ink-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-ink-400 focus:bg-white transition-colors" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search conversations..." />
-						</div>
-					</div>
-				<div style={{ maxHeight: 'calc(100vh - 245px)', overflowY: 'auto' }}>
-					{roomsLoading ? <div className="muted" style={{ padding: 18 }}>Loading chats...</div> : filteredRooms.length === 0 ? (
-						<div className="empty" style={{ border: 0, padding: 28 }}><h3>No chats yet</h3><p>Chats appear once a project begins.</p></div>
-					) : filteredRooms.map(item => (
-						<button
-							key={item.id}
-							onClick={() => setParams({ room: item.id })}
-							style={{ width: '100%', padding: 14, border: 0, borderBottom: '1px solid var(--hairline)', background: selectedId === item.id ? 'var(--mint-50)' : 'transparent', textAlign: 'left', cursor: 'pointer' }}
-						>
-							<div className="row" style={{ gap: 10 }}>
-								<Avatar name={roomLabel(item)} size="sm" />
-								<div style={{ minWidth: 0, flex: 1 }}>
-									<div className="row between" style={{ gap: 8 }}>
-										<strong style={{ fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{roomLabel(item)}</strong>
-										{Number(item.unread_count) > 0 && <span className="badge mint">{item.unread_count}</span>}
-									</div>
-									<div style={{ fontSize: 11.5, color: 'var(--ink-600)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.job_title}</div>
-									<div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.last_message_preview || 'No messages yet'}</div>
-								</div>
-							</div>
+	return (
+		<div className="grid h-[calc(100dvh-64px-var(--bottom-nav-h,0px))] w-full grid-cols-1 bg-white font-store md:grid-cols-[320px_1fr]">
+			<aside className={`${chatOpen ? 'hidden md:flex' : 'flex'} min-h-0 min-w-0 flex-col border-r border-ink-200`}>
+				<div className="px-4 pb-3 pt-5 md:px-5">
+					<div className="flex items-center gap-2">
+						<button type="button" onClick={() => navigate(-1)} className="grid h-8 w-8 place-items-center rounded-full text-ink-700 hover:bg-ink-100" aria-label="Back">
+							<Icon name="arrowLeft" size={18} />
 						</button>
-					))}
+						<h1 className="text-xl font-semibold tracking-tight text-ink-900">{role === 'admin' ? 'All chats' : 'Messages'}</h1>
+					</div>
+					<div className="relative mt-4">
+						<Icon name="search" size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500" />
+						<input
+							className="h-10 w-full rounded-xl border border-ink-200 bg-white pl-10 pr-3 text-[15px] text-ink-900 placeholder:text-ink-500 transition-colors focus:border-ink-400 focus:outline-none"
+							value={search}
+							onChange={e => setSearch(e.target.value)}
+							placeholder="What are you looking for?"
+							aria-label="Search conversations"
+						/>
+					</div>
+					<div className="mt-3 flex gap-2" role="tablist" aria-label="Filter conversations">
+						{FILTERS.map(f => (
+							<button key={f.key} type="button" role="tab" aria-selected={filter === f.key} onClick={() => setFilter(f.key)}
+								className={`h-8 rounded-full px-3.5 text-sm font-medium transition-colors ${filter === f.key ? 'bg-ink-900 text-white' : 'bg-ink-100 text-ink-700 hover:bg-ink-200'}`}>
+								{f.label}
+							</button>
+						))}
+					</div>
+				</div>
+				<div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+					{roomsLoading ? (
+						Array.from({ length: 3 }).map((_, i) => <div key={i} className="mx-2 my-2 h-16 animate-pulse rounded-xl bg-ink-100" />)
+					) : filteredRooms.length === 0 ? (
+						<div className="flex flex-col items-center px-3 py-12 text-center">
+							<Icon name="chat" size={28} className="text-ink-300" />
+							<div className="mt-3 font-medium text-ink-900">{search || filter !== 'all' ? 'No matches' : 'No conversations yet'}</div>
+							<p className="mt-1 text-sm text-ink-500">{search || filter !== 'all' ? 'Try another name, service or filter.' : "You don't have any messages yet."}</p>
+						</div>
+					) : filteredRooms.map(item => {
+						const active = selectedId === item.id
+						const unread = Number(item.unread_count) > 0
+						return (
+							<button
+								key={item.id}
+								type="button"
+								onClick={() => setParams({ room: item.id })}
+								aria-current={active ? 'true' : undefined}
+								className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99] ${active ? 'bg-ink-100' : 'hover:bg-ink-50'}`}
+							>
+								<Avatar name={roomTitle(item)} />
+								<span className="min-w-0 flex-1">
+									<span className="flex items-center justify-between gap-2">
+										<span className={`truncate text-[15px] ${unread ? 'font-semibold' : 'font-medium'} text-ink-900`}>{roomTitle(item)}</span>
+										{unread && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-mint-600 px-1.5 text-[11px] font-semibold tabular-nums text-white">{item.unread_count}</span>}
+									</span>
+									<span className={`mt-0.5 block truncate text-sm ${unread ? 'text-ink-900' : 'text-ink-500'}`}>{item.last_message_preview || roomSubtitle(item) || 'No messages yet'}</span>
+								</span>
+							</button>
+						)
+					})}
 				</div>
 			</aside>
 
-			<section style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+			<section className={`${chatOpen ? 'flex' : 'hidden md:flex'} min-h-0 min-w-0 flex-col`}>
 				{!selectedId ? (
-					<div className="empty" style={{ border: 0, margin: 'auto' }}><h3>Select a chat</h3></div>
+					<div className="m-auto flex flex-col items-center px-6 text-center">
+						<span className="grid h-14 w-14 place-items-center rounded-full bg-ink-100 text-ink-500"><Icon name="chat" size={24} /></span>
+						<div className="mt-4 text-lg font-semibold text-ink-900">Your inbox is empty—for now</div>
+						<p className="mt-1 max-w-xs text-sm text-ink-500">{role === 'client' ? 'A chat opens as soon as a freelancer is assigned to your order.' : 'A chat opens here as soon as you are assigned an order.'}</p>
+					</div>
 				) : (
 					<>
-						<header className="row between" style={{ padding: '14px 18px', borderBottom: '1px solid var(--hairline)', gap: 14 }}>
-							<div className="row" style={{ gap: 10, minWidth: 0 }}>
-								<Avatar name={roomLabel(selectedRoom || {})} />
-								<div style={{ minWidth: 0 }}>
-									<strong style={{ fontSize: 13.5 }}>{roomLabel(selectedRoom || {})}</strong>
-									<div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>{room?.job_title || selectedRoom?.job_title}</div>
-								</div>
+						<header className="flex items-center gap-3 border-b border-ink-200 px-3 py-3 md:px-5">
+							<button type="button" className="icon-btn md:hidden" aria-label="Back to conversations" onClick={() => setParams({})}>
+								<Icon name="chevronLeft" size={18} />
+							</button>
+							<Avatar name={roomTitle(selectedRoom || {})} />
+							<div className="min-w-0 flex-1">
+								<div className="truncate text-[17px] font-medium text-ink-900">{roomTitle(selectedRoom || {})}</div>
+								<div className="truncate text-sm text-ink-500">{role === 'client' ? roomLabel(selectedRoom || {}) : room?.job_title || selectedRoom?.job_title}</div>
 							</div>
-							<div className="row" style={{ gap: 7 }}>
-								{room?.client_wa_number && <span className="badge mint"><Icon name="chat" size={10} /> WhatsApp connected</span>}
-								{role === 'admin' && <span className="badge neutral"><Icon name="eye" size={10} /> Read only</span>}
-							</div>
+							{room?.client_wa_number && <span className="hidden rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 sm:inline">WhatsApp connected</span>}
+							{role === 'admin' && <span className="rounded-md bg-ink-100 px-2 py-1 text-xs font-medium text-ink-600">Read only</span>}
 						</header>
 
-						<div ref={streamRef} className="chat-stream" style={{ flex: 1, maxHeight: 'none', borderRadius: 0, minHeight: 420, padding: 18 }}>
-							<div className="card" style={{ padding: 18, marginBottom: 16, background: 'var(--paper)' }}>
-								<div className="row between" style={{ gap: 12, alignItems: 'flex-start' }}>
-									<div>
-										<div className="h-eyebrow">Messages & deliveries</div>
-										<p className="muted" style={{ margin: '6px 0 0' }}>Project files and revision feedback stay together in one conversation.</p>
-									</div>
-									<span className="badge neutral">{messages.length} messages</span>
+						<div ref={streamRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-ink-50/50 px-3 py-5 md:px-6">
+							{messagesLoading ? (
+								<div className="text-sm text-ink-500">Loading messages…</div>
+							) : messages.length === 0 ? (
+								<div className="py-16 text-center">
+									<div className="font-medium text-ink-900">Say hello</div>
+									<p className="mt-1 text-sm text-ink-500">Share your references and instructions here. Files and feedback stay with this order.</p>
 								</div>
-							</div>
-							{messagesLoading ? <div className="muted">Loading messages...</div> : messages.length === 0 ? (
-								<div className="empty" style={{ border: 0, margin: 'auto' }}><h3>Start the conversation</h3><p>Messages stay attached to this project.</p></div>
 							) : messages.map(message => {
 								const mine = message.sender_role === role || (role === 'designer' && message.sender_role === 'freelancer')
 								const system = message.sender_role === 'system'
 								const read = role === 'client' ? message.read_by_freelancer : message.read_by_client
 								const fileAction = deliveryAction(message)
-								const fileName = fileNameFromUrl(message.attachment_url)
+								const meta = `${message.channel === 'whatsapp' ? 'WhatsApp · ' : ''}${timeAgo(message.created_at)}${mine ? ` · ${read ? 'Seen' : 'Sent'}` : ''}`
+								if (system) {
+									return (
+										<div key={message.id} className="mx-auto max-w-md py-1 text-center text-[13px] text-ink-500">
+											<span className="whitespace-pre-wrap">{message.content}</span>
+											<span className="ml-1.5">· {timeAgo(message.created_at)}</span>
+										</div>
+									)
+								}
 								if (fileAction) {
 									return (
-										<div key={message.id} className={`bubble-row ${mine ? 'me' : 'them'}`}>
-											<div
-												className="card"
-												style={{
-													width: 'min(760px, 88%)',
-													padding: 20,
-													borderRadius: 18,
-													background: mine ? 'var(--mint-50)' : 'var(--paper)',
-													borderColor: mine ? 'var(--mint-200)' : 'var(--hairline)',
-												}}
-											>
-												<div className="row" style={{ gap: 10, alignItems: 'center', marginBottom: 10 }}>
-													<Avatar name={message.sender_name || roomLabel(selectedRoom || {})} size="sm" />
-													<strong>{mine ? 'You' : message.sender_name}</strong>
-													<span className="muted">{fileAction}</span>
-												</div>
-												<a href={message.attachment_url} target="_blank" rel="noreferrer" className="row" style={{ gap: 12, alignItems: 'center', color: 'inherit', textDecoration: 'none' }}>
-													<span className="icon-btn" style={{ pointerEvents: 'none' }}><Icon name="file" size={16} /></span>
-													<span style={{ minWidth: 0 }}>
-														<strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName}</strong>
-														<span className="muted" style={{ fontSize: 12 }}>Open file</span>
+										<div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+											<div className="w-[min(520px,88%)] rounded-2xl border border-ink-200 bg-white p-4">
+												<div className="text-sm text-ink-500"><span className="font-medium text-ink-900">{mine ? 'You' : message.sender_name}</span> {fileAction}</div>
+												<a href={message.attachment_url} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-3 rounded-xl bg-ink-50 p-3 transition-colors hover:bg-ink-100">
+													<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-ink-700"><Icon name="file" size={18} /></span>
+													<span className="min-w-0">
+														<span className="block truncate font-medium text-ink-900">{fileNameFromUrl(message.attachment_url)}</span>
+														<span className="text-sm text-ink-500">Open file</span>
 													</span>
 												</a>
-												{message.content && <p style={{ margin: '12px 0 0', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.content}</p>}
-												<div className="row between" style={{ marginTop: 14 }}>
-													<span className="badge neutral">Submitted</span>
-													<span className="muted" style={{ fontSize: 12 }}>{timeAgo(message.created_at)}{mine ? ` · ${read ? 'Seen' : 'Sent'}` : ''}</span>
-												</div>
+												{message.content && <p className="mt-3 whitespace-pre-wrap text-[15px] text-ink-800 [overflow-wrap:anywhere]">{message.content}</p>}
+												<div className="mt-3 text-xs text-ink-500">{meta}</div>
 											</div>
 										</div>
 									)
 								}
 								return (
-									<div key={message.id} className={`bubble-row ${system ? 'system' : mine ? 'me' : 'them'}`}>
-										<div className="bubble">
-											{!mine && !system && <div className="who">{message.sender_name}</div>}
-											<div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.content}</div>
-											{message.attachment_url && <a href={message.attachment_url} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 6 }}><Icon name="paperclip" size={11} /> Open attachment</a>}
-											<span className="meta">{message.channel === 'whatsapp' ? 'WhatsApp · ' : ''}{timeAgo(message.created_at)}{mine ? ` · ${read ? 'Seen' : 'Sent'}` : ''}</span>
+									<div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+										<div className={`max-w-[78%] rounded-2xl px-4 py-2.5 ${mine ? 'rounded-br-md bg-ink-900 text-white' : 'rounded-bl-md border border-ink-200 bg-white text-ink-900'}`}>
+											{!mine && <div className="mb-0.5 text-[13px] font-medium text-ink-500">{message.sender_name}</div>}
+											<div className="whitespace-pre-wrap text-[15px] [overflow-wrap:anywhere]">{message.content}</div>
+											{message.attachment_url && (
+												<a href={message.attachment_url} target="_blank" rel="noreferrer" className={`mt-1 inline-flex items-center gap-1 text-sm underline underline-offset-2 ${mine ? 'text-white' : 'text-ink-900'}`}>
+													<Icon name="paperclip" size={12} /> Open attachment
+												</a>
+											)}
+											<div className={`mt-1 text-xs ${mine ? 'text-white/70' : 'text-ink-500'}`}>{meta}</div>
 										</div>
 									</div>
 								)
@@ -230,24 +260,47 @@ export default function Chat() {
 
 						{role !== 'admin' && (
 							<form
-								onSubmit={e => {
-									e.preventDefault()
-									if ((draft.trim() || attachmentUrl.trim()) && !sendMutation.isPending) sendMutation.mutate()
-								}}
-								style={{ padding: 14, borderTop: '1px solid var(--hairline)' }}
+								onSubmit={e => { e.preventDefault(); send() }}
+								className="border-t border-ink-200 bg-white px-3 py-3 md:px-5"
 							>
-								{showAttachment && <input className="input" value={attachmentUrl} onChange={e => setAttachmentUrl(e.target.value)} placeholder="Paste a Mintbox file share link" style={{ marginBottom: 8 }} />}
-								<div className="row" style={{ gap: 8 }}>
-									<button className="icon-btn" type="button" onClick={() => setShowAttachment(value => !value)} title="Attach Mintbox link"><Icon name="paperclip" size={14} /></button>
-									<textarea className="textarea" rows={2} value={draft} onChange={e => setDraft(e.target.value)} placeholder="Write a message..." style={{ resize: 'none' }} />
-									<button className="btn primary" type="submit" disabled={(!draft.trim() && !attachmentUrl.trim()) || sendMutation.isPending} aria-label="Send message"><Icon name="send" size={14} /></button>
+								{showAttachment && (
+									<input
+										className="mb-2 h-11 w-full rounded-xl border border-ink-200 px-3 text-[15px] placeholder:text-ink-500 focus:border-ink-400 focus:outline-none"
+										value={attachmentUrl}
+										onChange={e => setAttachmentUrl(e.target.value)}
+										placeholder="Paste a Mintbox file share link"
+										aria-label="Attachment link"
+									/>
+								)}
+								<div className="flex items-end gap-2 rounded-2xl border border-ink-200 bg-white p-1.5 pl-2 transition-colors focus-within:border-ink-400">
+									<button className="icon-btn shrink-0" type="button" onClick={() => setShowAttachment(value => !value)} aria-label="Attach a Mintbox link" aria-pressed={showAttachment}>
+										<Icon name="paperclip" size={16} />
+									</button>
+									<textarea
+										rows={1}
+										value={draft}
+										onChange={e => setDraft(e.target.value)}
+										onKeyDown={e => {
+											if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+										}}
+										placeholder="Write a message"
+										aria-label="Message"
+										className="max-h-40 min-h-10 flex-1 resize-none bg-transparent py-2 text-[15px] text-ink-900 placeholder:text-ink-500 focus:outline-none [field-sizing:content]"
+									/>
+									<button
+										type="submit"
+										disabled={!canSend}
+										aria-label="Send message"
+										className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink-900 text-white transition-[transform,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-95 disabled:opacity-30"
+									>
+										<Icon name="send" size={16} />
+									</button>
 								</div>
 							</form>
 						)}
 					</>
 				)}
 			</section>
-		</div>
 		</div>
 	)
 }

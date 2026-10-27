@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
+import { creativeApi } from '../../api/creative'
+import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import Avatar from '../../components/ui/Avatar'
 import { SkeletonCard } from '../../components/ui/Skeleton'
+import AdminDirectUploadModal from '../../components/admin/AdminDirectUploadModal'
 
 const asArray = (value) => (Array.isArray(value) ? value : [])
 const brandName = (brand) => brand?.business_name || brand?.full_name || brand?.email || 'Brand'
@@ -68,7 +71,10 @@ function BrandTile({ brand, active, onClick }) {
 }
 
 export default function AdminBrands() {
+  const queryClient = useQueryClient()
+  const pushToast = useUIStore(s => s.pushToast)
   const [selectedBrandId, setSelectedBrandId] = useState(null)
+  const [directUploadOpen, setDirectUploadOpen] = useState(false)
 
   const { data: listData, isLoading: listLoading } = useQuery({
     queryKey: ['admin-brands'],
@@ -76,6 +82,12 @@ export default function AdminBrands() {
   })
 
   const brands = useMemo(() => listData?.brands || [], [listData?.brands])
+
+  const { data: designersData } = useQuery({
+    queryKey: ['admin-designers'],
+    queryFn: () => creativeApi.getAdminDesigners().then(r => r.data?.data?.designers || r.data?.designers || []),
+  })
+  const designers = Array.isArray(designersData) ? designersData : []
 
   useEffect(() => {
     if (!selectedBrandId && brands.length > 0) {
@@ -87,6 +99,21 @@ export default function AdminBrands() {
     queryKey: ['admin-brand', selectedBrandId],
     queryFn: () => api.get(`/admin/brands/${selectedBrandId}`).then((r) => r.data.data),
     enabled: Boolean(selectedBrandId),
+  })
+
+  const assignDesigner = useMutation({
+    mutationFn: ({ clientId, designerId }) => creativeApi.assignDesignerToClient(clientId, designerId),
+    onSuccess: (_, variables) => {
+      pushToast({
+        title: variables.designerId ? 'Designer assigned to brand' : 'Designer unassigned',
+        tone: 'mint',
+      })
+      queryClient.invalidateQueries({ queryKey: ['admin-brands'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-brand', selectedBrandId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-designers'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-clients'] })
+    },
+    onError: (err) => pushToast({ title: 'Could not assign designer', body: err.response?.data?.message || 'Try again', tone: 'amber' }),
   })
 
   const selectedBrand = detailData?.profile || brands.find((brand) => brand.id === selectedBrandId) || null
@@ -108,6 +135,8 @@ export default function AdminBrands() {
   const posts = asArray(detailData?.posts?.posts)
   const platformSummary = asArray(detailData?.posts?.platform_summary)
   const channelHistory = asArray(detailData?.channel_history)
+
+  const assignedDesigner = designers.find(d => d.id === selectedBrand?.assigned_designer_id) || (selectedBrand?.assigned_designer_name ? { full_name: selectedBrand.assigned_designer_name, email: selectedBrand.assigned_designer_email } : null)
 
   return (
     <div className="flex flex-col gap-8 md:gap-10 w-full max-w-[1680px] mx-auto p-4 md:p-8 pb-16">
@@ -158,13 +187,22 @@ export default function AdminBrands() {
                 <div className="row" style={{ gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   <Avatar name={brandName(selectedBrand)} src={selectedBrand.avatar_url} size="xl" />
                   <div className="stack" style={{ gap: 10, flex: 1, minWidth: 0 }}>
-                    <div className="row wrap" style={{ gap: 8 }}>
-                      <span className="badge mint">Social {counts.connected_social_accounts || 0}</span>
-                      <span className="badge neutral">Published {counts.published_posts || 0}</span>
-                      <span className="badge neutral">Calendar {counts.calendar_items || 0}</span>
-                      <span className="badge neutral">Mintbox files {counts.mintbox_files || 0}</span>
-                      <span className="badge neutral">Brand folders {counts.brand_library_folders || 0}</span>
-                      <span className="badge neutral">Brand library {counts.brand_library_files || 0}</span>
+                    <div className="row wrap between" style={{ gap: 8, alignItems: 'center' }}>
+                      <div className="row wrap" style={{ gap: 8 }}>
+                        <span className="badge mint">Social {counts.connected_social_accounts || 0}</span>
+                        <span className="badge neutral">Published {counts.published_posts || 0}</span>
+                        <span className="badge neutral">Calendar {counts.calendar_items || 0}</span>
+                        <span className="badge neutral">Mintbox files {counts.mintbox_files || 0}</span>
+                        <span className="badge neutral">Brand folders {counts.brand_library_folders || 0}</span>
+                        <span className="badge neutral">Brand library {counts.brand_library_files || 0}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="px-4 py-1.5 rounded-full bg-mint-500 hover:bg-mint-600 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+                        onClick={() => setDirectUploadOpen(true)}
+                      >
+                        <Icon name="upload" size={14} /> Direct Upload Creative
+                      </button>
                     </div>
                     <div className="grid-2" style={{ gap: 12 }}>
                       <div className="card" style={{ padding: 14 }}>
@@ -176,12 +214,51 @@ export default function AdminBrands() {
                         </div>
                       </div>
                       <div className="card" style={{ padding: 14 }}>
-                        <div className="h-eyebrow">Google Business</div>
-                        <div style={{ marginTop: 8, fontWeight: 700 }}>{googleBusiness.listing_name || 'Not connected yet'}</div>
-                        <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>{googleBusiness.formatted_address || 'No public listing saved'}</div>
-                        <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>
-                          {googleBusiness.phone || googleBusiness.website || googleBusiness.maps_url || 'No Google Business metadata yet'}
+                        <div className="row between" style={{ gap: 8, alignItems: 'center' }}>
+                          <div className="h-eyebrow">Assigned Designer</div>
+                          <span className={`badge ${selectedBrand.assigned_designer_id ? 'mint' : 'neutral'}`}>
+                            {selectedBrand.assigned_designer_id ? 'Active' : 'Unassigned'}
+                          </span>
                         </div>
+                        <div style={{ marginTop: 8 }}>
+                          {assignedDesigner ? (
+                            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                              <Avatar name={assignedDesigner.full_name || 'Designer'} size="sm" />
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 700, fontSize: 13 }} className="truncate">{assignedDesigner.full_name || 'Designer'}</div>
+                                <div className="muted" style={{ fontSize: 11 }} className="truncate">{assignedDesigner.email}</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="muted" style={{ fontSize: 13 }}>No designer assigned yet</div>
+                          )}
+                        </div>
+                        <div style={{ marginTop: 10 }}>
+                          <select
+                            className="input"
+                            style={{ padding: '6px 10px', fontSize: 12 }}
+                            value={selectedBrand.assigned_designer_id || ''}
+                            disabled={assignDesigner.isPending}
+                            onChange={(e) => {
+                              assignDesigner.mutate({ clientId: selectedBrand.id, designerId: e.target.value || null })
+                            }}
+                          >
+                            <option value="">— Assign Designer —</option>
+                            {designers.map(d => (
+                              <option key={d.id} value={d.id}>
+                                {d.full_name || d.email} {d.assigned_clients_count != null ? `(${d.assigned_clients_count} clients)` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="card" style={{ padding: 14 }}>
+                      <div className="h-eyebrow">Google Business</div>
+                      <div style={{ marginTop: 8, fontWeight: 700 }}>{googleBusiness.listing_name || 'Not connected yet'}</div>
+                      <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>{googleBusiness.formatted_address || 'No public listing saved'}</div>
+                      <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>
+                        {googleBusiness.phone || googleBusiness.website || googleBusiness.maps_url || 'No Google Business metadata yet'}
                       </div>
                     </div>
                   </div>
@@ -493,6 +570,15 @@ export default function AdminBrands() {
           )}
         </div>
       </div>
+
+      {directUploadOpen && selectedBrand && (
+        <AdminDirectUploadModal
+          isOpen={directUploadOpen}
+          onClose={() => setDirectUploadOpen(false)}
+          initialClientId={selectedBrand.id}
+          initialClientName={brandName(selectedBrand)}
+        />
+      )}
     </div>
   )
 }

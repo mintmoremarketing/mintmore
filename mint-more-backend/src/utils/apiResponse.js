@@ -11,6 +11,7 @@ const sendSuccess = (res, { data = null, message = 'Success', statusCode = 200 }
     success: true,
     message,
     data,
+    ...(data && typeof data === 'object' && !Array.isArray(data) ? data : {}),
   });
 };
 

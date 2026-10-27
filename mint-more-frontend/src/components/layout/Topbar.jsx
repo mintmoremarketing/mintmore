@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
+import { useCartStore } from '../../store/cart'
 import Icon from '../ui/Icon'
 import { rupee } from '../../utils/format'
 
@@ -35,6 +36,8 @@ export default function Topbar({
 }) {
   const navigate = useNavigate()
   const { isGuest } = useAuthStore()
+  const role = useAuthStore(s => s.user?.role)
+  const cartCount = useCartStore(s => s.items.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0))
   const [mintPopoverOpen, setMintPopoverOpen] = useState(false)
   const isLow = walletBalance !== null && walletBalance !== undefined && walletBalance < 100
 
@@ -66,18 +69,10 @@ export default function Topbar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         {isMobile && (
           <button
+            className="icon-btn"
             onClick={onMenuClick}
             aria-label="Open menu"
-            style={{
-              width: 36, height: 36,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'white',
-              border: '1px solid var(--hairline)',
-              borderRadius: 8,
-              cursor: 'pointer',
-              flexShrink: 0,
-              padding: 0,
-            }}
+            style={{ flexShrink: 0, padding: 0 }}
           >
             <svg
               width="16" height="16"
@@ -209,6 +204,21 @@ export default function Topbar({
           </button>
         )}
 
+        {!isGuest && role === 'client' && (
+          <button
+            className="icon-btn notif-btn"
+            onClick={() => navigate('/cart')}
+            aria-label={cartCount ? `Cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'Cart'}
+          >
+            <Icon name="shoppingBag" size={15} />
+            {cartCount > 0 && (
+              <span key={cartCount} className="notif-badge cart-badge" aria-hidden="true">
+                {cartCount > 9 ? '9+' : cartCount}
+              </span>
+            )}
+          </button>
+        )}
+
         {!isGuest && (
           <button
             className="icon-btn notif-btn"
@@ -216,22 +226,13 @@ export default function Topbar({
             aria-label="Notifications"
             style={{ position: 'relative' }}
           >
-            <Icon name="bell" size={15} />
+            {/* Keyed so the ring replays each time new notifications arrive. */}
+            <span className="notif-bell">
+              <Icon name="bell" size={15} />
+            </span>
             {notifUnread && (
-              <span style={{
-                position: 'absolute',
-                top: 3, right: 3,
-                minWidth: 8, height: 8,
-                borderRadius: 4,
-                background: 'var(--mint-500)',
-                fontSize: 9, fontWeight: 600,
-                color: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: unreadCount > 9 ? '0 3px' : 0,
-              }}>
-                {unreadCount > 9 ? '9+' : ''}
+              <span key={unreadCount} className="notif-badge" aria-hidden="true">
+                {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
           </button>

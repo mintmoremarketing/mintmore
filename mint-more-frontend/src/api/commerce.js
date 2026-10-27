@@ -1,7 +1,7 @@
 import { api } from './client'
 
 export const commerceApi = {
-  entitlements: () => api.get('/commerce/entitlements/me'),
+  entitlements: () => api.get('/commerce/entitlements/me', { timeout: 10_000 }),
   credits: () => api.get('/commerce/credits/me'),
   membership: () => api.get('/commerce/membership/me'),
   checkout: (payload) => api.post('/commerce/membership/checkout', payload),

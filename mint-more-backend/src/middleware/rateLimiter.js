@@ -40,6 +40,11 @@ const authLoginLimiter = createSensitiveEndpointLimiter({
   message: 'Too many login attempts. Please wait and try again.',
 });
 
+const passwordResetLimiter = createSensitiveEndpointLimiter({
+  max: 5,
+  message: 'Too many password reset attempts. Please wait and try again.',
+});
+
 const paymentCheckoutLimiter = createSensitiveEndpointLimiter({
   max: 20,
   message: 'Too many checkout attempts. Please wait and try again.',
@@ -53,6 +58,7 @@ const paymentVerifyLimiter = createSensitiveEndpointLimiter({
 module.exports = {
   globalRateLimiter,
   authLoginLimiter,
+  passwordResetLimiter,
   paymentCheckoutLimiter,
   paymentVerifyLimiter,
 };

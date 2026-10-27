@@ -69,7 +69,9 @@ const handleWebhook = async (rawBody, signature) => {
     .update(rawBody)
     .digest('hex');
 
-  if (expectedSignature !== signature) {
+  const expectedBuffer = Buffer.from(expectedSignature);
+  const providedBuffer = Buffer.from(String(signature || ''));
+  if (expectedBuffer.length !== providedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
     logger.warn('Razorpay webhook signature mismatch');
     throw new AppError('Invalid webhook signature', 400);
   }
@@ -128,6 +130,13 @@ const handleWebhook = async (rawBody, signature) => {
       userId: membershipResult.user_id,
     });
     return membershipResult;
+  }
+
+  // Lazy require: services.service depends on wallet/chat modules.
+  const { processCapturedServicePayment } = require('../services/services.service');
+  if (await processCapturedServicePayment(orderId, paymentId, payment.amount)) {
+    logger.info('Service checkout processed via Razorpay webhook', { orderId, paymentId });
+    return { handled: true, type: 'service_checkout' };
   }
 
   const dbClient = await getClient();

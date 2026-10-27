@@ -309,6 +309,117 @@ const notifyKycReviewed = async ({ userId, level, status, adminNote }) => {
   });
 };
 
+const notifyCalendarCompleted = async ({ clientId, clientName }) => {
+  const adminIds = await getActiveAdminIds();
+  if (!adminIds.length) return;
+
+  const notifications = adminIds.map((userId) => ({
+    userId,
+    type:       'calendar_completed',
+    title:      'Calendar Completed',
+    body:       `${clientName || 'Client'} has completed their monthly calendar.`,
+    entityType: 'client',
+    entityId:   clientId,
+    data:       { client_id: clientId, client_name: clientName },
+  }));
+
+  await notificationService.createBulkNotifications(notifications);
+};
+
+const notifyDesignerAssigned = async ({ designerId, clientId, clientName }) => {
+  if (!designerId) return;
+
+  await notificationService.createNotification({
+    userId:     designerId,
+    type:       'designer_assigned',
+    title:      'New Client Assigned',
+    body:       `You have been assigned to design for ${clientName || 'a new client'}.`,
+    entityType: 'client',
+    entityId:   clientId,
+    data:       { client_id: clientId, client_name: clientName },
+  });
+};
+
+const notifyCreativeUploaded = async ({ postId, designerId, designerName, clientName }) => {
+  const adminIds = await getActiveAdminIds();
+  if (!adminIds.length) return;
+
+  const notifications = adminIds.map((userId) => ({
+    userId,
+    type:       'creative_uploaded',
+    title:      'Creative Uploaded',
+    body:       `${designerName || 'Designer'} uploaded a creative for ${clientName || 'client'}.`,
+    entityType: 'social_post',
+    entityId:   postId,
+    data:       { post_id: postId, designer_id: designerId },
+  }));
+
+  await notificationService.createBulkNotifications(notifications);
+};
+
+const notifyCreativeRejectedByAdmin = async ({ postId, designerId, reason, clientName }) => {
+  if (!designerId) return;
+
+  await notificationService.createNotification({
+    userId:     designerId,
+    type:       'creative_rejected_by_admin',
+    title:      'Creative Needs Revision',
+    body:       `Admin requested changes for ${clientName || 'client'}'s post: ${reason}`,
+    entityType: 'social_post',
+    entityId:   postId,
+    data:       { post_id: postId, reason },
+  });
+};
+
+const notifyCreativeReadyClientReview = async ({ postId, clientId, title }) => {
+  if (!clientId) return;
+
+  await notificationService.createNotification({
+    userId:     clientId,
+    type:       'creative_ready_client_review',
+    title:      'Creative Ready for Review',
+    body:       `A new creative "${title || 'Post'}" is ready for your review.`,
+    entityType: 'social_post',
+    entityId:   postId,
+    data:       { post_id: postId },
+  });
+};
+
+const notifyCreativeScheduled = async ({ postId, clientId, designerId, title }) => {
+  const recipients = [clientId, designerId].filter(Boolean);
+  if (!recipients.length) return;
+
+  const notifications = recipients.map((userId) => ({
+    userId,
+    type:       'creative_scheduled',
+    title:      'Creative Scheduled',
+    body:       `The creative "${title || 'Post'}" has been approved and scheduled.`,
+    entityType: 'social_post',
+    entityId:   postId,
+    data:       { post_id: postId },
+  }));
+
+  await notificationService.createBulkNotifications(notifications);
+};
+
+const notifyCreativeRejectedByClient = async ({ postId, clientId, designerId, reason, clientName, title }) => {
+  const adminIds = await getActiveAdminIds();
+  const recipientIds = [...new Set([...adminIds, ...(designerId ? [designerId] : [])])];
+  if (!recipientIds.length) return;
+
+  const notifications = recipientIds.map((userId) => ({
+    userId,
+    type:       'creative_rejected_by_client',
+    title:      'Creative Rejected by Client',
+    body:       `${clientName || 'Client'} requested changes for "${title || 'Post'}": ${reason}`,
+    entityType: 'social_post',
+    entityId:   postId,
+    data:       { post_id: postId, reason, client_id: clientId, designer_id: designerId },
+  }));
+
+  await notificationService.createBulkNotifications(notifications);
+};
+
 module.exports = {
   notifyMatchedCandidates,
   notifyPromotedPrimary,
@@ -323,4 +434,11 @@ module.exports = {
   notifyAssignmentAccepted,
   notifyAssignmentDeclined,
   notifyKycReviewed,
+  notifyCalendarCompleted,
+  notifyDesignerAssigned,
+  notifyCreativeUploaded,
+  notifyCreativeRejectedByAdmin,
+  notifyCreativeReadyClientReview,
+  notifyCreativeScheduled,
+  notifyCreativeRejectedByClient,
 };

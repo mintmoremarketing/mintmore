@@ -24,6 +24,23 @@ const DEFAULT_QNA_SETTINGS = {
   ].join('\n'),
 };
 
+// Storefront visitors (audience 'store') get a brief for fixed-price services. The admin-editable
+// public_qna.public_brief still describes the agency model (LAUNCH-HIDDEN), so it is used only for the landing page.
+const STORE_BRIEF = [
+  'CREATYV is a storefront for creative services: video editing, reels, thumbnails, design, AI services and content writing.',
+  'Every service has a fixed price, fixed scope, delivery time and number of revisions shown before booking.',
+  'Clients pay upfront plus 18% GST. The payment is held until the client approves the delivery.',
+  'A vetted freelancer is assigned instantly after payment and a chat opens to share files and instructions.',
+  'Clients can request revisions up to the included number, then approve and rate the work.',
+].join('\n');
+
+const STORE_FALLBACK_ANSWERS = [
+  { keys: ['revision', 'change'], answer: 'Every service includes a fixed number of revisions, shown on its page. You approve the work only when you are happy with it.' },
+  { keys: ['deliver', 'fast', 'how long', 'time'], answer: 'Each service shows its delivery time before you book. Many are delivered in one or two days.' },
+  { keys: ['price', 'cost', 'pay', 'gst', 'refund'], answer: 'Every service has a fixed price shown upfront, plus 18% GST at checkout. Your payment is held until you approve the delivery.' },
+  { keys: ['freelancer', 'who', 'assign'], answer: 'A vetted freelancer is assigned to your order as soon as you pay, and a chat opens so you can share files.' },
+];
+
 const CONTACT_QUESTION_KEYS = ['contact', 'call', 'phone', 'email', 'support', 'team', 'human', 'talk'];
 const UNSAFE_QUESTION_PATTERNS = [
   /\b(scan|audit|hack|exploit|vulnerability|vulnerabilities|xss|sql injection|command injection|prompt injection)\b/i,
@@ -80,14 +97,18 @@ const contactAnswer = (settings) => `You can contact the Mint More team at ${set
 
 const safetyAnswer = (settings) => `I cannot help with security probing, internal systems, or ways to inspect private platform details. For technical or safety questions, contact the Mint More team at ${settings.contact_email} or ${settings.contact_phone}.`;
 
-const fallbackAnswer = (question, settings = DEFAULT_QNA_SETTINGS) => {
+const fallbackAnswer = (question, settings = DEFAULT_QNA_SETTINGS, isStore = false) => {
   const text = String(question || '').toLowerCase();
   if (CONTACT_QUESTION_KEYS.some(key => text.includes(key))) return contactAnswer(settings);
-  const match = FALLBACK_ANSWERS.find(item => item.keys.some(key => text.includes(key)));
-  return match?.answer || 'CREATYV helps your business plan monthly creatives, request custom designs, review work, and keep everything in one place.';
+  const match = (isStore ? STORE_FALLBACK_ANSWERS : FALLBACK_ANSWERS).find(item => item.keys.some(key => text.includes(key)));
+  if (match) return match.answer;
+  return isStore
+    ? 'Pick a service, choose the option you need and pay. A vetted freelancer is assigned instantly, and you approve the work before payment is released.'
+    : 'CREATYV helps your business plan monthly creatives, request custom designs, review work, and keep everything in one place.';
 };
 
-const answerQuestion = async ({ question }) => {
+const answerQuestion = async ({ question, audience }) => {
+  const isStore = audience === 'store';
   const cleaned = String(question || '').trim();
   if (cleaned.length < 2) throw new AppError('Ask a question first', 400);
   if (cleaned.length > 240) throw new AppError('Please ask a shorter question', 400);
@@ -95,6 +116,7 @@ const answerQuestion = async ({ question }) => {
   const safeQuestion = safeSentence(cleaned);
   const settings = normaliseSettings(await getSetting('public_qna', DEFAULT_QNA_SETTINGS));
   const lower = safeQuestion.toLowerCase();
+  const brief = isStore ? STORE_BRIEF : settings.public_brief;
 
   if (UNSAFE_QUESTION_PATTERNS.some(pattern => pattern.test(safeQuestion))) {
     return { answer: safetyAnswer(settings), source: 'guardrail' };
@@ -105,7 +127,7 @@ You are Mint AI, the public Q&A assistant for CREATYV by Mint More.
 Answer this visitor question using only the approved public brief and guardrails.
 
 Approved public brief:
-${safeSentence(settings.public_brief)}
+${safeSentence(brief)}
 
 Contact:
 Email: ${safeSentence(settings.contact_email)}
@@ -134,7 +156,7 @@ Format rules:
       'openrouter/free',
       prompt,
       { temperature: 0.35, max_tokens: 180 },
-      safeSentence(settings.public_brief)
+      safeSentence(brief)
     );
     const text = String(result.text || '').trim();
     if (text) return { answer: text, source: 'ai' };
@@ -142,7 +164,7 @@ Format rules:
     logger.warn('Public Q&A AI fallback used', { error: error.message });
   }
 
-  return { answer: fallbackAnswer(lower, settings), source: 'fallback' };
+  return { answer: fallbackAnswer(lower, settings, isStore), source: 'fallback' };
 };
 
 module.exports = { answerQuestion };

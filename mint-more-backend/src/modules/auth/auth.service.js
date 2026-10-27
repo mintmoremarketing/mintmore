@@ -219,15 +219,26 @@ const getMe = async (userId) => {
 };
 
 /**
- * Reset password (Development fallback — bypasses actual email token check for now since frontend verified it)
+ * Reset password. The caller must present the Supabase access token returned by
+ * verifyOtp for the same email — proof they control the inbox.
  */
-const resetPassword = async ({ email, newPassword }) => {
-  const result = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+const resetPassword = async ({ email, newPassword, accessToken }) => {
+  if (!accessToken) throw new AppError('Verification required', 401);
+
+  const { supabase } = require('../../config/supabase');
+  const { data, error } = await supabase.auth.getUser(accessToken);
+  const verifiedEmail = data?.user?.email?.toLowerCase();
+  if (error || !verifiedEmail || verifiedEmail !== email.toLowerCase()) {
+    throw new AppError('Verification expired or invalid. Request a new code.', 401);
+  }
+
+  const result = await query('SELECT id FROM users WHERE email = $1', [verifiedEmail]);
   const user = result.rows[0];
-  if (!user) throw new AppError('User not found', 404);
+  // Same response whether or not the account exists.
+  if (!user) return;
 
   const password_hash = await hashPassword(newPassword);
-  await query('UPDATE users SET password_hash = $1 WHERE id = $2', [password_hash, user.id]);
+  await query('UPDATE users SET password_hash = $1, refresh_token = NULL WHERE id = $2', [password_hash, user.id]);
   logger.info('User reset password', { userId: user.id });
 };
 

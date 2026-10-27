@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query'
 import { authApi } from '../../api/auth'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../../components/ui/Icon'
+import { nextPathFromSearch } from '../../utils/nextPath'
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 1024)
@@ -32,7 +33,7 @@ export default function Login() {
 		onSuccess: ({ data }) => {
 			setAuth(data.data.user, data.data.accessToken, data.data.refreshToken)
 			const role = data.data.user.role
-			navigate(role === 'admin' ? '/admin' : '/dashboard')
+			navigate(nextPathFromSearch(window.location.search, role === 'admin' ? '/admin' : '/dashboard'))
 		},
 		onError: (err) => {
 			setError(err.response?.data?.message || 'Invalid email or password')
@@ -232,7 +233,7 @@ export default function Login() {
 
 					<div className="2xl:text-base" style={{ marginTop: 22, fontSize: 13, color: 'var(--ink-500)', textAlign: 'center' }}>
 						New here?{' '}
-						<Link to="/register" style={{ color: 'var(--ink-950)', fontWeight: 500, textDecoration: 'underline' }}>
+						<Link to={`/register${window.location.search}`} style={{ color: 'var(--ink-950)', fontWeight: 500, textDecoration: 'underline' }}>
 							Create an account
 						</Link>
 					</div>

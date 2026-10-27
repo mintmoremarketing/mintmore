@@ -1,30 +1,25 @@
+import { withLaunchFlags } from '../../config/launch'
+
 export const CLIENT_NAV = [
-  { route: '/dashboard', icon: 'overview', label: 'Dashboard' },
-  { route: '/calendar', icon: 'operations', label: 'Calendar', flag: 'calendar_creatives' },
+  { route: '/dashboard', icon: 'overview', label: 'Home' },
+  { route: '/services', icon: 'marketplace', label: 'Services' },
+  { route: '/orders', icon: 'requests', label: 'My Orders' },
+  { route: '/chat', icon: 'chats', label: 'Messages', flag: 'chat' },
+  { route: '/mintbox', icon: 'mintbox', label: 'Files', flag: 'mintbox' },
   { route: '/notifications', icon: 'inbox', label: 'Inbox', showCount: true },
-  { route: '/jobs', icon: 'requests', label: 'Requests', flag: 'custom_requests' },
-  { route: '/mintbox', icon: 'mintbox', label: 'Mintbox', flag: 'mintbox' },
-  { route: '/freelancers', icon: 'marketplace', label: 'Marketplace', flag: 'marketplace' },
-  { route: '/insights', icon: 'insights', label: 'Social Insights', flag: 'social_insights' },
-  { route: '/posts', icon: 'layers', label: 'Social Posting', flag: 'posting' },
-  { route: '/ai', icon: 'mint_ai', label: 'Mint AI', flag: 'mint_ai' },
-  { route: '/chat', icon: 'chats', label: 'AI Chat', flag: 'chat' },
-  { route: '#mintcoin', event: 'open-mintcoin-modal', icon: 'coin', label: 'Buy MintCoins' },
-  { route: '/wallet', icon: 'wallet', label: 'Wallet', flag: 'wallet_ui' },
-  { route: '/membership', icon: 'shield', label: 'Membership' },
   { route: '/support', icon: 'support_tickets', label: 'Support' },
 ]
 
 export const FREELANCER_NAV = [
-  { route: '/dashboard', icon: 'overview', label: 'Workspace' },
-  { route: '/notifications', icon: 'inbox', label: 'Inbox', showCount: true },
-  { route: '/jobs', icon: 'requests', label: 'Briefs' },
+  { route: '/dashboard', icon: 'overview', label: 'Explore' },
+  { route: '/upskill', icon: 'sparkles', label: 'Upskill' },
+  { route: '/assessments', icon: 'checkCircle', label: 'Assessments' },
+  { route: '/work', icon: 'requests', label: 'My Work' },
+  { route: '/my-services', icon: 'layers', label: 'My Services' },
   { route: '/chat', icon: 'chats', label: 'Messages' },
-  { route: '/wallet', icon: 'platform_wallet', label: 'Earnings' },
-  { route: '/profile-edit', icon: 'profile', label: 'My Profile' },
-  { route: '/packages', icon: 'mintbox', label: 'Packages' },
-  { route: '/portfolio', icon: 'portfolio', label: 'Portfolio' },
-  { route: '/inquiries', icon: 'inquiries', label: 'Inquiries' },
+  { route: '/settings/freelancer', icon: 'platform_wallet', label: 'Earnings' },
+  { route: '/notifications', icon: 'inbox', label: 'Inbox', showCount: true },
+  { route: '/profile', icon: 'profile', label: 'Profile' },
   { route: '/disputes', icon: 'support_tickets', label: 'Support' },
 ]
 
@@ -39,6 +34,8 @@ export const DESIGNER_NAV = [
 export const ADMIN_NAV = [
   { route: '/admin', icon: 'overview', label: 'Overview' },
   { route: '/notifications', icon: 'inbox', label: 'Inbox', showCount: true },
+  { route: '/admin/service-orders', icon: 'requests', label: 'Service orders', permission: 'ops.manage' },
+  { route: '/admin/services', icon: 'layers', label: 'Service catalogue', permission: 'ops.manage' },
   { route: '/admin/operations', icon: 'operations', label: 'Operations', permission: 'ops.manage' },
   { route: '/admin/brands', icon: 'layers', label: 'Brands', permission: 'users.manage' },
   { route: '/admin/users', icon: 'users', label: 'Users', permission: 'users.manage' },
@@ -47,10 +44,8 @@ export const ADMIN_NAV = [
   { route: '/support', icon: 'support_tickets', label: 'Support tickets', permission: 'support.manage' },
   { route: '/disputes', icon: 'disputes', label: 'Disputes', permission: 'support.manage' },
   { route: '/admin/pricing', icon: 'pricing', label: 'Freelancer models', permission: 'pricing.manage' },
-  { route: '/admin/ai', icon: 'mint_ai', label: 'AI Generation limits', permission: 'pricing.manage' },
   { route: '/admin/tiers', icon: 'layer', label: 'Subscription Tiers', permission: 'pricing.manage' },
   { route: '/admin/commerce', icon: 'settings', label: 'Platform settings', permission: 'pricing.manage' },
-  { route: '/admin/ai', icon: 'mint_ai', label: 'Mint AI', permission: 'pricing.manage' },
   { route: '/admin/audit', icon: 'audit', label: 'Audit records', permission: 'audit.read' },
 ]
 
@@ -92,6 +87,6 @@ export function filterNavItems({ role, isGuest, access, items = navForRole(role)
     ))
   }
 
-  const flags = { ...DEFAULT_FEATURE_FLAGS, ...(access?.feature_flags || {}) }
+  const flags = withLaunchFlags({ ...DEFAULT_FEATURE_FLAGS, ...(access?.feature_flags || {}) })
   return items.filter(item => !item.flag || flags[item.flag] !== false)
 }

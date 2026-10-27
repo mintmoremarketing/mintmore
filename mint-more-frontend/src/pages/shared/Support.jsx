@@ -95,12 +95,11 @@ export default function Support() {
     <div className="flex flex-col w-full h-[calc(100vh-64px)] bg-white">
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 p-4 md:px-8 border-b border-ink-100 shrink-0">
         <div>
-          <div className="text-[11px] font-bold tracking-wider uppercase text-mint-500 mb-1">Support</div>
-          <h1 className="text-3xl font-display font-bold text-ink-900 tracking-tight m-0">Tickets</h1>
+          <h1 className="text-3xl font-display font-bold text-ink-900 tracking-tight m-0">Support</h1>
           <p className="text-ink-500 text-sm md:text-base mt-2">Ask CREATYV support for help without opening a payment dispute.</p>
         </div>
         {role !== 'admin' && (
-          <button className="bg-ink-950 text-white shadow-md shadow-ink-900/10 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-900 transition-colors" onClick={() => setShowNew(true)}>
+          <button className="self-start bg-ink-950 text-white shadow-md shadow-ink-900/10 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-ink-900 transition-[background-color,transform] duration-150 active:scale-[0.97]" onClick={() => setShowNew(true)}>
             <Icon name="plus" size={16} /> Raise ticket
           </button>
         )}

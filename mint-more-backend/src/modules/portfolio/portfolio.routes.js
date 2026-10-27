@@ -4,6 +4,10 @@ const { authenticate, authorize } = require('../../middleware/authenticate');
 const { upload, handleUploadError } = require('../../middleware/upload');
 
 const router = Router();
+
+// Explore feed is readable by any signed-in user; managing posts is freelancer-only.
+router.get('/feed', authenticate, controller.getFeed);
+
 router.use(authenticate, authorize('freelancer'));
 
 router.get('/', controller.getMyPortfolio);

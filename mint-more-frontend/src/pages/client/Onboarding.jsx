@@ -641,6 +641,13 @@ export default function Onboarding() {
         }
       }
 
+      // Trigger Milestone 2 Calendar Completion & Admin Notification
+      try {
+        await creativeApi.completeCalendar()
+      } catch (err) {
+        console.warn('Calendar complete notification trigger:', err.message)
+      }
+
       pushToast({ title: 'Onboarding completed!', body: 'Welcome to your Autopilot dashboard.', icon: 'check' })
       navigate('/dashboard')
     } catch {

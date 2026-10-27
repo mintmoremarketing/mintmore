@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
+import { creativeApi } from '../../api/creative'
 import { negotiationsApi } from '../../api/negotiations'
 import { disputesApi } from '../../api/disputes'
 import { useUIStore } from '../../store/ui'
@@ -86,6 +87,12 @@ export default function AdminDashboard() {
     queryFn: () => disputesApi.list({ status: 'open' }).then(r => r.data.data),
   })
 
+  const { data: creativeQueueData } = useQuery({
+    queryKey: ['admin-review-queue'],
+    queryFn: () => creativeApi.getAdminReviewQueue().then(r => r.data?.data?.queue || r.data?.queue || []),
+  })
+  const pendingCreatives = Array.isArray(creativeQueueData) ? creativeQueueData : []
+
   const approveDeal = useMutation({
     mutationFn: ({ jobId, note }) => negotiationsApi.approveDeal(jobId, note),
     onSuccess: () => {
@@ -129,7 +136,15 @@ export default function AdminDashboard() {
         <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Command Center</h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        <StatCard
+          icon="eye"
+          label="Creative review"
+          value={pendingCreatives.length}
+          tone={pendingCreatives.length > 0 ? 'amber' : null}
+          sub={pendingCreatives.length > 0 ? `${pendingCreatives.length} awaiting review` : 'Queue clear'}
+          onClick={() => navigate('/admin/operations?tab=review')}
+        />
         <StatCard
           icon="user" label="Total users"
           value={totalUsers}
@@ -158,6 +173,30 @@ export default function AdminDashboard() {
           onClick={() => navigate('/admin/wallet')}
         />
       </div>
+
+      {pendingCreatives.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-200/80 rounded-3xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shrink-0">
+              <Icon name="eye" size={22} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-ink-950 m-0">
+                {pendingCreatives.length} Creative Deliverable{pendingCreatives.length === 1 ? '' : 's'} Pending Review
+              </h3>
+              <p className="text-sm font-medium text-ink-600 m-0 mt-0.5">
+                Designers have submitted new social creatives requiring admin approval or revision feedback.
+              </p>
+            </div>
+          </div>
+          <button
+            className="px-6 py-2.5 rounded-full bg-ink-950 hover:bg-ink-900 text-white font-bold text-sm transition-all flex items-center gap-2 shadow-md shrink-0"
+            onClick={() => navigate('/admin/operations?tab=review')}
+          >
+            <Icon name="arrowRight" size={16} /> Open Review Queue
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* Pending deals */}
@@ -296,6 +335,7 @@ export default function AdminDashboard() {
             <div className="text-xs font-bold tracking-widest uppercase text-ink-400 mb-6 px-2">Admin Modules</div>
             <div className="grid grid-cols-2 gap-3">
               {[
+                { icon: 'eye',      label: 'Review Queue',    route: '/admin/operations?tab=review' },
                 { icon: 'calendar', label: 'Operations',       route: '/admin/operations' },
                 { icon: 'layers',   label: 'Brands',          route: '/admin/brands' },
                 { icon: 'user',     label: 'Manage users',     route: '/admin/users' },

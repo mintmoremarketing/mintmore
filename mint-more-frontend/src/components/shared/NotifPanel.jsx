@@ -5,6 +5,8 @@ import { useUIStore } from '../../store/ui'
 import { notificationsApi } from '../../api/notifications'
 import Icon from '../ui/Icon'
 import { timeAgo } from '../../utils/format'
+import { notificationTarget } from '../../utils/notificationTarget'
+import { useAuthStore } from '../../store/auth'
 
 const NOTIF_ICONS = {
 	job_matched: 'radar',
@@ -25,6 +27,18 @@ const NOTIF_ICONS = {
 	kyc_rejected: 'shield',
 	admin_broadcast: 'bell',
 	system: 'bell',
+	calendar_completed: 'calendar',
+	designer_assigned: 'user',
+	creative_uploaded: 'upload',
+	creative_rejected_by_admin: 'refresh',
+	creative_rejected_admin: 'refresh',
+	creative_ready_client_review: 'eye',
+	creative_approved_admin: 'eye',
+	creative_scheduled: 'check',
+	creative_approved_client: 'check',
+	creative_rejected_by_client: 'x',
+	creative_rejected_client: 'x',
+	creative_published: 'share',
 }
 
 const NOTIF_COLORS = {
@@ -46,6 +60,18 @@ const NOTIF_COLORS = {
 	kyc_rejected: 'var(--rose)',
 	admin_broadcast: 'var(--ink-600)',
 	system: 'var(--ink-500)',
+	calendar_completed: 'var(--mint-500)',
+	designer_assigned: 'var(--violet)',
+	creative_uploaded: 'var(--orange-500)',
+	creative_rejected_by_admin: 'var(--amber)',
+	creative_rejected_admin: 'var(--amber)',
+	creative_ready_client_review: 'var(--violet)',
+	creative_approved_admin: 'var(--violet)',
+	creative_scheduled: 'var(--mint-500)',
+	creative_approved_client: 'var(--mint-500)',
+	creative_rejected_by_client: 'var(--rose)',
+	creative_rejected_client: 'var(--rose)',
+	creative_published: 'var(--mint-600)',
 }
 
 function cleanNotifTitle(title = '') {
@@ -70,6 +96,7 @@ function cleanNotifBody(body = '') {
 
 export default function NotifPanel({ onClose }) {
 	const navigate = useNavigate()
+	const role = useAuthStore(s => s.user?.role)
 	const queryClient = useQueryClient()
 	const { setNotifs, setUnreadCount, markAllNotifsRead } = useUIStore()
 
@@ -116,14 +143,7 @@ export default function NotifPanel({ onClose }) {
 
 	const notifs = data?.notifications || []
 	const unread = countData?.unread_count ?? notifs.filter((n) => !n.is_read).length
-	const getTarget = (n) => {
-		const meta = n.data || {}
-		if (n.entity_type === 'dispute' || meta.dispute_id) return `/disputes?id=${n.entity_id || meta.dispute_id}`
-		const jobId = n.entity_type === 'job' ? n.entity_id : meta.job_id || meta.jobId || meta.job?.id
-		if (jobId) return `/jobs/${jobId}`
-		if (n.entity_type === 'wallet' || n.type === 'wallet') return '/wallet'
-		return null
-	}
+	const getTarget = (n) => notificationTarget(n, role)
 	const openNotification = (n) => {
 		if (!n.is_read) markReadMutation.mutate(n.id)
 		const target = getTarget(n)
@@ -167,7 +187,7 @@ export default function NotifPanel({ onClose }) {
 					<div>
 						<div style={{ fontWeight: 600, fontSize: 14 }}>Notifications</div>
 						<div style={{ fontSize: 11.5, color: 'var(--ink-500)', marginTop: 2 }}>
-							Live · {unread} unread
+							{unread} unread
 						</div>
 					</div>
 					<div style={{ display: 'flex', gap: 8 }}>

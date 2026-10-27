@@ -1,0 +1,1346 @@
+{
+  "source": "https://unjob.ai",
+  "banner": {
+    "desktop": "https://dev-cdn.unjob.ai/cover/image/f4564277-60b3-4681-b4c6-1b9d17d28b4a/b26bd433-df33-4b24-8f5a-d68b687ae118.svg",
+    "mobile": "https://dev-cdn.unjob.ai/cover/image/f4564277-60b3-4681-b4c6-1b9d17d28b4a/09c2b065-5199-40a6-a3e6-7b8b55a99188.png"
+  },
+  "categories": {
+    "video-editing": {
+      "desktop": "https://cdn.unjob.ai/cover/image/bd11cd52-4d76-42bc-bb72-c51a1d157e2a/3fb581d8-741a-46a2-b117-8b7838874dad.png",
+      "mobile": "https://cdn.unjob.ai/cover/image/bd11cd52-4d76-42bc-bb72-c51a1d157e2a/6a3fe31a-7d02-4eb2-9b07-0a4a434c7342.png"
+    },
+    "design": {
+      "desktop": "https://cdn.unjob.ai/cover/image/bd11cd52-4d76-42bc-bb72-c51a1d157e2a/ca442acd-5988-414f-b8b2-aaf67e367f6e.png",
+      "mobile": "https://cdn.unjob.ai/cover/image/bd11cd52-4d76-42bc-bb72-c51a1d157e2a/3d1aa56b-f55f-4919-8e76-3ac86362aa43.png"
+    },
+    "ai-service": {
+      "desktop": "https://cdn.unjob.ai/cover/image/bd11cd52-4d76-42bc-bb72-c51a1d157e2a/88bdc488-f9f8-420d-a3f2-83f8c9fe3576.png",
+      "mobile": "https://cdn.unjob.ai/cover/image/bd11cd52-4d76-42bc-bb72-c51a1d157e2a/b0d3543c-544f-4cc9-b96b-08f6c505e71f.png"
+    },
+    "content-creation": {
+      "desktop": "https://cdn.unjob.ai/cover/image/bd11cd52-4d76-42bc-bb72-c51a1d157e2a/865f20f9-0cb5-4497-a20c-c522ec55e390.png",
+      "mobile": "https://cdn.unjob.ai/cover/image/bd11cd52-4d76-42bc-bb72-c51a1d157e2a/fa360a13-b80f-471b-a065-bb65fc57b3bf.png"
+    },
+    "content-writing": {
+      "desktop": "https://cdn.unjob.ai/cover/image/bd11cd52-4d76-42bc-bb72-c51a1d157e2a/dbac3f1c-0642-427e-a1eb-fab652e9eef9.png",
+      "mobile": "https://cdn.unjob.ai/cover/image/bd11cd52-4d76-42bc-bb72-c51a1d157e2a/250b5d06-e5be-469d-ac90-9184c02be17d.png"
+    },
+    "consultation": {
+      "desktop": "https://cdn.unjob.ai/cover/image/3b9c2165-0860-430b-92e2-65daa63b2455/f22bc08f-5f20-4178-a09e-fd84a7b5f9f8.png",
+      "mobile": "https://cdn.unjob.ai/cover/image/3b9c2165-0860-430b-92e2-65daa63b2455/4a98145d-5c22-45b5-99bb-69557af3a544.png"
+    }
+  },
+  "services": {
+    "engaging-reel": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/1af85d7e-4bd4-434d-84a4-1d4fa1ba7b25.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/a8828e96-91f2-453d-b7e1-effe93ef1ad0.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/5d3c60b4-dfa2-4373-bc6e-4ac9fcddf3af.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/11a0faa8-09c3-48df-b297-2345eb35027a.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/c162979d-bd92-415a-8f74-6c0828e2f518.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/f0a3497e-13e7-4f95-9515-5326d3ee867f.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/7a016b98-94e6-4104-a0ce-9c450af953ba.png"
+        }
+      ]
+    },
+    "advanced-retention-edit": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/cc500831-bf4e-4d5c-b84d-b827b7561d7f.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/b9613519-afda-448d-8aaf-a0f7b264e0b5.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/f7c191bd-f8d0-47c8-91db-37e9b3ec8409.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/31e737a2-d4f8-4f32-848a-639af8c35a8a.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/71f3b683-fcfe-48c5-89c0-a233035ae6e7.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/dacf946e-4082-4e70-b422-b627eb59830c.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "enterprise-level-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/b922363d-4134-4643-b5eb-c322d1545209.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/52b6ad9b-1b4a-401a-975d-94669e757cb1.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/f4d88910-a167-4b1c-a8a6-aa14e3617846.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/4c337d37-a69a-4d5e-a0f7-0de197075695.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/ecc59a55-29b4-4af5-809a-09e7a751e904.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/d1bf746a-dcf5-4062-a7fb-6dab69e8395d.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/31d64393-6605-49ee-9cbd-d3c5c6d65cf4.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/3a01b6e9-8635-41a6-a39e-95822fb1c244.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/f1beab25-0042-4d73-9670-0d7fe689863e.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/5977dc64-565b-4ef0-b36b-dc068bccc6c5.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/6c51eddd-4cd3-41c1-b290-7bff7f04628a.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/cc102285-b10e-4a9c-8fe7-7b3f1c389555.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/cc1cf575-5dd5-43c1-90fc-87ba5fa039b4.png"
+        }
+      ]
+    },
+    "cuts-with-captions-reel": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/eb7fdd06-72f9-431a-9a64-aa6a4d71af21.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/36c98cc8-fbe2-49aa-ae4f-dca508101731.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/18ac63fe-8f13-40b6-9bdf-f9c4f181f27b.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/b0b12a95-f32a-488e-ba48-a2efba47cd5c.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/12e6dd73-5d38-4c35-b5aa-222da59e21df.png"
+        }
+      ]
+    },
+    "podcast-reel-edit": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/b963af54-94a7-4965-b08b-e03175679d6d.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/e3048c8c-6a4e-47ec-a086-1803e68eb147.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/14c01e36-9379-4910-a7c3-0063ccd70da5.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "ugc-ad-creative-reel": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/5483953b-3162-489e-94b9-3a2eca40f0d0.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/4d7da7c9-b5ed-4158-98b6-bb774eecca8c.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/b4137652-58e4-4551-885c-c391d718645b.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "daily-vlog-reel": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/c6c63ef4-831b-4fb9-a057-280836aabce0.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/c531394e-57a3-42ef-8821-dadec4a25398.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/de749bc3-93b0-4b9f-9325-07b7c33aaf16.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/6b4a4e8c-adc6-4ca6-be2f-4975ea302d37.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/434533a5-0c89-435f-b20c-3e8bdb513ff5.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/3072a934-428b-4ff1-9c6b-b6ba0b0201d4.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/f6cce068-bc25-4160-94a4-4ed0290c65f9.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/b9ce893e-17fc-4e9a-a36f-6650db06bb09.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/9454030b-e5d2-460d-8daa-301cfada984c.png"
+        }
+      ]
+    },
+    "travel-slow-cinematic-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/2e5fba16-73d2-4395-8787-4eb17a152dfa.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/5f8533d0-f7bc-424a-973e-e24153b99d3b.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/b3eddda3-1790-4903-a357-546c1ab58440.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/cc9c14a9-d68c-4d92-832d-6ac898fb212d.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/1957e342-629e-4308-be85-1539f726c4d4.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "product-review-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/0b3ca000-937b-4a4c-af10-49cd53c9a24b.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/10946303-fcfd-42d0-a24c-086945b98b19.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/cee69601-fbc1-455d-a873-af8985450488.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/1eb818dc-e05d-4d63-8dd9-23b744b833ce.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/f4a93378-b39d-4db3-b36a-92d2a174b299.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/0e3071b4-9e3c-4fdb-bb6c-5e77439fc531.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "grwm-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/a86be499-fa2e-4dde-ad41-607ac156dbae.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/79923a53-98a0-48a7-a5ff-aeb47475514c.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/1628a8cf-897f-40d8-adae-2c733af33aa9.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/66ef05ac-2723-42be-99d0-c96b2708bd77.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/b799bcf6-50c8-49e9-90c6-060374db065a.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/75354396-a137-4980-adc7-ea7600ee5f1e.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/36967393-3578-46b8-8af3-4202071e1116.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "restaurant-video-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/17483b67-72dd-4743-a4d0-ba7ca28f7c28.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/7a1de4d0-29ec-424c-b690-274298153eff.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/99db5cfe-a132-4774-8ddf-aae971d36111.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/4764e9b4-7df5-4dd2-bd06-a6a98bb489a6.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/3258841f-90f5-4f52-967d-a3f23d6d3880.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/33318f53-e866-4ba4-8d23-52cb5e709fbf.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/77d52ed4-e681-4bd6-b6d7-3be9ea75fbdd.png"
+        }
+      ]
+    },
+    "product-unboxing-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/d92c3b65-4074-4d5b-a22c-b0bf9a5c33b0.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/7ef694b8-4fcb-4c63-a7e7-eb54e8860ee1.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/3cd178c1-ab4b-4fb7-82e6-90a7c1dca654.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "gym-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/1da98e7f-3b95-43b8-95b7-f1aab6d38887.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/4eb0dc0e-2525-46e7-a933-015b166abe02.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/46272649-ff62-4f0a-9f74-0087dd3a4ad1.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/81d2b1ff-df54-4b29-b71c-cf3cdb7ea205.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "dance-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/59ab8a3b-b7f6-4669-a740-c009db3af590.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/1914660a-5980-4377-aa39-c5d603ea1418.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/51ea9765-0d63-4ecf-940a-412acf900123.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/edc69dfb-b072-446d-8936-8f31fc17d953.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/50517d9a-d0e0-407a-b32f-3d05e5003e34.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "car-edit-reel": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/797490c6-7940-466d-a031-9dd6c5cb73c9.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/bb87858b-cbf6-436d-b602-57d06745c5d3.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/bc5d7625-c92f-493e-bba3-b5db589be32b.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/79242958-2073-449a-96ca-aae27a627c6e.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/6b66457d-e74d-4d8a-9be1-5e686ed7c0d8.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "faceless-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/96b44fc9-f957-454e-a074-42b00ff1739c.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/9ce18a32-d884-4342-99af-a954cf783b77.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/3e7d875e-2199-4cc5-98f4-4f0c2c18dee8.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/0382d202-a194-4aa0-b625-fffebf00ce8b.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/07ee07c1-ea27-4fc4-a9a7-7676f5452054.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "food-vlog-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/549f146c-6c35-47a2-8e8a-5adcf7b95b8d.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/17cc58cd-f66f-49c3-9270-6b5fb702ec88.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/187786cf-4a92-4b68-ae92-ae271dffdf6c.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "property-tour-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/7808a255-ba8b-4fd6-926a-d68ffce69c5b.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/8ac9f593-89a4-4df6-b94a-a60ca7511a89.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/b06426f1-cf33-4c8d-a522-76b679349401.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/bff310fe-07f0-4c19-8f53-ece9bff0143d.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "couple-reel-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/b9bcc42f-e1e9-44b2-be59-611d6a6d6167.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/eb195ab4-9bfd-4220-8d06-930ed7b94be8.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/f3ff076d-02b0-45d0-9f95-a4475174b4ae.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/1c32d674-a846-4d51-91c2-45ca9019becd.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/cf947043-532d-465d-ad70-c1d7e5b5b390.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/efd12242-b1a0-4058-9f5c-d423dc1e6f77.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/a8ac08ad-88a6-418a-ac3c-dd26d67a7eb6.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "advanced-storytelling-edit-upto-10-min": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/abd5510e-e107-4a14-9bd0-de9a090df5f4.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/8a7592a0-cc6b-4467-94fd-631f2c027480.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/741880da-39b4-44eb-a975-d107223b6226.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/737a84d5-d326-4377-86b2-8e655a4f7073.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/11c2d404-a307-417f-a9e8-38afaea2ac5d.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/44328c16-94d8-4ba9-a870-459d0c6d8b45.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/f39ccb23-4ff5-48c3-aed4-3a76d1d1fc41.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/268ea1f2-f567-4d87-9ede-6cae911c9b75.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/85e6a9d7-7b9e-4b6d-bb52-16b43b0db47d.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/1a8be8f8-3592-45ac-89c4-9a71274dcb06.png"
+        }
+      ]
+    },
+    "talking-head-edit-upto-10-min": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/07b977d9-4514-42a6-a736-da57d7988402.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/1000791b-37e0-4f2d-b64c-61c414c8d174.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/2bf5a963-e3e1-4e14-a6d3-a78d9b306402.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/c2f16b91-ff78-4eb8-bfa0-b99e6a6caac7.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/6c3b4648-86ae-4110-9749-a035f4d2e43e.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/afc83c63-e021-4402-9314-957c9282fcd3.png"
+        }
+      ]
+    },
+    "multi-cam-podcast-edit-less-than-1-hour-for-the-final-edit": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/34b8961a-1507-4869-bd79-d0bdb6da509d.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/5549c699-22b3-42cb-a43a-b13a7f397259.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/b563a1ec-23ef-443a-9392-a74806a180b2.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "stand-up-comedy-editing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/85e5be4f-4604-4461-b7ec-c00368d1e743.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/4193843f-30d9-4f1f-bf62-79a4f5f02e91.mov",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/96f5f822-36b1-4e14-9623-4c655ed32181.png"
+        }
+      ]
+    },
+    "corporate-event-reel": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/76bea897-399d-4668-ba1d-e30922316a29.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/07fc5868-a2e5-40f4-993f-ef7b195dce8a.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/719254b1-5f12-4cf0-a0e2-1672ca3154c7.jpg"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/ec95527d-aacc-45bd-b67a-da636e1eed8b.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/14132f69-88e3-49ca-9b24-587582dd6f0a.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/dda261e4-dd30-459c-96a0-7c03cbff4d22.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/32914d27-220a-489d-ba1c-cd610648a2c1.png"
+        }
+      ]
+    },
+    "wedding-highlight-reel": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/9043f472-91c7-4231-9f53-34dd4a12e8c0.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/f23c1fbf-5232-405b-b6d8-e57740b543b6.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "high-ctr-thumbnail": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/73db5132-c595-4ec5-83ae-e058ec36efeb.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/6d125d4f-246f-4eac-9082-360b973223a4.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/a82f306a-bb91-49d1-9c09-918089191e5e.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/2ad49da1-d605-4974-a16a-3de6f2cc5c27.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/160e8a3a-fddc-4b23-8a46-0ef007a5a6d9.png"
+        }
+      ]
+    },
+    "basic-thumbnail": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/5416e121-b657-4fb7-ade4-5d2ad2367697.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/4fef07ff-c725-484c-adba-c252c88a8368.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/e3bb7d40-b727-4c9a-ad2c-92a8dfe0e679.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/95875f45-67a4-44f3-92c8-8d9864141f83.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/0bcf5897-245a-4b77-8392-49e1dabe75da.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/6c40e512-383f-4d25-b505-e5fd8daaf3df.png"
+        }
+      ]
+    },
+    "ai-prompted-design-post": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/a738c1ba-9a94-49f5-8a08-0fbfa77f076b.jpeg",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/108eabd2-b5a6-4487-8324-0e2ba9c84958.jpeg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/a9e15e02-a424-4604-a5c3-46ff9cb458db.jpeg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/4373f0f9-de8b-4759-8ec1-9f47979a00b2.jpeg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/124dc63a-2a46-4388-a7cf-601723df4819.jpeg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/934b679e-225f-477c-8c6c-89b6502f1871.jpeg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/305faa16-b446-41d0-82c4-697201284d40.jpeg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/bbe44575-f34c-420b-9cbc-7b17887e03e6.jpeg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/858bebfe-cdb9-4201-be7c-3b563c2cc797.jpeg"
+        }
+      ]
+    },
+    "basic-post": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/a27daacd-1fdf-4660-a215-16c3097adaa0.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/dda8ba17-52b7-4d20-a31d-b6e56d041915.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/e6fbba33-8ff1-4567-acdc-1566ada10411.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/b18d21e2-97fa-47a3-bc7a-ab460f7cf7c7.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/0dc743d2-4519-4dde-85f8-4b63e6d50323.png"
+        }
+      ]
+    },
+    "premium-branded-post": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/1e0dde2e-9d80-4400-95d0-b5b2e4ce4ccb.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/a0dd78af-92ee-4cbd-aaa2-dcce9d9155fb.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/05cc511c-fc70-475a-a9a2-eae8145db4cf.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/dd028471-0eda-4f32-99cd-34014a8e9316.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/65675cf8-9238-4b28-906f-05c80f00c104.jpg"
+        }
+      ]
+    },
+    "5-slide-carousel-post": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/7599452e-e073-49c4-a340-c77b1406ec79.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/a8401da8-6c14-4819-8ca4-d8779399e612.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/5dca8365-9a9a-41a5-accd-f0df552ac9d4.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/a868aa7f-444f-48d3-8f33-086bb3bd3bf1.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/2f5f384e-a16b-435e-8b0b-914e8a32f416.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/77f3a7b4-98f3-4928-8409-207d9817e71e.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/ff3689ce-5383-4f87-9d24-74b8577c8728.png"
+        }
+      ]
+    },
+    "logo-design": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/d89eae88-22ca-467c-82aa-eb3866173eb0.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/0b002244-8fcb-4d0e-8257-3f973ce0fcb5.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/40e3b808-dcc6-408b-bef1-43c2c45b0119.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/22ec3c8c-fd91-44f7-839d-f4c745784b05.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/71a49aab-0156-488d-a56e-a00abb37d2b5.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/4e4851ae-30f4-4d73-a070-f0e86cd2c2e8.png"
+        }
+      ]
+    },
+    "business-card-designing": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/7756faed-a974-4156-aa8d-d6dfa46547ff.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/c0685624-bbcd-496a-b7be-0cfbc2b43744.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/b11c0bc6-2e30-466c-85b6-be61520e743b.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/6d52e9dc-80f0-4203-98ed-927aa0379754.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/8e0dc5d1-a75d-4ccc-a960-97afd4e2ca69.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/ca4b01b4-fdba-40ef-acdd-4f72a0c5a31d.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/35cdb9b7-82fb-455b-b260-132177779a18.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/4857ccc3-ebb2-4f98-acb1-ab7161c8b682.jpg"
+        }
+      ]
+    },
+    "app-ui-10-screens": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/eb0107d5-c36b-4fcb-a2b6-c2d67d0e8b7f.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/4a43cfa1-33e6-4594-bdd6-2b401f218089.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/88b81bca-cddb-48b0-a665-af481d1037f3.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/f7c61848-251e-4d75-b9b4-4d12e47a85b4.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/8a171097-0cbf-4791-88f1-b14873b6c40f.png"
+        }
+      ]
+    },
+    "website-ui-5-screens": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/ea18c650-e9fa-493b-9181-bbb7e8cf2987.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/5b6c5593-46e9-4cd4-826a-6f9bbe4f488a.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/6be4941c-f188-4ae8-9abe-c3205af9ae17.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/9f82b997-baa2-4aff-9516-552cca75387a.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/c1dca1af-3fb5-4bd9-b9ce-120c97b16d66.png"
+        }
+      ]
+    },
+    "children-book-character-illustration": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/b4380a8b-9909-4e8d-a698-e7bb19d10301.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/25a345da-946f-45f1-9999-bce69b48a34f.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/a51f5cfb-7bb1-4f94-b25f-3b5708a39c45.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/1d5d0ec8-72a1-4c26-9cbd-2badeade03be.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/b18ce936-db44-4597-9954-3c954087f2a4.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/4cc69e93-f899-488e-9e68-051f3c682566.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/25716dc2-ad0a-4855-88a8-94cfd73da75c.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/eb573591-ae35-4d09-a2b0-92d3ba0bb51d.webp"
+        }
+      ]
+    },
+    "anime-style-character-illustration": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/291f827a-80f7-4fcb-b118-d083efaee95a.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/09643ac0-fac6-4657-923e-44d028d81ae0.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/ab724dc5-63ee-4954-a664-33a0a849c9d3.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/45e20101-399f-4503-8776-83ec9fdab196.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/597bebfc-db58-4cfd-8454-ea8e8eabba9f.webp"
+        }
+      ]
+    },
+    "advanced-character-illustration": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/f8b58e66-2ead-4b10-8f90-4e4378b9283b.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/08bbedd4-18a9-4720-9134-72a9f3f1a36f.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/f34b45da-12a8-4891-882e-d30a7bc55123.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/b89de726-1e24-44e3-99c1-9f747b4ade07.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/46dfc1f3-5921-4fb5-9325-f70fd071037b.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/8264c154-984d-4aea-b5d1-5394ad0e2bb8.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/c9239532-d5f6-4817-9cff-4076be491f18.webp"
+        }
+      ]
+    },
+    "pitch-deck": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/6bbc4248-0e52-4592-8332-7e877dd532b9.jpg",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/f8a62044-fd1a-45d8-89b9-67295e206607.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/3d58ef83-7d98-498a-9cb3-03d8acb009f0.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/14605b0e-18a0-406e-a9fb-0298f1355282.png"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/191caf9f-15df-4eff-bb5b-580c2cc8ae75.png"
+        }
+      ]
+    },
+    "box-packaging-design": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/23d103ff-7dc1-44bb-81a8-4a30818dfaa7.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/3fefa50b-f0fa-4f09-b4b5-365a31759497.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/872ae707-0a8e-42a6-8c34-6874d79e9bb1.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/160907e6-a15b-4707-903c-db3c84fab3d9.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/dd0fbdd5-ae4f-4071-be31-f42df176a5fa.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/222ff6f6-8ebe-43c2-afdc-40cf7ee5c193.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/d4e7033a-8437-4ace-8501-75fb16398531.webp"
+        }
+      ]
+    },
+    "product-packaging-design": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/5e1093c9-3725-4275-a582-1906d58f660d.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/1c92ee03-9bd3-45b8-a9d2-224d36d55470.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/011d3b8e-69a8-449a-955f-78c8f462d37f.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/35b58e0b-a17b-4f86-b3a9-3423a9eecc3f.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/aebb9f4f-2a8f-4519-84c3-4908687664ed.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/fb48caf6-d95d-437a-a76a-ec42659f8dfe.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/8d9d4a6a-5f57-4d86-a892-7e9d5b3383af.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/735d05dc-a124-4888-8619-24d8deccf602.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/60327da1-4c4f-48cc-bd39-a9fa2f593eaa.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/3bff33b5-1d32-42aa-94f7-8f4e091e3a77.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/f8224143-44fb-49eb-b420-91975b9dac0c.jpg"
+        }
+      ]
+    },
+    "minimal-book-cover-design": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/d7da0418-ec4b-4830-9fa6-c3f9cb253031.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/84ba7ee4-88d0-486c-8d32-d91fe549b83b.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/24fa8d60-7a1e-42c1-b8f4-8255388af73f.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/1767b84f-e203-4281-9fdc-7f77524e16d1.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/af633c58-9bcb-46dd-ae7e-6cbeb141b45f.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/998b0916-1e6b-4755-973e-355a83b4b379.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/4a73d67e-ad62-463c-b8e6-fbf7f91c589b.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/a40c161f-2588-4cdd-89ac-6f86e67756a4.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/5bcc92c2-6d13-4772-8615-54b33ab526c7.jpg"
+        }
+      ]
+    },
+    "book-cover-illustration-graphic-design": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/d0039a3e-b4d7-46f9-9a32-5f1b827b3116.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/a1e40aba-8c27-4b0e-98cc-d51f7eac666b.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/b531a7c1-7c8c-4281-953f-8d84bd384bcc.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/2e715a7a-ed42-49a4-8ca4-e651af25a034.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/bcdd4301-458d-43fc-9880-06e3a600a2f2.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/0df6d41b-d5d3-4852-97d6-6fb241c0cf63.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/06bd28d8-4943-48b7-b4be-a7898796ca98.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/e673ff8b-2d2e-4f4c-ab3b-91d71ab2a20c.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/fc547d0f-09ec-4faf-88a0-6eaec2e0f27e.jpg"
+        }
+      ]
+    },
+    "advanced-illustration-book-cover-design": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/db1f0777-2cf3-4107-bd01-296d451a68bf.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/4daa9250-e913-46da-ac16-dde6e1eb0e64.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/d2144107-6ced-4b0f-bc55-aecd7258fabf.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/4b373d37-6e8a-45a7-8aca-26915ee808f2.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/c79e302d-1ff5-4f80-b669-3b70593942c3.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/fbda1740-e6c2-4b63-aff0-71821752aaaa.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/588afd93-e1be-447a-ace6-d108585166d2.jpg"
+        }
+      ]
+    },
+    "basic-t-shirt-design": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/1d8001ee-9b9c-4d37-8658-34289711ac42.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/d16751e4-8026-4f22-888d-ca378b0bd2b9.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/d3c679aa-1d56-4413-9b48-4d51dfe3a8d3.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/6bbe327a-0838-4da9-b68c-b6705228a0f1.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/34bc89ba-9b94-4314-a2fa-45aa07f29bcb.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/5b292c7c-3771-4fd9-96aa-f114aec7bdf5.jpg"
+        }
+      ]
+    },
+    "advanced-t-shirt-design": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/4817b21c-e4bb-4b0f-9ce7-438fc71ce7a2.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/969e74a8-0030-42a4-9e0c-d8ee92e646fb.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/1315c17e-6b08-4495-bf91-fccd5d73bec2.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/b6f82be6-6a02-49b3-b813-8e28a3822b76.webp"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/e779b224-c277-4595-ac8a-26913329b5da.jpg"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/fefecdc2-3004-4411-850c-8d4e2539b489/a8cb58f1-c72f-49df-8ee9-a1b2db52efb5.webp"
+        }
+      ]
+    },
+    "hyper-realistic-level-ai-ad-less-than-1-minute": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/aa87d2bd-fcc2-425d-ae71-c36f1b2a7497.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/4f5a53f3-6439-4aa1-94b7-4bc075f7068f.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/9ab1a688-1038-406e-9908-e1b4c919022d.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/08afedfe-e263-4500-81b0-efb1bf6cba1c.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/189dbbc1-f64c-4ec5-a0bc-f1d79c735f6b.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/e5b863a8-84d4-4977-874e-56dc0fd17e23.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "ai-ugc-video": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/5d1d76f9-95cd-4592-bc87-699e90cbab9e.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/6c54722e-cbf5-44de-84ee-3933ffe90276.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/a3fcd43d-d8e9-41df-9324-6d44ffd0eaf4.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/b258f5e4-7878-4980-b5fa-2202d2f9d7d6.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/ba3b63ee-6bd6-4044-bc67-153026cda6f9.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/550b1876-d54a-4e57-985b-55be828a316c.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/b8d60a3b-ac0e-49ab-a4ea-d8304bc9ee26.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/16af82dd-3e37-4464-9834-daf4a6971ed2.png"
+        }
+      ]
+    },
+    "ai-avatar-video": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/37672012-3ab2-4df6-b70a-0244040657cc.webp",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/9692f416-715c-412e-8e4f-514902dd90a6.mp4",
+          "poster": null
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/7cfdc77a-bb10-4cb4-9d87-9970bef40325.mp4",
+          "poster": null
+        }
+      ]
+    },
+    "empty-fire-customised-trending-ai-video": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/68c6349f-9937-4a3e-aa8f-d6848f71ceff.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/c048436d-e471-4199-a7f6-0081bb01c74f.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/54f28aa3-eabe-4484-9951-505f681c8b42.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/2011ee19-6e81-409c-b7c3-d8e0b4c9aa4e.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/1fe29b71-fb70-4fdf-86df-58365f8f10b8.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/b331b1be-92c7-4502-9cae-b453f55657c5.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/211a988b-dc84-48d5-8b76-bf65c1b9cc58.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/fefecdc2-3004-4411-850c-8d4e2539b489/344191f5-bd1a-433d-aa45-0ce29f7a2a75.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/fefecdc2-3004-4411-850c-8d4e2539b489/1dbcde2c-07eb-4e78-bf52-1f19450fe77d.png"
+        }
+      ]
+    },
+    "ai-fashion-video-45-seconds": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/6f242552-e4fb-4e6a-b45d-71d8303717e9.png",
+      "gallery": [
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/25fce7ba-ee76-40c0-b22d-935927088014.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/8f398e94-abba-4a19-b620-b98b50f27d53.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/0b98f105-d2f7-45ce-babd-088a1bf6c5a8.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/42b65e6d-f7bd-4bd9-9234-f03749cc90a4.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/0b06b69e-423e-400a-8425-64d9da54cf0b.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/32577b52-3df5-4423-ac1a-fc274098846d.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/95b4e5f8-d1a3-4cc9-a1fd-73f4753ed03f.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/63b7ab10-e201-4421-aff8-c782a14f346a.png"
+        },
+        {
+          "type": "video",
+          "url": "https://cdn.unjob.ai/service-gallery/video/3b9c2165-0860-430b-92e2-65daa63b2455/d7fc1e47-2242-43e9-b748-b1338b71df81.mp4",
+          "poster": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/4c8b684e-8540-46c7-b7e1-a326ef4cb3c4.png"
+        }
+      ]
+    },
+    "instagram-reel-script-30-90-seconds": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/9538604b-7ac1-47fd-a253-dc5439acb50b.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/59c735b0-d98a-44b4-a46f-a9f6f3768af1.png"
+        }
+      ]
+    },
+    "youtube-script-less-than-10-minutes": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/ed0fbab2-b6be-4690-88dd-b4ff827b2bdc.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/ae35773a-cdc3-4186-9b0c-8f41d848e0ef.png"
+        }
+      ]
+    },
+    "linkedin-ghostwriting": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/54d6f7b7-b854-409b-9f82-2f161d7e1f28.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/be2dda4d-b770-403f-9326-c2957a0ed323.png"
+        }
+      ]
+    },
+    "instagram-growth-strategy-consultation-1-hr": {
+      "cover": "https://cdn.unjob.ai/service-thumbnail/image/3b9c2165-0860-430b-92e2-65daa63b2455/0bc30c8b-f7e5-4750-b888-0b105a8282cf.png",
+      "gallery": [
+        {
+          "type": "image",
+          "url": "https://cdn.unjob.ai/service-gallery/image/3b9c2165-0860-430b-92e2-65daa63b2455/e58a796d-dbdf-4418-b014-83822f63a341.png"
+        }
+      ]
+    }
+  }
+}

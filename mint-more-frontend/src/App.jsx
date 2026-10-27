@@ -1,6 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useLayoutEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useAuthStore } from './store/auth'
 import { useEntitlements } from './hooks/useEntitlements'
+import { withLaunchFlags } from './config/launch'
+import { SkeletonCard } from './components/ui/Skeleton'
 
 // Auth
 import Login    from './pages/auth/Login'
@@ -10,40 +13,35 @@ import ForgotPassword from './pages/auth/ForgotPassword'
 
 // Shell
 import AppShell from './components/layout/AppShell'
+import PublicOrShell from './components/layout/PublicOrShell'
+
+// Fixed-price services
+// LAUNCH-HIDDEN: replaced by the storefront pages below; kept for reference.
+// import Services       from './pages/services/Services'
+import StoreHome         from './pages/storefront/StoreHome'
+import CategoryPage      from './pages/storefront/CategoryPage'
+import SearchResults     from './pages/storefront/SearchResults'
+import ServiceDetail     from './pages/services/ServiceDetail'
+import Cart              from './pages/services/Cart'
+import Orders            from './pages/services/Orders'
+import OrderDetail       from './pages/services/OrderDetail'
+import ClientHome        from './pages/services/ClientHome'
+import MyServices        from './pages/services/MyServices'
 
 // Client pages
-import ClientDashboard   from './pages/client/Dashboard'
-import ClientCalendar    from './pages/client/Calendar'
 import Jobs              from './pages/client/Jobs'
 import PostJob           from './pages/client/PostJob'
 import ClientJobDetail   from './pages/client/JobDetail'
 import ClientWallet      from './pages/client/Wallet'
-import Addons            from './pages/client/Addons'
 import Freelancers       from './pages/client/Freelancers'
 import FreelancerProfile from './pages/client/FreelancerProfile'
-import Social            from './pages/client/Social'
-import MintAI            from './pages/client/MintAI'
 import Settings          from './pages/Settings'
 import NotificationsInbox from './pages/notifications/Inbox'
 import Mintbox           from './pages/shared/Mintbox'
 import Chat              from './pages/shared/Chat'
 import SharedFile        from './pages/public/SharedFile'
-import Landing           from './pages/public/Landing'
-import Membership        from './pages/client/Membership'
-import Onboarding        from './pages/client/Onboarding'
-import WorkspaceDetailsPage from './pages/client/onboarding/WorkspaceDetailsPage'
-import BusinessBasicsPage from './pages/client/onboarding/BusinessBasicsPage'
-import AccountVerificationPage from './pages/client/onboarding/AccountVerificationPage'
-import BrandVoicePage from './pages/client/onboarding/BrandVoicePage'
-import BrandAssetsPage from './pages/client/onboarding/BrandAssetsPage'
-import VisualPalettePage from './pages/client/onboarding/VisualPalettePage'
-import ContentCadencePage from './pages/client/onboarding/ContentCadencePage'
-import FestivalsPage from './pages/client/onboarding/FestivalsPage'
-import ApprovalRulesPage from './pages/client/onboarding/ApprovalRulesPage'
-import ConnectChannelsPage from './pages/client/onboarding/ConnectChannelsPage'
-import WhatsappRemindersPage from './pages/client/onboarding/WhatsappRemindersPage'
-import ContentGenerationPage from './pages/client/onboarding/ContentGenerationPage'
-import PreviewApprovePage from './pages/client/onboarding/PreviewApprovePage'
+// LAUNCH-HIDDEN: agency landing page, replaced by the storefront at "/".
+// import Landing        from './pages/public/Landing'
 import Disputes          from './pages/shared/Disputes'
 import Support           from './pages/shared/Support'
 import Privacy           from './pages/public/Privacy'
@@ -52,13 +50,17 @@ import RefundCancellation from './pages/public/RefundCancellation'
 import ContactSupportPolicy from './pages/public/ContactSupportPolicy'
 
 // Freelancer pages
-import FreelancerDashboard  from './pages/freelancer/Dashboard'
 import FreelancerJobs       from './pages/freelancer/Jobs'
 import FreelancerJobDetail  from './pages/freelancer/JobDetail'
 import FreelancerWallet     from './pages/freelancer/Wallet'
 import MarketplaceProfile   from './pages/freelancer/MarketplaceProfile'
+import ManageAccount from './pages/freelancer/ManageAccount'
+import FreelancerExplore from './pages/freelancer/Explore'
+import FreelancerProfilePage from './pages/freelancer/Profile'
+import FreelancerSettings from './pages/freelancer/FreelancerSettings'
+import Upskill from './pages/freelancer/Upskill'
+import Assessments from './pages/freelancer/Assessments'
 import Packages             from './pages/freelancer/Packages'
-import Portfolio            from './pages/freelancer/Portfolio'
 import Inquiries            from './pages/freelancer/Inquiries'
 import DesignerTasks        from './pages/designer/Tasks'
 
@@ -74,15 +76,22 @@ import AdminAudit        from './pages/admin/Audit'
 import AdminOperations   from './pages/admin/Operations'
 import AdminTiers        from './pages/admin/Tiers'
 import AdminBrands       from './pages/admin/Brands'
+import AdminServices     from './pages/admin/Services'
+import AdminServiceOrders from './pages/admin/ServiceOrders'
 
 // ── Role-aware route wrappers ─────────────────────────────────────────────────
+
+function PortfolioRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={`/profile${search}`} replace />
+}
 
 function RoleDashboard() {
   const role = useAuthStore(s => s.user?.role)
   if (role === 'designer') return <DesignerTasks />
-  if (role === 'freelancer') return <FreelancerDashboard />
+  if (role === 'freelancer') return <FreelancerExplore />
   if (role === 'admin')      return <Navigate to="/admin" replace />
-  return <ClientDashboard />
+  return <ClientHome />
 }
 
 function RoleJobs() {
@@ -169,8 +178,9 @@ function ClientFeature({ flag, children }) {
   const role = useAuthStore(s => s.user?.role)
   const { data: access, isLoading } = useEntitlements()
   if (role !== 'client') return children
-  if (isLoading) return null
-  const flags = { ...DEFAULT_FEATURE_FLAGS, ...(access?.feature_flags || {}) }
+  // A failed access check (the hook times out) falls through with the default flags.
+  if (isLoading) return <div className="stack-6 p-4 md:p-8"><SkeletonCard /><SkeletonCard /></div>
+  const flags = withLaunchFlags({ ...DEFAULT_FEATURE_FLAGS, ...(access?.feature_flags || {}) })
   if (flag && flags[flag] === false) return <Navigate to="/dashboard" replace />
   return children
 }
@@ -184,7 +194,8 @@ function FreelancerOnly({ children }) {
 function RootRedirect() {
   const isAuthed = useAuthStore(s => s.isAuthed)
   const user = useAuthStore(s => s.user)
-  if (!isAuthed) return <Landing />
+  // LAUNCH-HIDDEN: <Landing /> (agency marketing page). Logged-out visitors land on the storefront.
+  if (!isAuthed) return <StoreHome />
   if (user?.role === 'admin') return <Navigate to="/admin" replace />
   if (user?.role === 'designer') return <Navigate to="/dashboard" replace />
   return <Navigate to="/dashboard" replace />
@@ -192,11 +203,23 @@ function RootRedirect() {
 
 // ── Misc pages ────────────────────────────────────────────────────────────────
 
+// New pages open at the top; back/forward keeps the browser's own restored position.
+function ScrollToTop() {
+  const { pathname, hash } = useLocation()
+  const navigationType = useNavigationType()
+  useLayoutEffect(() => {
+    if (navigationType === 'POP' || hash) return
+    window.scrollTo(0, 0)
+  }, [pathname, hash, navigationType])
+  return null
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <ScrollToTop />
       <Routes>
         {/* Public */}
         <Route path="/login"            element={<Login />} />
@@ -210,14 +233,21 @@ export default function App() {
         <Route path="/mintbox/share/:token" element={<Mintbox />} />
         <Route path="/mintbox/share-category/:categoryToken" element={<Mintbox />} />
         <Route path="/mintbox/file/:token" element={<SharedFile />} />
-        <Route path="/"                 element={<RootRedirect />} />
+        {/* Storefront, catalogue + cart: public, or inside the shell when signed in */}
+        <Route element={<PublicOrShell />}>
+          <Route path="/"               element={<RootRedirect />} />
+          <Route path="/services"       element={<StoreHome />} />
+          <Route path="/categories/:slug" element={<CategoryPage />} />
+          <Route path="/search"         element={<SearchResults />} />
+          <Route path="/services/:slug" element={<ServiceDetail />} />
+          <Route path="/cart"           element={<Cart />} />
+        </Route>
 
         {/* Authenticated shell */}
         <Route element={<AppShell />}>
 
           {/* Role-aware shared routes */}
           <Route path="/dashboard" element={<RoleDashboard />} />
-          <Route path="/calendar"  element={<ClientOnly><ClientFeature flag="calendar_creatives"><ClientCalendar /></ClientFeature></ClientOnly>} />
           <Route path="/jobs"      element={<ClientFeature flag="custom_requests"><RoleJobs /></ClientFeature>} />
           <Route path="/requests"  element={<ClientOnly><ClientFeature flag="custom_requests"><Jobs /></ClientFeature></ClientOnly>} />
           <Route path="/jobs/new"  element={<ClientOnly><PostJob /></ClientOnly>} />
@@ -225,36 +255,32 @@ export default function App() {
           <Route path="/jobs/:id"  element={<RoleJobDetail />} />
           <Route path="/wallet"    element={<ClientFeature flag="wallet_ui"><RoleWallet /></ClientFeature>} />
 
+          {/* Service orders */}
+          <Route path="/orders"      element={<ClientOnly><Orders audience="client" /></ClientOnly>} />
+          <Route path="/orders/:id"  element={<ClientOnly><OrderDetail audience="client" /></ClientOnly>} />
+          <Route path="/work"        element={<FreelancerOnly><Orders audience="freelancer" /></FreelancerOnly>} />
+          <Route path="/work/:id"    element={<FreelancerOnly><OrderDetail audience="freelancer" /></FreelancerOnly>} />
+          <Route path="/my-services" element={<FreelancerOnly><MyServices /></FreelancerOnly>} />
+
+          {/* Hidden for launch (pages kept): social-agency features */}
+          {['/calendar', '/membership', '/addons', '/onboarding/*', '/social', '/insights', '/posts', '/ai'].map(path => (
+            <Route key={path} path={path} element={<Navigate to="/dashboard" replace />} />
+          ))}
+
           {/* Client-only routes */}
-          <Route path="/addons"            element={<ClientOnly><ClientFeature flag="wallet_ui"><Addons /></ClientFeature></ClientOnly>} />
-          <Route path="/membership"        element={<ClientOnly><Membership /></ClientOnly>} />
-          <Route path="/onboarding"        element={<ClientOnly><Onboarding /></ClientOnly>}>
-            <Route index element={<Navigate to="step-1" replace />} />
-            <Route path="step-1" element={<WorkspaceDetailsPage />} />
-            <Route path="step-2" element={<BusinessBasicsPage />} />
-            <Route path="step-3" element={<AccountVerificationPage />} />
-            <Route path="step-4" element={<BrandVoicePage />} />
-            <Route path="step-5" element={<BrandAssetsPage />} />
-            <Route path="step-6" element={<VisualPalettePage />} />
-            <Route path="step-7" element={<ContentCadencePage />} />
-            <Route path="step-8" element={<FestivalsPage />} />
-            <Route path="step-9" element={<ApprovalRulesPage />} />
-            <Route path="step-10" element={<ConnectChannelsPage />} />
-            <Route path="step-11" element={<WhatsappRemindersPage />} />
-            <Route path="step-12" element={<ContentGenerationPage />} />
-            <Route path="step-13" element={<PreviewApprovePage />} />
-          </Route>
           <Route path="/freelancers"       element={<ClientOnly><ClientFeature flag="marketplace"><Freelancers /></ClientFeature></ClientOnly>} />
           <Route path="/freelancers/:freelancerId" element={<ClientOnly><ClientFeature flag="marketplace"><FreelancerProfile /></ClientFeature></ClientOnly>} />
-          <Route path="/social"            element={<ClientOnly><ClientFeature flag="social_insights"><Social /></ClientFeature></ClientOnly>} />
-          <Route path="/insights"          element={<ClientOnly><ClientFeature flag="social_insights"><Social /></ClientFeature></ClientOnly>} />
-          <Route path="/posts"             element={<ClientOnly><ClientFeature flag="social_insights"><Social /></ClientFeature></ClientOnly>} />
-          <Route path="/ai"                element={<ClientOnly><ClientFeature flag="mint_ai"><MintAI /></ClientFeature></ClientOnly>} />
 
           {/* Freelancer-only routes */}
           <Route path="/profile-edit" element={<FreelancerOnly><MarketplaceProfile /></FreelancerOnly>} />
+          <Route path="/profile/edit" element={<FreelancerOnly><ManageAccount /></FreelancerOnly>} />
+          <Route path="/profile"      element={<FreelancerOnly><FreelancerProfilePage /></FreelancerOnly>} />
+          <Route path="/settings/freelancer" element={<FreelancerOnly><FreelancerSettings /></FreelancerOnly>} />
+          <Route path="/upskill"      element={<FreelancerOnly><Upskill /></FreelancerOnly>} />
+          <Route path="/assessments"  element={<FreelancerOnly><Assessments /></FreelancerOnly>} />
           <Route path="/packages"     element={<FreelancerOnly><Packages /></FreelancerOnly>} />
-          <Route path="/portfolio"    element={<FreelancerOnly><Portfolio /></FreelancerOnly>} />
+          {/* LAUNCH-HIDDEN: the standalone Portfolio page; posts now live on the profile (Posts tab). */}
+          <Route path="/portfolio"    element={<FreelancerOnly><PortfolioRedirect /></FreelancerOnly>} />
           <Route path="/inquiries"    element={<FreelancerOnly><Inquiries /></FreelancerOnly>} />
 
           {/* Shared */}
@@ -280,6 +306,8 @@ export default function App() {
           <Route path="/admin/ai"         element={<AdminOnly permission="pricing.manage"><AdminAIPanel /></AdminOnly>} />
           <Route path="/admin/tiers"      element={<AdminOnly permission="pricing.manage"><AdminTiers /></AdminOnly>} />
           <Route path="/admin/brands"     element={<AdminOnly permission="users.manage"><AdminBrands /></AdminOnly>} />
+          <Route path="/admin/services"   element={<AdminOnly permission="ops.manage"><AdminServices /></AdminOnly>} />
+          <Route path="/admin/service-orders" element={<AdminOnly permission="ops.manage"><AdminServiceOrders /></AdminOnly>} />
         </Route>
         <Route path="*" element={<RootRedirect />} />
       </Routes>

@@ -64,7 +64,11 @@ const getMe = async (req, res, next) => {
 const resetPassword = async (req, res, next) => {
   try {
     validateResetPassword(req.body);
-    await authService.resetPassword(req.body);
+    await authService.resetPassword({
+      email: req.body.email,
+      newPassword: req.body.newPassword,
+      accessToken: req.body.accessToken,
+    });
     return sendSuccess(res, { message: 'Password reset successfully' });
   } catch (err) {
     next(err);

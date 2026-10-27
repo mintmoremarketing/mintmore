@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/auth'
 import { socialApi } from '../../api/social'
+import { creativeApi } from '../../api/creative'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
@@ -370,6 +371,60 @@ const normalizePlatforms = (value) => {
     return Object.values(value).flatMap(item => normalizePlatforms(item))
   }
   return []
+}
+
+function ClientRejectModal({ post, onClose, onSubmit, isSubmitting }) {
+  const [reason, setReason] = useState('')
+
+  return (
+    <Modal
+      title="Request Changes"
+      subtitle={`Let the designer know what adjustments to make for "${post?.title || 'this creative'}"`}
+      onClose={onClose}
+      maxWidth={500}
+      footer={(
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" className="btn ghost sm" onClick={onClose} disabled={isSubmitting}>Cancel</button>
+          <button
+            type="button"
+            className="btn sm"
+            style={{ background: 'var(--rose, #ef4444)', color: '#fff', border: 'none' }}
+            disabled={!reason.trim() || isSubmitting}
+            onClick={() => onSubmit(reason.trim())}
+          >
+            {isSubmitting ? 'Submitting...' : 'Send Feedback'}
+          </button>
+        </div>
+      )}
+    >
+      <div className="stack" style={{ gap: 14 }}>
+        {post?.creative_url && (
+          <div style={{ maxHeight: 180, borderRadius: 10, overflow: 'hidden', background: '#000', display: 'grid', placeItems: 'center' }}>
+            <img src={post.creative_url} alt="" style={{ maxHeight: 180, objectFit: 'contain' }} />
+          </div>
+        )}
+        <div>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+            What changes would you like made? <span style={{ color: 'var(--rose, #ef4444)' }}>*</span>
+          </label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="E.g., Please adjust the background color, enlarge the logo, or revise the headline text..."
+            rows={4}
+            style={{
+              width: '100%', minHeight: 100, padding: 12, borderRadius: 10,
+              border: '1px solid var(--hairline)', background: 'var(--paper)',
+              fontSize: 13.5, resize: 'vertical', fontFamily: 'inherit',
+            }}
+          />
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--ink-500)', margin: 0 }}>
+          This feedback will be sent directly to your assigned designer and the admin team.
+        </p>
+      </div>
+    </Modal>
+  )
 }
 
 function SocialPostPreview({ platform, account, caption, hashtags, contentType, mediaItems = [] }) {
@@ -1602,8 +1657,18 @@ export default function Social() {
   }, [location.pathname])
   const [showCreate, setShowCreate] = useState(false)
   const [editingPost, setEditingPost] = useState(null)
+  const [rejectingPost, setRejectingPost] = useState(null)
   const [connectPrompt, setConnectPrompt] = useState(null)
-  const [postFilter, setPostFilter] = useState('all')
+
+  const urlFilter = searchParams.get('filter') || (searchParams.get('tab') === 'in_review' ? 'pending_client_review' : searchParams.get('tab') === 'scheduled' ? 'scheduled' : searchParams.get('tab') === 'published' ? 'published' : '')
+  const [postFilter, setPostFilter] = useState(urlFilter || 'all')
+
+  useEffect(() => {
+    if (urlFilter) {
+      setPostFilter(urlFilter)
+    }
+  }, [urlFilter])
+
   const [loadingDraftId, setLoadingDraftId] = useState(null)
   const [activeMenuId, setActiveMenuId] = useState(null)
   const composeRequested = searchParams.get('compose') === '1'
@@ -1623,8 +1688,8 @@ export default function Social() {
   const connectedAccounts = accounts.filter(account => account.is_active)
 
   const { data: postsData, isLoading: postsLoading } = useQuery({
-    queryKey: ['social-posts', postFilter],
-    queryFn:  () => socialApi.listPosts(postFilter !== 'all' ? { status: postFilter } : {}).then(r => r.data.data),
+    queryKey: ['social-posts'],
+    queryFn:  () => socialApi.listPosts().then(r => r.data.data),
     enabled:  tab === 'posts',
   })
 
@@ -1659,7 +1724,37 @@ export default function Social() {
     },
   })
 
-  const posts = (postsData?.posts || []).filter(p => !p.metadata?.is_topic)
+  const approveMutation = useMutation({
+    mutationFn: (postId) => creativeApi.clientApproveCreative(postId),
+    onSuccess: () => {
+      pushToast({ title: 'Creative approved!', body: 'Post is now scheduled for publication.', icon: 'check', tone: 'mint' })
+      queryClient.invalidateQueries({ queryKey: ['social-posts'] })
+    },
+    onError: (err) => pushToast({ title: 'Approval failed', body: err.response?.data?.message || err.message, tone: 'amber' }),
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ postId, reason }) => creativeApi.clientRejectCreative(postId, { reason }),
+    onSuccess: () => {
+      pushToast({ title: 'Changes requested', body: 'Designer and Admin have been notified.', icon: 'check' })
+      queryClient.invalidateQueries({ queryKey: ['social-posts'] })
+      setRejectingPost(null)
+    },
+    onError: (err) => pushToast({ title: 'Rejection failed', body: err.response?.data?.message || err.message, tone: 'amber' }),
+  })
+
+  const allPosts = (postsData?.posts || []).filter(p => !p.metadata?.is_topic)
+  const posts = useMemo(() => {
+    if (postFilter === 'all') return allPosts
+    if (postFilter === 'pending_client_review') return allPosts.filter(p => p.status === 'pending_client_review')
+    if (postFilter === 'scheduled') return allPosts.filter(p => p.status === 'scheduled')
+    if (postFilter === 'draft') return allPosts.filter(p => p.status === 'draft')
+    if (postFilter === 'published') return allPosts.filter(p => p.status === 'published')
+    if (postFilter === 'rejected') return allPosts.filter(p => p.status === 'rejected')
+    if (postFilter === 'failed') return allPosts.filter(p => p.status === 'failed')
+    return allPosts
+  }, [allPosts, postFilter])
+
   const summary = analyticsData?.summary
   const accountTotals = useMemo(() => connectedAccounts.reduce((totals, account) => {
     const stats = account.stats || {}
@@ -1741,10 +1836,13 @@ export default function Social() {
 
   // ── STATUS CONFIG (Task 4) ──────────────────────────────────────────────
   const STATUS_CONFIG = {
-    published: { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0', dot: '#10b981', label: 'Published' },
-    draft:     { bg: '#f8fafc', text: '#64748b', border: '#e2e8f0', dot: '#94a3b8', label: 'Draft'      },
-    scheduled: { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe', dot: '#3b82f6', label: 'Scheduled'  },
-    failed:    { bg: '#fef2f2', text: '#dc2626', border: '#fecaca', dot: '#ef4444', label: 'Failed'      },
+    published:              { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0', dot: '#10b981', label: 'Published' },
+    draft:                  { bg: '#f8fafc', text: '#64748b', border: '#e2e8f0', dot: '#94a3b8', label: 'Draft' },
+    scheduled:              { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe', dot: '#3b82f6', label: 'Scheduled' },
+    pending_client_review:  { bg: '#fef3c7', text: '#b45309', border: '#fde68a', dot: '#f59e0b', label: 'Pending Review' },
+    pending_admin_review:   { bg: '#ede9fe', text: '#6d28d9', border: '#ddd6fe', dot: '#8b5cf6', label: 'Admin Review' },
+    rejected:               { bg: '#fef2f2', text: '#b91c1c', border: '#fca5a5', dot: '#ef4444', label: 'Needs Revision' },
+    failed:                 { bg: '#fef2f2', text: '#dc2626', border: '#fecaca', dot: '#ef4444', label: 'Failed' },
   }
 
   const StatusBadge = ({ status }) => {
@@ -1873,24 +1971,28 @@ export default function Social() {
 
       {tab === 'posts' && (
         <div className="stack" style={{ gap: 0 }}>
-          {/* Task 5: polished tab bar with active underline + count badges */}
+          {/* Tab bar with active underline + count badges */}
           {(() => {
             const allStatusCounts = {
-              all: posts.length,
-              draft: posts.filter(p => p.status === 'draft').length,
-              scheduled: posts.filter(p => p.status === 'scheduled').length,
-              published: posts.filter(p => p.status === 'published').length,
-              failed: posts.filter(p => p.status === 'failed').length,
+              all: allPosts.length,
+              pending_client_review: allPosts.filter(p => p.status === 'pending_client_review').length,
+              scheduled: allPosts.filter(p => p.status === 'scheduled').length,
+              draft: allPosts.filter(p => p.status === 'draft').length,
+              published: allPosts.filter(p => p.status === 'published').length,
+              rejected: allPosts.filter(p => p.status === 'rejected').length,
+              failed: allPosts.filter(p => p.status === 'failed').length,
             }
             const tabDefs = [
               { key: 'all', label: 'All' },
-              { key: 'draft', label: 'Drafts' },
+              { key: 'pending_client_review', label: 'In Review', badgeColor: '#f59e0b' },
               { key: 'scheduled', label: 'Scheduled' },
+              { key: 'draft', label: 'Drafts' },
               { key: 'published', label: 'Published' },
+              { key: 'rejected', label: 'Needs Revision', badgeColor: '#ef4444' },
               { key: 'failed', label: 'Failed' },
             ]
             return (
-              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e2e8f0', marginBottom: 24 }}>
+              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e2e8f0', marginBottom: 24, overflowX: 'auto' }}>
                 {tabDefs.map(t => (
                   <button
                     key={t.key}
@@ -1903,13 +2005,14 @@ export default function Social() {
                       background: 'none', border: 'none', borderRadius: 0,
                       transition: 'all 150ms ease',
                       display: 'flex', alignItems: 'center', gap: 6,
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     {t.label}
                     {allStatusCounts[t.key] > 0 && (
                       <span style={{
-                        background: postFilter === t.key ? '#dcfce7' : '#f1f5f9',
-                        color: postFilter === t.key ? '#166534' : '#64748b',
+                        background: postFilter === t.key ? '#dcfce7' : (t.badgeColor ? `${t.badgeColor}20` : '#f1f5f9'),
+                        color: postFilter === t.key ? '#166534' : (t.badgeColor || '#64748b'),
                         fontSize: '11px', fontWeight: 600,
                         padding: '1px 6px', borderRadius: 10,
                       }}>{allStatusCounts[t.key]}</span>
@@ -1927,7 +2030,7 @@ export default function Social() {
           ) : posts.length === 0 ? (
             <div className="empty">
               <div className="empty-glyph"><Icon name="layers" size={22} /></div>
-              <h3>No {postFilter !== 'all' ? postFilter : ''} posts</h3>
+              <h3>No {postFilter !== 'all' ? (postFilter === 'pending_client_review' ? 'pending review' : postFilter) : ''} posts</h3>
               <p>Create and schedule posts to your connected accounts.</p>
               <button className="btn primary" onClick={() => { setEditingPost(null); setShowCreate(true); }}>
                 <Icon name="plus" /> Create post
@@ -1941,8 +2044,12 @@ export default function Social() {
                 const isScheduled = post.status === 'scheduled'
                 const isPublished = post.status === 'published'
                 const isFailed    = post.status === 'failed'
+                const isPendingClientReview = post.status === 'pending_client_review'
+                const isRejected  = post.status === 'rejected'
                 const imported    = post.metadata?.source === 'historical_import' || post.platform_statuses?.some(s => s.source === 'historical_import')
-                const mediaItems  = Array.isArray(post.media) ? post.media.filter(Boolean) : []
+                const mediaItems  = Array.isArray(post.media) && post.media.length > 0
+                  ? post.media.filter(Boolean)
+                  : (post.creative_url ? [{ media_url: post.creative_url, media_type: post.content_type || 'image' }] : [])
                 const platforms   = normalizePlatforms(post.target_platforms)
                 const hasMedia    = mediaItems.length > 0
                 const isInstagramTextOnly = platforms.includes('instagram') && !hasMedia
@@ -1957,6 +2064,8 @@ export default function Social() {
                   : post.published_at
                   ? `Published ${timeAgo(post.published_at)}`
                   : post.status === 'draft' ? 'Unsaved draft'
+                  : post.status === 'pending_client_review' ? 'Ready for your review'
+                  : post.status === 'rejected' ? 'Changes requested'
                   : post.status === 'failed' ? 'Failed to publish'
                   : ''
 
@@ -1977,7 +2086,7 @@ export default function Social() {
                       ? new Date(post.publish_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + ' at ' + new Date(post.publish_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
                       : post.published_at
                       ? new Date(post.published_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' at ' + new Date(post.published_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-                      : post.status === 'draft' ? 'Draft' : post.status === 'failed' ? 'Failed' : 'Pending'
+                      : post.status === 'draft' ? 'Draft' : post.status === 'pending_client_review' ? 'In Review' : post.status === 'rejected' ? 'Revision' : post.status === 'failed' ? 'Failed' : 'Pending'
 
                     const primaryPlatform = platforms[0] || 'facebook'
                     const platMeta = PLATFORM_META[primaryPlatform] || PLATFORM_META.facebook
@@ -1987,10 +2096,10 @@ export default function Social() {
                         key={post.id}
                         style={{
                           background: '#fff',
-                          border: '1px solid #dde1e7',
+                          border: isPendingClientReview ? '2px solid #f59e0b' : isRejected ? '1.5px solid #fca5a5' : '1px solid #dde1e7',
                           borderRadius: '10px',
                           overflow: 'hidden',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                          boxShadow: isPendingClientReview ? '0 4px 14px rgba(245, 158, 11, 0.15)' : '0 1px 3px rgba(0,0,0,0.08)',
                           display: 'flex',
                           flexDirection: 'column',
                           cursor: isEditable ? 'pointer' : 'default',
@@ -2004,10 +2113,10 @@ export default function Social() {
                       >
                         {/* ── Top toolbar: status badge + action buttons ── */}
                         <div
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f7f8fa', borderBottom: '1px solid #e4e6ea' }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: isPendingClientReview ? '#fffbeb' : '#f7f8fa', borderBottom: '1px solid #e4e6ea' }}
                           onClick={e => e.stopPropagation()}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             {/* Platform icon */}
                             <span style={{ width: 20, height: 20, borderRadius: 4, background: platMeta.color + '15', display: 'grid', placeItems: 'center' }}>
                               <Icon name={platMeta.icon} size={12} style={{ color: platMeta.color }} />
@@ -2027,6 +2136,50 @@ export default function Social() {
                             )}
                           </div>
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            {isPendingClientReview && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); approveMutation.mutate(post.id); }}
+                                  disabled={approveMutation.isPending}
+                                  style={{
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    padding: '4px 10px',
+                                    borderRadius: 6,
+                                    background: '#f0fdf4',
+                                    border: '1px solid #86efac',
+                                    color: '#15803d',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                  }}
+                                >
+                                  <Icon name="check" size={11} /> Approve & Schedule
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setRejectingPost(post); }}
+                                  disabled={rejectMutation.isPending}
+                                  style={{
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    padding: '4px 10px',
+                                    borderRadius: 6,
+                                    background: '#fef2f2',
+                                    border: '1px solid #fca5a5',
+                                    color: '#dc2626',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                  }}
+                                >
+                                  <Icon name="x" size={11} /> Request Changes
+                                </button>
+                              </>
+                            )}
                             {isDraft && (
                               <button type="button" onClick={() => openDraftEditor(post.id)}
                                 style={{ fontSize: '11px', fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: '#f0fdf4', border: '1px solid #86efac', color: '#15803d', cursor: 'pointer' }}>
@@ -2144,6 +2297,21 @@ export default function Social() {
                             </div>
                           </div>
 
+                          {/* Designer attribution badge */}
+                          {(post.designer_name || isPendingClientReview) && (
+                            <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '11px', color: '#4338ca', background: '#e0e7ff', padding: '3px 8px', borderRadius: 999, fontWeight: 600, border: '1px solid #c7d2fe' }}>
+                              <Icon name="user" size={11} /> Designed by {post.designer_name || 'CREATYV Designer'}
+                            </div>
+                          )}
+
+                          {/* Rejection / Revision feedback banner */}
+                          {isRejected && (
+                            <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 6, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12, color: '#991b1b' }}>
+                              <strong>Changes Requested:</strong> {post.client_feedback || post.rejection_reason || post.admin_feedback || 'Revision requested.'}
+                              <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 2 }}>Designer has been notified to make adjustments.</div>
+                            </div>
+                          )}
+
                           {/* Caption */}
                           {post.caption && (
                             <p style={{ margin: '10px 0 12px', fontSize: '14px', lineHeight: 1.5, color: '#050505', whiteSpace: 'pre-wrap' }}>
@@ -2171,7 +2339,7 @@ export default function Social() {
                             {[
                               { label: 'Like', icon: 'M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5' },
                               { label: 'Comment', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
-                              { label: 'Share', icon: 'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z' },
+                              { label: 'Share', icon: 'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.368 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z' },
                             ].map(({ label, icon }) => (
                               <button key={label} type="button" onClick={e => e.stopPropagation()}
                                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 4px', background: 'none', border: 'none', cursor: 'default', borderRadius: 6, color: '#65676b', fontSize: '13px', fontWeight: 600 }}>
@@ -2200,6 +2368,15 @@ export default function Social() {
           onClose={closeComposer}
           onSaved={() => queryClient.invalidateQueries({ queryKey: ['social-posts'] })}
           onPublished={() => queryClient.invalidateQueries({ queryKey: ['social-posts'] })}
+        />
+      )}
+
+      {rejectingPost && (
+        <ClientRejectModal
+          post={rejectingPost}
+          onClose={() => setRejectingPost(null)}
+          onSubmit={(reason) => rejectMutation.mutate({ postId: rejectingPost.id, reason })}
+          isSubmitting={rejectMutation.isPending}
         />
       )}
 

@@ -61,6 +61,8 @@ export default {
         sans: ['"Creatyv Public Sans"', 'sans-serif'],
         serif: ['"Creatyv Baskvill"', 'serif'],
         display: ['"Creatyv Hero"', 'sans-serif'],
+        // Storefront (catalogue, category and service pages)
+        store: ['Poppins', '"Creatyv Public Sans"', 'sans-serif'],
       }
     },
   },

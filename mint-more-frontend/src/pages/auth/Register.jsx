@@ -5,6 +5,7 @@ import { authApi } from '../../api/auth'
 import { supabase } from '../../api/supabase'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../../components/ui/Icon'
+import { nextPathFromSearch } from '../../utils/nextPath'
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 1024)
@@ -40,7 +41,7 @@ export default function Register() {
         mutationFn: () => authApi.register({ full_name: fullName, email, password, role }),
         onSuccess: ({ data }) => {
             setAuth(data.data.user, data.data.accessToken, data.data.refreshToken)
-            navigate(data.data.user.role === 'admin' ? '/admin' : '/dashboard')
+            navigate(nextPathFromSearch(window.location.search, data.data.user.role === 'admin' ? '/admin' : '/dashboard'))
         },
         onError: (err) => {
             const message = err.response?.data?.message || 'Registration failed'

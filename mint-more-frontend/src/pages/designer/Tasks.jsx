@@ -236,7 +236,7 @@ export default function DesignerTasks() {
                 <div className="grid-2" style={{ gap: 16 }}>
                   <div className="card" style={{ padding: 16 }}>
                     <div className="h-eyebrow">Profile</div>
-                    <div style={{ marginTop: 8, fontWeight: 700 }}>{brandProfile.business_name || brandName(brandProfile)}</div>
+                    <div style={{ marginTop: 8, fontWeight: 700 }}>{brandProfile.business_name || brandLabel(brandProfile)}</div>
                     <div className="muted" style={{ marginTop: 4 }}>{brandProfile.business_type || 'Business profile'}</div>
                     <div className="muted" style={{ marginTop: 10 }}>{[brandProfile.address_line1, brandProfile.address_city, brandProfile.address_state, brandProfile.country].filter(Boolean).join(', ') || 'No address saved'}</div>
                   </div>
@@ -291,7 +291,7 @@ export default function DesignerTasks() {
                           <div key={folder.id} className="card" style={{ padding: 12 }}>
                             <div style={{ fontWeight: 700 }}>{folder.name}</div>
                             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                              {folder.description || 'Brand folder'} â€¢ {folder.file_count || 0} file{(folder.file_count || 0) === 1 ? '' : 's'}
+                              {folder.description || 'Brand folder'} • {folder.file_count || 0} file{(folder.file_count || 0) === 1 ? '' : 's'}
                             </div>
                           </div>
                         ))}
@@ -305,7 +305,7 @@ export default function DesignerTasks() {
                           <div key={file.id} className="card" style={{ padding: 12 }}>
                             <div style={{ fontWeight: 700 }}>{file.original_name || file.name}</div>
                             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                              {file.folder_name || 'Brand folder'} â€¢ {file.media_type || 'file'}
+                              {file.folder_name || 'Brand folder'} • {file.media_type || 'file'}
                             </div>
                           </div>
                         ))}

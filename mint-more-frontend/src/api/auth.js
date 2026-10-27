@@ -6,7 +6,7 @@ export const authApi = {
 	register: (data) => api.post('/auth/register', data),
 	logout: () => api.post('/auth/logout'),
 	me: () => api.get('/auth/me'),
-	resetPassword: (email, newPassword) => api.post('/auth/reset-password', { email, newPassword }),
+	resetPassword: (email, newPassword, accessToken) => api.post('/auth/reset-password', { email, newPassword, accessToken }),
 	socialLogin: (provider) => supabase.auth.signInWithOAuth({ 
 		provider, 
 		options: { redirectTo: window.location.origin + '/auth/callback' } 

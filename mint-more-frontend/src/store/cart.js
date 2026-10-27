@@ -1,0 +1,47 @@
+import { create } from 'zustand'
+
+// Cart lives in localStorage so a visitor can build it before signing in.
+const STORAGE_KEY = 'creatyv_cart'
+
+const readCart = () => {
+	try {
+		const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+		return Array.isArray(parsed) ? parsed : []
+	} catch {
+		return []
+	}
+}
+
+const writeCart = (items) => {
+	try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)) } catch { /* storage unavailable */ }
+	return items
+}
+
+export const useCartStore = create((set, get) => ({
+	items: readCart(),
+
+	// item: { variant_id, template_id, slug, title, option_label, pack_size, unit_price, mrp, delivery_days, revisions, unit_label, quantity }
+	addItem: (item) => set(() => {
+		const items = [...get().items]
+		const existing = items.find((entry) => entry.variant_id === item.variant_id)
+		if (existing) existing.quantity = Math.min(20, existing.quantity + (item.quantity || 1))
+		else items.push({ instructions: '', ...item, quantity: item.quantity || 1 })
+		return { items: writeCart(items) }
+	}),
+	updateItem: (variantId, patch) => set(() => ({
+		items: writeCart(get().items.map((entry) => (entry.variant_id === variantId ? { ...entry, ...patch } : entry))),
+	})),
+	removeItem: (variantId) => set(() => ({
+		items: writeCart(get().items.filter((entry) => entry.variant_id !== variantId)),
+	})),
+	clear: () => set(() => ({ items: writeCart([]) })),
+}))
+
+export const GST_RATE = 18
+
+export function cartTotals(items) {
+	const itemTotal = items.reduce((sum, item) => sum + Number(item.unit_price) * item.quantity, 0)
+	const mrpTotal = items.reduce((sum, item) => sum + Number(item.mrp || item.unit_price) * item.quantity, 0)
+	const gst = Math.round(itemTotal * GST_RATE) / 100
+	return { itemTotal, mrpTotal, savings: Math.max(0, mrpTotal - itemTotal), gst, total: Math.round((itemTotal + gst) * 100) / 100 }
+}

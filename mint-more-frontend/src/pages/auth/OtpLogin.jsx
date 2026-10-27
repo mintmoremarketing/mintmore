@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../api/supabase'
 import Icon from '../../components/ui/Icon'
+import { nextPathFromSearch } from '../../utils/nextPath'
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 1024)
@@ -54,7 +55,7 @@ export default function OtpLogin() {
             setError(error.message)
         } else {
             // User is signed in
-            navigate('/dashboard')
+            navigate(nextPathFromSearch(window.location.search, '/dashboard'))
         }
     }
 

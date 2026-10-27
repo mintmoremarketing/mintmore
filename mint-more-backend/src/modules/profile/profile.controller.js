@@ -42,6 +42,33 @@ const updateAvatar = async (req, res, next) => {
   }
 };
 
+const removeAvatar = async (req, res, next) => {
+  try {
+    const profile = await profileService.removeAvatar(req.user.sub);
+    return sendSuccess(res, { data: { profile }, message: 'Avatar removed' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getMyCompletion = async (req, res, next) => {
+  try {
+    const completion = await profileService.getProfileCompletion(req.user.sub);
+    return sendSuccess(res, { data: { completion } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getMyStats = async (req, res, next) => {
+  try {
+    const stats = await profileService.getProfileStats(req.user.sub);
+    return sendSuccess(res, { data: { stats } });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const uploadBrandAsset = async (req, res, next) => {
   try {
     if (!req.file) {
@@ -84,7 +111,7 @@ const getPricingGuidance = async (req, res, next) => {
 
 // Add to module.exports:
 module.exports = {
-  getMyProfile, updateMyProfile, updateAvatar,
+  getMyProfile, updateMyProfile, updateAvatar, removeAvatar, getMyCompletion, getMyStats,
   uploadBrandAsset,
   getPublicProfile, getPricingGuidance,
 };

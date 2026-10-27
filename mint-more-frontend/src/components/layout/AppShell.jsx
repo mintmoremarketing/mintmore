@@ -16,7 +16,11 @@ import NotifPanel from '../shared/NotifPanel'
 import TopUpModal from '../shared/TopUpModal'
 import MintcoinModal from '../shared/MintcoinModal'
 import GuestBanner from '../shared/GuestBanner'
+import ProfileCompletion from '../freelancer/ProfileCompletion.jsx'
+import FreelancerTopbar from './FreelancerTopbar'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import { useEntitlements } from '../../hooks/useEntitlements'
+import { LAUNCH_FLAG_OVERRIDES } from '../../config/launch'
 import Icon from '../ui/Icon'
 
 const DEFAULT_FLAGS = { wallet_ui: false, marketplace: false, freelancer_portal: false, freelancer_matching: false, negotiation: false }
@@ -46,16 +50,6 @@ function AdminImpersonationBanner() {
   )
 }
 
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const handler = (e) => setIsMobile(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-  return isMobile
-}
 
 export default function AppShell() {
   const navigate = useNavigate()
@@ -80,7 +74,7 @@ export default function AppShell() {
   const role = isGuest ? 'client' : user?.role
   const { data: access } = useEntitlements()
   const featureFlags = { ...DEFAULT_FLAGS, ...(access?.feature_flags || {}) }
-  const showWalletUi = role !== 'client' || featureFlags.wallet_ui !== false
+  const showWalletUi = role !== 'client' || featureFlags.wallet_ui === true
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -110,7 +104,7 @@ export default function AppShell() {
   const { data: aiUsageData } = useQuery({
     queryKey: aiUsageQueryKey,
     queryFn: () => aiApi.getUsage(aiUsageFocus || undefined).then(r => r.data.data),
-    enabled: isAuthed && user?.role === 'client' && !isGuest,
+    enabled: LAUNCH_FLAG_OVERRIDES.mint_ai !== false && isAuthed && user?.role === 'client' && !isGuest,
     refetchInterval: 60_000,
   })
   const aiUsageSummary = aiUsageData?.usage || null
@@ -144,8 +138,30 @@ export default function AppShell() {
     )
   }
 
+  // Freelancers get a top-bar layout (no sidebar): Explore / Upskill / Assessments up top.
+  if (role === 'freelancer') {
+    return (
+      <div className="flex min-h-screen flex-col bg-white text-ink-900 font-sans" style={{ '--bottom-nav-h': isMobile ? '64px' : '0px' }}>
+        <div className="fixed inset-x-0 top-0 z-30 border-b border-ink-100 bg-white/95 backdrop-blur-md">
+          <FreelancerTopbar isMobile={isMobile} unreadCount={unreadCount} />
+        </div>
+        <main className={`flex min-w-0 flex-1 flex-col pt-16 ${isMobile ? 'pb-16' : ''}`}>
+          <AdminImpersonationBanner />
+          <GuestBanner />
+          <div className="relative flex h-full w-full flex-1 flex-col">
+            <Outlet />
+          </div>
+          <ProfileCompletion />
+          {isMobile && <MobileNav role={role} />}
+        </main>
+        <ToastHost toasts={toasts} />
+      </div>
+    )
+  }
+
   return (
-    <div className="flex min-h-screen bg-mint-50/20 text-ink-900 font-sans">
+    // --bottom-nav-h lets page-level sticky bars sit above the mobile tab bar.
+    <div className="flex min-h-screen bg-mint-50/20 text-ink-900 font-sans" style={{ '--bottom-nav-h': isMobile ? '64px' : '0px' }}>
       {/* Desktop sidebar — hidden on mobile */}
       {!isMobile && (
         <Sidebar
@@ -163,8 +179,8 @@ export default function AppShell() {
           isMobile={isMobile}
           onMenuClick={() => setDrawerOpen(true)}
           walletBalance={showWalletUi && role !== 'admin' && !isGuest ? walletBalance : undefined}
-          mintCoinBalance={role === 'client' ? (isGuest ? 999 : mintCoinBalance) : undefined}
-          usageSummary={role === 'client' ? aiUsageSummary : undefined}
+          mintCoinBalance={undefined}
+          usageSummary={undefined}
           onWalletClick={() => showWalletUi && setShowTopUp(true)}
           onMintCoinClick={() => isGuest ? navigate('/register') : setShowMintcoinModal(true)}
           onNotifClick={() => setShowNotif(!showNotif)}
@@ -185,6 +201,8 @@ export default function AppShell() {
           <Outlet />
         </div>
 
+        <ProfileCompletion />
+
         {/* Mobile bottom nav */}
         {isMobile && <MobileNav role={role} />}
       </main>
@@ -196,7 +214,7 @@ export default function AppShell() {
 
       {showNotif && !isGuest && <NotifPanel onClose={() => setShowNotif(false)} />}
       {showTopUp && showWalletUi && !isGuest && <TopUpModal onClose={() => setShowTopUp(false)} />}
-      {showMintcoinModal && !isGuest && <MintcoinModal onClose={() => setShowMintcoinModal(false)} />}
+      {LAUNCH_FLAG_OVERRIDES.mint_ai !== false && showMintcoinModal && !isGuest && <MintcoinModal onClose={() => setShowMintcoinModal(false)} />}
 
       <ToastHost toasts={toasts} />
     </div>

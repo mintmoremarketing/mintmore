@@ -678,6 +678,12 @@ const completeJob = async (jobId, adminId, { completion_note } = {}) => {
       [jobId]
     );
 
+    // Fixed-price service bookings mirror completion for listing/filtering.
+    await dbClient.query(
+      `UPDATE service_bookings SET completed_at = NOW() WHERE job_id = $1 AND completed_at IS NULL`,
+      [jobId]
+    );
+
     // Update assignment
     await dbClient.query(
       `UPDATE job_assignments

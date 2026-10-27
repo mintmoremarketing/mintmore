@@ -10,12 +10,15 @@ router.use(authenticate);
 
 router.get('/me', controller.getMyProfile);
 router.patch('/me', controller.updateMyProfile);
+router.get('/me/completion', authorize('freelancer'), controller.getMyCompletion);
+router.get('/me/stats', authorize('freelancer'), controller.getMyStats);
 
 router.patch(
   '/me/avatar',
   handleUploadError(upload.single('avatar')),
   controller.updateAvatar
 );
+router.delete('/me/avatar', controller.removeAvatar);
 
 router.post(
   '/me/brand-assets/upload',

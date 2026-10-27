@@ -6,6 +6,9 @@ import Icon from '../ui/Icon'
 import { useEntitlements } from '../../hooks/useEntitlements'
 import { filterNavItems, navForRole } from './navigation'
 
+// Membership upsell is hidden for the services launch.
+const SHOW_UPGRADE_PLAN = false
+
 export default function Sidebar({ role, collapsed = false, onCollapsedChange }) {
   const navigate  = useNavigate()
   const location  = useLocation()
@@ -93,7 +96,8 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
 
       {/* Bottom: settings + user */}
       <div className="p-3 shrink-0 border-t border-ink-800 flex flex-col gap-1 relative">
-        {role === 'client' && (
+        {/* Upgrade Plan hidden for the services launch */}
+        {SHOW_UPGRADE_PLAN && role === 'client' && (
           <button
             className={`flex items-center rounded-lg transition-colors px-3 h-10 w-full shrink-0 group font-bold bg-mint-500 text-white shadow hover:bg-mint-400 ${
               expanded ? 'justify-start mb-2' : 'justify-center mb-2'

@@ -1,8 +1,11 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../ui/Icon'
+import Avatar from '../ui/Avatar'
 import { filterNavItems, navForRole } from './navigation'
 import { useEntitlements } from '../../hooks/useEntitlements'
+
+const SHOW_UPGRADE_PLAN = false
 
 export default function MobileDrawer({ role, onClose }) {
   const navigate  = useNavigate()
@@ -43,7 +46,8 @@ export default function MobileDrawer({ role, onClose }) {
             ))}
           </div>
 
-          {role === 'client' && (
+          {/* LAUNCH-HIDDEN: membership upsell, hidden for the services launch (matches Sidebar). */}
+          {SHOW_UPGRADE_PLAN && role === 'client' && (
             <button
               className="nav-item"
               style={{ color: 'var(--mint-500)', fontWeight: 600 }}
@@ -64,9 +68,7 @@ export default function MobileDrawer({ role, onClose }) {
 
           {/* User footer */}
           <div className="sidebar-user">
-            <div className="avatar sm">
-              {(user?.full_name || 'U').split(' ').map(p => p[0]).slice(0, 2).join('')}
-            </div>
+            <Avatar name={user?.full_name} src={user?.avatar_url} size="sm" />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 fontSize: 12.5, fontWeight: 500, color: 'var(--ink-950)',
@@ -82,6 +84,7 @@ export default function MobileDrawer({ role, onClose }) {
               className="icon-btn"
               onClick={() => { logout(); onClose() }}
               title="Sign out"
+              aria-label="Sign out"
             >
               <Icon name="arrowRight" size={13} />
             </button>

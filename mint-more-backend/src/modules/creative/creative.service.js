@@ -7,6 +7,15 @@ const env = require('../../config/env');
 const { recordCreditTransaction, getCreditAccount } = require('../commerce/credits.service');
 const { getSetting } = require('../commerce/settings.service');
 const notificationService = require('../notifications/notification.service');
+const {
+  notifyCalendarCompleted,
+  notifyDesignerAssigned,
+  notifyCreativeUploaded,
+  notifyCreativeRejectedByAdmin,
+  notifyCreativeReadyClientReview,
+  notifyCreativeScheduled,
+  notifyCreativeRejectedByClient,
+} = require('../notifications/notification.triggers');
 const { writeAudit } = require('../audit/audit.service');
 const chatService = require('../chat/chat.service');
 
@@ -1103,6 +1112,122 @@ const listDesignerTasks = async (designerId) => {
   return { tasks: result.rows };
 };
 
+const completeCalendar = async (clientId) => {
+  const userResult = await query(
+    `SELECT id, full_name, business_name, email FROM users WHERE id = $1`,
+    [clientId]
+  );
+  const client = userResult.rows[0];
+  if (!client) throw new AppError('Client not found', 404);
+
+  await notifyCalendarCompleted({
+    clientId,
+    clientName: client.full_name || client.business_name,
+  });
+
+  return { completed: true, client };
+};
+
+const listAdminClients = async () => {
+  const result = await query(
+    `SELECT 
+       u.id, u.email, u.full_name, u.business_name, u.business_type,
+       u.role, u.is_active, u.created_at,
+       u.assigned_designer_id,
+       u.brand_assets, u.posting_preferences,
+       d.full_name AS assigned_designer_name,
+       d.email AS assigned_designer_email,
+       COUNT(sp.id) FILTER (WHERE sp.status IN ('draft', 'pending_admin_review', 'pending_client_review', 'rejected'))::int AS active_post_count
+     FROM users u
+     LEFT JOIN users d ON d.id = u.assigned_designer_id
+     LEFT JOIN social_posts sp ON sp.user_id = u.id
+     WHERE u.role = 'client'
+     GROUP BY u.id, d.full_name, d.email
+     ORDER BY u.created_at DESC`
+  );
+  return { clients: result.rows };
+};
+
+const listAdminDesigners = async () => {
+  const result = await query(
+    `SELECT 
+       u.id, u.email, u.full_name, u.role, u.is_active, u.created_at,
+       COUNT(c.id)::int AS assigned_clients_count
+     FROM users u
+     LEFT JOIN users c ON c.assigned_designer_id = u.id AND c.role = 'client'
+     WHERE u.role = 'designer'
+     GROUP BY u.id
+     ORDER BY u.created_at DESC`
+  );
+  return { designers: result.rows };
+};
+
+const assignDesignerToClient = async (adminId, clientId, designerId) => {
+  const clientRes = await query(
+    `SELECT id, full_name, business_name FROM users WHERE id = $1 AND role = 'client'`,
+    [clientId]
+  );
+  const client = clientRes.rows[0];
+  if (!client) throw new AppError('Client not found', 404);
+
+  if (designerId) {
+    const desRes = await query(
+      `SELECT id, full_name, role FROM users WHERE id = $1 AND role IN ('designer', 'admin')`,
+      [designerId]
+    );
+    const designer = desRes.rows[0];
+    if (!designer) throw new AppError('Designer not found or invalid role', 404);
+  }
+
+  const updateRes = await query(
+    `UPDATE users
+     SET assigned_designer_id = $1,
+         updated_at = NOW()
+     WHERE id = $2
+     RETURNING id, full_name, email, assigned_designer_id`,
+    [designerId || null, clientId]
+  );
+
+  if (designerId) {
+    await notifyDesignerAssigned({
+      designerId,
+      clientId,
+      clientName: client.full_name || client.business_name,
+    });
+  }
+
+  return { assigned_designer_id: designerId || null, client: updateRes.rows[0] };
+};
+
+const normalizeTargetPlatforms = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      return trimmed
+        .slice(1, -1)
+        .split(',')
+        .map((item) => item.trim().replace(/^"|"$/g, ''))
+        .filter(Boolean);
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+    return trimmed.split(',').map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+};
+
+const normalizePost = (post) => {
+  if (!post) return post;
+  return {
+    ...post,
+    target_platforms: normalizeTargetPlatforms(post.target_platforms),
+  };
+};
+
 const listDesignerSocialQueue = async (designerId) => {
   const result = await query(
     `SELECT sp.*,
@@ -1110,66 +1235,372 @@ const listDesignerSocialQueue = async (designerId) => {
             u.business_name AS client_business_name,
             u.business_type AS client_business_type,
             u.brand_assets,
-            u.onboarding_answers,
-            p.posting_preferences
+            u.posting_preferences
      FROM social_posts sp
      JOIN users u ON u.id = sp.user_id
-     LEFT JOIN profiles p ON p.user_id = sp.user_id
-     WHERE sp.status = 'draft'
-       AND sp.content_type IN ('image', 'video', 'carousel')
-     ORDER BY sp.publish_at ASC, sp.created_at DESC`
+     WHERE (u.assigned_designer_id = $1 OR sp.designer_id = $1)
+     ORDER BY sp.publish_at ASC NULLS LAST, sp.created_at DESC`,
+    [designerId]
   );
-  return { posts: result.rows };
+  const normalized = result.rows.map(normalizePost);
+  return { queue: normalized, posts: normalized };
 };
 
-const uploadCreativeToSocialPost = async (designerId, postId, payload) => {
-  if (!payload.creative_url) throw new AppError('creative_url is required', 400);
+const uploadCreativeToSocialPost = async (actorId, actorRole, postId, payload = {}) => {
+  if (!payload || !payload.creative_url || typeof payload.creative_url !== 'string' || !payload.creative_url.trim()) {
+    throw new AppError('creative_url is required', 400);
+  }
 
   const beforeResult = await query(
-    `SELECT sp.*, p.posting_preferences
+    `SELECT sp.*,
+            u.full_name AS client_name,
+            u.business_name AS client_business_name,
+            u.assigned_designer_id,
+            u.posting_preferences
      FROM social_posts sp
      JOIN users u ON u.id = sp.user_id
-     LEFT JOIN profiles p ON p.user_id = sp.user_id
      WHERE sp.id = $1`,
     [postId]
   );
   const before = beforeResult.rows[0];
   if (!before) throw new AppError('Post not found', 404);
-  if (before.status !== 'draft' && before.status !== 'in_review') {
-    throw new AppError(`Post is no longer a draft (status: ${before.status})`, 409);
+
+  if (actorRole === 'designer') {
+    const isAssigned = before.designer_id === actorId || before.assigned_designer_id === actorId;
+    if (!isAssigned) {
+      throw new AppError('Forbidden: post not assigned to designer', 403);
+    }
   }
 
-  const isAutopilot = before.posting_preferences?.festival_mode === 'managed';
-  const newStatus = isAutopilot ? 'scheduled' : 'in_review';
+  const assignedDesigner = actorRole === 'designer' ? actorId : (before.designer_id || null);
+  const contentType = payload.media_type || payload.content_type || null;
 
   const result = await query(
     `UPDATE social_posts
      SET creative_url = $1,
-         status = $2,
+         status = 'pending_admin_review',
+         designer_id = COALESCE(designer_id, $2),
+         caption = COALESCE($3, caption),
+         title = COALESCE($4, title),
+         content_type = COALESCE($5, content_type),
+         updated_at = NOW()
+     WHERE id = $6
+     RETURNING *`,
+    [
+      payload.creative_url.trim(),
+      assignedDesigner,
+      payload.caption !== undefined ? payload.caption : null,
+      payload.title !== undefined ? payload.title : null,
+      contentType,
+      postId,
+    ]
+  );
+
+  const updatedPost = normalizePost(result.rows[0]);
+
+  await notifyCreativeUploaded({
+    postId,
+    designerId: updatedPost.designer_id || actorId,
+    designerName: actorRole === 'designer' ? 'Designer' : 'Admin',
+    clientName: before.client_name || before.client_business_name,
+  });
+
+  return { post: updatedPost };
+};
+
+const listAdminReviewQueue = async () => {
+  const result = await query(
+    `SELECT sp.*,
+            u.full_name AS client_name,
+            u.email AS client_email,
+            u.business_name AS client_business_name,
+            u.business_type AS client_business_type,
+            u.brand_assets,
+            u.posting_preferences,
+            d.full_name AS designer_name,
+            d.email AS designer_email
+     FROM social_posts sp
+     JOIN users u ON u.id = sp.user_id
+     LEFT JOIN users d ON d.id = sp.designer_id
+     WHERE sp.status = 'pending_admin_review'
+     ORDER BY sp.publish_at ASC NULLS LAST, sp.created_at DESC`
+  );
+  return { queue: result.rows.map(normalizePost) };
+};
+
+const adminApprovePost = async (adminId, postId, payload = {}) => {
+  const postRes = await query(
+    `SELECT sp.*,
+            u.full_name AS client_name,
+            u.business_name AS client_business_name,
+            u.posting_preferences
+     FROM social_posts sp
+     JOIN users u ON u.id = sp.user_id
+     WHERE sp.id = $1`,
+    [postId]
+  );
+  const post = postRes.rows[0];
+  if (!post) throw new AppError('Post not found', 404);
+
+  const isAutopilot =
+    post.posting_preferences?.approval_mode === 'autopilot' ||
+    post.posting_preferences?.festival_mode === 'managed';
+
+  const nextStatus = isAutopilot ? 'scheduled' : 'pending_client_review';
+  const routingMode = isAutopilot ? 'autopilot' : 'manual_review';
+
+  const scheduledAt = payload.scheduled_at || payload.publish_at || post.publish_at;
+  const caption = payload.caption !== undefined ? payload.caption : post.caption;
+  const title = payload.title !== undefined ? payload.title : post.title;
+
+  const result = await query(
+    `UPDATE social_posts
+     SET status = $1,
+         publish_at = $2,
+         caption = $3,
+         title = $4,
+         updated_at = NOW()
+     WHERE id = $5
+     RETURNING *`,
+    [nextStatus, scheduledAt, caption, title, postId]
+  );
+
+  const updatedPost = normalizePost(result.rows[0]);
+
+  if (isAutopilot) {
+    await notifyCreativeScheduled({
+      postId,
+      clientId: post.user_id,
+      designerId: post.designer_id,
+      title: updatedPost.title,
+    });
+  } else {
+    await notifyCreativeReadyClientReview({
+      postId,
+      clientId: post.user_id,
+      title: updatedPost.title,
+    });
+  }
+
+  return { post: updatedPost, status: nextStatus, routing_mode: routingMode };
+};
+
+const adminRejectPost = async (adminId, postId, payload = {}) => {
+  const reason = (payload.reason || '').trim();
+  if (!reason) throw new AppError('Rejection reason is required', 400);
+
+  const postRes = await query(
+    `SELECT sp.*,
+            u.full_name AS client_name,
+            u.business_name AS client_business_name
+     FROM social_posts sp
+     JOIN users u ON u.id = sp.user_id
+     WHERE sp.id = $1`,
+    [postId]
+  );
+  const post = postRes.rows[0];
+  if (!post) throw new AppError('Post not found', 404);
+
+  const historyEntry = JSON.stringify([
+    {
+      by: 'admin',
+      reason,
+      timestamp: new Date().toISOString(),
+      actor_id: adminId,
+    },
+  ]);
+
+  const result = await query(
+    `UPDATE social_posts
+     SET status = 'rejected',
+         admin_feedback = $1,
+         rejection_reason = $1,
+         rejection_history = COALESCE(rejection_history, '[]'::jsonb) || $2::jsonb,
          updated_at = NOW()
      WHERE id = $3
      RETURNING *`,
-    [payload.creative_url, newStatus, postId]
+    [reason, historyEntry, postId]
   );
-  
-  // Notification logic
-  if (newStatus === 'in_review' && before.posting_preferences?.approval_mode !== 'weekly_batch') {
-    try {
-      await notificationService.createNotification({
-        type: 'work_delivered',
-        user_id: before.user_id,
-        title: 'Creative Ready for Review',
-        body: `A new creative for your upcoming post is ready to be reviewed.`,
-        entity_type: 'social_post',
-        entity_id: postId,
-        dedupe_key: `creative_review_${postId}`,
-      });
-    } catch (err) {
-      logger.error('Failed to send creative review notification', { error: err.message, postId });
-    }
+
+  const updatedPost = normalizePost(result.rows[0]);
+
+  await notifyCreativeRejectedByAdmin({
+    postId,
+    designerId: post.designer_id,
+    reason,
+    clientName: post.client_name || post.business_name,
+  });
+
+  return { post: updatedPost, status: 'rejected', admin_feedback: reason };
+};
+
+const listClientPendingReview = async (clientId) => {
+  const result = await query(
+    `SELECT sp.*,
+            d.full_name AS designer_name,
+            d.email AS designer_email
+     FROM social_posts sp
+     LEFT JOIN users d ON d.id = sp.designer_id
+     WHERE sp.user_id = $1
+       AND sp.status = 'pending_client_review'
+     ORDER BY sp.publish_at ASC NULLS LAST, sp.created_at DESC`,
+    [clientId]
+  );
+  return { posts: result.rows.map(normalizePost) };
+};
+
+const clientApprovePost = async (clientId, postId) => {
+  const postRes = await query(`SELECT * FROM social_posts WHERE id = $1`, [postId]);
+  const post = postRes.rows[0];
+  if (!post) throw new AppError('Post not found', 404);
+
+  if (post.user_id !== clientId) {
+    throw new AppError('Forbidden: not your post', 403);
   }
 
-  return result.rows[0];
+  const result = await query(
+    `UPDATE social_posts
+     SET status = 'scheduled',
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [postId]
+  );
+
+  const updatedPost = normalizePost(result.rows[0]);
+
+  await notifyCreativeScheduled({
+    postId,
+    clientId: post.user_id,
+    designerId: post.designer_id,
+    title: updatedPost.title,
+  });
+
+  return { post: updatedPost, status: 'scheduled' };
+};
+
+const clientRejectPost = async (clientId, postId, payload = {}) => {
+  const reason = (payload.reason || '').trim();
+  if (!reason) throw new AppError('Rejection reason is required', 400);
+
+  const postRes = await query(
+    `SELECT sp.*,
+            u.full_name AS client_name,
+            u.business_name AS client_business_name
+     FROM social_posts sp
+     JOIN users u ON u.id = sp.user_id
+     WHERE sp.id = $1`,
+    [postId]
+  );
+  const post = postRes.rows[0];
+  if (!post) throw new AppError('Post not found', 404);
+
+  if (post.user_id !== clientId) {
+    throw new AppError('Forbidden: not your post', 403);
+  }
+
+  const historyEntry = JSON.stringify([
+    {
+      by: 'client',
+      reason,
+      timestamp: new Date().toISOString(),
+      actor_id: clientId,
+    },
+  ]);
+
+  const result = await query(
+    `UPDATE social_posts
+     SET status = 'rejected',
+         client_feedback = $1,
+         rejection_reason = $1,
+         rejection_history = COALESCE(rejection_history, '[]'::jsonb) || $2::jsonb,
+         updated_at = NOW()
+     WHERE id = $3
+     RETURNING *`,
+    [reason, historyEntry, postId]
+  );
+
+  const updatedPost = normalizePost(result.rows[0]);
+
+  await notifyCreativeRejectedByClient({
+    postId,
+    clientId: post.user_id,
+    designerId: post.designer_id,
+    reason,
+    clientName: post.client_name || post.business_name,
+    title: post.title,
+  });
+
+  return { post: updatedPost, status: 'rejected', client_feedback: reason };
+};
+
+const adminDirectUpload = async (adminId, payload = {}) => {
+  const { client_id, creative_url } = payload;
+  if (!client_id) throw new AppError('client_id is required', 400);
+  if (!creative_url || typeof creative_url !== 'string' || !creative_url.trim()) {
+    throw new AppError('creative_url is required', 400);
+  }
+
+  const clientRes = await query(
+    `SELECT id, full_name, business_name, email, posting_preferences FROM users WHERE id = $1 AND role = 'client'`,
+    [client_id]
+  );
+  const client = clientRes.rows[0];
+  if (!client) throw new AppError('Client not found', 404);
+
+  const bypass = payload.bypass_client_review === true;
+  const isAutopilot =
+    bypass ||
+    client.posting_preferences?.approval_mode === 'autopilot' ||
+    client.posting_preferences?.festival_mode === 'managed';
+
+  const status = isAutopilot ? 'scheduled' : 'pending_client_review';
+  const scheduledAt = payload.scheduled_at || payload.publish_at || new Date(Date.now() + 86400000).toISOString();
+  const targetPlatforms = Array.isArray(payload.target_platforms) && payload.target_platforms.length > 0
+    ? payload.target_platforms
+    : ['instagram', 'facebook'];
+  const contentType = payload.media_type || payload.content_type || 'image';
+  const title = payload.title || 'Direct Creative Post';
+  const caption = payload.caption || '';
+
+  const result = await query(
+    `INSERT INTO social_posts (
+       user_id, designer_id, status, title, caption, creative_url,
+       publish_at, target_platforms, content_type
+     ) VALUES (
+       $1, NULL, $2, $3, $4, $5,
+       $6, $7, $8
+     ) RETURNING *`,
+    [
+      client.id,
+      status,
+      title,
+      caption,
+      creative_url.trim(),
+      scheduledAt,
+      targetPlatforms,
+      contentType,
+    ]
+  );
+
+  const post = normalizePost(result.rows[0]);
+
+  if (status === 'scheduled') {
+    await notifyCreativeScheduled({
+      postId: post.id,
+      clientId: client.id,
+      designerId: null,
+      title: post.title,
+    });
+  } else {
+    await notifyCreativeReadyClientReview({
+      postId: post.id,
+      clientId: client.id,
+      title: post.title,
+    });
+  }
+
+  return { post };
 };
 
 const getTaskSheetRows = async () => {
@@ -1974,6 +2405,19 @@ const rejectCustomRequest = async (adminId, requestId, payload = {}) => {
 };
 
 module.exports = {
+  completeCalendar,
+  listAdminClients,
+  listAdminDesigners,
+  assignDesignerToClient,
+  listDesignerSocialQueue,
+  uploadCreativeToSocialPost,
+  listAdminReviewQueue,
+  adminApprovePost,
+  adminRejectPost,
+  listClientPendingReview,
+  clientApprovePost,
+  clientRejectPost,
+  adminDirectUpload,
   listCalendar,
   selectEvent,
   createCustomRequest,
@@ -1983,8 +2427,6 @@ module.exports = {
   updateDesignerTask,
   cancelClientWorkItem,
   syncTaskSheet,
-  listDesignerSocialQueue,
-  uploadCreativeToSocialPost,
   suggestCalendarEvents,
   upsertEvent,
   archiveEvent,

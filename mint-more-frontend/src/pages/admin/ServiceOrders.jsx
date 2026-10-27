@@ -1,0 +1,110 @@
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { servicesApi } from '../../api/services'
+import { useUIStore } from '../../store/ui'
+import Modal from '../../components/ui/Modal'
+import Tabs from '../../components/ui/Tabs'
+import StageBadge from '../../components/services/StageBadge'
+import { dueText, formatDate, inr, variantLabel } from '../../components/services/serviceUtils'
+
+function AssignModal({ booking, onClose }) {
+	const queryClient = useQueryClient()
+	const pushToast = useUIStore(s => s.pushToast)
+	const [selected, setSelected] = useState('')
+	const { data: freelancers = [], isLoading } = useQuery({
+		queryKey: ['admin-eligible-freelancers', booking.id],
+		queryFn: () => servicesApi.adminEligibleFreelancers(booking.id).then(res => res.data.data),
+	})
+	const assign = useMutation({
+		mutationFn: () => servicesApi.adminAssign(booking.id, selected ? { freelancer_id: selected } : {}),
+		onSuccess: (res) => {
+			queryClient.invalidateQueries({ queryKey: ['admin-service-bookings'] })
+			const result = res.data.data
+			pushToast({ title: result?.assigned ? 'Freelancer assigned' : 'No eligible freelancer found', icon: result?.assigned ? 'check' : 'x', tone: result?.assigned ? undefined : 'amber' })
+			onClose()
+		},
+		onError: err => pushToast({ title: 'Could not assign', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
+	})
+
+	return (
+		<Modal
+			title={`Assign ${booking.booking_number}`}
+			subtitle={booking.snapshot?.title}
+			onClose={onClose}
+			maxWidth={560}
+			footer={<>
+				<button className="btn ghost" onClick={onClose}>Cancel</button>
+				<button className="btn primary" disabled={assign.isPending} onClick={() => assign.mutate()}>{selected ? 'Assign selected' : 'Auto-assign best match'}</button>
+			</>}
+		>
+			<p className="mb-3 text-sm text-ink-600">Only active, available, KYC-verified freelancers under their job limit are listed. Opted-in freelancers come first.</p>
+			{isLoading ? <div className="h-24 animate-pulse rounded-xl bg-ink-100" /> : freelancers.length === 0 ? (
+				<div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">No eligible freelancers right now.</div>
+			) : (
+				<div className="max-h-80 space-y-1.5 overflow-y-auto">
+					{freelancers.map(f => (
+						<label key={f.id} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-2.5 text-sm ${selected === f.id ? 'border-mint-400 bg-mint-50' : 'border-ink-200'}`}>
+							<input type="radio" name="freelancer" checked={selected === f.id} onChange={() => setSelected(f.id)} />
+							<div className="min-w-0 flex-1">
+								<div className="font-semibold text-ink-900">{f.full_name}</div>
+								<div className="truncate text-xs text-ink-500">{f.email}</div>
+							</div>
+							<div className="text-right text-xs text-ink-500">
+								{f.opted_in ? <span className="font-bold text-emerald-700">Offers this</span> : 'Not opted in'}
+								<div>{Number(f.average_rating || 0).toFixed(1)}★ · {f.active_jobs_count} active</div>
+							</div>
+						</label>
+					))}
+				</div>
+			)}
+		</Modal>
+	)
+}
+
+export default function AdminServiceOrders() {
+	const [tab, setTab] = useState('unassigned')
+	const [assigning, setAssigning] = useState(null)
+	const { data: rows = [], isLoading } = useQuery({
+		queryKey: ['admin-service-bookings', tab],
+		queryFn: () => servicesApi.adminBookings(tab === 'unassigned' ? { status: 'unassigned' } : {}).then(res => res.data.data),
+		refetchInterval: 30_000,
+	})
+
+	return (
+		<div className="page">
+			<div className="mb-6">
+				<div className="text-[11px] font-bold uppercase tracking-wider text-mint-500">Admin</div>
+				<h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-ink-900">Service orders</h1>
+				<p className="mt-1 text-sm text-ink-500">Paid orders are auto-assigned. Anything nobody could take lands in Unassigned.</p>
+			</div>
+			<Tabs items={[{ value: 'unassigned', label: 'Unassigned' }, { value: 'all', label: 'All orders' }]} value={tab} onChange={setTab} />
+
+			<div className="mt-4 overflow-x-auto rounded-2xl border border-ink-200 bg-white">
+				<table className="w-full min-w-[820px] text-sm">
+					<thead className="bg-ink-50 text-left text-[11px] uppercase tracking-wider text-ink-500">
+						<tr><th className="px-4 py-2">Order</th><th>Service</th><th>Client</th><th>Freelancer</th><th>Stage</th><th>Paid</th><th>Amount</th><th /></tr>
+					</thead>
+					<tbody>
+						{isLoading ? (
+							<tr><td colSpan={8} className="px-4 py-6 text-center text-ink-400">Loading…</td></tr>
+						) : rows.length === 0 ? (
+							<tr><td colSpan={8} className="px-4 py-8 text-center text-ink-500">{tab === 'unassigned' ? 'Nothing waiting for a freelancer.' : 'No service orders yet.'}</td></tr>
+						) : rows.map(row => (
+							<tr key={row.id} className="border-t border-ink-100">
+								<td className="px-4 py-2.5 font-bold tabular-nums text-ink-700">{row.booking_number}</td>
+								<td><div className="font-semibold text-ink-900">{row.snapshot?.title}</div><div className="text-xs text-ink-500">{variantLabel(row.snapshot || {}, row.snapshot?.option_group_label)}{Number(row.quantity) > 1 ? ` × ${row.quantity}` : ''}</div></td>
+								<td className="text-ink-700">{row.client_name}</td>
+								<td className="text-ink-700">{row.freelancer_name || <span className="text-amber-700">—</span>}</td>
+								<td><StageBadge stage={row.stage} />{row.due_at && row.stage !== 'completed' && <div className="text-[11px] text-ink-400">{dueText(row.due_at)}</div>}</td>
+								<td className="text-xs text-ink-500">{formatDate(row.paid_at)}</td>
+								<td className="tabular-nums"><div>{inr(row.subtotal)}</div><div className="text-[11px] text-ink-400">payout {inr(row.freelancer_payout)}</div></td>
+								<td className="pr-4 text-right">{row.assignment_status === 'unassigned' && <button className="btn primary sm" onClick={() => setAssigning(row)}>Assign</button>}</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+			{assigning && <AssignModal booking={assigning} onClose={() => setAssigning(null)} />}
+		</div>
+	)
+}

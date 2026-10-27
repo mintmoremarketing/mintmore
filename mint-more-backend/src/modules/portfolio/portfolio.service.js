@@ -1,9 +1,54 @@
 const { query }  = require('../../config/database');
-const { uploadFile } = require('../storage/app-storage.provider');
+const { uploadFile, createSignedDownloadUrl } = require('../storage/app-storage.provider');
 const AppError   = require('../../utils/AppError');
 const logger     = require('../../utils/logger');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+
+// Private-bucket uploads come back as { bucket, path }; keep that as JSON and sign on read.
+const toStoredRef = (value) => (value && typeof value === 'object' ? JSON.stringify(value) : value);
+
+const resolveStoredUrl = async (value) => {
+	if (typeof value !== 'string' || !value.startsWith('{')) return value;
+	try {
+		const ref = JSON.parse(value);
+		return await createSignedDownloadUrl(ref.bucket, ref.path, 7 * 24 * 60 * 60);
+	} catch {
+		return null;
+	}
+};
+
+const withUrls = async (item) => ({
+	...item,
+	cover_image_url: await resolveStoredUrl(item.cover_image_url),
+	media_urls: await Promise.all((item.media_urls || []).map(resolveStoredUrl)),
+});
+
+/** Explore feed: every visible post from active freelancers, newest first. */
+const getFeed = async ({ page = 1, limit = 21, freelancerId } = {}) => {
+	const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 21, 1), 60);
+	const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * safeLimit;
+	const params = [safeLimit, offset];
+	let freelancerClause = '';
+	if (freelancerId) {
+		params.push(freelancerId);
+		freelancerClause = `AND pi.freelancer_id = $${params.length}`;
+	}
+	const result = await query(
+		`SELECT pi.id, pi.title, pi.description, pi.cover_image_url, pi.media_urls, pi.tools_used,
+		        pi.created_at, c.name AS category_name,
+		        u.id AS freelancer_id, u.full_name AS freelancer_name, u.username AS freelancer_username,
+		        u.avatar_url AS freelancer_avatar
+		 FROM portfolio_items pi
+		 JOIN users u ON u.id = pi.freelancer_id AND u.is_active AND u.role = 'freelancer'
+		 LEFT JOIN categories c ON c.id = pi.category_id
+		 WHERE pi.is_visible IS NOT FALSE ${freelancerClause}
+		 ORDER BY pi.created_at DESC
+		 LIMIT $1 OFFSET $2`,
+		params
+	);
+	return Promise.all(result.rows.map(withUrls));
+};
 
 const getMyPortfolio = async (freelancerId) => {
 	const result = await query(
@@ -14,7 +59,7 @@ const getMyPortfolio = async (freelancerId) => {
 		 ORDER BY pi.sort_order ASC, pi.created_at DESC`,
 		[freelancerId]
 	);
-	return result.rows;
+	return Promise.all(result.rows.map(withUrls));
 };
 
 const getFreelancerPortfolio = async (freelancerId) => {
@@ -26,7 +71,7 @@ const getFreelancerPortfolio = async (freelancerId) => {
 		 ORDER BY pi.is_featured DESC, pi.sort_order ASC, pi.created_at DESC`,
 		[freelancerId]
 	);
-	return result.rows;
+	return Promise.all(result.rows.map(withUrls));
 };
 
 const createPortfolioItem = async (freelancerId, data, coverFile, extraFiles = []) => {
@@ -47,7 +92,7 @@ const createPortfolioItem = async (freelancerId, data, coverFile, extraFiles = [
 		const ext      = path.extname(file.originalname).toLowerCase() || '.jpg';
 		const filePath = `portfolio/${freelancerId}/${uuidv4()}${ext}`;
 		const url      = await uploadFile('job-attachments', filePath, file.buffer, file.mimetype);
-		mediaUrls.push(url);
+		mediaUrls.push(toStoredRef(url));
 	}
 
 	const result = await query(
@@ -63,7 +108,7 @@ const createPortfolioItem = async (freelancerId, data, coverFile, extraFiles = [
 			data.title.trim(),
 			data.description?.trim() || null,
 			data.category_id || null,
-			coverUrl,
+			toStoredRef(coverUrl),
 			mediaUrls,
 			data.tags ? JSON.parse(data.tags) : [],
 			data.tools_used ? JSON.parse(data.tools_used) : [],
@@ -77,7 +122,7 @@ const createPortfolioItem = async (freelancerId, data, coverFile, extraFiles = [
 	);
 
 	logger.info('Portfolio item created', { freelancerId, title: data.title });
-	return result.rows[0];
+	return withUrls(result.rows[0]);
 };
 
 const updatePortfolioItem = async (freelancerId, itemId, updates) => {
@@ -116,6 +161,7 @@ const deletePortfolioItem = async (freelancerId, itemId) => {
 };
 
 module.exports = {
+	getFeed,
 	getMyPortfolio,
 	getFreelancerPortfolio,
 	createPortfolioItem,

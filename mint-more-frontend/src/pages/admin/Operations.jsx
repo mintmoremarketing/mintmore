@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { creativeApi } from '../../api/creative'
 import { api } from '../../api/client'
@@ -6,9 +7,12 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import Tabs from '../../components/ui/Tabs'
 import DateBadge from '../../components/ui/DateBadge'
+import Avatar from '../../components/ui/Avatar'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { statusAccent } from '../../components/ui/statusMeta'
 import StatusSelect from '../../components/ui/StatusSelect'
+import AdminRejectModal from '../../components/admin/AdminRejectModal'
+import AdminDirectUploadModal from '../../components/admin/AdminDirectUploadModal'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const monthKey = (date = today()) => String(date || today()).slice(0, 7)
@@ -61,7 +65,29 @@ const downloadCsv = (rows) => {
 export default function AdminOperations() {
   const queryClient = useQueryClient()
   const pushToast = useUIStore(s => s.pushToast)
-  const [tab, setTab] = useState('tasks')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const rawTab = searchParams.get('tab')
+  const validTabs = ['review', 'clients', 'tasks', 'requests', 'calendar', 'selections']
+  const tab = validTabs.includes(rawTab) ? rawTab : 'review'
+
+  const handleTabChange = (newTab) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', newTab)
+      return next
+    })
+  }
+
+  // Modals & filters state
+  const [directUploadOpen, setDirectUploadOpen] = useState(false)
+  const [directUploadClientId, setDirectUploadClientId] = useState(null)
+  const [directUploadClientName, setDirectUploadClientName] = useState('')
+  const [rejectingPost, setRejectingPost] = useState(null)
+  const [clientFilter, setClientFilter] = useState('all') // 'all' | 'unassigned' | 'assigned'
+  const [clientSearch, setClientSearch] = useState('')
+
+  // Calendar event form state
   const [eventForm, setEventForm] = useState({
     title: '',
     event_date: today(),
@@ -76,9 +102,83 @@ export default function AdminOperations() {
   const [selectedSuggestions, setSelectedSuggestions] = useState([])
   const [designerForm, setDesignerForm] = useState({ full_name: '', email: '', password: '' })
 
+  // Legacy creative overview query (tasks, requests, selections, events, designers)
   const { data, isLoading } = useQuery({
     queryKey: ['admin-creative-overview'],
     queryFn: () => creativeApi.adminOverview().then(r => r.data.data),
+  })
+
+  // Review queue query
+  const { data: reviewQueueData, isLoading: isLoadingReviewQueue } = useQuery({
+    queryKey: ['admin-review-queue'],
+    queryFn: () => creativeApi.getAdminReviewQueue().then(r => r.data?.data?.queue || r.data?.queue || []),
+  })
+  const reviewQueue = Array.isArray(reviewQueueData) ? reviewQueueData : []
+
+  // Admin clients query
+  const { data: clientsData, isLoading: isLoadingClients } = useQuery({
+    queryKey: ['admin-clients'],
+    queryFn: () => creativeApi.getAdminClients().then(r => r.data?.data?.clients || r.data?.clients || []),
+  })
+  const clients = Array.isArray(clientsData) ? clientsData : []
+
+  // Admin designers query
+  const { data: designersData } = useQuery({
+    queryKey: ['admin-designers'],
+    queryFn: () => creativeApi.getAdminDesigners().then(r => r.data?.data?.designers || r.data?.designers || []),
+  })
+  const adminDesigners = Array.isArray(designersData) ? designersData : (data?.designers || [])
+
+  // Mutations
+  const approveCreative = useMutation({
+    mutationFn: (postId) => creativeApi.adminApproveCreative(postId),
+    onSuccess: (res) => {
+      const mode = res.data?.data?.routing_mode || res.data?.routing_mode
+      const isAutopilot = mode === 'autopilot'
+      pushToast({
+        title: isAutopilot ? 'Creative Approved (Autopilot)' : 'Creative Approved (Sent to Client)',
+        body: isAutopilot
+          ? 'Post scheduled directly to client calendar via autopilot.'
+          : 'Post forwarded to client for review & sign-off.',
+        tone: 'mint',
+      })
+      queryClient.invalidateQueries({ queryKey: ['admin-review-queue'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-creative-overview'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-clients'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-brands'] })
+    },
+    onError: (err) => pushToast({ title: 'Approval failed', body: err.response?.data?.message || 'Try again', tone: 'amber' }),
+  })
+
+  const rejectCreative = useMutation({
+    mutationFn: ({ postId, reason }) => creativeApi.adminRejectCreative(postId, { reason }),
+    onSuccess: () => {
+      pushToast({
+        title: 'Creative rejected',
+        body: 'Feedback and revision request sent to designer.',
+        tone: 'amber',
+      })
+      setRejectingPost(null)
+      queryClient.invalidateQueries({ queryKey: ['admin-review-queue'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-creative-overview'] })
+    },
+    onError: (err) => pushToast({ title: 'Rejection failed', body: err.response?.data?.message || 'Try again', tone: 'amber' }),
+  })
+
+  const assignDesigner = useMutation({
+    mutationFn: ({ clientId, designerId }) => creativeApi.assignDesignerToClient(clientId, designerId),
+    onSuccess: (_, variables) => {
+      pushToast({
+        title: variables.designerId ? 'Designer assigned' : 'Designer unassigned',
+        body: 'Client workspace designer updated successfully.',
+        tone: 'mint',
+      })
+      queryClient.invalidateQueries({ queryKey: ['admin-clients'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-designers'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-creative-overview'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-brands'] })
+    },
+    onError: (err) => pushToast({ title: 'Assignment failed', body: err.response?.data?.message || 'Try again', tone: 'amber' }),
   })
 
   const createEvent = useMutation({
@@ -241,6 +341,7 @@ export default function AdminOperations() {
       pushToast({ title: 'Designer added' })
       setDesignerForm({ full_name: '', email: '', password: '' })
       queryClient.invalidateQueries({ queryKey: ['admin-creative-overview'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-designers'] })
     },
     onError: err => pushToast({ title: 'Could not add designer', body: err.response?.data?.message || 'Try again', tone: 'amber' }),
   })
@@ -262,8 +363,34 @@ export default function AdminOperations() {
   const requests = data?.requests || []
   const selections = data?.selections || []
   const events = data?.events || []
-  const designers = data?.designers || []
+  const designers = adminDesigners.length ? adminDesigners : (data?.designers || [])
   const workSlots = ['morning', 'evening', 'night']
+
+  const unassignedClientsCount = useMemo(() => {
+    return clients.filter(c => !c.assigned_designer_id).length
+  }, [clients])
+
+  const filteredClients = useMemo(() => {
+    return clients.filter(c => {
+      const matchesFilter =
+        clientFilter === 'all'
+          ? true
+          : clientFilter === 'unassigned'
+            ? !c.assigned_designer_id
+            : Boolean(c.assigned_designer_id)
+
+      if (!matchesFilter) return false
+
+      if (!clientSearch.trim()) return true
+      const q = clientSearch.toLowerCase()
+      return (
+        (c.business_name && c.business_name.toLowerCase().includes(q)) ||
+        (c.full_name && c.full_name.toLowerCase().includes(q)) ||
+        (c.email && c.email.toLowerCase().includes(q)) ||
+        (c.business_type && c.business_type.toLowerCase().includes(q))
+      )
+    })
+  }, [clients, clientFilter, clientSearch])
 
   return (
     <div className="flex flex-col gap-8 md:gap-10 p-4 md:p-8 w-full max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -272,10 +399,20 @@ export default function AdminOperations() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-1">
           <div className="text-sm font-semibold text-ink-500 tracking-wide uppercase">Operations</div>
-          <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-950 tracking-tight m-0">Internal creative production</h1>
-          <p className="text-ink-600 font-medium">Manage calendar creatives, custom requests, and CREATYV team workload.</p>
+          <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-950 tracking-tight m-0">Creative Operations & Review</h1>
+          <p className="text-ink-600 font-medium">Review designer deliverables, manage client assignments, and oversee production.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="px-5 py-2.5 rounded-full bg-mint-500 hover:bg-mint-600 text-white font-bold text-sm transition-colors flex items-center gap-2 shadow-sm"
+            onClick={() => {
+              setDirectUploadClientId(null)
+              setDirectUploadClientName('')
+              setDirectUploadOpen(true)
+            }}
+          >
+            <Icon name="upload" size={16} /> + Direct upload
+          </button>
           <button className="px-5 py-2.5 rounded-full border border-ink-200 hover:bg-ink-50 text-ink-700 font-bold text-sm transition-colors flex items-center gap-2" onClick={() => openCsv(tasks)} disabled={!tasks.length}>
             <Icon name="eye" size={16} /> Open CSV
           </button>
@@ -291,21 +428,50 @@ export default function AdminOperations() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Tasks', value: tasks.length, icon: 'briefcase' },
-          { label: 'Custom review', value: requests.length, icon: 'edit' },
-          { label: 'Calendar review', value: selections.filter(s => s.status === 'pending_review').length, icon: 'calendar' },
-          { label: 'Designers', value: designers.length, icon: 'user' },
+          {
+            label: 'Review queue',
+            value: reviewQueue.length,
+            icon: 'eye',
+            highlight: reviewQueue.length > 0,
+            onClick: () => handleTabChange('review'),
+          },
+          {
+            label: 'Client workspaces',
+            value: clients.length,
+            sub: `${unassignedClientsCount} unassigned`,
+            icon: 'user',
+            onClick: () => handleTabChange('clients'),
+          },
+          {
+            label: 'Production tasks',
+            value: tasks.length,
+            icon: 'briefcase',
+            onClick: () => handleTabChange('tasks'),
+          },
+          {
+            label: 'Design team',
+            value: designers.length,
+            icon: 'layers',
+            onClick: () => handleTabChange('clients'),
+          },
         ].map(stat => (
-          <div key={stat.label} className="group relative overflow-hidden bg-ink-950 border border-ink-800 rounded-[2rem] p-6 md:p-8 shadow-sm flex flex-col justify-between transition-all duration-500 hover:border-ink-700 hover:shadow-2xl hover:shadow-ink-900/20 hover:-translate-y-1">
-            <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full blur-[64px] opacity-30 transition-opacity duration-700 group-hover:opacity-60 bg-ink-400" />
+          <button
+            key={stat.label}
+            onClick={stat.onClick}
+            className={`group relative overflow-hidden bg-ink-950 border border-ink-800 rounded-[2rem] p-6 md:p-8 shadow-sm flex flex-col justify-between text-left transition-all duration-500 hover:border-ink-700 hover:shadow-2xl hover:shadow-ink-900/20 hover:-translate-y-1 ${stat.highlight ? 'ring-2 ring-amber-500/50' : ''}`}
+          >
+            <div className={`absolute -top-10 -right-10 w-48 h-48 rounded-full blur-[64px] opacity-30 transition-opacity duration-700 group-hover:opacity-60 ${stat.highlight ? 'bg-amber-500' : 'bg-ink-400'}`} />
             <div className="relative z-10 flex items-start justify-between mb-8">
               <div className="text-xs font-bold tracking-[0.2em] uppercase text-ink-400">{stat.label}</div>
-              <div className="w-10 h-10 rounded-2xl bg-ink-900 border border-ink-800 text-ink-400 flex items-center justify-center shadow-inner">
+              <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center shadow-inner ${stat.highlight ? 'bg-amber-950 border-amber-800 text-amber-400' : 'bg-ink-900 border-ink-800 text-ink-400'}`}>
                 <Icon name={stat.icon} size={18} />
               </div>
             </div>
-            <div className="relative z-10 font-display text-4xl md:text-5xl font-bold text-white tracking-tight leading-none">{stat.value}</div>
-          </div>
+            <div className="relative z-10 flex flex-col gap-1">
+              <div className="font-display text-4xl md:text-5xl font-bold text-white tracking-tight leading-none">{stat.value}</div>
+              {stat.sub && <div className="text-xs font-medium text-amber-400 mt-1">{stat.sub}</div>}
+            </div>
+          </button>
         ))}
       </div>
 
@@ -316,7 +482,7 @@ export default function AdminOperations() {
             <div className="text-xs font-bold tracking-widest uppercase text-ink-400 mb-2">Design team</div>
             <h3 className="text-xl font-display font-bold text-ink-950 mb-2">Add CREATYV designer</h3>
             <p className="text-sm font-medium text-ink-600 leading-relaxed">
-              Designers get their own login, see only assigned production tasks, and upload deliverables into client Mintbox folders.
+              Designers get their own login, see only assigned client workspaces and tasks, and upload deliverables for review.
             </p>
           </div>
           <div className="flex flex-wrap md:flex-nowrap items-center gap-3 w-full lg:w-auto">
@@ -334,10 +500,13 @@ export default function AdminOperations() {
         </div>
       </div>
 
+      {/* Navigation Tabs */}
       <Tabs
         value={tab}
-        onChange={setTab}
+        onChange={handleTabChange}
         items={[
+          { value: 'review', label: 'Review queue', count: reviewQueue.length },
+          { value: 'clients', label: 'Client assignments', count: unassignedClientsCount ? `${unassignedClientsCount} unassigned` : clients.length },
           { value: 'tasks', label: 'Tasks', count: tasks.length },
           { value: 'requests', label: 'Custom requests', count: requests.length },
           { value: 'calendar', label: 'Calendar', count: events.length },
@@ -346,6 +515,273 @@ export default function AdminOperations() {
       />
 
       <div className="mt-4">
+        {/* ── TAB 1: PENDING REVIEW QUEUE ── */}
+        {tab === 'review' && (
+          <div className="flex flex-col gap-6">
+            {isLoadingReviewQueue ? (
+              <div className="bg-white border border-ink-200/60 rounded-3xl p-12 text-center text-ink-500 font-medium">
+                Loading review queue...
+              </div>
+            ) : reviewQueue.length === 0 ? (
+              <div className="bg-ink-50/60 border border-ink-100 rounded-3xl p-16 text-center flex flex-col items-center justify-center gap-3">
+                <div className="w-16 h-16 rounded-full bg-white shadow-sm flex items-center justify-center text-mint-500 mb-2">
+                  <Icon name="check" size={28} />
+                </div>
+                <h3 className="text-xl font-bold text-ink-950 m-0">Review queue is clear</h3>
+                <p className="text-sm text-ink-500 max-w-md m-0">
+                  All designer-uploaded deliverables have been reviewed. New submissions will appear here automatically.
+                </p>
+                <button
+                  className="mt-4 px-6 py-2.5 rounded-full bg-ink-950 text-white font-bold text-sm hover:bg-ink-900 transition-colors flex items-center gap-2"
+                  onClick={() => setDirectUploadOpen(true)}
+                >
+                  <Icon name="upload" size={16} /> Direct upload creative
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6">
+                {reviewQueue.map(post => {
+                  const mediaUrl = post.creative_url || post.preview_media_url || post.media_url
+                  const isVideo = post.content_type === 'video' || post.media_type === 'video' || (mediaUrl && /\.(mp4|webm|mov)$/i.test(mediaUrl))
+                  const clientName = post.client_business_name || post.client_name || post.business_name || 'Client'
+                  const designerName = post.designer_name || 'Designer'
+                  const approvalMode = post.posting_preferences?.approval_mode
+                  const isAutopilot = approvalMode === 'autopilot' || post.posting_preferences?.festival_mode === 'managed'
+                  const platforms = Array.isArray(post.target_platforms) && post.target_platforms.length
+                    ? post.target_platforms
+                    : ['instagram']
+
+                  return (
+                    <div key={post.id} className="bg-white border border-ink-200/60 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex flex-col lg:flex-row gap-6 items-start">
+                        {/* Media Preview Thumbnail / Player */}
+                        <div className="w-full lg:w-80 aspect-square max-h-80 rounded-2xl overflow-hidden bg-ink-950 flex-shrink-0 flex items-center justify-center border border-ink-200 shadow-inner">
+                          {mediaUrl ? (
+                            isVideo ? (
+                              <video src={mediaUrl} controls className="w-full h-full object-contain" />
+                            ) : (
+                              <img src={mediaUrl} alt={post.title} className="w-full h-full object-contain" />
+                            )
+                          ) : (
+                            <div className="text-ink-400 flex flex-col items-center gap-2">
+                              <Icon name="image" size={36} />
+                              <span className="text-xs">No media file</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Creative Details */}
+                        <div className="flex-1 flex flex-col justify-between self-stretch min-w-0">
+                          <div>
+                            {/* Badges Row */}
+                            <div className="flex flex-wrap items-center gap-2.5 mb-3">
+                              <span className="px-3 py-1 bg-ink-950 text-white text-xs font-bold rounded-lg shadow-sm">
+                                {clientName}
+                              </span>
+                              <span className="px-3 py-1 bg-ink-100 text-ink-700 text-xs font-semibold rounded-lg flex items-center gap-1.5">
+                                <Icon name="user" size={13} className="text-ink-500" />
+                                {designerName}
+                              </span>
+                              <span className="px-2.5 py-1 bg-ink-50 text-ink-600 text-xs font-bold uppercase tracking-wider rounded-lg border border-ink-100">
+                                {post.content_type || 'image'}
+                              </span>
+                              {platforms.map(p => (
+                                <span key={p} className="px-2.5 py-1 bg-ink-50 text-ink-600 text-xs font-semibold rounded-lg capitalize border border-ink-100">
+                                  {p}
+                                </span>
+                              ))}
+                              <DateBadge value={post.publish_at || post.scheduled_at} fallback="Scheduled soon" />
+                            </div>
+
+                            {/* Title & Caption */}
+                            <h3 className="text-xl font-display font-bold text-ink-950 mb-2">{post.title || 'Creative Deliverable'}</h3>
+                            <p className="text-sm font-medium text-ink-600 leading-relaxed bg-ink-50/50 p-4 rounded-2xl border border-ink-100/60 whitespace-pre-wrap">
+                              {post.caption || 'No caption provided.'}
+                            </p>
+
+                            {/* Intelligent Routing Mode Indicator */}
+                            <div className="mt-4 flex items-center gap-2">
+                              {isAutopilot ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-mint-50 border border-mint-200 text-mint-700 text-xs font-bold">
+                                  <Icon name="sparkles" size={13} className="text-mint-500" />
+                                  Routing: Autopilot (Direct publish upon approval)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
+                                  <Icon name="user" size={13} className="text-amber-500" />
+                                  Routing: Manual Review (Client sign-off required)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex flex-wrap items-center gap-3 mt-6 pt-6 border-t border-ink-100">
+                            <button
+                              type="button"
+                              className="px-6 py-2.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-sm transition-colors disabled:opacity-50 flex items-center gap-2 border border-rose-200/60"
+                              onClick={() => setRejectingPost(post)}
+                              disabled={approveCreative.isPending || rejectCreative.isPending}
+                            >
+                              <Icon name="x" size={16} /> Reject & Request Changes
+                            </button>
+                            <button
+                              type="button"
+                              className="px-6 py-2.5 rounded-full bg-ink-950 hover:bg-ink-900 text-white font-bold text-sm transition-colors flex items-center gap-2 disabled:opacity-50 shadow-md ml-auto"
+                              onClick={() => approveCreative.mutate(post.id)}
+                              disabled={approveCreative.isPending || rejectCreative.isPending}
+                            >
+                              <Icon name="check" size={16} />
+                              {approveCreative.isPending ? 'Approving...' : 'Approve Creative'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB 2: CLIENT WORKSPACES & DESIGNER ASSIGNMENTS ── */}
+        {tab === 'clients' && (
+          <div className="flex flex-col gap-6">
+            {/* Filter & Search Bar */}
+            <div className="bg-white border border-ink-200/60 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${clientFilter === 'all' ? 'bg-ink-950 text-white shadow-sm' : 'bg-ink-100 text-ink-600 hover:bg-ink-200'}`}
+                  onClick={() => setClientFilter('all')}
+                >
+                  All Workspaces ({clients.length})
+                </button>
+                <button
+                  type="button"
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${clientFilter === 'unassigned' ? 'bg-amber-500 text-white shadow-sm' : 'bg-ink-100 text-ink-600 hover:bg-ink-200'}`}
+                  onClick={() => setClientFilter('unassigned')}
+                >
+                  Unassigned ({unassignedClientsCount})
+                </button>
+                <button
+                  type="button"
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${clientFilter === 'assigned' ? 'bg-ink-950 text-white shadow-sm' : 'bg-ink-100 text-ink-600 hover:bg-ink-200'}`}
+                  onClick={() => setClientFilter('assigned')}
+                >
+                  Assigned ({clients.length - unassignedClientsCount})
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 md:w-72">
+                  <input
+                    type="text"
+                    placeholder="Search clients or business..."
+                    className="input pl-9 pr-3 py-2 text-xs rounded-full border border-ink-200 w-full"
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                  />
+                  <div className="absolute left-3 top-2.5 text-ink-400">
+                    <Icon name="search" size={14} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Clients List */}
+            {isLoadingClients ? (
+              <div className="bg-white border border-ink-200/60 rounded-3xl p-12 text-center text-ink-500 font-medium">
+                Loading client workspaces...
+              </div>
+            ) : filteredClients.length === 0 ? (
+              <div className="bg-ink-50/50 border border-ink-100 rounded-3xl p-12 text-center">
+                <h3 className="text-ink-500 font-bold text-lg m-0">No matching clients found</h3>
+                <p className="text-sm text-ink-400 mt-1">Try adjusting search or filter criteria.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {filteredClients.map(client => {
+                  const clientName = client.business_name || client.full_name || client.email
+                  const isAssigned = Boolean(client.assigned_designer_id)
+
+                  return (
+                    <div key={client.id} className="bg-white border border-ink-200/60 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between gap-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <Avatar name={clientName} src={client.brand_assets?.logo_url} size="lg" />
+                          <div className="min-w-0">
+                            <h4 className="text-lg font-bold text-ink-950 truncate m-0">{clientName}</h4>
+                            <div className="text-xs text-ink-500 truncate mt-0.5">{client.email}</div>
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                              {client.business_type && (
+                                <span className="px-2.5 py-0.5 bg-ink-100 text-ink-700 text-[11px] font-bold rounded-md uppercase tracking-wider">
+                                  {client.business_type}
+                                </span>
+                              )}
+                              <span className="px-2.5 py-0.5 bg-mint-50 text-mint-700 text-[11px] font-bold rounded-md">
+                                Posts: {client.active_post_count ?? client.total_posts ?? 0}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${isAssigned ? 'bg-mint-50 text-mint-700 border border-mint-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                          {isAssigned ? 'Assigned' : 'Unassigned'}
+                        </span>
+                      </div>
+
+                      {/* Designer Assignment Dropdown & Actions */}
+                      <div className="bg-ink-50/70 p-4 rounded-2xl border border-ink-100 flex flex-col gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-bold text-ink-600 uppercase tracking-wider">
+                            Assigned Designer
+                          </label>
+                          <select
+                            className="input bg-white text-xs font-semibold text-ink-900 border border-ink-200 rounded-xl"
+                            value={client.assigned_designer_id || ''}
+                            disabled={assignDesigner.isPending}
+                            onChange={(e) => {
+                              const newDesignerId = e.target.value || null
+                              assignDesigner.mutate({ clientId: client.id, designerId: newDesignerId })
+                            }}
+                          >
+                            <option value="">— Unassigned (No Designer) —</option>
+                            {designers.map(d => (
+                              <option key={d.id} value={d.id}>
+                                {d.full_name || d.email} {d.assigned_clients_count != null ? `(${d.assigned_clients_count} clients)` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-xs text-ink-500 font-medium">
+                            {client.posting_preferences?.approval_mode === 'autopilot' ? '⚡ Autopilot' : '👤 Manual Review'}
+                          </span>
+                          <button
+                            type="button"
+                            className="px-4 py-1.5 bg-white hover:bg-ink-100 text-ink-800 border border-ink-200 font-bold text-xs rounded-full transition-colors flex items-center gap-1.5 shadow-sm"
+                            onClick={() => {
+                              setDirectUploadClientId(client.id)
+                              setDirectUploadClientName(clientName)
+                              setDirectUploadOpen(true)
+                            }}
+                          >
+                            <Icon name="upload" size={13} /> Direct Upload
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB 3: CALENDAR ── */}
         {tab === 'calendar' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             <div className="lg:col-span-5 bg-white border border-ink-200/60 rounded-3xl p-6 shadow-sm">
@@ -357,7 +793,6 @@ export default function AdminOperations() {
                 <Field label="Title"><input className="input" value={eventForm.title} onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))} placeholder="Father's Day creative" /></Field>
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Date"><input className="input" type="date" value={eventForm.event_date} onChange={e => setEventForm(f => ({ ...f, event_date: e.target.value }))} /></Field>
-
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Asset type"><input className="input" value={eventForm.asset_type} onChange={e => setEventForm(f => ({ ...f, asset_type: e.target.value }))} placeholder="social_post" /></Field>
@@ -451,7 +886,6 @@ export default function AdminOperations() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-
                     <button className="w-10 h-10 rounded-full flex items-center justify-center text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" onClick={() => startEditEvent(event)}>
                       <Icon name="edit" size={16} />
                     </button>
@@ -473,6 +907,7 @@ export default function AdminOperations() {
           </div>
         )}
 
+        {/* ── TAB 4: REQUESTS ── */}
         {tab === 'requests' && (
           <div className="flex flex-col gap-4">
             {requests.length === 0 ? (
@@ -512,6 +947,7 @@ export default function AdminOperations() {
           </div>
         )}
 
+        {/* ── TAB 5: TASKS ── */}
         {tab === 'tasks' && (
           <div className="flex flex-col gap-4">
             {isLoading ? (
@@ -568,6 +1004,7 @@ export default function AdminOperations() {
           </div>
         )}
 
+        {/* ── TAB 6: SELECTIONS ── */}
         {tab === 'selections' && (
           <div className="flex flex-col gap-4">
             {selections.length === 0 ? (
@@ -618,6 +1055,31 @@ export default function AdminOperations() {
           </div>
         )}
       </div>
+
+      {/* Reject Modal */}
+      {rejectingPost && (
+        <AdminRejectModal
+          post={rejectingPost}
+          isOpen={Boolean(rejectingPost)}
+          onClose={() => setRejectingPost(null)}
+          isSubmitting={rejectCreative.isPending}
+          onReject={(reason) => rejectCreative.mutate({ postId: rejectingPost.id, reason })}
+        />
+      )}
+
+      {/* Direct Upload Modal */}
+      {directUploadOpen && (
+        <AdminDirectUploadModal
+          isOpen={directUploadOpen}
+          onClose={() => {
+            setDirectUploadOpen(false)
+            setDirectUploadClientId(null)
+            setDirectUploadClientName('')
+          }}
+          initialClientId={directUploadClientId}
+          initialClientName={directUploadClientName}
+        />
+      )}
     </div>
   )
 }

@@ -126,8 +126,28 @@ const validateProfileUpdate = (body) => {
   }
 
   if (bio !== undefined) {
-    if (typeof bio !== 'string' || bio.length > 500) {
-      errors.push('bio must be a string under 500 characters');
+    if (typeof bio !== 'string' || bio.length > 2000) {
+      errors.push('bio must be a string under 2000 characters');
+    }
+  }
+
+  if (body.username !== undefined && body.username !== null && body.username !== '') {
+    if (typeof body.username !== 'string' || !/^[a-z0-9_.]{3,32}$/.test(body.username.trim().toLowerCase())) {
+      errors.push('Username must be 3-32 characters: lowercase letters, numbers, dots or underscores');
+    }
+  }
+
+  if (body.is_available !== undefined && typeof body.is_available !== 'boolean') {
+    errors.push('is_available must be a boolean');
+  }
+
+  if (body.tools !== undefined) {
+    if (!Array.isArray(body.tools)) {
+      errors.push('tools must be an array of strings');
+    } else if (body.tools.length > 30) {
+      errors.push('You can add up to 30 tools');
+    } else if (body.tools.some((tool) => typeof tool !== 'string' || !tool.trim() || tool.length > 40)) {
+      errors.push('Each tool must be a name under 40 characters');
     }
   }
 

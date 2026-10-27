@@ -6,8 +6,9 @@ import Icon from '../../components/ui/Icon'
 import Modal from '../../components/ui/Modal'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
+import { announceProfileUpdated } from '../../components/freelancer/completionApi'
 
-function PortfolioItemModal({ item, onClose, onSaved }) {
+export function PortfolioItemModal({ item, onClose, onSaved }) {
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
   const fileRef     = useRef(null)
@@ -39,6 +40,8 @@ function PortfolioItemModal({ item, onClose, onSaved }) {
     onSuccess: () => {
       pushToast({ title: 'Portfolio item added!', icon: 'check' })
       queryClient.invalidateQueries({ queryKey: ['my-portfolio'] })
+      queryClient.invalidateQueries({ queryKey: ['explore-feed'] })
+      announceProfileUpdated()
       onSaved()
       onClose()
     },
@@ -57,6 +60,8 @@ function PortfolioItemModal({ item, onClose, onSaved }) {
     onSuccess: () => {
       pushToast({ title: 'Portfolio item updated!', icon: 'check' })
       queryClient.invalidateQueries({ queryKey: ['my-portfolio'] })
+      queryClient.invalidateQueries({ queryKey: ['explore-feed'] })
+      announceProfileUpdated()
       onSaved()
       onClose()
     },
@@ -175,6 +180,8 @@ export default function Portfolio() {
     onSuccess: () => {
       pushToast({ title: 'Item deleted', icon: 'trash' })
       queryClient.invalidateQueries({ queryKey: ['my-portfolio'] })
+      queryClient.invalidateQueries({ queryKey: ['explore-feed'] })
+      announceProfileUpdated()
     },
   })
 
