@@ -60,6 +60,8 @@ import FreelancerProfilePage from './pages/freelancer/Profile'
 import FreelancerSettings from './pages/freelancer/FreelancerSettings'
 import Upskill from './pages/freelancer/Upskill'
 import Assessments from './pages/freelancer/Assessments'
+import AssessmentDetail from './pages/freelancer/AssessmentDetail'
+import AssessmentAttempt from './pages/freelancer/AssessmentAttempt'
 import Packages             from './pages/freelancer/Packages'
 import Inquiries            from './pages/freelancer/Inquiries'
 import DesignerTasks        from './pages/designer/Tasks'
@@ -78,6 +80,7 @@ import AdminTiers        from './pages/admin/Tiers'
 import AdminBrands       from './pages/admin/Brands'
 import AdminServices     from './pages/admin/Services'
 import AdminServiceOrders from './pages/admin/ServiceOrders'
+import AdminAssessmentReviews from './pages/admin/AssessmentReviews'
 
 // ── Role-aware route wrappers ─────────────────────────────────────────────────
 
@@ -278,6 +281,8 @@ export default function App() {
           <Route path="/settings/freelancer" element={<FreelancerOnly><FreelancerSettings /></FreelancerOnly>} />
           <Route path="/upskill"      element={<FreelancerOnly><Upskill /></FreelancerOnly>} />
           <Route path="/assessments"  element={<FreelancerOnly><Assessments /></FreelancerOnly>} />
+          <Route path="/assessments/attempts/:attemptId" element={<FreelancerOnly><AssessmentAttempt /></FreelancerOnly>} />
+          <Route path="/assessments/:slug" element={<FreelancerOnly><AssessmentDetail /></FreelancerOnly>} />
           <Route path="/packages"     element={<FreelancerOnly><Packages /></FreelancerOnly>} />
           {/* LAUNCH-HIDDEN: the standalone Portfolio page; posts now live on the profile (Posts tab). */}
           <Route path="/portfolio"    element={<FreelancerOnly><PortfolioRedirect /></FreelancerOnly>} />
@@ -308,6 +313,7 @@ export default function App() {
           <Route path="/admin/brands"     element={<AdminOnly permission="users.manage"><AdminBrands /></AdminOnly>} />
           <Route path="/admin/services"   element={<AdminOnly permission="ops.manage"><AdminServices /></AdminOnly>} />
           <Route path="/admin/service-orders" element={<AdminOnly permission="ops.manage"><AdminServiceOrders /></AdminOnly>} />
+          <Route path="/admin/assessments" element={<AdminOnly permission="ops.manage"><AdminAssessmentReviews /></AdminOnly>} />
         </Route>
         <Route path="*" element={<RootRedirect />} />
       </Routes>

@@ -1,430 +1,207 @@
-import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
-import { creativeApi } from '../../api/creative'
-import { negotiationsApi } from '../../api/negotiations'
+import { servicesApi } from '../../api/services'
 import { disputesApi } from '../../api/disputes'
-import { useUIStore } from '../../store/ui'
+import { useAuthStore } from '../../store/auth'
 import Icon from '../../components/ui/Icon'
-import KYCReviewModal from '../../components/admin/KYCReviewModal'
 import Avatar from '../../components/ui/Avatar'
-import { rupee, timeAgo } from '../../utils/format'
-import { SkeletonCard } from '../../components/ui/Skeleton'
+import KYCReviewModal from '../../components/admin/KYCReviewModal'
+import StageBadge from '../../components/services/StageBadge'
+import { AdminPage, EmptyState, PageHeader, Panel, SkeletonRows } from '../../components/admin/AdminUI'
+import { dueText, inr } from '../../components/services/serviceUtils'
+import { timeAgo } from '../../utils/format'
 
-function StatCard({ icon, label, value, sub, tone, onClick }) {
-  const displayValue = (value && typeof value === 'object') ? '—' : value
+// LAUNCH-HIDDEN: the old Command Center also showed deal approvals (negotiations) and the
+// social creative review queue. Both still live at /admin/approvals and /admin/operations.
+
+const OPEN_STAGES = ['finding_freelancer', 'in_progress', 'revision_requested', 'delivered', 'approved']
+const isOverdue = b => b.due_at && ['in_progress', 'revision_requested'].includes(b.stage) && new Date(b.due_at).getTime() < Date.now()
+const listOf = (data, key) => (Array.isArray(data?.[key]) ? data[key] : Array.isArray(data) ? data : [])
+
+function greeting() {
+  const h = new Date().getHours()
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+}
+
+/** One row of the attention queue: what it is, how many, where to act. */
+function QueueRow({ icon, label, detail, count, to, urgent }) {
+  const clear = !count
   return (
-    <button
-      onClick={onClick}
-      className={`group w-full relative overflow-hidden bg-ink-950 border border-ink-800 rounded-[2rem] p-6 md:p-8 text-left transition-all duration-500 hover:border-ink-700 hover:shadow-2xl hover:shadow-ink-900/20 ${onClick ? 'cursor-pointer hover:-translate-y-1' : 'cursor-default'}`}
+    <Link
+      to={to}
+      className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-ink-50 md:px-5"
     >
-      <div className={`absolute -top-10 -right-10 w-48 h-48 rounded-full blur-[64px] opacity-30 transition-opacity duration-700 group-hover:opacity-60 ${
-        tone === 'mint' ? 'bg-mint-500' : tone === 'amber' ? 'bg-amber-500' : 'bg-ink-400'
-      }`} />
-      
-      <div className="relative z-10 flex flex-col h-full justify-between">
-        <div className="flex items-start justify-between mb-8">
-          <div className="text-xs font-bold tracking-[0.2em] uppercase text-ink-400">
-            {label}
-          </div>
-          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-inner border ${
-            tone === 'mint' ? 'bg-mint-950 border-mint-800 text-mint-400' : 
-            tone === 'amber' ? 'bg-amber-950 border-amber-800 text-amber-400' : 
-            'bg-ink-900 border-ink-800 text-ink-400'
-          }`}>
-            <Icon name={icon} size={18} />
-          </div>
-        </div>
-        
-        <div>
-          <div className="font-display text-4xl md:text-5xl font-bold text-white tracking-tight leading-none mb-3">
-            {displayValue ?? '—'}
-          </div>
-          {sub && (
-            <div className={`text-sm font-medium ${tone === 'amber' ? 'text-amber-400' : tone === 'mint' ? 'text-mint-400' : 'text-ink-500'}`}>
-              {sub}
-            </div>
-          )}
-        </div>
-      </div>
-    </button>
+      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${clear ? 'bg-ink-50 text-ink-400' : urgent ? 'bg-mint-50 text-mint-600' : 'bg-ink-100 text-ink-700'}`}>
+        <Icon name={icon} size={17} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={`block text-sm font-semibold ${clear ? 'text-ink-500' : 'text-ink-900'}`}>{label}</span>
+        <span className="block truncate text-xs text-ink-500">{clear ? 'Nothing waiting' : detail}</span>
+      </span>
+      <span className={`text-lg font-semibold tabular-nums ${clear ? 'text-ink-300' : urgent ? 'text-mint-600' : 'text-ink-900'}`}>{count || 0}</span>
+      <Icon name="chevronRight" size={15} className="shrink-0 text-ink-300 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-ink-500" />
+    </Link>
+  )
+}
+
+function Figure({ label, value, hint }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 px-4 py-3 md:px-5">
+      <dt className="text-sm text-ink-600">{label}{hint && <span className="block text-xs text-ink-400">{hint}</span>}</dt>
+      <dd className="text-[15px] font-semibold tabular-nums text-ink-950">{value}</dd>
+    </div>
   )
 }
 
 export default function AdminDashboard() {
-  const navigate    = useNavigate()
-  const queryClient = useQueryClient()
-  const pushToast   = useUIStore(s => s.pushToast)
-
-  // Fetch dashboard stats
-  const { data: dashData, isLoading } = useQuery({
-    queryKey: ['admin-dashboard'],
-    queryFn: async () => {
-      const res = await api.get('/admin/dashboard')
-      const d   = res.data
-      return d?.data?.stats || d?.data || {}
-    },
-  })
-
-  const { data: dealsData } = useQuery({
-    queryKey: ['pending-deals'],
-    queryFn:  () => negotiationsApi.pendingApprovals().then(r => r.data.data),
-  })
-
-  const { data: kycData } = useQuery({
-    queryKey: ['kyc-pending'],
-    queryFn:  () => api.get('/kyc/admin/pending').then(r => r.data.data),
-  })
-
-  const { data: wdData } = useQuery({
-    queryKey: ['admin-withdrawals', 'pending'],
-    queryFn:  () => api.get('/wallet/admin/withdrawals?status=pending').then(r => r.data.data),
-  })
-
-  const { data: disputesData } = useQuery({
-    queryKey: ['disputes', 'open'],
-    queryFn: () => disputesApi.list({ status: 'open' }).then(r => r.data.data),
-  })
-
-  const { data: creativeQueueData } = useQuery({
-    queryKey: ['admin-review-queue'],
-    queryFn: () => creativeApi.getAdminReviewQueue().then(r => r.data?.data?.queue || r.data?.queue || []),
-  })
-  const pendingCreatives = Array.isArray(creativeQueueData) ? creativeQueueData : []
-
-  const approveDeal = useMutation({
-    mutationFn: ({ jobId, note }) => negotiationsApi.approveDeal(jobId, note),
-    onSuccess: () => {
-      pushToast({ title: 'Deal approved — escrow held', icon: 'check' })
-      queryClient.invalidateQueries({ queryKey: ['pending-deals'] })
-      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
-    },
-    onError: err => pushToast({ title: 'Failed', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
-  })
-
-  const rejectDeal = useMutation({
-    mutationFn: ({ jobId, note }) => negotiationsApi.rejectDeal(jobId, note),
-    onSuccess: () => {
-      pushToast({ title: 'Deal rejected', icon: 'x' })
-      queryClient.invalidateQueries({ queryKey: ['pending-deals'] })
-    },
-  })
-
-  const stats = dashData || {}
-  const totalUsers = Number(stats.users?.total_clients || 0) + Number(stats.users?.total_freelancers || 0)
-  const newUsers = Number(stats.users?.new_this_week || 0)
-  const activeJobs = Number(stats.jobs?.active_jobs || 0)
-  const pendingDeals = Number(stats.operations?.pending_deals || 0)
-
-  const deals = Array.isArray(dealsData?.negotiations) ? dealsData.negotiations : (Array.isArray(dealsData) ? dealsData : [])
-  const [kycs, setKycs] = useState([])
-  useEffect(() => {
-    if (kycData?.submissions) setKycs(kycData.submissions)
-    else if (kycData?.kycs) setKycs(kycData.kycs)
-    else if (Array.isArray(kycData)) setKycs(kycData)
-  }, [kycData])
+  const navigate = useNavigate()
+  const user = useAuthStore(s => s.user)
   const [selectedKyc, setSelectedKyc] = useState(null)
 
-  const wds   = Array.isArray(wdData?.withdrawals) ? wdData.withdrawals : (Array.isArray(wdData) ? wdData : [])
-  const disputes = Array.isArray(disputesData?.disputes) ? disputesData.disputes : (Array.isArray(disputesData) ? disputesData : [])
+  const { data: stats = {}, isLoading: statsLoading } = useQuery({
+    queryKey: ['admin-dashboard'],
+    queryFn: () => api.get('/admin/dashboard').then(res => res.data?.data?.stats || res.data?.data || {}),
+  })
+  const { data: bookings = [], isLoading: ordersLoading } = useQuery({
+    queryKey: ['admin-service-bookings', 'all'],
+    queryFn: () => servicesApi.adminBookings({}).then(res => res.data.data || []),
+    refetchInterval: 30_000,
+  })
+  const { data: kycData } = useQuery({
+    queryKey: ['kyc-pending'],
+    queryFn: () => api.get('/kyc/admin/pending').then(res => res.data.data),
+  })
+  const { data: wdData } = useQuery({
+    queryKey: ['admin-withdrawals', 'pending'],
+    queryFn: () => api.get('/wallet/admin/withdrawals?status=pending').then(res => res.data.data),
+  })
+  const { data: disputesData } = useQuery({
+    queryKey: ['disputes', 'open'],
+    queryFn: () => disputesApi.list({ status: 'open' }).then(res => res.data.data),
+  })
+
+  const kycs = listOf(kycData, 'submissions').length ? listOf(kycData, 'submissions') : listOf(kycData, 'kycs')
+  const withdrawals = listOf(wdData, 'withdrawals')
+  const disputes = listOf(disputesData, 'disputes')
+
+  const orders = useMemo(() => {
+    const open = bookings.filter(b => OPEN_STAGES.includes(b.stage))
+    return {
+      open,
+      unassigned: bookings.filter(b => b.stage === 'finding_freelancer'),
+      overdue: open.filter(isOverdue),
+      revisions: bookings.filter(b => b.stage === 'revision_requested'),
+      awaitingClient: bookings.filter(b => b.stage === 'delivered' || b.stage === 'approved'),
+      openValue: open.reduce((sum, b) => sum + Number(b.subtotal || 0), 0),
+    }
+  }, [bookings])
+
+  const withdrawalTotal = withdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0)
+  const users = stats.users || {}
+
+  const queue = [
+    { icon: 'requests', label: 'Orders without a freelancer', detail: 'Auto-assign found nobody. Pick one by hand.', count: orders.unassigned.length, to: '/admin/service-orders', urgent: true },
+    { icon: 'clock', label: 'Overdue orders', detail: 'Past the due date and not delivered yet.', count: orders.overdue.length, to: '/admin/service-orders?view=all', urgent: true },
+    { icon: 'disputes', label: 'Open disputes', detail: 'Escrow is frozen until you decide.', count: disputes.length, to: '/disputes', urgent: true },
+    { icon: 'platform_wallet', label: 'Withdrawals to pay', detail: `${inr(withdrawalTotal)} requested by freelancers.`, count: withdrawals.length, to: '/admin/wallet' },
+    { icon: 'shield', label: 'KYC to review', detail: 'Freelancers cannot be assigned work until approved.', count: kycs.length, to: '/admin/users' },
+    { icon: 'refresh', label: 'Revisions in progress', detail: 'Clients asked for changes. Freelancer is on it.', count: orders.revisions.length, to: '/admin/service-orders?view=all' },
+    { icon: 'checkCircle', label: 'Waiting on the client', detail: 'Delivered or approved, not yet completed and rated.', count: orders.awaitingClient.length, to: '/admin/service-orders?view=all' },
+  ]
+  const needsYou = queue.filter(row => row.urgent || row.label.startsWith('Withdrawals') || row.label.startsWith('KYC')).reduce((sum, row) => sum + (row.count || 0), 0)
+  const recent = bookings.slice(0, 6)
 
   return (
-    <div className="flex flex-col gap-8 md:gap-12 w-full max-w-[1600px] mx-auto p-6 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col gap-2">
-        <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Admin Overview</div>
-        <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Command Center</h1>
-      </div>
+    <AdminPage>
+      <PageHeader
+        title={`${greeting()}, ${(user?.full_name || 'admin').split(' ')[0]}`}
+        description={needsYou ? `${needsYou} item${needsYou === 1 ? '' : 's'} need a decision from you. Start at the top of the list.` : 'Nothing is waiting on you. New orders are being assigned automatically.'}
+        actions={<>
+          <button type="button" className="btn ghost" onClick={() => navigate('/admin/services')}>Edit catalogue</button>
+          <button type="button" className="btn primary" onClick={() => navigate('/admin/service-orders?view=all')}>All orders</button>
+        </>}
+      />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-        <StatCard
-          icon="eye"
-          label="Creative review"
-          value={pendingCreatives.length}
-          tone={pendingCreatives.length > 0 ? 'amber' : null}
-          sub={pendingCreatives.length > 0 ? `${pendingCreatives.length} awaiting review` : 'Queue clear'}
-          onClick={() => navigate('/admin/operations?tab=review')}
-        />
-        <StatCard
-          icon="user" label="Total users"
-          value={totalUsers}
-          sub={newUsers ? `+${newUsers} this week` : 'All time'}
-          onClick={() => navigate('/admin/users')}
-        />
-        <StatCard
-          icon="briefcase" label="Active deals"
-          value={activeJobs}
-          sub={pendingDeals ? `${pendingDeals} pending approval` : 'In progress'}
-          tone={pendingDeals > 0 ? 'amber' : null}
-          onClick={() => navigate('/admin/approvals')}
-        />
-        <StatCard
-          icon="shield" label="Open disputes"
-          value={disputes.length}
-          tone={disputes.length > 0 ? 'amber' : null}
-          sub="Requires admin review"
-          onClick={() => navigate(disputes.length ? '/disputes' : '/admin/approvals')}
-        />
-        <StatCard
-          icon="wallet" label="Platform escrow"
-          value={stats.total_escrow != null ? rupee(stats.total_escrow) : stats.escrow != null ? rupee(stats.escrow) : '—'}
-          tone="mint"
-          sub="Funds securely held"
-          onClick={() => navigate('/admin/wallet')}
-        />
-      </div>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-6">
+          <Panel title="Needs attention" description="Sorted by what blocks money or delivery first.">
+            {ordersLoading ? <SkeletonRows rows={5} /> : (
+              <div className="divide-y divide-ink-100">
+                {queue.map(row => <QueueRow key={row.label} {...row} />)}
+              </div>
+            )}
+          </Panel>
 
-      {pendingCreatives.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-200/80 rounded-3xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shrink-0">
-              <Icon name="eye" size={22} />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-ink-950 m-0">
-                {pendingCreatives.length} Creative Deliverable{pendingCreatives.length === 1 ? '' : 's'} Pending Review
-              </h3>
-              <p className="text-sm font-medium text-ink-600 m-0 mt-0.5">
-                Designers have submitted new social creatives requiring admin approval or revision feedback.
-              </p>
-            </div>
-          </div>
-          <button
-            className="px-6 py-2.5 rounded-full bg-ink-950 hover:bg-ink-900 text-white font-bold text-sm transition-all flex items-center gap-2 shadow-md shrink-0"
-            onClick={() => navigate('/admin/operations?tab=review')}
+          <Panel
+            title="Recent orders"
+            actions={<Link to="/admin/service-orders?view=all" className="text-sm font-medium text-mint-600 hover:text-mint-700">View all</Link>}
           >
-            <Icon name="arrowRight" size={16} /> Open Review Queue
-          </button>
-        </div>
-      )}
-
-      <div className="flex flex-col lg:flex-row gap-8 items-start">
-        {/* Pending deals */}
-        <div className="flex-1 w-full flex flex-col gap-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-display font-bold text-ink-950 m-0">Deals pending approval</h2>
-            {deals.length > 0 && (
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                {deals.length} waiting
-              </span>
-            )}
-          </div>
-
-          {isLoading ? <SkeletonCard /> : deals.length === 0 ? (
-            <div className="bg-ink-50/50 border border-ink-200/50 rounded-[2rem] p-16 text-center">
-              <div className="w-20 h-20 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-6 text-mint-500">
-                <Icon name="checkCircle" size={32} />
-              </div>
-              <div className="text-ink-600 font-bold text-lg">No deals pending approval</div>
-              <p className="text-ink-500 mt-2">All deals have been reviewed and escrowed.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-6">
-              {deals.map(deal => (
-                <div key={deal.negotiation_id || deal.id || deal.job_id} className="bg-white border border-ink-200/60 rounded-[2rem] p-6 md:p-8 shadow-sm transition-all hover:shadow-xl hover:border-ink-300 relative overflow-hidden group flex flex-col md:flex-row gap-8 items-center">
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-amber-400 to-amber-500" />
-                  
-                  <div className="flex-1 w-full">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider rounded-full">Requires Approval</div>
-                    </div>
-                    <div className="font-display font-bold text-2xl text-ink-950 mb-4">{deal.job?.title || deal.title || 'Job'}</div>
-                    
-                    <div className="flex items-center gap-4 bg-ink-50 rounded-2xl p-4 w-fit">
-                      <div className="flex items-center gap-3">
-                        <Avatar name={deal.client?.full_name || deal.client_name || 'C'} size="sm" />
-                        <div>
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-ink-400">Client</div>
-                          <div className="text-sm font-bold text-ink-900">{deal.client?.full_name || deal.client_name || 'Client'}</div>
-                        </div>
-                      </div>
-                      <Icon name="arrowRight" size={16} className="text-ink-300" />
-                      <div className="flex items-center gap-3">
-                        <Avatar name={deal.freelancer?.full_name || deal.freelancer_name || 'F'} size="sm" />
-                        <div>
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-ink-400">Freelancer</div>
-                          <div className="text-sm font-bold text-ink-900">{deal.freelancer?.full_name || deal.freelancer_name || 'Freelancer'}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="w-full md:w-[320px] shrink-0 flex flex-col gap-6 bg-ink-50/50 rounded-3xl p-6 border border-ink-100">
-                    <div className="flex justify-between items-end border-b border-ink-200/50 pb-4">
-                      <div className="text-xs font-bold tracking-widest uppercase text-ink-500">Agreed Price</div>
-                      <div className="font-mono font-bold text-3xl text-ink-950">{rupee(deal.agreed_price || 0)}</div>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <div className="text-ink-500 font-medium">Delivery timeline</div>
-                      <div className="font-bold text-ink-900">{deal.agreed_days} days</div>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <div className="text-ink-500 font-medium">Revision rounds</div>
-                      <div className="font-bold text-ink-900">{deal.current_round || 0} of {deal.max_rounds || 4}</div>
-                    </div>
-                    
-                    <div className="flex flex-col gap-2 pt-2">
-                      <button className="w-full py-3.5 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md hover:shadow-lg"
-                        onClick={() => approveDeal.mutate({ jobId: deal.job_id, note: 'Approved' })}
-                        disabled={approveDeal.isPending}>
-                        <Icon name="check" size={18} />
-                        {approveDeal.isPending ? 'Approving…' : 'Approve & Escrow'}
-                      </button>
-                      <button className="w-full py-3.5 bg-transparent hover:bg-rose-50 text-rose-600 font-bold rounded-full transition-all disabled:opacity-50"
-                        onClick={() => rejectDeal.mutate({ jobId: deal.job_id, note: 'Rejected by admin' })}
-                        disabled={rejectDeal.isPending}>
-                        Reject terms
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* KYC pending approval */}
-        <div className="flex-1 w-full flex flex-col gap-6 mt-12 lg:mt-0">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-display font-bold text-ink-950 m-0">KYC pending approval</h2>
-            {kycs.length > 0 && (
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                {kycs.length} waiting
-              </span>
-            )}
-          </div>
-
-          {isLoading ? <SkeletonCard /> : kycs.length === 0 ? (
-            <div className="bg-ink-50/50 border border-ink-200/50 rounded-[2rem] p-16 text-center">
-              <div className="w-20 h-20 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-6 text-mint-500">
-                <Icon name="checkCircle" size={32} />
-              </div>
-              <div className="text-ink-600 font-bold text-lg">No KYC pending</div>
-              <p className="text-ink-500 mt-2">All accounts have been verified.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {kycs.map(k => (
-                <div key={k.id} className="bg-white border border-ink-200/60 rounded-[2rem] p-6 shadow-sm flex items-center justify-between gap-6 hover:shadow-md transition-all">
-                  <div className="flex items-center gap-4">
-                    <Avatar name={k.full_name || 'U'} size="lg" />
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-ink-400 mb-1">{k.level} Verification</div>
-                      <div className="text-lg font-bold text-ink-950">{k.full_name}</div>
-                      <div className="text-sm text-ink-500">{k.email}</div>
-                    </div>
-                  </div>
-                  <button 
-                    className="px-6 py-3 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-all shadow-md"
-                    onClick={() => setSelectedKyc(k)}
-                  >
-                    Review
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Right sidebar */}
-        <div className="w-full lg:w-[420px] flex flex-col gap-8">
-          {/* Quick nav */}
-          <div className="bg-white border border-ink-200/60 rounded-[2rem] p-6 shadow-sm">
-            <div className="text-xs font-bold tracking-widest uppercase text-ink-400 mb-6 px-2">Admin Modules</div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { icon: 'eye',      label: 'Review Queue',    route: '/admin/operations?tab=review' },
-                { icon: 'calendar', label: 'Operations',       route: '/admin/operations' },
-                { icon: 'layers',   label: 'Brands',          route: '/admin/brands' },
-                { icon: 'user',     label: 'Manage users',     route: '/admin/users' },
-                { icon: 'zap',      label: 'Approve deals',    route: '/admin/approvals' },
-                { icon: 'wallet',   label: 'Platform wallet',  route: '/admin/wallet' },
-                { icon: 'shield',   label: 'Disputes',         route: '/admin/disputes' },
-                { icon: 'sparkles', label: 'Mint AI',          route: '/admin/ai' },
-              ].map(item => (
-                <button key={item.route} className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-ink-50 hover:bg-ink-950 hover:text-white transition-all group border border-transparent hover:border-ink-800 hover:shadow-xl" onClick={() => navigate(item.route)}>
-                  <Icon name={item.icon} size={24} className="text-ink-500 group-hover:text-mint-400 transition-colors" />
-                  <span className="font-bold text-sm text-ink-900 group-hover:text-white transition-colors text-center">{item.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* KYC queue */}
-          <div className="bg-white border border-ink-200/60 rounded-[2rem] p-8 shadow-sm">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-ink-50 text-ink-600 flex items-center justify-center">
-                  <Icon name="checkCircle" size={18} />
-                </div>
-                <div className="text-sm font-bold tracking-widest uppercase text-ink-950">KYC Queue</div>
-              </div>
-              {kycs.length > 0 && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full uppercase tracking-wider">{kycs.length} pending</span>}
-            </div>
-            {kycs.length === 0 ? (
-              <div className="text-sm font-medium text-ink-500 bg-ink-50 rounded-2xl p-4 text-center">
-                All accounts verified.
-              </div>
+            {ordersLoading ? <SkeletonRows rows={4} /> : recent.length === 0 ? (
+              <EmptyState title="No orders yet" body="Paid orders from the storefront show up here, with who is working on them." />
             ) : (
-              <div className="flex flex-col gap-4">
+              <div className="divide-y divide-ink-100">
+                {recent.map(row => (
+                  <Link key={row.id} to="/admin/service-orders?view=all" className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-ink-50 md:px-5">
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-ink-100">
+                      {row.cover_url && <img src={row.cover_url} alt="" className="h-full w-full object-cover" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-ink-900">{row.snapshot?.title || row.template_title}</div>
+                      <div className="truncate text-xs text-ink-500">
+                        {row.booking_number} · {row.client_name} → {row.freelancer_name || 'unassigned'}
+                      </div>
+                    </div>
+                    <div className="hidden text-right sm:block">
+                      <StageBadge stage={row.stage} />
+                      <div className="mt-0.5 text-[11px] text-ink-400">{row.stage === 'completed' ? `Done ${timeAgo(row.completed_at)}` : dueText(row.due_at)}</div>
+                    </div>
+                    <div className="w-20 shrink-0 text-right text-sm font-semibold tabular-nums text-ink-900">{inr(row.subtotal)}</div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        <div className="flex flex-col gap-6">
+          <Panel title="Money">
+            <dl className="divide-y divide-ink-100">
+              <Figure label="Held in escrow" hint="Released when clients complete" value={statsLoading ? '…' : inr(stats.total_escrow ?? stats.escrow ?? 0)} />
+              <Figure label="Open order value" hint={`${orders.open.length} open order${orders.open.length === 1 ? '' : 's'}, before GST`} value={inr(orders.openValue)} />
+              <Figure label="Withdrawals pending" value={inr(withdrawalTotal)} />
+            </dl>
+          </Panel>
+
+          <Panel title="People" actions={<Link to="/admin/users" className="text-sm font-medium text-mint-600 hover:text-mint-700">Users</Link>}>
+            <dl className="divide-y divide-ink-100">
+              <Figure label="Clients" value={Number(users.total_clients || 0)} />
+              <Figure label="Freelancers" value={Number(users.total_freelancers || 0)} />
+              <Figure label="Joined this week" value={Number(users.new_this_week || 0)} />
+            </dl>
+          </Panel>
+
+          {kycs.length > 0 && (
+            <Panel title="KYC waiting" description="Approve to let them take orders.">
+              <div className="divide-y divide-ink-100">
                 {kycs.slice(0, 4).map(k => (
-                  <div key={k.id} className="flex items-center gap-4 bg-ink-50/50 p-3 pr-4 rounded-2xl border border-ink-100 hover:border-ink-200 transition-colors">
-                    <Avatar name={k.full_name || 'U'} size="md" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold text-ink-950 truncate">{k.full_name}</div>
-                      <div className="text-xs text-ink-500 capitalize truncate">{k.level} · {timeAgo(k.created_at)}</div>
+                  <div key={k.id} className="flex items-center gap-3 px-4 py-3 md:px-5">
+                    <Avatar name={k.full_name || 'U'} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-ink-900">{k.full_name}</div>
+                      <div className="truncate text-xs capitalize text-ink-500">{k.level} · {timeAgo(k.created_at)}</div>
                     </div>
-                    <button className="px-4 py-2 bg-white border border-ink-200 hover:border-ink-300 hover:bg-ink-50 text-ink-900 font-bold text-xs rounded-xl transition-all shadow-sm" onClick={() => navigate('/admin/users')}>
-                      Review
-                    </button>
-                  </div>
-                ))}
-                {kycs.length > 4 && (
-                  <button className="text-xs font-bold text-mint-600 hover:text-mint-700 mt-2 text-center w-full py-2" onClick={() => navigate('/admin/users')}>
-                    View {kycs.length - 4} more requests
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Withdrawals queue */}
-          <div className="bg-white border border-ink-200/60 rounded-[2rem] p-8 shadow-sm">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-ink-50 text-ink-600 flex items-center justify-center">
-                  <Icon name="rupee" size={18} />
-                </div>
-                <div className="text-sm font-bold tracking-widest uppercase text-ink-950">Withdrawals</div>
-              </div>
-              {wds.length > 0 && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full uppercase tracking-wider">{wds.length} pending</span>}
-            </div>
-            {wds.length === 0 ? (
-              <div className="text-sm font-medium text-ink-500 bg-ink-50 rounded-2xl p-4 text-center">
-                No pending withdrawals.
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {wds.slice(0, 4).map(w => (
-                  <div key={w.id} className="flex items-center gap-4 bg-ink-50/50 p-3 pr-4 rounded-2xl border border-ink-100 hover:border-ink-200 transition-colors">
-                    <Avatar name={w.user?.full_name || 'F'} size="md" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold text-ink-950 truncate">{w.user?.full_name}</div>
-                      <div className="font-mono text-xs text-ink-600 font-medium">{rupee(w.amount)}</div>
-                    </div>
-                    <button className="px-4 py-2 bg-ink-950 text-white hover:bg-ink-900 font-bold text-xs rounded-xl transition-all shadow-sm" onClick={() => navigate('/admin/wallet')}>
-                      Pay
-                    </button>
+                    <button type="button" className="btn sm" onClick={() => setSelectedKyc(k)}>Review</button>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </Panel>
+          )}
         </div>
       </div>
+
       {selectedKyc && <KYCReviewModal submission={selectedKyc} onClose={() => setSelectedKyc(null)} />}
-    </div>
+    </AdminPage>
   )
 }

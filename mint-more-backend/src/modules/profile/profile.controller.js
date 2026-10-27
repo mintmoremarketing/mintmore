@@ -1,6 +1,7 @@
 const profileService = require('./profile.service');
 const { validateProfileUpdate } = require('./profile.validator');
 const { sendSuccess } = require('../../utils/apiResponse');
+const cvService = require('./cv.service');
 
 const getMyProfile = async (req, res, next) => {
   try {
@@ -109,9 +110,18 @@ const getPricingGuidance = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const parseCv = async (req, res, next) => {
+  try {
+    const result = await cvService.parseCv(req.user.sub, req.file);
+    return sendSuccess(res, { data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Add to module.exports:
 module.exports = {
-  getMyProfile, updateMyProfile, updateAvatar, removeAvatar, getMyCompletion, getMyStats,
+  getMyProfile, updateMyProfile, updateAvatar, removeAvatar, getMyCompletion, getMyStats, parseCv,
   uploadBrandAsset,
   getPublicProfile, getPricingGuidance,
 };

@@ -55,6 +55,8 @@ export default {
           400: '#8e96a0',
           300: '#b2b9c1',
           200: '#d4d8dd',
+          100: '#eceef1',
+          50: '#f5f6f8',
         }
       },
       fontFamily: {

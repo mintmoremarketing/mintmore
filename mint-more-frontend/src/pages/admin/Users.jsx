@@ -749,13 +749,13 @@ export default function AdminUsers() {
   const users = data?.users || []
 
   return (
-    <div className="flex flex-col gap-8 md:gap-12 w-full max-w-[1600px] mx-auto p-6 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 pb-24 pt-5 md:px-8 md:pb-12 md:pt-7">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex flex-col gap-2">
-          <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Admin</div>
-          <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Users</h1>
+        <div>
+          <h1 className="m-0 text-2xl font-semibold tracking-[-0.02em] text-ink-950 md:text-[28px] md:leading-9">Users</h1>
+          <p className="m-0 mt-1 text-sm text-ink-500">Clients, freelancers and admins. Open a freelancer to review KYC before they can take orders.</p>
         </div>
-        <button className="px-6 py-2.5 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-all flex items-center gap-2 shadow-sm" onClick={() => setShowCreateAdmin(true)}>
+        <button type="button" className="btn primary" onClick={() => setShowCreateAdmin(true)}>
           <Icon name="plus" size={16} />
           Create admin
         </button>
@@ -764,9 +764,9 @@ export default function AdminUsers() {
       {/* Search + filter */}
       <div className="flex flex-col md:flex-row gap-4 items-center">
         <div className="relative flex-1 w-full">
-          <Icon name="search" size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
+          <Icon name="search" size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
           <input
-            className="w-full pl-11 pr-4 py-3 bg-white border border-ink-200/60 rounded-2xl text-ink-900 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 shadow-sm transition-all"
+            className="h-10 w-full rounded-lg border border-ink-200 bg-white pl-10 pr-3 text-sm text-ink-900 placeholder:text-ink-400 transition-colors focus:border-mint-400 focus:outline-none"
             placeholder="Search by name or email…"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -787,13 +787,13 @@ export default function AdminUsers() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-ink-200/60 rounded-[2rem] shadow-sm overflow-hidden">
+      <div className="bg-white border border-ink-100 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-ink-50/50 border-b border-ink-200/60">
+              <tr className="bg-ink-50/50 border-b border-ink-100">
                 {['User','Role','KYC','Approval','Joined',''].map((h, i) => (
-                  <th key={i} className="px-6 py-4 text-xs font-bold tracking-[0.15em] uppercase text-ink-500">
+                  <th key={i} className="px-6 py-4 text-xs font-medium text-ink-500">
                     {h}
                   </th>
                 ))}
@@ -821,15 +821,15 @@ export default function AdminUsers() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="px-3 py-1 bg-ink-100 text-ink-700 text-xs font-bold uppercase tracking-wider rounded-md">{u.role}</span>
+                      <span className="px-2 py-0.5 bg-ink-100 text-ink-700 text-xs font-medium capitalize rounded-md">{u.role}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-xs font-bold uppercase tracking-wider ${u.kyc_status === 'approved' ? 'text-mint-600' : 'text-ink-400'}`}>
+                      <span className={`text-xs font-medium capitalize ${u.kyc_status === 'approved' ? 'text-mint-600' : 'text-ink-400'}`}>
                         {u.kyc_status || 'None'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${u.is_approved ? 'bg-mint-50 text-mint-700' : 'bg-amber-50 text-amber-700'}`}>
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${u.is_approved ? 'bg-mint-50 text-mint-700' : 'bg-amber-50 text-amber-700'}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${u.is_approved ? 'bg-mint-500' : 'bg-amber-500 animate-pulse'}`} />
                         {u.is_approved ? 'Approved' : 'Pending'}
                       </span>

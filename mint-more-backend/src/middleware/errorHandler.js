@@ -35,6 +35,7 @@ const errorHandler = (err, req, res, next) => {
       : err.message,
     // Include field-level validation errors if present
     ...(err.errors && { errors: err.errors }),
+    ...(err.isOperational && err.code && { code: err.code }),
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 };

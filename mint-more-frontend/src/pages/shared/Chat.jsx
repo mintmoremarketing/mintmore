@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { chatApi } from '../../api/chat'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import Avatar from '../../components/ui/Avatar'
 import Icon from '../../components/ui/Icon'
 import { timeAgo } from '../../utils/format'
+import { servicesApi } from '../../api/services'
+import OrderConversation from '../../components/services/OrderConversation'
 
 const fileNameFromUrl = (url = '') => {
 	try {
@@ -29,6 +31,47 @@ const deliveryAction = (message) => {
 	if (message.sender_role === 'client') return 'shared a reference'
 	if (message.sender_role === 'designer' || message.sender_role === 'freelancer') return 'shared a delivery'
 	return 'shared a file'
+}
+
+/** An order's chat inside the inbox: the same conversation as the order page, with a link to the order. */
+function RoomOrderConversation({ bookingId, role, title, onBack }) {
+	const audience = role === 'client' ? 'client' : 'freelancer'
+	const queryClient = useQueryClient()
+	const queryKey = ['service-booking', audience, bookingId]
+	const { data: booking } = useQuery({
+		queryKey,
+		queryFn: () => (audience === 'client' ? servicesApi.booking(bookingId) : servicesApi.workItem(bookingId)).then(res => res.data.data),
+		refetchInterval: 20_000,
+	})
+	if (!booking) return <div className="m-auto text-sm text-ink-500">Loading conversation…</div>
+	const counterpart = audience === 'client'
+		? { name: booking.freelancer_name, avatar: booking.freelancer_avatar }
+		: { name: booking.client_name, avatar: booking.client_avatar }
+	return (
+		<OrderConversation
+			booking={booking}
+			role={audience}
+			counterpartName={counterpart.name}
+			counterpartAvatar={counterpart.avatar}
+			onChanged={() => queryClient.invalidateQueries({ queryKey })}
+			className="h-full"
+			header={(
+				<header className="flex items-center gap-3 border-b border-ink-200 px-3 py-3 md:px-5">
+					<button type="button" className="icon-btn md:hidden" aria-label="Back to conversations" onClick={onBack}>
+						<Icon name="chevronLeft" size={18} />
+					</button>
+					<Avatar name={counterpart.name || title} src={counterpart.avatar} />
+					<div className="min-w-0 flex-1">
+						<div className="truncate text-[17px] font-medium text-ink-900">{counterpart.name || title}</div>
+						<div className="truncate text-sm text-ink-500">{booking.booking_number} · {booking.snapshot?.title}</div>
+					</div>
+					<Link to={`${audience === 'client' ? '/orders' : '/work'}/${bookingId}`} className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-ink-200 px-3 text-sm font-medium text-ink-800 hover:bg-ink-50">
+						View order <Icon name="chevronRight" size={14} />
+					</Link>
+				</header>
+			)}
+		/>
+	)
 }
 
 export default function Chat() {
@@ -180,7 +223,9 @@ export default function Chat() {
 			</aside>
 
 			<section className={`${chatOpen ? 'flex' : 'hidden md:flex'} min-h-0 min-w-0 flex-col`}>
-				{!selectedId ? (
+				{selectedRoom?.booking_id && ['client', 'freelancer', 'designer'].includes(role) ? (
+					<RoomOrderConversation key={selectedRoom.id} bookingId={selectedRoom.booking_id} role={role} title={roomTitle(selectedRoom)} onBack={() => setParams({})} />
+				) : !selectedId ? (
 					<div className="m-auto flex flex-col items-center px-6 text-center">
 						<span className="grid h-14 w-14 place-items-center rounded-full bg-ink-100 text-ink-500"><Icon name="chat" size={24} /></span>
 						<div className="mt-4 text-lg font-semibold text-ink-900">Your inbox is empty—for now</div>

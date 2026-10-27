@@ -53,6 +53,20 @@ const sendMessage = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const editMessage = async (req, res, next) => {
+  try {
+    const message = await chatService.editMessage(req.params.messageId, req.user.sub, req.user.role, { content: req.body.content });
+    return sendSuccess(res, { data: { message }, message: 'Message edited' });
+  } catch (err) { next(err); }
+};
+
+const markDelivered = async (req, res, next) => {
+  try {
+    const delivered = await chatService.markDelivered(req.user.sub, req.user.role);
+    return sendSuccess(res, { data: { delivered } });
+  } catch (err) { next(err); }
+};
+
 const setOnline = async (req, res, next) => {
   try {
     await chatService.setOnline(req.user.sub);
@@ -107,6 +121,8 @@ module.exports = {
   getRoom,
   getMessages,
   sendMessage,
+  editMessage,
+  markDelivered,
   setOnline,
   setOffline,
   getPresence,

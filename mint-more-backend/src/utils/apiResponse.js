@@ -15,10 +15,11 @@ const sendSuccess = (res, { data = null, message = 'Success', statusCode = 200 }
   });
 };
 
-const sendError = (res, { message = 'Internal Server Error', statusCode = 500, errors = null } = {}) => {
+const sendError = (res, { message = 'Internal Server Error', statusCode = 500, errors = null, code = null } = {}) => {
   return res.status(statusCode).json({
     success: false,
     message,
+    ...(code && { code }),
     ...(errors && { errors }),
   });
 };

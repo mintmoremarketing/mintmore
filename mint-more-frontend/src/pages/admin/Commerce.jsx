@@ -4,6 +4,7 @@ import { commerceApi } from '../../api/commerce'
 import { api } from '../../api/client'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
+import Tabs from '../../components/ui/Tabs'
 
 const CONTROL_SCHEMAS = {
   'membership.monthly': {
@@ -127,6 +128,7 @@ const FEATURE_FLAG_GROUPS = [
 const COMMERCE_TABS = [
   {
     id: 'membership',
+    hidden: true, // LAUNCH-HIDDEN: social-agency / membership / Mint AI settings
     label: 'Membership',
     description: 'Subscriptions, starter access, MintCoins, and access passes.',
     keys: ['membership.monthly', 'membership.trial', 'access_passes'],
@@ -145,12 +147,14 @@ const COMMERCE_TABS = [
   },
   {
     id: 'ai',
+    hidden: true, // LAUNCH-HIDDEN: social-agency / membership / Mint AI settings
     label: 'AI',
     description: 'Legacy AI settings, pricing notes, and public Mint AI knowledge.',
     keys: ['ai.quotas', 'public_qna'],
   },
   {
     id: 'social',
+    hidden: true, // LAUNCH-HIDDEN: social-agency / membership / Mint AI settings
     label: 'Social',
     description: 'Social benchmark defaults and analytics controls.',
     keys: ['social_benchmarks'],
@@ -168,6 +172,9 @@ const COMMERCE_TABS = [
     keys: [],
   },
 ]
+
+// Tabs shown in the console; hidden ones keep their settings untouched in the database.
+const VISIBLE_TABS = COMMERCE_TABS.filter(tab => !tab.hidden)
 
 function Field({ field, value, onChange }) {
   const [key, label, unit] = field
@@ -451,53 +458,35 @@ function renderCommerceSetting(setting) {
 }
 
 export default function AdminCommerce() {
-  const [activeTab, setActiveTab] = useState(COMMERCE_TABS[0].id)
+  const [activeTab, setActiveTab] = useState(VISIBLE_TABS[0].id)
   const { data, isLoading } = useQuery({
     queryKey: ['commerce-settings'],
     queryFn: () => commerceApi.adminSettings().then(res => res.data.data),
   })
   const settings = data?.settings || []
   const settingsByKey = Object.fromEntries(settings.map(setting => [setting.key, setting]))
-  const currentTab = COMMERCE_TABS.find(tab => tab.id === activeTab) || COMMERCE_TABS[0]
+  const currentTab = VISIBLE_TABS.find(tab => tab.id === activeTab) || VISIBLE_TABS[0]
   const tabSettings = (currentTab.keys || []).map(key => settingsByKey[key]).filter(Boolean)
 
   return (
-    <div className="flex flex-col gap-8 md:gap-12 w-full max-w-[1600px] mx-auto p-6 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col gap-2">
-        <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Admin</div>
-        <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Commercial controls</h1>
-        <p className="text-ink-600 font-medium">Manage pricing and platform rules without touching application code.</p>
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 pb-24 pt-5 md:px-8 md:pb-12 md:pt-7">
+      <div>
+        <h1 className="m-0 text-2xl font-semibold tracking-[-0.02em] text-ink-950 md:text-[28px] md:leading-9">Platform settings</h1>
+        <p className="m-0 mt-1 text-sm text-ink-500">Pricing, payouts and platform rules, changed here without a deploy.</p>
       </div>
       
-      <div className="flex flex-wrap gap-2 pb-2">
-        {COMMERCE_TABS.map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`px-5 py-2.5 rounded-full font-bold text-sm transition-all ${
-              activeTab === tab.id 
-                ? 'bg-ink-950 text-white shadow-md' 
-                : 'bg-white border border-ink-200 text-ink-600 hover:bg-ink-50 hover:text-ink-900'
-            }`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+        <Tabs items={VISIBLE_TABS.map(tab => ({ value: tab.id, label: tab.label }))} value={currentTab.id} onChange={setActiveTab} />
       </div>
-      
-      <div className="bg-ink-50/50 border border-ink-200/60 rounded-2xl p-6">
-        <div className="text-sm font-bold tracking-[0.1em] uppercase text-ink-950 mb-1">{currentTab.label}</div>
-        <p className="text-ink-600 font-medium m-0">{currentTab.description}</p>
-      </div>
-      
+      <p className="m-0 -mt-2 text-sm text-ink-500">{currentTab.description}</p>
+
       {isLoading ? <div className="text-ink-500 font-medium px-4">Loading controls...</div> : (
         <div className="commerce-grid">
           {activeTab === 'danger'
             ? <DangerZone />
             : tabSettings.length
             ? tabSettings.map(renderCommerceSetting)
-            : <div className="bg-white border border-ink-200/60 rounded-[2rem] p-8 text-center"><p className="text-ink-500 font-medium m-0">No controls found for this section yet.</p></div>}
+            : <div className="bg-white border border-ink-100 rounded-xl p-8 text-center"><p className="text-ink-500 font-medium m-0">No controls found for this section yet.</p></div>}
         </div>
       )}
     </div>

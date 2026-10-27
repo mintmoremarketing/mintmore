@@ -98,12 +98,11 @@ export default function AdminAudit() {
   })
 
   return (
-    <div className="flex flex-col gap-8 md:gap-12 w-full max-w-[1600px] mx-auto p-6 pt-12 md:p-10 md:pt-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 pb-24 pt-5 md:px-8 md:pb-12 md:pt-7">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-2">
-          <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Admin</div>
-          <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Audit records</h1>
-          <p className="text-ink-500 font-medium mt-1">Immutable records of sensitive platform actions.</p>
+          <h1 className="m-0 text-2xl font-semibold tracking-[-0.02em] text-ink-950 md:text-[28px] md:leading-9">Audit records</h1>
+          <p className="m-0 mt-1 text-sm text-ink-500">Immutable records of sensitive platform actions.</p>
         </div>
         
         {/* Pagination UI */}
@@ -133,10 +132,10 @@ export default function AdminAudit() {
       </div>
 
 
-      <div className="bg-white border border-ink-200/60 rounded-[2rem] p-6 md:p-8 shadow-sm flex flex-col gap-6">
+      <div className="bg-white border border-ink-100 rounded-xl p-6 md:p-8 flex flex-col gap-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
           <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold text-ink-500 uppercase tracking-widest">Search</span>
+            <span className="text-xs font-medium text-ink-500">Search</span>
             <input
               className="w-full px-4 py-2.5 bg-ink-50/50 border border-ink-200 rounded-xl text-ink-950 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all text-sm font-medium placeholder:text-ink-400"
               value={filters.search}
@@ -145,7 +144,7 @@ export default function AdminAudit() {
             />
           </label>
           <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold text-ink-500 uppercase tracking-widest">Entity</span>
+            <span className="text-xs font-medium text-ink-500">Entity</span>
             <select 
               className="w-full px-4 py-2.5 bg-ink-50/50 border border-ink-200 rounded-xl text-ink-950 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all text-sm font-medium appearance-none cursor-pointer" 
               value={filters.entity_type} 
@@ -161,7 +160,7 @@ export default function AdminAudit() {
             </select>
           </label>
           <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold text-ink-500 uppercase tracking-widest">Action</span>
+            <span className="text-xs font-medium text-ink-500">Action</span>
             <input
               className="w-full px-4 py-2.5 bg-ink-50/50 border border-ink-200 rounded-xl text-ink-950 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all text-sm font-medium placeholder:text-ink-400"
               value={filters.action}
@@ -170,7 +169,7 @@ export default function AdminAudit() {
             />
           </label>
           <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold text-ink-500 uppercase tracking-widest">From</span>
+            <span className="text-xs font-medium text-ink-500">From</span>
             <input 
               className="w-full px-4 py-2.5 bg-ink-50/50 border border-ink-200 rounded-xl text-ink-950 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all text-sm font-medium" 
               type="date" 
@@ -179,7 +178,7 @@ export default function AdminAudit() {
             />
           </label>
           <label className="flex flex-col gap-2">
-            <span className="text-xs font-bold text-ink-500 uppercase tracking-widest">To</span>
+            <span className="text-xs font-medium text-ink-500">To</span>
             <input 
               className="w-full px-4 py-2.5 bg-ink-50/50 border border-ink-200 rounded-xl text-ink-950 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all text-sm font-medium" 
               type="date" 
@@ -189,7 +188,7 @@ export default function AdminAudit() {
           </label>
           <div className="flex gap-2">
             <label className="flex flex-col gap-2 flex-1">
-              <span className="text-xs font-bold text-ink-500 uppercase tracking-widest">Sort</span>
+              <span className="text-xs font-medium text-ink-500">Sort</span>
               <select 
                 className="w-full px-4 py-2.5 bg-ink-50/50 border border-ink-200 rounded-xl text-ink-950 focus:outline-none focus:border-ink-400 focus:ring-1 focus:ring-ink-400 transition-all text-sm font-medium appearance-none cursor-pointer" 
                 value={filters.sort} 
@@ -217,7 +216,7 @@ export default function AdminAudit() {
       </div>
 
       {failedEvents.length > 0 && (
-        <div className="bg-rose-50/50 border border-rose-200 rounded-[2rem] overflow-hidden shadow-sm">
+        <div className="bg-rose-50/50 border border-rose-200 rounded-xl overflow-hidden">
           <div className="p-6 md:px-8 border-b border-rose-100 flex flex-col gap-1">
             <h2 className="text-lg font-bold text-rose-900 m-0 flex items-center gap-2">
               <Icon name="alertCircle" size={18} className="text-rose-500" />
@@ -238,7 +237,7 @@ export default function AdminAudit() {
                   {event.last_error || 'No error detail recorded'}
                 </div>
                 <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-1/4">
-                  <div className="text-xs font-bold uppercase tracking-widest text-rose-500">{event.attempts} attempts</div>
+                  <div className="text-xs font-medium text-rose-500">{event.attempts} attempts</div>
                   {canRetry ? (
                     <button
                       className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
@@ -270,7 +269,7 @@ export default function AdminAudit() {
           <p className="text-ink-500 font-medium">Sensitive admin and financial actions will appear here based on your filters.</p>
         </div>
       ) : (
-        <div className="bg-white border border-ink-200/60 rounded-[2rem] overflow-hidden shadow-sm flex flex-col">
+        <div className="bg-white border border-ink-100 rounded-xl overflow-hidden flex flex-col">
           {logs.map((log, index) => (
             <div key={log.id} className={`p-6 md:p-8 grid grid-cols-1 lg:grid-cols-[2fr_1.5fr_2.5fr_1fr] gap-6 lg:gap-8 items-start ${index !== 0 ? 'border-t border-ink-100' : ''} hover:bg-ink-50/30 transition-colors`}>
               
@@ -279,7 +278,7 @@ export default function AdminAudit() {
                 <div className="flex flex-col gap-1 mt-1">
                   <div className="font-mono text-xs text-ink-500 bg-ink-100/50 px-2 py-0.5 rounded w-fit">{log.action}</div>
                   <div className="font-mono text-xs text-ink-500 flex items-center gap-1.5">
-                    <span className="uppercase tracking-widest text-[9px] font-bold text-ink-400">{log.entity_type}</span>
+                    <span className="text-xs font-medium text-ink-400">{log.entity_type}</span>
                     <Icon name="arrowRight" size={10} className="text-ink-300" />
                     <span className="bg-ink-100/50 px-2 py-0.5 rounded">{log.entity_id || '-'}</span>
                   </div>
@@ -287,7 +286,7 @@ export default function AdminAudit() {
               </div>
               
               <div className="flex flex-col gap-1">
-                <div className="text-xs font-bold uppercase tracking-widest text-ink-400 mb-1">Actor</div>
+                <div className="text-xs font-medium text-ink-400 mb-1">Actor</div>
                 <div className="text-sm font-bold text-ink-900">{log.actor_name || 'System'}</div>
                 {log.actor_email || log.actor_role ? (
                   <div className="text-xs font-medium text-ink-500">{log.actor_email || log.actor_role}</div>
@@ -295,17 +294,17 @@ export default function AdminAudit() {
               </div>
               
               <div className="flex flex-col gap-2 min-w-0">
-                <div className="text-xs font-bold uppercase tracking-widest text-ink-400 mb-1">Details</div>
+                <div className="text-xs font-medium text-ink-400 mb-1">Details</div>
                 <div className="text-sm font-medium text-ink-800 bg-ink-50/80 p-3 rounded-xl border border-ink-100 leading-relaxed">
                   {summarizeLog(log)}
                 </div>
                 {(Object.keys(log.metadata || {}).length > 0) && (
                   <details className="mt-2 group">
-                    <summary className="text-xs font-bold uppercase tracking-widest text-ink-500 cursor-pointer hover:text-ink-900 flex items-center gap-1.5 select-none transition-colors">
+                    <summary className="text-xs font-medium text-ink-500 cursor-pointer hover:text-ink-900 flex items-center gap-1.5 select-none transition-colors">
                       <Icon name="chevronDown" size={12} className="group-open:rotate-180 transition-transform" />
                       View Metadata
                     </summary>
-                    <pre className="font-mono text-[10px] sm:text-xs text-ink-700 bg-ink-50 border border-ink-200/60 p-4 rounded-xl mt-3 overflow-x-auto shadow-sm leading-relaxed">
+                    <pre className="font-mono text-[10px] sm:text-xs text-ink-700 bg-ink-50 border border-ink-100 p-4 rounded-xl mt-3 overflow-x-auto leading-relaxed">
                       {JSON.stringify(log.metadata, null, 2)}
                     </pre>
                   </details>
@@ -314,7 +313,7 @@ export default function AdminAudit() {
               
               <div className="flex flex-row lg:flex-col justify-between lg:justify-start items-center lg:items-end gap-1 lg:text-right mt-2 lg:mt-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-ink-100">
                 <div className="text-sm font-bold text-ink-900 whitespace-nowrap">{formatAuditDate(log.created_at)}</div>
-                <div className="text-xs font-bold uppercase tracking-widest text-ink-400 whitespace-nowrap">{timeAgo(log.created_at)}</div>
+                <div className="text-xs font-medium text-ink-400 whitespace-nowrap">{timeAgo(log.created_at)}</div>
               </div>
               
             </div>

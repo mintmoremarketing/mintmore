@@ -41,7 +41,9 @@ export default function Register() {
         mutationFn: () => authApi.register({ full_name: fullName, email, password, role }),
         onSuccess: ({ data }) => {
             setAuth(data.data.user, data.data.accessToken, data.data.refreshToken)
-            navigate(nextPathFromSearch(window.location.search, data.data.user.role === 'admin' ? '/admin' : '/dashboard'))
+            // New freelancers start on their profile, where a CV can fill it in.
+            const landing = { admin: '/admin', freelancer: '/profile/edit?welcome=1' }[data.data.user.role] || '/dashboard'
+            navigate(nextPathFromSearch(window.location.search, landing))
         },
         onError: (err) => {
             const message = err.response?.data?.message || 'Registration failed'

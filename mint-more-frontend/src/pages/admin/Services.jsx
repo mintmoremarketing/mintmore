@@ -1,17 +1,19 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { servicesApi } from '../../api/services'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
-import { deliveryText, inr, variantLabel } from '../../components/services/serviceUtils'
+import { AdminPage, EmptyState, PageHeader, Panel, SkeletonRows } from '../../components/admin/AdminUI'
+import { deliveryText, inr } from '../../components/services/serviceUtils'
 
 const blankVariant = () => ({ option_label: 'Standard', pack_size: 1, price: '', mrp: '', freelancer_payout: '', delivery_days: 2, is_default: false, is_active: true })
 
-const toForm = (t) => ({
+const toForm = (t, categoryId = '') => ({
 	id: t?.id || null,
 	title: t?.title || '',
 	slug: t?.slug || '',
-	category_id: t?.category_id || '',
+	category_id: t?.category_id || categoryId || '',
 	summary: t?.summary || '',
 	description: t?.description || '',
 	unit_label: t?.unit_label || '',
@@ -56,105 +58,261 @@ const toPayload = (form) => ({
 	})),
 })
 
-const Field = ({ label, children, hint }) => (
-	<label className="block">
-		<span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-ink-500">{label}</span>
+const UNCATEGORISED = 'none'
+const slugify = (text) => text.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+const range = (values, fmt) => {
+	if (!values.length) return '—'
+	const lo = Math.min(...values)
+	const hi = Math.max(...values)
+	return lo === hi ? fmt(lo) : `${fmt(lo)}–${fmt(hi)}`
+}
+
+const Field = ({ label, children, hint, className = '' }) => (
+	<label className={`block ${className}`}>
+		<span className="mb-1.5 block text-[13px] font-medium text-ink-800">{label}</span>
 		{children}
-		{hint && <span className="mt-1 block text-[11px] text-ink-400">{hint}</span>}
+		{hint && <span className="mt-1.5 block text-xs text-ink-500">{hint}</span>}
 	</label>
 )
-const inputCls = 'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm focus:border-mint-400 focus:outline-none'
+const control = 'w-full rounded-lg border border-ink-200 bg-white text-sm text-ink-900 placeholder:text-ink-400 transition-colors duration-150 hover:border-ink-300 focus:border-mint-500 focus:outline-none focus:ring-2 focus:ring-mint-500/15'
+const inputCls = `${control} h-10 px-3`
+const areaCls = `${control} px-3 py-2.5 leading-6`
+const cellInput = `${control} h-9 px-2.5 tabular-nums`
 
-function Editor({ template, categories, onClose }) {
+/** Native select with the platform arrow replaced, so it matches the text inputs. */
+function Select({ className = '', children, ...props }) {
+	return (
+		<div className="relative">
+			<select {...props} className={`${inputCls} appearance-none pr-9 ${className}`}>{children}</select>
+			<Icon name="chevronDown" size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-400" />
+		</div>
+	)
+}
+
+/** Small on/off switch; used for Live in the list and in the editor. */
+function Switch({ checked, onChange, label, disabled }) {
+	return (
+		<button
+			type="button"
+			role="switch"
+			aria-checked={checked}
+			aria-label={label}
+			disabled={disabled}
+			onClick={e => { e.stopPropagation(); onChange(!checked) }}
+			className={`relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] disabled:opacity-50 ${checked ? 'bg-mint-500' : 'bg-ink-200'}`}
+		>
+			<span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-[0_1px_2px_rgba(11,15,20,0.25)] transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${checked ? 'translate-x-4' : ''}`} />
+		</button>
+	)
+}
+
+function useSaveTemplate({ onDone, onError } = {}) {
 	const queryClient = useQueryClient()
 	const pushToast = useUIStore(s => s.pushToast)
-	const [form, setForm] = useState(() => toForm(template))
-	const [errors, setErrors] = useState([])
-	const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
-	const setVariant = (index, key, value) => setForm(f => ({ ...f, variants: f.variants.map((v, i) => (i === index ? { ...v, [key]: value } : v)) }))
-
-	const save = useMutation({
-		mutationFn: () => (form.id ? servicesApi.adminUpdateTemplate(form.id, toPayload(form)) : servicesApi.adminCreateTemplate(toPayload(form))),
-		onSuccess: () => {
+	return useMutation({
+		mutationFn: ({ id, payload }) => (id ? servicesApi.adminUpdateTemplate(id, payload) : servicesApi.adminCreateTemplate(payload)),
+		onSuccess: (_res, { toast }) => {
 			queryClient.invalidateQueries({ queryKey: ['admin-service-templates'] })
-			pushToast({ title: 'Service saved', icon: 'check' })
-			onClose()
+			pushToast({ title: toast || 'Service saved', icon: 'check' })
+			onDone?.()
 		},
-		onError: (err) => setErrors(err.response?.data?.errors || [err.response?.data?.message || 'Could not save']),
+		onError: (err) => {
+			const messages = !err.response
+				? ['Could not reach the server. Nothing was changed; try again in a moment.']
+				: err.response.data?.errors || [err.response.data?.message || `Save failed (error ${err.response.status}).`]
+			if (onError) onError(messages)
+			else pushToast({ title: 'Could not save', body: messages[0], tone: 'amber', icon: 'x' })
+		},
 	})
+}
 
+/** Labelled cell for a price option: the label shows on phones, the table header does the job on desktop. */
+function OptionCell({ label, className = 'md:order-2 xl:order-none', children }) {
 	return (
-		<div className="rounded-2xl border border-ink-200 bg-white p-5">
-			<div className="mb-4 flex items-center justify-between">
-				<h2 className="text-lg font-bold text-ink-900">{form.id ? `Edit: ${template.title}` : 'New service'}</h2>
-				<button className="btn ghost sm" onClick={onClose}><Icon name="x" size={14} /> Close</button>
-			</div>
+		<label className={`block min-w-0 ${className}`}>
+			<span className="mb-1 block text-xs text-ink-500 xl:hidden">{label}</span>
+			{children}
+		</label>
+	)
+}
 
-			<div className="grid gap-4 md:grid-cols-2">
-				<Field label="Title"><input className={inputCls} value={form.title} onChange={set('title')} /></Field>
-				<Field label="Slug" hint="Used in the URL: /services/slug"><input className={inputCls} value={form.slug} onChange={set('slug')} /></Field>
-				<Field label="Category">
-					<select className={inputCls} value={form.category_id} onChange={set('category_id')}>
-						<option value="">—</option>
-						{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-					</select>
-				</Field>
-				<Field label="Revisions included"><input type="number" min="0" className={inputCls} value={form.revisions} onChange={set('revisions')} /></Field>
-				<Field label="Option label" hint='e.g. "Reel length"'><input className={inputCls} value={form.option_group_label} onChange={set('option_group_label')} /></Field>
-				<Field label="Unit" hint='e.g. "reel", "design"'><input className={inputCls} value={form.unit_label} onChange={set('unit_label')} /></Field>
-				<div className="md:col-span-2"><Field label="Summary"><input className={inputCls} value={form.summary} onChange={set('summary')} /></Field></div>
-				<div className="md:col-span-2"><Field label="Description"><textarea rows={3} className={inputCls} value={form.description} onChange={set('description')} /></Field></div>
-				<Field label="Includes" hint="One per line"><textarea rows={4} className={inputCls} value={form.includes} onChange={set('includes')} /></Field>
-				<Field label="Excludes" hint="One per line"><textarea rows={4} className={inputCls} value={form.excludes} onChange={set('excludes')} /></Field>
-				<Field label="Tools" hint="Comma separated"><input className={inputCls} value={form.tools} onChange={set('tools')} /></Field>
-				<Field label="What to send" hint="Shown to the client at checkout"><input className={inputCls} value={form.requirements_hint} onChange={set('requirements_hint')} /></Field>
-				<div className="md:col-span-2"><Field label="FAQs" hint="One per line: Question :: Answer"><textarea rows={3} className={inputCls} value={form.faqs} onChange={set('faqs')} /></Field></div>
-				<Field label="Cover image URL"><input className={inputCls} value={form.cover_url} onChange={set('cover_url')} /></Field>
-				<div className="flex items-end gap-4">
-					<Field label="Sort order"><input type="number" className={inputCls} value={form.sort_order} onChange={set('sort_order')} /></Field>
-					<label className="mb-2 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={form.is_active} onChange={set('is_active')} /> Live in catalogue</label>
+const OPTION_GRID = 'grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3 md:grid-cols-6 xl:grid-cols-[minmax(0,1.6fr)_64px_96px_96px_96px_80px_64px_96px] xl:items-center xl:gap-y-0'
+
+function Editor({ template, categories, defaultCategory, onClose }) {
+	const [form, setForm] = useState(() => toForm(template, defaultCategory))
+	const [errors, setErrors] = useState([])
+	const save = useSaveTemplate({ onDone: onClose, onError: setErrors })
+	const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+	const setVariant = (index, key, value) => setForm(f => ({ ...f, variants: f.variants.map((v, i) => (i === index ? { ...v, [key]: value } : v)) }))
+	const setTitle = (e) => {
+		const title = e.target.value
+		// New services get a slug that follows the title until the slug is edited by hand.
+		setForm(f => ({ ...f, title, slug: !f.id && (!f.slug || f.slug === slugify(f.title)) ? slugify(title) : f.slug }))
+	}
+	const activeOptions = form.variants.filter(v => v.is_active !== false).length
+	const submit = () => { setErrors([]); save.mutate({ id: form.id, payload: toPayload(form) }) }
+
+	const section = 'grid gap-x-5 gap-y-5 p-4 md:grid-cols-2 md:p-6'
+	return (
+		<div className="flex flex-col gap-5">
+			{/* Sticky header holds the actions, so nothing floats over the form. */}
+			<div className="sticky top-14 z-20 -mx-4 border-b border-ink-100 bg-ink-50/95 px-4 py-3 backdrop-blur md:top-16 md:-mx-8 md:px-8">
+				<div className="flex items-center gap-3">
+					<button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-ink-200 bg-white text-ink-600 transition-colors hover:bg-ink-50" aria-label="Back to catalogue">
+						<Icon name="chevronLeft" size={16} />
+					</button>
+					<div className="min-w-0 flex-1">
+						<h2 className="truncate text-lg font-semibold tracking-[-0.01em] text-ink-950">{form.title || 'New service'}</h2>
+						<p className="truncate text-xs text-ink-500">
+							{form.slug ? `/services/${form.slug}` : 'Add a title to create the link'} · {activeOptions} active option{activeOptions === 1 ? '' : 's'}
+						</p>
+					</div>
+					<label className="hidden items-center gap-2 text-sm font-medium text-ink-700 sm:flex">
+						<Switch checked={form.is_active} onChange={v => setForm(f => ({ ...f, is_active: v }))} label="Live in catalogue" />
+						{form.is_active ? 'Live' : 'Hidden'}
+					</label>
+					<button type="button" className="btn ghost hidden md:inline-flex" onClick={onClose}>Cancel</button>
+					<button type="button" className="btn primary" disabled={save.isPending} onClick={submit}>{save.isPending ? 'Saving…' : form.id ? 'Save' : 'Create'}</button>
 				</div>
+				{errors.length > 0 && (
+					<ul className="m-0 mt-3 list-none rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errors.map(e => <li key={e}>{e}</li>)}</ul>
+				)}
 			</div>
 
-			<h3 className="mb-2 mt-6 text-sm font-bold text-ink-900">Price options</h3>
-			<div className="overflow-x-auto">
-				<table className="w-full min-w-[760px] text-sm">
-					<thead><tr className="text-left text-[11px] uppercase tracking-wider text-ink-500">
-						<th className="py-1 pr-2">Option</th><th className="pr-2">Pack</th><th className="pr-2">Price ₹</th><th className="pr-2">MRP ₹</th><th className="pr-2">Payout ₹</th><th className="pr-2">Days</th><th className="pr-2">Default</th><th className="pr-2">Active</th><th />
-					</tr></thead>
-					<tbody>
-						{form.variants.map((v, i) => (
-							<tr key={v.id || i}>
-								<td className="py-1 pr-2"><input className={inputCls} value={v.option_label} onChange={e => setVariant(i, 'option_label', e.target.value)} /></td>
-								<td className="pr-2"><input type="number" min="1" className={`${inputCls} w-16`} value={v.pack_size} onChange={e => setVariant(i, 'pack_size', e.target.value)} /></td>
-								<td className="pr-2"><input type="number" min="1" className={`${inputCls} w-24`} value={v.price} onChange={e => setVariant(i, 'price', e.target.value)} /></td>
-								<td className="pr-2"><input type="number" className={`${inputCls} w-24`} value={v.mrp} onChange={e => setVariant(i, 'mrp', e.target.value)} /></td>
-								<td className="pr-2"><input type="number" min="0" className={`${inputCls} w-24`} value={v.freelancer_payout} onChange={e => setVariant(i, 'freelancer_payout', e.target.value)} /></td>
-								<td className="pr-2"><input type="number" min="1" className={`${inputCls} w-16`} value={v.delivery_days} onChange={e => setVariant(i, 'delivery_days', e.target.value)} /></td>
-								<td className="pr-2 text-center"><input type="radio" name="default-variant" checked={!!v.is_default} onChange={() => setForm(f => ({ ...f, variants: f.variants.map((x, j) => ({ ...x, is_default: j === i })) }))} /></td>
-								<td className="pr-2 text-center"><input type="checkbox" checked={v.is_active !== false} onChange={e => setVariant(i, 'is_active', e.target.checked)} /></td>
-								<td>{!v.id && <button className="btn ghost sm" onClick={() => setForm(f => ({ ...f, variants: f.variants.filter((_, j) => j !== i) }))}><Icon name="trash" size={13} /></button>}</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
-			<button className="btn ghost sm mt-2" onClick={() => setForm(f => ({ ...f, variants: [...f.variants, blankVariant()] }))}><Icon name="plus" size={13} /> Add option</button>
-			<p className="mt-2 text-[11px] text-ink-400">Prices exclude GST. Options used by past orders can't be deleted — untick Active to retire them.</p>
+			<label className="flex items-center justify-between gap-3 rounded-xl border border-ink-100 bg-white px-4 py-3 text-sm font-medium text-ink-800 sm:hidden">
+				Show on the storefront
+				<Switch checked={form.is_active} onChange={v => setForm(f => ({ ...f, is_active: v }))} label="Live in catalogue" />
+			</label>
 
-			{errors.length > 0 && (
-				<ul className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{errors.map(e => <li key={e}>{e}</li>)}</ul>
-			)}
-			<div className="mt-5 flex justify-end gap-2">
-				<button className="btn ghost" onClick={onClose}>Cancel</button>
-				<button className="btn primary" disabled={save.isPending} onClick={() => { setErrors([]); save.mutate() }}>{save.isPending ? 'Saving…' : 'Save service'}</button>
+			<Panel title="Basics" description="Where it sits in the catalogue and how clients find it.">
+				<div className={section}>
+					<Field label="Title"><input className={inputCls} value={form.title} onChange={setTitle} placeholder="Engaging Talking-Head Reel" /></Field>
+					<Field label="Link name" hint={`creatyv…/services/${form.slug || 'link-name'}`}><input className={inputCls} value={form.slug} onChange={set('slug')} placeholder="engaging-talking-head-reel" /></Field>
+					<Field label="Category">
+						<Select value={form.category_id} onChange={set('category_id')}>
+							<option value="">No category</option>
+							{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+						</Select>
+					</Field>
+					<Field label="Position" hint="Lower numbers show first in the category"><input type="number" className={inputCls} value={form.sort_order} onChange={set('sort_order')} /></Field>
+					<Field label="Summary" hint="One line on the service card" className="md:col-span-2"><input className={inputCls} value={form.summary} onChange={set('summary')} placeholder="Hook-first edit with captions and sound design" /></Field>
+					<Field label="Cover image" hint="Paste an image link. Square or 4:3 works best." className="md:col-span-2">
+						<div className="flex items-center gap-3">
+							<div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg border border-ink-200 bg-ink-50 text-ink-400">
+								{form.cover_url ? <img src={form.cover_url} alt="" className="h-full w-full object-cover" /> : <Icon name="image" size={16} />}
+							</div>
+							<input className={inputCls} value={form.cover_url} onChange={set('cover_url')} placeholder="https://" />
+						</div>
+					</Field>
+				</div>
+			</Panel>
+
+			<Panel title="Price options" description="Prices exclude GST. Payout is what the freelancer earns per order.">
+				<div className="grid gap-x-5 gap-y-5 border-b border-ink-100 p-4 sm:grid-cols-3 md:p-6">
+					<Field label="Choice label" hint='Heading above the options, like "Reel length"'><input className={inputCls} value={form.option_group_label} onChange={set('option_group_label')} placeholder="Reel length" /></Field>
+					<Field label="Unit" hint='What one order delivers, like "reel"'><input className={inputCls} value={form.unit_label} onChange={set('unit_label')} placeholder="reel" /></Field>
+					<Field label="Revisions included"><input type="number" min="0" className={inputCls} value={form.revisions} onChange={set('revisions')} /></Field>
+				</div>
+
+				<div className={`${OPTION_GRID} hidden border-b border-ink-100 px-6 py-2.5 text-xs text-ink-500 xl:grid`}>
+					<span>Option</span><span>Pack</span><span>Price ₹</span><span>MRP ₹</span><span>Payout ₹</span><span className="text-right">Margin</span><span>Days</span><span className="text-right">Default · On</span>
+				</div>
+				<div className="divide-y divide-ink-100">
+					{form.variants.map((v, i) => {
+						const margin = Number(v.price) - Number(v.freelancer_payout)
+						const marginKnown = v.price !== '' && v.freelancer_payout !== ''
+						const off = v.is_active === false
+						return (
+							<div key={v.id || `new-${i}`} className={`${OPTION_GRID} px-4 py-4 md:px-6 xl:py-2.5 ${off ? 'bg-ink-50/70' : ''}`}>
+								<OptionCell label="Option" className="col-span-2 sm:col-span-3 md:col-span-4 xl:col-span-1">
+									<input className={`${cellInput} ${off ? 'text-ink-400' : ''}`} value={v.option_label} onChange={e => setVariant(i, 'option_label', e.target.value)} placeholder="Up to 60 seconds" />
+								</OptionCell>
+								<OptionCell label="Pack"><input type="number" min="1" className={cellInput} value={v.pack_size} onChange={e => setVariant(i, 'pack_size', e.target.value)} /></OptionCell>
+								<OptionCell label="Price ₹"><input type="number" min="1" className={cellInput} value={v.price} onChange={e => setVariant(i, 'price', e.target.value)} /></OptionCell>
+								<OptionCell label="MRP ₹"><input type="number" className={cellInput} value={v.mrp} onChange={e => setVariant(i, 'mrp', e.target.value)} placeholder="—" /></OptionCell>
+								<OptionCell label="Payout ₹"><input type="number" min="0" className={cellInput} value={v.freelancer_payout} onChange={e => setVariant(i, 'freelancer_payout', e.target.value)} /></OptionCell>
+								<div className="min-w-0 md:order-2 xl:order-none xl:text-right">
+									<span className="mb-1 block text-xs text-ink-500 xl:hidden">Margin</span>
+									<span className={`flex h-9 items-center text-sm tabular-nums xl:justify-end ${marginKnown && margin < 0 ? 'font-semibold text-rose-600' : 'text-ink-700'}`}>{marginKnown ? inr(margin) : '—'}</span>
+								</div>
+								<OptionCell label="Days"><input type="number" min="1" className={cellInput} value={v.delivery_days} onChange={e => setVariant(i, 'delivery_days', e.target.value)} /></OptionCell>
+								<div className="col-span-2 flex items-center gap-4 sm:col-span-3 md:order-1 md:col-span-2 md:justify-end md:self-end md:pb-0.5 xl:order-none xl:col-span-1 xl:gap-3 xl:self-auto xl:pb-0">
+									<label className="flex items-center gap-1.5 text-xs text-ink-600" title="Selected by default on the service page">
+										<input type="radio" name="default-variant" className="h-4 w-4 accent-mint-500" checked={!!v.is_default} onChange={() => setForm(f => ({ ...f, variants: f.variants.map((x, j) => ({ ...x, is_default: j === i })) }))} />
+										<span className="xl:sr-only">Default</span>
+									</label>
+									<Switch checked={!off} onChange={on => setVariant(i, 'is_active', on)} label="Option active" />
+									{!v.id ? (
+										<button type="button" className="ml-auto grid h-8 w-8 place-items-center rounded-md text-ink-400 transition-colors hover:bg-rose-50 hover:text-rose-600 xl:ml-0" aria-label="Remove option" onClick={() => setForm(f => ({ ...f, variants: f.variants.filter((_, j) => j !== i) }))}>
+											<Icon name="trash" size={14} />
+										</button>
+									) : <span className="hidden w-8 xl:block" />}
+								</div>
+							</div>
+						)
+					})}
+				</div>
+				<div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-4 py-3 md:px-6">
+					<button type="button" className="btn ghost sm" onClick={() => setForm(f => ({ ...f, variants: [...f.variants, blankVariant()] }))}><Icon name="plus" size={13} /> Add option</button>
+					<span className="text-xs text-ink-500">Options used by past orders can't be removed. Switch them off to retire them.</span>
+				</div>
+			</Panel>
+
+			<Panel title="Service page" description="What clients read before they book.">
+				<div className={section}>
+					<Field label="Description" className="md:col-span-2"><textarea rows={4} className={areaCls} value={form.description} onChange={set('description')} /></Field>
+					<Field label="Included" hint="One item per line"><textarea rows={5} className={areaCls} value={form.includes} onChange={set('includes')} /></Field>
+					<Field label="Not included" hint="One item per line"><textarea rows={5} className={areaCls} value={form.excludes} onChange={set('excludes')} /></Field>
+					<Field label="Tools" hint="Separate with commas"><input className={inputCls} value={form.tools} onChange={set('tools')} placeholder="Premiere Pro, After Effects" /></Field>
+					<Field label="What the client should send" hint="Shown at checkout"><input className={inputCls} value={form.requirements_hint} onChange={set('requirements_hint')} placeholder="Raw footage link and a reference reel" /></Field>
+					<Field label="FAQs" hint="One per line, as Question :: Answer" className="md:col-span-2"><textarea rows={4} className={areaCls} value={form.faqs} onChange={set('faqs')} /></Field>
+				</div>
+			</Panel>
+
+			<div className="flex justify-end gap-2 pb-2">
+				<button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+				<button type="button" className="btn primary" disabled={save.isPending} onClick={submit}>{save.isPending ? 'Saving…' : form.id ? 'Save changes' : 'Create service'}</button>
 			</div>
 		</div>
 	)
 }
 
+function ServiceRow({ template, onEdit, onToggle, toggling }) {
+	const active = template.variants.filter(v => v.is_active)
+	return (
+		<div role="button" tabIndex={0} onClick={onEdit} onKeyDown={e => e.key === 'Enter' && onEdit()} className="group flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-ink-50/70 md:px-5">
+			<div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-ink-100">
+				{template.cover_url && <img src={template.cover_url} alt="" className="h-full w-full object-cover" loading="lazy" />}
+			</div>
+			<div className="min-w-0 flex-1">
+				<div className="flex items-center gap-2">
+					<span className={`truncate text-sm font-semibold ${template.is_active ? 'text-ink-900' : 'text-ink-500'}`}>{template.title}</span>
+					{!template.is_active && <span className="shrink-0 rounded-md bg-ink-100 px-1.5 py-0.5 text-[11px] font-medium text-ink-500">Hidden</span>}
+				</div>
+				<div className="truncate text-xs text-ink-500">
+					{active.length} option{active.length === 1 ? '' : 's'} · {template.revisions} revisions · {range(active.map(v => Number(v.delivery_days)), deliveryText)}
+				</div>
+			</div>
+			<div className="hidden shrink-0 whitespace-nowrap text-right md:block">
+				<div className="text-sm font-semibold tabular-nums text-ink-900">{range(active.map(v => Number(v.price)), inr)}</div>
+				<div className="text-xs tabular-nums text-ink-400">payout {range(active.map(v => Number(v.freelancer_payout)), inr)}</div>
+			</div>
+			<div className="hidden w-24 shrink-0 text-right text-xs text-ink-500 xl:block">
+				<div><span className="font-semibold tabular-nums text-ink-800">{template.freelancer_count}</span> freelancers</div>
+				<div><span className="font-semibold tabular-nums text-ink-800">{template.order_count}</span> orders</div>
+			</div>
+			<Switch checked={template.is_active} onChange={onToggle} disabled={toggling} label={`${template.title} live`} />
+			<Icon name="chevronRight" size={15} className="shrink-0 text-ink-300 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-ink-500" />
+		</div>
+	)
+}
+
 export default function AdminServices() {
+	const [params, setParams] = useSearchParams()
 	const [editing, setEditing] = useState(null) // template object, 'new', or null
+	const [search, setSearch] = useState('')
+	const [status, setStatus] = useState('all')
+	const selected = params.get('category') || 'all'
 	const { data: templates = [], isLoading } = useQuery({
 		queryKey: ['admin-service-templates'],
 		queryFn: () => servicesApi.adminTemplates().then(res => res.data.data),
@@ -163,51 +321,104 @@ export default function AdminServices() {
 		queryKey: ['service-categories'],
 		queryFn: () => servicesApi.categories().then(res => res.data.data),
 	})
+	const toggle = useSaveTemplate()
+
+	// Category list for the rail: every known category plus "Uncategorised" when anything lacks one.
+	const groups = useMemo(() => {
+		const byId = new Map(categories.map(c => [c.id, { id: c.id, name: c.name, items: [] }]))
+		const none = { id: UNCATEGORISED, name: 'Uncategorised', items: [] }
+		for (const t of [...templates].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.title.localeCompare(b.title))) {
+			const group = byId.get(t.category_id) || (t.category_id && t.category_name
+				? byId.set(t.category_id, { id: t.category_id, name: t.category_name, items: [] }).get(t.category_id)
+				: none)
+			group.items.push(t)
+		}
+		return [...byId.values(), ...(none.items.length ? [none] : [])]
+	}, [templates, categories])
+
+	const q = search.trim().toLowerCase()
+	const visibleGroups = groups
+		.filter(g => selected === 'all' || g.id === selected)
+		.map(g => ({ ...g, items: g.items.filter(t => (status === 'all' || (status === 'live') === t.is_active) && (!q || t.title.toLowerCase().includes(q) || t.slug.includes(q))) }))
+		.filter(g => g.items.length || selected !== 'all')
+
+	const pick = id => setParams(prev => { const p = new URLSearchParams(prev); if (id === 'all') p.delete('category'); else p.set('category', id); return p }, { replace: true })
+	const flip = t => toggle.mutate({ id: t.id, payload: { ...toPayload(toForm(t)), is_active: !t.is_active }, toast: t.is_active ? `${t.title} hidden` : `${t.title} is live` })
+	const liveCount = templates.filter(t => t.is_active).length
+	const defaultCategory = selected !== 'all' && selected !== UNCATEGORISED ? selected : ''
+
+	if (editing) {
+		return (
+			<AdminPage>
+				<Editor key={editing === 'new' ? 'new' : editing.id} template={editing === 'new' ? null : editing} categories={categories} defaultCategory={defaultCategory} onClose={() => setEditing(null)} />
+			</AdminPage>
+		)
+	}
+
+	const railItem = (id, name, count, live) => {
+		const on = selected === id
+		return (
+			<button key={id} type="button" onClick={() => pick(id)} aria-current={on ? 'true' : undefined}
+				className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors md:w-full ${on ? 'bg-mint-50 font-semibold text-mint-700' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}>
+				<span className="truncate md:flex-1">{name}</span>
+				<span className={`text-xs tabular-nums ${on ? 'text-mint-600' : 'text-ink-400'}`}>{live != null ? `${live}/${count}` : count}</span>
+			</button>
+		)
+	}
 
 	return (
-		<div className="page">
-			<div className="mb-6 flex items-end justify-between gap-3">
-				<div>
-					<div className="text-[11px] font-bold uppercase tracking-wider text-mint-500">Admin</div>
-					<h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-ink-900">Service catalogue</h1>
-					<p className="mt-1 text-sm text-ink-500">Fixed-price services clients can book. Payout is what the freelancer earns per order.</p>
-				</div>
-				{!editing && <button className="btn primary" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> New service</button>}
-			</div>
+		<AdminPage wide>
+			<PageHeader
+				title="Service catalogue"
+				description={`${liveCount} of ${templates.length} services live. Pick a category to edit its services; the switch takes a service on or off the storefront.`}
+				actions={<button type="button" className="btn primary" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> New service</button>}
+			/>
 
-			{editing ? (
-				<Editor key={editing === 'new' ? 'new' : editing.id} template={editing === 'new' ? null : editing} categories={categories} onClose={() => setEditing(null)} />
-			) : isLoading ? (
-				<div className="h-40 animate-pulse rounded-2xl bg-ink-100" />
-			) : (
-				<div className="space-y-3">
-					{templates.map(t => {
-						const active = t.variants.filter(v => v.is_active)
-						const from = Math.min(...active.map(v => Number(v.price)))
-						return (
-							<div key={t.id} className="flex flex-col gap-3 rounded-2xl border border-ink-200 bg-white p-4 md:flex-row md:items-center">
-								<div className="min-w-0 flex-1">
-									<div className="flex items-center gap-2">
-										<span className="font-bold text-ink-900">{t.title}</span>
-										<span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${t.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-ink-100 text-ink-500'}`}>{t.is_active ? 'Live' : 'Hidden'}</span>
-									</div>
-									<div className="text-xs text-ink-500">{t.category_name} · {t.revisions} revisions · {t.freelancer_count} freelancers · {t.order_count} orders</div>
-									<div className="mt-2 flex flex-wrap gap-1.5">
-										{active.slice(0, 6).map(v => (
-											<span key={v.id} className="rounded-md bg-ink-50 px-2 py-0.5 text-[11px] text-ink-700">{variantLabel(v)} · {inr(v.price)} → {inr(v.freelancer_payout)} · {deliveryText(v.delivery_days)}</span>
-										))}
-										{active.length > 6 && <span className="text-[11px] text-ink-400">+{active.length - 6} more</span>}
-									</div>
+			<div className="grid items-start gap-5 md:grid-cols-[220px_minmax(0,1fr)]">
+				<nav aria-label="Categories" className="-mx-4 flex gap-1 overflow-x-auto px-4 md:sticky md:top-[88px] md:mx-0 md:flex-col md:overflow-visible md:rounded-xl md:border md:border-ink-100 md:bg-white md:p-2">
+					{railItem('all', 'All categories', templates.length)}
+					{groups.map(g => railItem(g.id, g.name, g.items.length, g.items.filter(t => t.is_active).length))}
+				</nav>
+
+				<div className="flex min-w-0 flex-col gap-4">
+					<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+						<label className="relative block flex-1">
+							<span className="sr-only">Search services</span>
+							<Icon name="search" size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+							<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by title or slug" className="h-9 w-full rounded-lg border border-ink-200 bg-white pl-9 pr-3 text-sm text-ink-900 placeholder:text-ink-400 focus:border-mint-400 focus:outline-none" />
+						</label>
+						<div className="inline-flex rounded-lg border border-ink-200 bg-white p-0.5 text-sm" role="group" aria-label="Status">
+							{[['all', 'All'], ['live', 'Live'], ['hidden', 'Hidden']].map(([value, label]) => (
+								<button key={value} type="button" onClick={() => setStatus(value)} aria-pressed={status === value}
+									className={`rounded-md px-3 py-1.5 transition-colors ${status === value ? 'bg-ink-950 font-medium text-white' : 'text-ink-600 hover:text-ink-900'}`}>{label}</button>
+							))}
+						</div>
+					</div>
+
+					{isLoading ? <Panel><SkeletonRows rows={6} /></Panel> : visibleGroups.length === 0 ? (
+						<Panel><EmptyState title="No services match" body="Clear the search or switch the status filter back to All." /></Panel>
+					) : visibleGroups.map(g => (
+						<Panel
+							key={g.id}
+							title={g.name}
+							description={`${g.items.filter(t => t.is_active).length} live · ${g.items.length} total`}
+							actions={g.id !== UNCATEGORISED && (
+								<button type="button" className="btn ghost sm" onClick={() => { pick(g.id); setEditing('new') }}><Icon name="plus" size={13} /> Add</button>
+							)}
+						>
+							{g.items.length === 0 ? (
+								<EmptyState title={`No ${g.name} services yet`} body="Add one and it appears on the storefront under this category once it is live." />
+							) : (
+								<div className="divide-y divide-ink-100">
+									{g.items.map(t => (
+										<ServiceRow key={t.id} template={t} onEdit={() => setEditing(t)} onToggle={() => flip(t)} toggling={toggle.isPending && toggle.variables?.id === t.id} />
+									))}
 								</div>
-								<div className="flex items-center gap-3">
-									{active.length > 0 && <span className="text-sm text-ink-500">from <strong className="text-ink-900">{inr(from)}</strong></span>}
-									<button className="btn ghost sm" onClick={() => setEditing(t)}><Icon name="edit" size={13} /> Edit</button>
-								</div>
-							</div>
-						)
-					})}
+							)}
+						</Panel>
+					))}
 				</div>
-			)}
-		</div>
+			</div>
+		</AdminPage>
 	)
 }

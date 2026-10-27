@@ -4,6 +4,7 @@ const { createSignedDownloadUrl } = require('../storage/app-storage.provider');
 const env = require('../../config/env');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
+const { assertNoContactInfo } = require('../../utils/contactGuard');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs/promises');
@@ -216,6 +217,15 @@ const updateProfile = async (userId, updates) => {
 
   if (fields.length === 0) {
     throw new AppError('No valid fields provided for update', 400);
+  }
+
+  // A freelancer's bio is shown to clients, so it can't carry contact details.
+  if (fields.includes('bio') && updates.bio) {
+    const roleRow = await query('SELECT role FROM users WHERE id = $1', [userId]);
+    const role = roleRow.rows[0]?.role;
+    if (role === 'freelancer' || role === 'designer') {
+      assertNoContactInfo(updates.bio, { userId, role, where: 'bio' });
+    }
   }
 
   // Check phone uniqueness if provided

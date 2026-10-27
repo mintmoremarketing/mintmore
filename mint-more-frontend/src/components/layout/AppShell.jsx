@@ -8,10 +8,12 @@ import { walletApi } from '../../api/wallet'
 import { notificationsApi } from '../../api/notifications'
 import { useSSE } from '../../hooks/useSSE'
 import Sidebar from './Sidebar'
+import AdminSidebar from './AdminSidebar'
 import Topbar from './Topbar'
 import MobileNav from './MobileNav'
 import MobileDrawer from './MobileDrawer'
 import { ToastHost } from '../ui/Toast'
+import { chatApi } from '../../api/chat'
 import NotifPanel from '../shared/NotifPanel'
 import TopUpModal from '../shared/TopUpModal'
 import MintcoinModal from '../shared/MintcoinModal'
@@ -122,6 +124,15 @@ export default function AppShell() {
     refetchInterval: 30_000,
   })
 
+  // Tells the server this app received any waiting chat messages, so the sender sees two grey ticks.
+  useQuery({
+    queryKey: ['chat-delivered-ping'],
+    queryFn: () => chatApi.markDelivered().then(() => Date.now()),
+    enabled: isAuthed && !isGuest && ['client', 'freelancer', 'designer'].includes(user?.role),
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: true,
+  })
+
   const location = useLocation()
   const isOnboarding = location.pathname.startsWith('/onboarding')
 
@@ -159,12 +170,15 @@ export default function AppShell() {
     )
   }
 
+  const isAdmin = role === 'admin'
+  const SideNav = isAdmin ? AdminSidebar : Sidebar
+
   return (
     // --bottom-nav-h lets page-level sticky bars sit above the mobile tab bar.
-    <div className="flex min-h-screen bg-mint-50/20 text-ink-900 font-sans" style={{ '--bottom-nav-h': isMobile ? '64px' : '0px' }}>
+    <div className={`flex min-h-screen text-ink-900 font-sans ${isAdmin ? 'admin-shell bg-ink-50' : 'bg-mint-50/20'}`} style={{ '--bottom-nav-h': isMobile ? '64px' : '0px' }}>
       {/* Desktop sidebar — hidden on mobile */}
       {!isMobile && (
-        <Sidebar
+        <SideNav
           role={role}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
@@ -172,7 +186,7 @@ export default function AppShell() {
       )}
 
       {/* Topbar fixed to viewport */}
-      <div className={`fixed top-0 right-0 z-30 bg-white/80 backdrop-blur-md border-b border-ink-200/50 transition-all duration-200 ease-out ${
+      <div className={`fixed top-0 right-0 z-30 border-b transition-all duration-200 ease-out ${isAdmin ? 'border-ink-100 bg-white' : 'bg-white/80 backdrop-blur-md border-ink-200/50'} ${
         !isMobile ? (sidebarCollapsed ? 'left-16' : 'left-56') : 'left-0'
       }`}>
         <Topbar
@@ -204,7 +218,7 @@ export default function AppShell() {
         <ProfileCompletion />
 
         {/* Mobile bottom nav */}
-        {isMobile && <MobileNav role={role} />}
+        {isMobile && <MobileNav role={role} onMore={() => setDrawerOpen(true)} />}
       </main>
 
       {/* Mobile drawer (hamburger) */}

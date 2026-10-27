@@ -10,7 +10,7 @@ const PRIMARY_ROUTES = {
   client: ['/dashboard', '/services', '/orders', '/chat', '/notifications'],
   freelancer: ['/dashboard', '/upskill', '/assessments', '/work', '/profile'],
   designer: ['/dashboard', '/notifications', '/chat', '/settings'],
-  admin: ['/admin', '/admin/operations', '/admin/users', '/support', '/chat'],
+  admin: ['/admin', '/admin/service-orders', '/admin/users', '/chat'],
 }
 
 const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }
@@ -55,12 +55,12 @@ function FreelancerMobileNav() {
   )
 }
 
-export default function MobileNav({ role }) {
+export default function MobileNav({ role, onMore }) {
   if (role === 'freelancer') return <FreelancerMobileNav />
-  return <RoleMobileNav role={role} />
+  return <RoleMobileNav role={role} onMore={onMore} />
 }
 
-function RoleMobileNav({ role }) {
+function RoleMobileNav({ role, onMore }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { data: access } = useEntitlements()
@@ -72,15 +72,17 @@ function RoleMobileNav({ role }) {
   const primaryItems = primaryRoutes
     .map(route => allowedItems.find(item => item.route === route))
     .filter(Boolean)
-  const items = [
-    ...primaryItems,
-    ...allowedItems.filter(item => !primaryItems.includes(item)),
-  ].slice(0, 5)
+  // Admins get four fixed tabs plus More (the grouped menu); other roles fill five slots.
+  const items = role === 'admin'
+    ? [...primaryItems, { route: '#more', icon: 'more', label: 'More' }]
+    : [...primaryItems, ...allowedItems.filter(item => !primaryItems.includes(item))].slice(0, 5)
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-ink-200 flex items-center justify-around z-40 pb-safe">
       {items.map(item => {
-        const isActive = location.pathname === item.route || location.pathname.startsWith(`${item.route}/`)
+        const isActive = item.route === '/admin'
+          ? location.pathname === item.route
+          : location.pathname === item.route || location.pathname.startsWith(`${item.route}/`)
         const count = item.showCount ? unreadCount : 0
         return (
           <button
@@ -89,7 +91,7 @@ function RoleMobileNav({ role }) {
             className={`group relative flex flex-col items-center justify-center h-full w-full gap-1 transition-colors duration-150 ${
               isActive ? 'text-mint-500' : 'text-ink-400 hover:text-ink-700'
             }`}
-            onClick={() => navigate(item.route)}
+            onClick={() => (item.route === '#more' ? onMore?.() : navigate(item.route))}
           >
             {/* Active marker: a short bar on the top edge, grown from the centre. */}
             <span

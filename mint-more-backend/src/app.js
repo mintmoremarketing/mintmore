@@ -41,6 +41,7 @@ const disputeRouter      = require('./modules/disputes/dispute.routes');
 const creativeRouter     = require('./modules/creative/creative.routes');
 const supportRouter      = require('./modules/support/support.routes');
 const servicesRouter     = require('./modules/services/services.routes');
+const assessmentsRouter  = require('./modules/assessments/assessments.routes');
 const publicRouter       = require('./modules/public/public.routes');
 
 const app = express();
@@ -138,6 +139,7 @@ app.use(`/api/${env.apiVersion}/disputes`,      disputeRouter);
 app.use(`/api/${env.apiVersion}/creative`,      creativeRouter);
 app.use(`/api/${env.apiVersion}/support`,       supportRouter);
 app.use(`/api/${env.apiVersion}/services`,      servicesRouter);
+app.use(`/api/${env.apiVersion}/assessments`,   assessmentsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

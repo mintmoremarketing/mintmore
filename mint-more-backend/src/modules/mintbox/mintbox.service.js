@@ -9,7 +9,8 @@ const notificationService = require('../notifications/notification.service');
 const { getWalletByUserId, recordTransaction, completeJob } = require('../wallet/wallet.service');
 const reviewService = require('../reviews/review.service');
 const { getSetting } = require('../commerce/settings.service');
-const { appendSystemMessageByJob } = require('../chat/chat.service');
+const { appendSystemMessageByJob, postFileMessage } = require('../chat/chat.service');
+const { assertNoContactInfo } = require('../../utils/contactGuard');
 
 const BUCKET = storage.getBucket();
 const CLIENT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;
@@ -646,6 +647,7 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
   if (!['client', 'freelancer', 'designer'].includes(role)) throw new AppError('Only project participants can upload files', 403);
   const uploadPurpose = role === 'client' ? 'brief' : 'delivery';
   validateMintboxFile({ name, size, type });
+  if (note) assertNoContactInfo(note, { userId: uploaderId, role, where: 'file_caption' });
 
   const dbClient = await getClient();
   try {
@@ -844,6 +846,16 @@ const completeUpload = async (uploadId, uploaderId, role) => {
       uploaderId,
       fileId: inserted.rows[0].id,
     });
+    // Service orders run as a conversation: the file itself becomes a chat message
+    // from its sender, with the upload note as its caption.
+    const jobMeta = await query('SELECT metadata FROM jobs WHERE id = $1', [session.job_id]);
+    const isServiceOrder = jobMeta.rows[0]?.metadata?.source === 'service_booking';
+    if (isServiceOrder) {
+      setImmediate(() => {
+        postFileMessage({ jobId: session.job_id, senderId: uploaderId, senderRole: role, file: inserted.rows[0], caption: session.freelancer_note })
+          .catch((err) => logger.warn('[Mintbox] File chat message failed', { jobId: session.job_id, error: err.message }));
+      });
+    }
     if (role === 'freelancer' || role === 'designer') {
       const job = await query('SELECT title, client_id FROM jobs WHERE id = $1', [session.job_id]);
       if (role === 'designer') {
@@ -867,12 +879,14 @@ const completeUpload = async (uploadId, uploaderId, role) => {
         data: { job_id: session.job_id, revision_round: deliveredRevision?.round_number || null },
         dedupeKey: `mintbox-delivered:${inserted.rows[0].id}:${job.rows[0].client_id}`,
       });
-      publishProjectActivity(
-        session.job_id,
-        deliveredRevision
-          ? `Creative delivered revision ${deliveredRevision.round_number}: ${session.original_name}`
-          : `Creative delivered new work: ${session.original_name}`
-      );
+      if (!isServiceOrder) {
+        publishProjectActivity(
+          session.job_id,
+          deliveredRevision
+            ? `Creative delivered revision ${deliveredRevision.round_number}: ${session.original_name}`
+            : `Creative delivered new work: ${session.original_name}`
+        );
+      }
     }
     return toSharedFile(inserted.rows[0]);
   } catch (err) {
@@ -1265,6 +1279,7 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
   if (action === 'revision' && !String(note || '').trim()) {
     throw new AppError('Tell the creative what needs to change', 400);
   }
+  if (note) assertNoContactInfo(note, { userId: clientId, role, where: 'revision_note' });
 
   const dbClient = await getClient();
   let result;
@@ -1406,10 +1421,17 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
       logger.info('[Mintbox] Revision requested', {
         jobId: file.job_id, fileId, revisionRound: revision.round_number, chargeAmount: revision.charge_amount,
       });
-      publishProjectActivity(
-        file.job_id,
-        `Client requested revision ${revision.round_number}${Number(revision.charge_amount) > 0 ? ` (paid revision: INR ${Number(revision.charge_amount).toLocaleString('en-IN')})` : ''}: ${String(note).trim()}`
-      );
+      const jobMeta = await query('SELECT metadata FROM jobs WHERE id = $1', [file.job_id]);
+      if (jobMeta.rows[0]?.metadata?.source === 'service_booking') {
+        // In the order conversation the feedback is the client's own message, attached to the version it's about.
+        postFileMessage({ jobId: file.job_id, senderId: clientId, senderRole: 'client', file, caption: String(note).trim() })
+          .catch((err) => logger.warn('[Mintbox] Revision chat message failed', { jobId: file.job_id, error: err.message }));
+      } else {
+        publishProjectActivity(
+          file.job_id,
+          `Client requested revision ${revision.round_number}${Number(revision.charge_amount) > 0 ? ` (paid revision: INR ${Number(revision.charge_amount).toLocaleString('en-IN')})` : ''}: ${String(note).trim()}`
+        );
+      }
     } else {
       publishProjectActivity(file.job_id, `Client approved delivery: ${file.original_name}`);
     }

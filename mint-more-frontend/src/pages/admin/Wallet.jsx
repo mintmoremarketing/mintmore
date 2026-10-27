@@ -340,35 +340,35 @@ export default function AdminWallet() {
   const withdrawals = wdData?.withdrawals || []
 
   return (
-    <div className="flex flex-col gap-8 md:gap-12 w-full max-w-[1600px] mx-auto p-6 md:p-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col gap-2">
-        <div className="text-sm font-bold text-ink-500 tracking-[0.2em] uppercase">Admin</div>
-        <h1 className="text-4xl md:text-5xl font-display font-bold text-ink-950 tracking-tight m-0">Platform wallet</h1>
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 pb-24 pt-5 md:px-8 md:pb-12 md:pt-7">
+      <div>
+        <h1 className="m-0 text-2xl font-semibold tracking-[-0.02em] text-ink-950 md:text-[28px] md:leading-9">Payouts &amp; escrow</h1>
+        <p className="m-0 mt-1 text-sm text-ink-500">Money held for open orders, freelancer withdrawals to pay, and manual wallet corrections.</p>
       </div>
 
       {/* Platform stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <dl className="m-0 grid grid-cols-1 divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-100 bg-white md:grid-cols-3 md:divide-x md:divide-y-0">
         {[
-          { label: 'Total in platform',   value: funds.total_platform_funds != null ? rupee(funds.total_platform_funds) : funds.total_balance != null ? rupee(funds.total_balance) : '—', color: 'text-mint-700' },
-          { label: 'Total escrowed',      value: funds.total_escrowed != null ? rupee(funds.total_escrowed) : funds.total_escrow != null ? rupee(funds.total_escrow) : '—', color: 'text-amber-600' },
+          { label: 'Total in platform',   value: funds.total_platform_funds != null ? rupee(funds.total_platform_funds) : funds.total_balance != null ? rupee(funds.total_balance) : '—', color: 'text-ink-950' },
+          { label: 'Total escrowed',      value: funds.total_escrowed != null ? rupee(funds.total_escrowed) : funds.total_escrow != null ? rupee(funds.total_escrow) : '—', color: 'text-ink-950' },
           { label: 'Pending withdrawals', value: pendingWd.total != null ? rupee(pendingWd.total) : pendingWd.count != null ? `${pendingWd.count} requests` : '—', color: 'text-ink-950' },
         ].map(s => (
-          <div key={s.label} className="bg-white border border-ink-200/60 rounded-[2rem] p-6 shadow-sm flex flex-col justify-center min-h-[140px]">
-            <div className="text-xs font-bold text-ink-500 uppercase tracking-widest mb-2">{s.label}</div>
-            <div className={`font-mono font-bold text-4xl tracking-tight ${s.color}`}>{s.value}</div>
+          <div key={s.label} className="flex items-baseline justify-between gap-3 px-4 py-3.5 md:flex-col md:gap-1 md:px-5 md:py-4">
+            <dt className="text-sm text-ink-500">{s.label}</dt>
+            <dd className={`m-0 text-xl font-semibold tabular-nums ${s.color}`}>{s.value}</dd>
           </div>
         ))}
-      </div>
+      </dl>
 
       {/* User wallet adjustment section */}
-      <div className="bg-white border border-ink-200/60 rounded-[2rem] p-6 md:p-8 shadow-sm">
+      <div className="bg-white border border-ink-100 rounded-xl p-6 md:p-8">
         <UserWalletSearch />
       </div>
 
       {/* Withdrawals */}
-      <div className="bg-white border border-ink-200/60 rounded-[2rem] p-6 md:p-8 shadow-sm flex flex-col gap-8">
+      <div className="bg-white border border-ink-100 rounded-xl p-6 md:p-8 flex flex-col gap-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <h2 className="text-2xl md:text-3xl font-display font-bold text-ink-950 m-0">Withdrawal requests</h2>
+          <h2 className="m-0 text-lg font-semibold text-ink-950">Withdrawal requests</h2>
           <Tabs value={tab} onChange={setTab} items={[
             { value: 'pending',  label: 'Pending' },
             { value: 'approved', label: 'Approved' },
@@ -385,7 +385,7 @@ export default function AdminWallet() {
         ) : (
           <div className="flex flex-col gap-4">
             {withdrawals.map(w => (
-              <div key={w.id} className="bg-ink-50/50 border border-ink-200/60 rounded-2xl p-6 transition-all hover:shadow-md hover:border-ink-300">
+              <div key={w.id} className="bg-ink-50/50 border border-ink-100 rounded-2xl p-6 transition-all hover:shadow-md hover:border-ink-300">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                   <div className="flex gap-4 items-center">
                     <Avatar name={w.user?.full_name || 'F'} size="md" />
@@ -398,34 +398,34 @@ export default function AdminWallet() {
                   </div>
                   <div className="text-left md:text-right">
                     <div className="font-mono font-bold text-2xl text-ink-950">{rupee(w.net_amount ?? w.amount)}</div>
-                    <div className="text-xs font-bold uppercase tracking-wider text-ink-500 mt-2 bg-ink-200/50 px-2.5 py-1 rounded-md inline-block">
+                    <div className="text-xs font-medium text-ink-500 mt-2 bg-ink-200/50 px-2.5 py-1 rounded-md inline-block">
                       {w.payout_mode === 'instant' ? 'Instant payout' : 'Scheduled payout'}
                       {Number(w.fee_amount || 0) > 0 ? ` · ${rupee(w.fee_amount)} fee` : ''}
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white border border-ink-200 rounded-xl p-5 mb-6 shadow-sm">
+                <div className="bg-white border border-ink-200 rounded-xl p-5 mb-6">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
                     <div>
-                      <div className="font-bold text-ink-500 uppercase tracking-widest text-[10px] mb-1.5">Account name</div>
+                      <div className="font-medium text-ink-500 text-xs mb-1.5">Account name</div>
                       <div className="font-semibold text-ink-900">{w.account_name}</div>
                     </div>
                     {w.account_number && (
                       <div>
-                        <div className="font-bold text-ink-500 uppercase tracking-widest text-[10px] mb-1.5">Account no.</div>
+                        <div className="font-medium text-ink-500 text-xs mb-1.5">Account no.</div>
                         <div className="font-mono font-medium text-ink-900">{w.account_number}</div>
                       </div>
                     )}
                     {w.ifsc_code && (
                       <div>
-                        <div className="font-bold text-ink-500 uppercase tracking-widest text-[10px] mb-1.5">IFSC</div>
+                        <div className="font-medium text-ink-500 text-xs mb-1.5">IFSC</div>
                         <div className="font-mono font-medium text-ink-900">{w.ifsc_code}</div>
                       </div>
                     )}
                     {w.upi_id && (
                       <div>
-                        <div className="font-bold text-ink-500 uppercase tracking-widest text-[10px] mb-1.5">UPI ID</div>
+                        <div className="font-medium text-ink-500 text-xs mb-1.5">UPI ID</div>
                         <div className="font-mono font-medium text-ink-900">{w.upi_id}</div>
                       </div>
                     )}
@@ -442,14 +442,14 @@ export default function AdminWallet() {
                     />
                     <div className="flex flex-wrap items-center gap-3">
                       <button 
-                        className="px-6 py-2.5 bg-ink-950 hover:bg-ink-900 text-white font-bold rounded-full transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+                        className="btn primary"
                         onClick={() => processMutation.mutate({ id: w.id, action: 'approve' })}
                         disabled={processMutation.isPending}
                       >
                         <Icon name="check" size={16} /> Approve & mark paid
                       </button>
                       <button 
-                        className="px-6 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-full transition-all flex items-center gap-2 disabled:opacity-50"
+                        className="btn ghost text-rose-600"
                         onClick={() => processMutation.mutate({ id: w.id, action: 'reject' })}
                         disabled={processMutation.isPending}
                       >

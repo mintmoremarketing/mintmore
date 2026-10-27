@@ -4,9 +4,10 @@
  * Non-operational errors (bugs, crashes) are logged and return generic 500.
  */
 class AppError extends Error {
-  constructor(message, statusCode = 500) {
+  constructor(message, statusCode = 500, code = null) {
     super(message);
     this.statusCode = statusCode;
+    if (code) this.code = code;
     this.isOperational = true;
     Error.captureStackTrace(this, this.constructor);
   }

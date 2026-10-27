@@ -20,6 +20,12 @@ router.get('/rooms/:roomId/messages', requirePermissionIfAdmin('support.manage')
 // POST   /api/v1/chat/rooms/:roomId/messages   — send a message
 router.post('/rooms/:roomId/messages', controller.sendMessage);
 
+// PATCH  /api/v1/chat/messages/:messageId      — edit own message text (within 2 hours)
+router.patch('/messages/:messageId', controller.editMessage);
+
+// POST   /api/v1/chat/delivered               — my app received pending messages (delivery ticks)
+router.post('/delivered', controller.markDelivered);
+
 // ── Presence ──────────────────────────────────────────────────────────────────
 // POST   /api/v1/chat/presence/online          — mark self as online
 router.post('/presence/online', controller.setOnline);

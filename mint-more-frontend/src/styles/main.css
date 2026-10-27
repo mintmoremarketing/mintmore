@@ -10648,3 +10648,67 @@ p { text-wrap: pretty; }
 @media (prefers-reduced-motion: reduce) {
   .completion-panel[data-state], .completion-sheet, .completion-backdrop, .kyc-modal { animation: none; }
 }
+
+/* ── Order conversation ─────────────────────────────────────────────────── */
+.conversation-stream {
+  background-color: #efeae2;
+  background-image: radial-gradient(rgba(84, 101, 111, 0.07) 1px, transparent 1.2px);
+  background-size: 16px 16px;
+}
+.conversation[data-dragging='true']::after {
+  content: 'Drop files to send';
+  position: absolute;
+  inset: 8px;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--mint-500);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  font-weight: 600;
+  color: var(--mint-600, #c93303);
+  pointer-events: none;
+}
+.conversation-sheet { animation: conversationSheetIn 0.22s cubic-bezier(0.32, 0.72, 0, 1); }
+@keyframes conversationSheetIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .conversation-sheet { animation: none; }
+}
+
+/* Profile fields filled from an uploaded CV, until the freelancer edits or saves them. */
+.cv-filled :is(input, textarea, select) {
+  border-color: #f7a27f;
+  background-color: #fff8f4;
+}
+
+/* Message menu grows from the corner nearest the pointer; edit bar slides up into the composer. */
+.message-menu { animation: message-menu-in 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes message-menu-in { from { opacity: 0; transform: scale(0.94); } }
+.composer-edit { animation: composer-edit-in 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes composer-edit-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .message-menu, .composer-edit { animation: none; }
+}
+.message-sheet { animation: message-sheet-in 260ms cubic-bezier(0.32, 0.72, 0, 1); }
+.message-sheet-backdrop { animation: message-sheet-fade 200ms ease-out; }
+@keyframes message-sheet-in { from { transform: translateY(100%); } }
+@keyframes message-sheet-fade { from { opacity: 0; } }
+/* Long-press must open our sheet, not the browser's text selection callout. */
+@media (pointer: coarse) { .bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } }
+@media (prefers-reduced-motion: reduce) { .message-sheet, .message-sheet-backdrop { animation: none; } }
+
+/* ── Admin console ──────────────────────────────────────────────
+   One sans family across the admin area: the display face is for the
+   storefront, not for tables and forms. Numerals line up in columns. */
+.admin-shell .font-display,
+.admin-shell .page h1,
+.admin-shell .page-title {
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+}
+.admin-shell table { font-variant-numeric: tabular-nums; }
+.admin-shell ::selection { background: #fae3dc; color: #11161d; }
+.admin-shell :focus-visible { outline: 2px solid #e83b03; outline-offset: 2px; }

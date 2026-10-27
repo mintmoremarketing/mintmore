@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { useCartStore } from '../../store/cart'
 import Icon from '../ui/Icon'
 import { rupee } from '../../utils/format'
+import { ADMIN_NAV } from './navigation'
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
@@ -35,8 +36,13 @@ export default function Topbar({
   unreadCount,
 }) {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const { isGuest } = useAuthStore()
   const role = useAuthStore(s => s.user?.role)
+  // Admin top bar names where you are: "Work / Orders". Longest matching route wins.
+  const adminHere = role === 'admin'
+    ? ADMIN_NAV.filter(item => pathname === item.route || pathname.startsWith(`${item.route}/`)).sort((a, b) => b.route.length - a.route.length)[0]
+    : null
   const cartCount = useCartStore(s => s.items.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0))
   const [mintPopoverOpen, setMintPopoverOpen] = useState(false)
   const isLow = walletBalance !== null && walletBalance !== undefined && walletBalance < 100
@@ -103,6 +109,13 @@ export default function Topbar({
           >
             CREAT<span style={{ color: 'var(--mint-500)', fontWeight: 650 }}>YV</span>
           </span>
+        )}
+
+        {!isMobile && adminHere && (
+          <div className="flex items-center gap-1.5 text-sm">
+            {adminHere.group && <><span className="text-ink-400">{adminHere.group}</span><span className="text-ink-300">/</span></>}
+            <span className="font-semibold text-ink-900">{adminHere.label}</span>
+          </div>
         )}
       </div>
 

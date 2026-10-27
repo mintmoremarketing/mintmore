@@ -1,7 +1,8 @@
 const { Router } = require('express');
 const controller = require('./profile.controller');
 const { authenticate, authorize } = require('../../middleware/authenticate');
-const { upload, handleUploadError } = require('../../middleware/upload');
+const { upload, handleUploadError, createUpload } = require('../../middleware/upload');
+const { CV_MIME_TYPES } = require('./cv.service');
 const { requireFeatureFlag } = require('../../middleware/featureFlags');
 
 const router = Router();
@@ -12,6 +13,14 @@ router.get('/me', controller.getMyProfile);
 router.patch('/me', controller.updateMyProfile);
 router.get('/me/completion', authorize('freelancer'), controller.getMyCompletion);
 router.get('/me/stats', authorize('freelancer'), controller.getMyStats);
+
+const cvUpload = createUpload({ allowedFileTypes: Object.keys(CV_MIME_TYPES), maxFileSizeMb: 5 });
+router.post(
+  '/me/cv/parse',
+  authorize('freelancer'),
+  handleUploadError(cvUpload.single('cv')),
+  controller.parseCv
+);
 
 router.patch(
   '/me/avatar',

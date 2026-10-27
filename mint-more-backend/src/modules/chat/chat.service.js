@@ -3,6 +3,7 @@ const { getRedis }         = require('../../config/redis');
 const { sendTextMessage, sendMediaMessage, markAsRead } = require('./whatsapp.service');
 const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
+const { assertNoContactInfo } = require('../../utils/contactGuard');
 
 // Redis keys
 const PRESENCE_KEY  = (userId)  => `presence:${userId}`;
@@ -94,6 +95,8 @@ const getRoomById = async (roomId, requesterId, requesterRole) => {
  * Get all chat rooms for the current user.
  */
 const getMyRooms = async (userId, role) => {
+  // Loading the room list means the app received what's waiting (second grey tick).
+  markDelivered(userId, role).catch((err) => logger.warn('markDelivered failed', { userId, error: err.message }));
   const accessClause = role === 'admin'
     ? '($1::uuid IS NOT NULL)'
     : role === 'client'
@@ -107,6 +110,7 @@ const getMyRooms = async (userId, role) => {
        cr.id, cr.job_id, cr.is_active,
        cr.last_message_at, cr.last_message_preview,
        j.title AS job_title, j.status AS job_status,
+       (SELECT sb.id FROM service_bookings sb WHERE sb.job_id = cr.job_id LIMIT 1) AS booking_id,
        u_c.full_name AS client_name,
        CASE WHEN $2 = 'client' THEN NULL ELSE u_f.full_name END AS freelancer_name,
        wn.display_name AS mm_channel_name,
@@ -150,7 +154,13 @@ const getMessages = async (roomId, requesterId, requesterRole, { page = 1, limit
        m.attachment_url, m.attachment_type,
        m.wa_status, m.is_deleted,
        m.read_by_client, m.read_by_freelancer,
-       m.created_at,
+       m.read_at_client, m.read_at_freelancer,
+       m.delivered_at_client, m.delivered_at_freelancer,
+       m.created_at, m.edited_at,
+       m.file_id,
+       mf.original_name AS file_name, mf.mime_type AS file_mime, mf.size_bytes AS file_size,
+       mf.purpose AS file_purpose, mf.status AS file_status, mf.revision_round AS file_revision_round,
+       CASE WHEN mf.share_revoked_at IS NULL THEN mf.share_token END AS file_token,
        -- Only reveal sender name to admin and the sender themselves
        CASE
          WHEN $3 = 'admin'      THEN u.full_name
@@ -162,6 +172,7 @@ const getMessages = async (roomId, requesterId, requesterRole, { page = 1, limit
        END AS sender_name
      FROM messages m
      LEFT JOIN users u ON u.id = m.sender_id
+     LEFT JOIN mintbox_files mf ON mf.id = m.file_id
      WHERE m.room_id = $1 AND m.is_deleted = false
      ORDER BY m.created_at DESC
      LIMIT $2 OFFSET $4`,
@@ -175,7 +186,8 @@ const getMessages = async (roomId, requesterId, requesterRole, { page = 1, limit
       if (requesterRole === 'client') {
         readResult = await query(
           `UPDATE messages
-           SET read_by_client = true, read_at_client = NOW()
+           SET read_by_client = true, read_at_client = NOW(),
+               delivered_at_client = COALESCE(delivered_at_client, NOW())
            WHERE room_id = $1
              AND sender_role != 'client'
              AND read_by_client = false
@@ -185,7 +197,8 @@ const getMessages = async (roomId, requesterId, requesterRole, { page = 1, limit
       } else if (['freelancer', 'designer'].includes(requesterRole)) {
         readResult = await query(
           `UPDATE messages
-           SET read_by_freelancer = true, read_at_freelancer = NOW()
+           SET read_by_freelancer = true, read_at_freelancer = NOW(),
+               delivered_at_freelancer = COALESCE(delivered_at_freelancer, NOW())
            WHERE room_id = $1
              AND sender_role != 'freelancer'
              AND read_by_freelancer = false
@@ -245,6 +258,20 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
     }
   }
   const persistedSenderRole = senderRole === 'designer' ? 'freelancer' : senderRole;
+
+  if (content) {
+    const guard = { userId: senderId, role: senderRole, where: 'chat' };
+    assertNoContactInfo(content, guard);
+    // Catch a number split across a few quick messages ("98765" … "43210").
+    const recent = await query(
+      `SELECT content FROM messages
+       WHERE room_id = $1 AND sender_id = $2 AND created_at > NOW() - INTERVAL '10 minutes'
+       ORDER BY created_at DESC LIMIT 3`,
+      [roomId, senderId]
+    );
+    const combined = [...recent.rows.reverse().map((row) => row.content || ''), content].join(' ');
+    assertNoContactInfo(combined, { ...guard, where: 'chat_split' });
+  }
 
   // Insert message
   const msgResult = await query(
@@ -312,6 +339,50 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
   }
 
   return message;
+};
+
+// How long after sending a message its author can still change the text.
+const EDIT_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Edit the text of your own message (or a file's caption) within two hours
+ * of sending it. The message keeps its time and gets an "Edited" mark.
+ */
+const editMessage = async (messageId, editorId, editorRole, { content }) => {
+  const text = String(content || '').trim();
+  if (!text) throw new AppError('Message text cannot be empty', 400);
+  if (text.length > 4000) throw new AppError('Message is too long', 400);
+
+  const found = await query(
+    `SELECT m.id, m.room_id, m.sender_id, m.sender_role, m.content, m.created_at, m.is_deleted,
+            (cr.last_message_at <= m.created_at) AS is_latest
+     FROM messages m
+     JOIN chat_rooms cr ON cr.id = m.room_id
+     WHERE m.id = $1`,
+    [messageId]
+  );
+  const message = found.rows[0];
+  if (!message || message.is_deleted) throw new AppError('Message not found', 404);
+  if (message.sender_id !== editorId || message.sender_role === 'system') {
+    throw new AppError('You can only edit your own messages', 403);
+  }
+  if (Date.now() - new Date(message.created_at).getTime() > EDIT_WINDOW_MS) {
+    throw new AppError('Messages can only be edited within 2 hours of sending', 409);
+  }
+  if (text === (message.content || '').trim()) return message;
+
+  // An edit must not sneak in contact details the original send would have blocked.
+  assertNoContactInfo(text, { userId: editorId, role: editorRole, where: 'chat_edit' });
+
+  const updated = await query(
+    `UPDATE messages SET content = $1, edited_at = NOW() WHERE id = $2 RETURNING *`,
+    [text, messageId]
+  );
+  if (message.is_latest) {
+    await query('UPDATE chat_rooms SET last_message_preview = $1 WHERE id = $2', [text.slice(0, 100), message.room_id]);
+  }
+  await publishMessageToRoom(message.room_id, updated.rows[0], message.sender_role);
+  return updated.rows[0];
 };
 
 const appendSystemMessageByJob = async (jobId, content) => {
@@ -461,6 +532,67 @@ const handleNewWhatsAppContact = async (fromNumber, toPhoneNumberId, firstMessag
   });
 };
 
+// ── Receipts & file messages ──────────────────────────────────────────────────
+
+/**
+ * Marks every message waiting for this user as delivered (second grey tick).
+ * Called whenever their app checks in, whether or not the chat is open.
+ */
+const markDelivered = async (userId, role) => {
+  const side = role === 'client' ? 'client' : ['freelancer', 'designer'].includes(role) ? 'freelancer' : null;
+  if (!side) return 0;
+  const result = await query(
+    `UPDATE messages m
+     SET delivered_at_${side} = NOW()
+     FROM chat_rooms cr
+     WHERE cr.id = m.room_id
+       AND cr.${side}_id = $1
+       AND m.sender_role <> $2
+       AND m.delivered_at_${side} IS NULL
+       AND m.is_deleted = false`,
+    [userId, side]
+  );
+  return result.rowCount;
+};
+
+const attachmentKind = (mime = '') => {
+  const type = String(mime).split('/')[0];
+  return ['image', 'video', 'audio'].includes(type) ? type : 'document';
+};
+
+/**
+ * Posts a participant message carrying a Mintbox file (a delivery or a client
+ * reference), so the file sits in the conversation with its caption.
+ */
+const postFileMessage = async ({ jobId, senderId, senderRole, file, caption = '' }) => {
+  const roomResult = await query('SELECT id FROM chat_rooms WHERE job_id = $1 AND is_active = true LIMIT 1', [jobId]);
+  const roomId = roomResult.rows[0]?.id;
+  if (!roomId) return null;
+  const role = senderRole === 'designer' ? 'freelancer' : senderRole;
+  const text = String(caption || '').trim();
+  const kind = attachmentKind(file.mime_type);
+  const now = new Date();
+  const inserted = await query(
+    `INSERT INTO messages
+       (room_id, sender_id, sender_role, content, channel, attachment_url, attachment_type, file_id,
+        read_by_client, read_by_freelancer, delivered_at_client, delivered_at_freelancer)
+     VALUES ($1, $2, $3, $4, 'web', $5, $6, $7, $8, $9, $10, $11)
+     RETURNING *`,
+    [
+      roomId, senderId, role, text,
+      file.share_token ? `/mintbox/file/${file.share_token}` : null,
+      kind, file.id,
+      role === 'client', role === 'freelancer',
+      role === 'client' ? now : null, role === 'freelancer' ? now : null,
+    ]
+  );
+  const message = inserted.rows[0];
+  const preview = text || (kind === 'document' ? `📎 ${file.original_name}` : `📎 ${kind === 'image' ? 'Photo' : kind === 'video' ? 'Video' : 'Audio'}`);
+  await query('UPDATE chat_rooms SET last_message_at = NOW(), last_message_preview = $1 WHERE id = $2', [preview.slice(0, 100), roomId]);
+  await publishMessageToRoom(roomId, message, role);
+  return message;
+};
+
 // ── Presence ──────────────────────────────────────────────────────────────────
 
 const setOnline = async (userId) => {
@@ -561,11 +693,14 @@ const upsertWhatsAppNumber = async ({ categoryId, displayName, phoneNumber, waba
 
 module.exports = {
   CHAT_REDIS_CHANNEL,
+  markDelivered,
+  postFileMessage,
   createChatRoom,
   getRoomById,
   getMyRooms,
   getMessages,
   sendMessage,
+  editMessage,
   appendSystemMessageByJob,
   receiveWhatsAppMessage,
   setOnline,

@@ -31,22 +31,29 @@ export const DESIGNER_NAV = [
   { route: '/settings', icon: 'settings', label: 'Settings' },
 ]
 
+// Admin nav is grouped in the sidebar. Items marked `hidden` keep their routes but are
+// LAUNCH-HIDDEN: they belong to the social-agency product, not the services launch.
+export const ADMIN_NAV_GROUPS = ['Work', 'People', 'Money', 'Support', 'System']
+
 export const ADMIN_NAV = [
   { route: '/admin', icon: 'overview', label: 'Overview' },
   { route: '/notifications', icon: 'inbox', label: 'Inbox', showCount: true },
-  { route: '/admin/service-orders', icon: 'requests', label: 'Service orders', permission: 'ops.manage' },
-  { route: '/admin/services', icon: 'layers', label: 'Service catalogue', permission: 'ops.manage' },
-  { route: '/admin/operations', icon: 'operations', label: 'Operations', permission: 'ops.manage' },
-  { route: '/admin/brands', icon: 'layers', label: 'Brands', permission: 'users.manage' },
-  { route: '/admin/users', icon: 'users', label: 'Users', permission: 'users.manage' },
-  { route: '/admin/approvals', icon: 'approvals', label: 'Approvals', permission: 'deals.approve' },
-  { route: '/chat', icon: 'chats', label: 'Chats', permission: 'support.manage' },
-  { route: '/support', icon: 'support_tickets', label: 'Support tickets', permission: 'support.manage' },
-  { route: '/disputes', icon: 'disputes', label: 'Disputes', permission: 'support.manage' },
-  { route: '/admin/pricing', icon: 'pricing', label: 'Freelancer models', permission: 'pricing.manage' },
-  { route: '/admin/tiers', icon: 'layer', label: 'Subscription Tiers', permission: 'pricing.manage' },
-  { route: '/admin/commerce', icon: 'settings', label: 'Platform settings', permission: 'pricing.manage' },
-  { route: '/admin/audit', icon: 'audit', label: 'Audit records', permission: 'audit.read' },
+  { route: '/admin/service-orders', icon: 'requests', label: 'Orders', group: 'Work', permission: 'ops.manage' },
+  { route: '/admin/services', icon: 'layers', label: 'Service catalogue', group: 'Work', permission: 'ops.manage' },
+  { route: '/admin/users', icon: 'users', label: 'Users & KYC', group: 'People', permission: 'users.manage' },
+  { route: '/admin/assessments', icon: 'checkCircle', label: 'Assessments', group: 'People', permission: 'ops.manage' },
+  { route: '/admin/wallet', icon: 'platform_wallet', label: 'Payouts & escrow', group: 'Money', permission: 'payments.manage' },
+  { route: '/chat', icon: 'chats', label: 'Chats', group: 'Support', permission: 'support.manage' },
+  { route: '/support', icon: 'support_tickets', label: 'Support tickets', group: 'Support', permission: 'support.manage' },
+  { route: '/disputes', icon: 'disputes', label: 'Disputes', group: 'Support', permission: 'support.manage' },
+  { route: '/admin/commerce', icon: 'settings', label: 'Platform settings', group: 'System', permission: 'pricing.manage' },
+  { route: '/admin/audit', icon: 'audit', label: 'Audit records', group: 'System', permission: 'audit.read' },
+  // LAUNCH-HIDDEN: social-agency and negotiation tools. Routes still work by URL.
+  { route: '/admin/operations', icon: 'operations', label: 'Operations', permission: 'ops.manage', hidden: true },
+  { route: '/admin/brands', icon: 'layers', label: 'Brands', permission: 'users.manage', hidden: true },
+  { route: '/admin/approvals', icon: 'approvals', label: 'Approvals', permission: 'deals.approve', hidden: true },
+  { route: '/admin/pricing', icon: 'pricing', label: 'Freelancer models', permission: 'pricing.manage', hidden: true },
+  { route: '/admin/tiers', icon: 'layer', label: 'Subscription Tiers', permission: 'pricing.manage', hidden: true },
 ]
 
 export const DEFAULT_FEATURE_FLAGS = {
@@ -78,7 +85,7 @@ export function filterNavItems({ role, isGuest, access, items = navForRole(role)
     const permissions = access?.admin_permissions || []
     const adminAccessLoaded = Boolean(access)
 
-    return items.filter(item => (
+    return items.filter(item => !item.hidden && (
       !item.permission ||
       !adminAccessLoaded ||
       access?.is_super_admin ||

@@ -1,3 +1,4 @@
+// LAUNCH-HIDDEN: replaced by OrderConversation (deliveries now live in the order conversation). Kept for reference.
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { chatApi } from '../../api/chat'
