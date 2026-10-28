@@ -219,13 +219,13 @@ const updateProfile = async (userId, updates) => {
     throw new AppError('No valid fields provided for update', 400);
   }
 
-  // A freelancer's bio is shown to clients, so it can't carry contact details.
-  if (fields.includes('bio') && updates.bio) {
+  // Name and username are what the other side of an order sees, so none of these can
+  // carry contact details ("Raj 98765 43210", "raj_on_whatsapp").
+  const shown = ['full_name', 'username', 'bio'].filter((field) => fields.includes(field) && updates[field]);
+  if (shown.length) {
     const roleRow = await query('SELECT role FROM users WHERE id = $1', [userId]);
     const role = roleRow.rows[0]?.role;
-    if (role === 'freelancer' || role === 'designer') {
-      assertNoContactInfo(updates.bio, { userId, role, where: 'bio' });
-    }
+    shown.forEach((field) => assertNoContactInfo(String(updates[field]), { userId, role, where: field }));
   }
 
   // Check phone uniqueness if provided

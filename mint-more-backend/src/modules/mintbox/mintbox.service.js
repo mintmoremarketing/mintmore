@@ -648,6 +648,8 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
   const uploadPurpose = role === 'client' ? 'brief' : 'delivery';
   validateMintboxFile({ name, size, type });
   if (note) assertNoContactInfo(note, { userId: uploaderId, role, where: 'file_caption' });
+  // File names show in the chat too: "call_raj_98765_43210.pdf".
+  if (name) assertNoContactInfo(String(name).replace(/\.[a-z0-9]{1,5}$/i, '').replace(/[_]+/g, ' '), { userId: uploaderId, role, where: 'file_name' });
 
   const dbClient = await getClient();
   try {

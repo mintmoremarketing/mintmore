@@ -2,6 +2,12 @@ const { query }  = require('../../config/database');
 const { uploadFile, createSignedDownloadUrl } = require('../storage/app-storage.provider');
 const AppError   = require('../../utils/AppError');
 const logger     = require('../../utils/logger');
+const { assertNoContactInfo } = require('../../utils/contactGuard');
+
+// Portfolio items are shown to clients, so their text can't carry contact details.
+const assertCleanPortfolio = (freelancerId, data) => ['title', 'description', 'client_name']
+	.filter((field) => data[field])
+	.forEach((field) => assertNoContactInfo(String(data[field]), { userId: freelancerId, role: 'freelancer', where: `portfolio_${field}` }));
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 
@@ -76,6 +82,7 @@ const getFreelancerPortfolio = async (freelancerId) => {
 
 const createPortfolioItem = async (freelancerId, data, coverFile, extraFiles = []) => {
 	if (!data.title) throw new AppError('title is required', 400);
+	assertCleanPortfolio(freelancerId, data);
 	if (!coverFile)  throw new AppError('cover_image is required', 400);
 
 	const coverExt  = path.extname(coverFile.originalname).toLowerCase() || '.jpg';
@@ -134,6 +141,7 @@ const updatePortfolioItem = async (freelancerId, itemId, updates) => {
 	];
 	const fields = Object.keys(updates).filter((k) => allowed.includes(k));
 	if (!fields.length) throw new AppError('No valid fields to update', 400);
+	assertCleanPortfolio(freelancerId, updates);
 
 	const setClauses = fields.map((f, i) => `${f} = $${i + 3}`);
 	const values     = fields.map((f) => updates[f]);

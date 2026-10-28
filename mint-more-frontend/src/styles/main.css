@@ -1181,6 +1181,14 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
     background-position: -200% 0;
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .skel,
+  .creation-skeleton,
+  .animate-pulse {
+    animation: none;
+  }
+}
 
 /* ── Mobile bottom nav ───────────────────────────────────────── */
 
@@ -1438,13 +1446,14 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   height: 60px;
   animation-delay: 1.8s;
 }
-@keyframes pulse {
+/* Named apart from Tailwind's `pulse`: sharing that name made every animate-pulse skeleton grow 4x. */
+@keyframes radar-ring {
   0% {
-    transform: scale(1);
+    transform: translate(-50%, -50%) scale(1);
     opacity: 0.6;
   }
   100% {
-    transform: scale(4);
+    transform: translate(-50%, -50%) scale(4);
     opacity: 0;
   }
 }
@@ -4381,10 +4390,6 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   color: var(--ink-500);
   font-size: 12px;
   line-height: 1.45;
-}
-
-@keyframes shimmer {
-  to { background-position-x: -200%; }
 }
 
 @media (max-width: 1080px) {

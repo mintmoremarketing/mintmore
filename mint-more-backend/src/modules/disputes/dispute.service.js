@@ -1,5 +1,6 @@
 const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
+const { assertNoContactInfo } = require('../../utils/contactGuard');
 const { writeAudit } = require('../audit/audit.service');
 const { createNotification, createBulkNotifications } = require('../notifications/notification.service');
 const { releaseEscrow, refundEscrow } = require('../wallet/wallet.service');
@@ -117,6 +118,8 @@ const openDispute = async (jobId, requesterId, role, { reason, description }) =>
   if (!['client', 'freelancer'].includes(role)) throw new AppError('Only project participants can open a dispute', 403);
   const cleanReason = String(reason || '').trim();
   const cleanDescription = String(description || '').trim();
+  // Both sides read the case, so it can't become a way to swap numbers.
+  assertNoContactInfo(cleanDescription, { userId: requesterId, role, where: 'dispute' });
   if (cleanReason.length < 3 || cleanDescription.length < 10) {
     throw new AppError('Choose a reason and describe the issue in at least 10 characters', 400);
   }
@@ -195,6 +198,7 @@ const openDispute = async (jobId, requesterId, role, { reason, description }) =>
 const addMessage = async (disputeId, requesterId, role, body) => {
   const cleanBody = String(body || '').trim();
   if (!cleanBody) throw new AppError('Message is required', 400);
+  assertNoContactInfo(cleanBody, { userId: requesterId, role, where: 'dispute_message' });
   const access = await getDispute(disputeId, requesterId, role);
   if (!ACTIVE_STATUSES.includes(access.dispute.status)) throw new AppError('This dispute is already resolved', 409);
   const result = await query(

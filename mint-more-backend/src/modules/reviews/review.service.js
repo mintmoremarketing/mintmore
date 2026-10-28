@@ -1,6 +1,7 @@
 const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
+const { assertNoContactInfo } = require('../../utils/contactGuard');
 
 const submitReview = async (clientId, {
 	freelancer_id, job_id,
@@ -10,6 +11,8 @@ const submitReview = async (clientId, {
 	review_text,
 	price_range_min, price_range_max, job_duration,
 }) => {
+	// Reviews are public on the freelancer's profile.
+	if (review_text) assertNoContactInfo(String(review_text), { userId: clientId, role: 'client', where: 'review' });
 	const briefAdherence = brief_adherence_rating || rating_value;
 	const timeliness = timeliness_rating || rating_value;
 	const ratings = [rating_overall, rating_communication, rating_quality, briefAdherence, timeliness];

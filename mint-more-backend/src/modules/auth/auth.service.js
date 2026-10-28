@@ -3,6 +3,7 @@ const { getRedis } = require('../../config/redis');
 const { hashPassword, comparePassword } = require('../../utils/hash');
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../../utils/jwt');
 const AppError = require('../../utils/AppError');
+const { assertNoContactInfo } = require('../../utils/contactGuard');
 const logger = require('../../utils/logger');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -38,6 +39,8 @@ const blacklistKey = (token) => `blacklist:${token}`;
  * directly in the DB or via a separate admin-only endpoint (Phase 5).
  */
 const register = async ({ email, password, full_name, role = 'client' }) => {
+  // The name is what the other side of an order sees.
+  if (full_name) assertNoContactInfo(String(full_name), { userId: null, role, where: 'signup_name' });
   // 1. Check if email already exists
   const existing = await query(
     'SELECT id FROM users WHERE email = $1',

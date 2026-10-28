@@ -10,6 +10,7 @@ const { createChatRoom, appendSystemMessageByJob, postFileMessage } = require('.
 const notificationService = require('../notifications/notification.service');
 const { writeAudit } = require('../audit/audit.service');
 const { rankFreelancers } = require('./fairMatch');
+const { assertNoContactInfo, findContactInfo, CONTACT_BLOCKED_MESSAGE } = require('../../utils/contactGuard');
 const { defaultBriefFields, resolveBriefFields, normalizeBriefFields, validateBriefAnswers, formatBrief } = require('./briefFields');
 
 const razorpay = env.payments.mockCheckout
@@ -231,6 +232,26 @@ const isTestAccount = async (userId) => {
 const TEST_CHECKOUT_FOR_EVERYONE = true;
 const testCheckoutAllowed = async (clientId) => TEST_CHECKOUT_FOR_EVERYONE || env.payments.mockCheckout || isTestAccount(clientId);
 
+/**
+ * The brief and instructions go straight into the order chat, so they get the same
+ * contact check. Link fields ask for the client's site or references, so only links
+ * that are themselves contact details (wa.me, mailto, a phone) are refused there.
+ */
+const assertBriefIsClean = (clientId, briefs, items) => {
+  const guard = { userId: clientId, role: 'client' };
+  briefs.flat().forEach((answer) => {
+    const values = Array.isArray(answer.value) ? answer.value : [answer.value];
+    values.forEach((value) => {
+      if (answer.type !== 'link') return assertNoContactInfo(value, { ...guard, where: 'brief' });
+      const { reasons } = findContactInfo(value, { role: 'client' });
+      if (reasons.some((r) => !['link', 'handle'].includes(r))) {
+        throw new AppError(`${answer.label}: ${CONTACT_BLOCKED_MESSAGE}`, 422, 'CONTACT_INFO_BLOCKED');
+      }
+    });
+  });
+  items.forEach((item) => { if (item?.instructions) assertNoContactInfo(String(item.instructions), { ...guard, where: 'instructions' }); });
+};
+
 const createCheckout = async (clientId, { items, gstin, idempotency_key: idempotencyKey } = {}) => {
   const settings = await getServiceSettings();
   validateCheckoutInput({ items, gstin }, settings);
@@ -279,6 +300,7 @@ const createCheckout = async (clientId, { items, gstin, idempotency_key: idempot
     err.errors = briefErrors;
     throw err;
   }
+  assertBriefIsClean(clientId, briefs, items);
 
   const gstRate = Number(settings.gst_rate);
   const lines = items.map((item, index) => {

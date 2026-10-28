@@ -169,7 +169,7 @@ function MatchingPanel({ job }) {
             width: size, height: size,
             borderRadius: '50%',
             border: `1.5px solid var(--mint-${i === 0 ? '200' : i === 1 ? '300' : '400'})`,
-            animation: `pulse ${1.8 + i * 0.4}s ease-out infinite`,
+            animation: `radar-ring ${1.8 + i * 0.4}s ease-out infinite`,
             animationDelay: `${i * 0.3}s`,
             opacity: 0.7,
           }} />

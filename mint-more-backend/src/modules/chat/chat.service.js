@@ -5,6 +5,19 @@ const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
 const { assertNoContactInfo } = require('../../utils/contactGuard');
 
+/** The sender's own messages in a room from the last hour, oldest first. */
+const recentOwnMessages = async (roomId, senderId, { before = null } = {}) => {
+  const result = await query(
+    `SELECT content FROM messages
+     WHERE room_id = $1 AND sender_id = $2 AND is_deleted = false AND content IS NOT NULL
+       AND created_at > COALESCE($3::timestamptz, NOW()) - INTERVAL '60 minutes'
+       AND ($3::timestamptz IS NULL OR created_at < $3::timestamptz)
+     ORDER BY created_at DESC LIMIT 12`,
+    [roomId, senderId, before]
+  );
+  return result.rows.map((row) => row.content).reverse();
+};
+
 // Redis keys
 const PRESENCE_KEY  = (userId)  => `presence:${userId}`;
 const PRESENCE_TTL  = 120;       // seconds — refreshed on every activity
@@ -260,17 +273,9 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
   const persistedSenderRole = senderRole === 'designer' ? 'freelancer' : senderRole;
 
   if (content) {
-    const guard = { userId: senderId, role: senderRole, where: 'chat' };
-    assertNoContactInfo(content, guard);
-    // Catch a number split across a few quick messages ("98765" … "43210").
-    const recent = await query(
-      `SELECT content FROM messages
-       WHERE room_id = $1 AND sender_id = $2 AND created_at > NOW() - INTERVAL '10 minutes'
-       ORDER BY created_at DESC LIMIT 3`,
-      [roomId, senderId]
-    );
-    const combined = [...recent.rows.reverse().map((row) => row.content || ''), content].join(' ');
-    assertNoContactInfo(combined, { ...guard, where: 'chat_split' });
+    // The sender's recent messages too, so a number can't go out a few digits at a time.
+    const previous = await recentOwnMessages(roomId, senderId);
+    assertNoContactInfo(content, { userId: senderId, role: senderRole, where: 'chat', previous });
   }
 
   // Insert message
@@ -372,7 +377,8 @@ const editMessage = async (messageId, editorId, editorRole, { content }) => {
   if (text === (message.content || '').trim()) return message;
 
   // An edit must not sneak in contact details the original send would have blocked.
-  assertNoContactInfo(text, { userId: editorId, role: editorRole, where: 'chat_edit' });
+  const previous = await recentOwnMessages(message.room_id, editorId, { before: message.created_at });
+  assertNoContactInfo(text, { userId: editorId, role: editorRole, where: 'chat_edit', previous });
 
   const updated = await query(
     `UPDATE messages SET content = $1, edited_at = NOW() WHERE id = $2 RETURNING *`,
