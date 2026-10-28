@@ -2,7 +2,7 @@ const service = require('./creative.service');
 const brandService = require('../brand/brand.service');
 const validator = require('./creative.validator');
 const { sendSuccess } = require('../../utils/apiResponse');
-const AppError = require('../../utils/appError');
+const AppError = require('../../utils/AppError');
 
 // ── Milestone 2 Creative Workflow Controllers ──
 
