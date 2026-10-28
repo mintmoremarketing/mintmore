@@ -149,14 +149,16 @@ export default function AppShell() {
     )
   }
 
-  // Freelancers get a top-bar layout (no sidebar): Explore / Upskill / Assessments up top.
+  // Freelancers: the same sidebar as clients on desktop, with their own top bar for the
+  // bookings switch, search and posting. Phones keep the top bar and bottom tabs.
   if (role === 'freelancer') {
     return (
-      <div className="flex min-h-screen flex-col bg-white text-ink-900 font-sans" style={{ '--bottom-nav-h': isMobile ? '64px' : '0px' }}>
-        <div className="fixed inset-x-0 top-0 z-30 border-b border-ink-100 bg-white/95 backdrop-blur-md">
-          <FreelancerTopbar isMobile={isMobile} unreadCount={unreadCount} />
+      <div className="flex min-h-screen bg-white text-ink-900 font-sans" style={{ '--bottom-nav-h': isMobile ? '64px' : '0px' }}>
+        {!isMobile && <Sidebar role={role} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />}
+        <div className={`fixed right-0 top-0 z-30 border-b border-ink-100 bg-white/95 backdrop-blur-md transition-all duration-200 ease-out ${!isMobile ? (sidebarCollapsed ? 'left-16' : 'left-56') : 'left-0'}`}>
+          <FreelancerTopbar isMobile={isMobile} unreadCount={unreadCount} withSidebar={!isMobile} />
         </div>
-        <main className={`flex min-w-0 flex-1 flex-col pt-16 ${isMobile ? 'pb-16' : ''}`}>
+        <main className={`flex min-w-0 flex-1 flex-col pt-16 transition-all duration-200 ease-out ${!isMobile ? (sidebarCollapsed ? 'ml-16' : 'ml-56') : 'pb-16'}`}>
           <AdminImpersonationBanner />
           <GuestBanner />
           <div className="relative flex h-full w-full flex-1 flex-col">

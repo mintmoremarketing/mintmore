@@ -23,7 +23,9 @@ function AssignModal({ booking, onClose }) {
 		onSuccess: (res) => {
 			queryClient.invalidateQueries({ queryKey: ['admin-service-bookings'] })
 			const result = res.data.data
-			pushToast({ title: result?.assigned ? 'Freelancer assigned' : 'No eligible freelancer found', icon: result?.assigned ? 'check' : 'x', tone: result?.assigned ? undefined : 'amber' })
+			if (result?.assigned) pushToast({ title: 'Freelancer assigned', icon: 'check' })
+			else if (result?.offered) pushToast({ title: 'Offered to a freelancer', body: 'They have 30 minutes to accept, then it passes to the next one.', icon: 'clock' })
+			else pushToast({ title: 'No eligible freelancer found', icon: 'x', tone: 'amber' })
 			onClose()
 		},
 		onError: err => pushToast({ title: 'Could not assign', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
@@ -40,7 +42,7 @@ function AssignModal({ booking, onClose }) {
 				<button className="btn primary" disabled={assign.isPending} onClick={() => assign.mutate()}>{selected ? 'Assign selected' : 'Auto-assign best match'}</button>
 			</>}
 		>
-			<p className="mb-3 text-sm text-ink-600">Only active, available, KYC-verified freelancers under their job limit are listed. Opted-in freelancers come first.</p>
+			<p className="mb-3 text-sm text-ink-600">Only active, available, KYC-verified freelancers under their job limit are listed. Opted-in freelancers come first, in the order auto-assign would pick them: new and idle freelancers get a boost and busy ones a penalty, so work is spread fairly.</p>
 			{isLoading ? <div className="h-24 animate-pulse rounded-xl bg-ink-100" /> : freelancers.length === 0 ? (
 				<div className="rounded-xl bg-ink-50 p-3 text-sm text-ink-700">No eligible freelancers right now. Approve a KYC or ask a freelancer to opt in to this service.</div>
 			) : (
@@ -54,7 +56,7 @@ function AssignModal({ booking, onClose }) {
 							</div>
 							<div className="text-right text-xs text-ink-500">
 								{f.opted_in ? <span className="font-semibold text-emerald-700">Offers this</span> : 'Not opted in'}
-								<div className="tabular-nums">{Number(f.average_rating || 0).toFixed(1)}★ · {f.active_jobs_count} active</div>
+								<div className="tabular-nums">Score {Math.round(Number(f.match_score || 0) * 100)} · {Number(f.jobs_completed_count) ? `${Number(f.average_rating || 0).toFixed(1)}★` : 'New'} · {f.active_jobs_count} active</div>
 							</div>
 						</label>
 					))}

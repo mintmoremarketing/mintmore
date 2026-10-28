@@ -3,61 +3,62 @@ import { Link } from 'react-router-dom'
 import { servicesApi } from '../../api/services'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../../components/ui/Icon'
-import StageBadge from '../../components/services/StageBadge'
 import { StoreRow } from '../../components/storefront/storefront'
 import { referenceCover } from '../../components/storefront/referencePhotos'
-import { clientNextAction, dueText, formatDate, inr, variantLabel } from '../../components/services/serviceUtils'
-
-// Four plain steps for the progress bar; every booking stage maps onto one of them.
-const STEPS = ['Booked', 'In progress', 'Delivered', 'Done']
-const STEP_OF = { finding_freelancer: 0, in_progress: 1, revision_requested: 1, delivered: 2, approved: 2, completed: 3 }
+import { inr, variantLabel } from '../../components/services/serviceUtils'
 
 const greeting = () => {
 	const hour = new Date().getHours()
 	return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 }
 
-function OrderCard({ row }) {
-	const step = STEP_OF[row.stage] ?? 0
+const ago = (value) => {
+	if (!value) return ''
+	const minutes = Math.max(1, Math.round((Date.now() - new Date(value).getTime()) / 60_000))
+	if (minutes < 60) return `${minutes} min ago`
+	const hours = Math.round(minutes / 60)
+	return hours < 24 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`
+}
+
+/** Due date for work still underway. Late work is the one thing here that should stand out. */
+const hoursUntil = (at) => Math.round((new Date(at).getTime() - Date.now()) / 3_600_000)
+
+function Due({ at }) {
+	if (!at) return <span className="text-ink-400">Starts on assignment</span>
+	const hours = hoursUntil(at)
+	const span = (h) => (Math.abs(h) < 24 ? `${Math.abs(h)}h` : `${Math.round(Math.abs(h) / 24)}d`)
+	if (hours < 0) return <span className="font-medium text-rose-600">{span(hours)} late</span>
+	if (hours < 24) return <span className="font-medium text-amber-700">Due in {span(Math.max(1, hours))}</span>
+	return <span className="text-ink-600">Due in {span(hours)}</span>
+}
+
+const WORK_STATE = {
+	finding_freelancer: { dot: 'bg-amber-500', text: 'Finding a freelancer' },
+	in_progress: { dot: 'bg-sky-500', text: 'Being worked on' },
+	revision_requested: { dot: 'bg-violet-500', text: 'Revision underway' },
+}
+
+function Thumb({ src }) {
 	return (
-		<Link
-			to={`/orders/${row.id}`}
-			className="flex h-full flex-col rounded-2xl border border-ink-200 bg-white p-4 transition-[border-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-ink-300 active:scale-[0.99] md:p-5"
-		>
-			<div className="flex items-center justify-between gap-2">
-				<span className="text-xs tabular-nums text-ink-500">{row.booking_number}</span>
-				<StageBadge stage={row.stage} />
-			</div>
-			<div className="mt-2 line-clamp-1 text-[17px] font-medium text-ink-900">{row.snapshot?.title}</div>
-			<div className="mt-0.5 truncate text-sm text-ink-500">
-				{variantLabel(row.snapshot || {}, row.snapshot?.option_group_label)}{row.freelancer_name ? ` · ${row.freelancer_name}` : ''}
-			</div>
-
-			<div className="mt-4" aria-label={`Step ${step + 1} of ${STEPS.length}: ${STEPS[step]}`}>
-				<div className="grid grid-cols-4 gap-1">
-					{STEPS.map((label, i) => (
-						<span key={label} className={`h-1.5 rounded-full ${i <= step ? 'bg-ink-900' : 'bg-ink-100'}`} />
-					))}
-				</div>
-				<div className="mt-1.5 flex justify-between text-xs text-ink-500">
-					<span className="font-medium text-ink-900">{STEPS[step]}</span>
-					<span>{row.stage === 'completed' ? `Completed ${formatDate(row.completed_at)}` : dueText(row.due_at)}</span>
-				</div>
-			</div>
-
-			<span className="mt-auto inline-flex items-center gap-1 pt-4 text-sm font-medium text-mint-600">
-				{clientNextAction(row.stage)} <Icon name="arrowRight" size={14} />
-			</span>
-		</Link>
+		<div className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-lg bg-ink-100 text-ink-400 md:h-14 md:w-20">
+			{src ? <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" /> : <Icon name="layers" size={18} />}
+		</div>
 	)
 }
 
-function SectionHead({ title, to, label = 'View all' }) {
+const meta = (row) => [
+	row.booking_number,
+	variantLabel(row.snapshot || {}, row.snapshot?.option_group_label),
+	row.freelancer_name,
+].filter(Boolean).join(' · ')
+
+function SectionHead({ title, count, to, label = 'View all' }) {
 	return (
-		<div className="mb-4 flex items-end justify-between gap-3">
+		<div className="mb-3 flex items-baseline gap-2.5">
 			<h2 className="text-2xl font-medium tracking-tight text-ink-900 md:text-3xl">{title}</h2>
+			{count > 0 && <span className="text-lg tabular-nums text-ink-400 md:text-xl">{count}</span>}
 			{to && (
-				<Link to={to} className="inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-ink-900 hover:underline">
+				<Link to={to} className="ml-auto inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-ink-700 underline-offset-4 hover:text-ink-900 hover:underline">
 					{label} <Icon name="arrowRight" size={14} />
 				</Link>
 			)}
@@ -65,29 +66,83 @@ function SectionHead({ title, to, label = 'View all' }) {
 	)
 }
 
-function OrderSection({ title, rows, to }) {
+const rowCls = 'group flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 transition-colors duration-150 hover:bg-ink-50/70 focus-visible:bg-ink-50/70 focus-visible:outline-none md:flex-nowrap md:px-5'
+
+/** Deliveries waiting on the client. Each row says what arrived and offers the one next step. */
+function ReviewQueue({ rows, coverFor }) {
 	if (!rows.length) return null
 	return (
 		<section className="mt-10">
-			<SectionHead title={title} to={to} />
-			<div className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 lg:grid-cols-3">
-				{rows.slice(0, 3).map(row => (
-					<div key={row.id} className="w-[85%] shrink-0 snap-start md:w-auto"><OrderCard row={row} /></div>
-				))}
-			</div>
+			<SectionHead title="Ready for your review" count={rows.length} to="/orders?tab=delivered" />
+			<ul className="divide-y divide-ink-100 overflow-hidden rounded-2xl border border-ink-200 bg-white">
+				{rows.slice(0, 5).map(row => {
+					const approved = row.stage === 'approved'
+					return (
+						<li key={row.id}>
+							<Link to={`/orders/${row.id}`} className={rowCls}>
+								<Thumb src={coverFor(row)} />
+								<div className="min-w-0 flex-1 basis-[calc(100%-5rem)] md:basis-auto">
+									<div className="truncate text-[17px] font-medium text-ink-900">{row.snapshot?.title}</div>
+									<div className="truncate text-sm text-ink-500">{meta(row)}</div>
+								</div>
+								<div className="text-sm text-ink-600 md:w-56 md:shrink-0 md:text-right">
+									{approved
+										? 'Approved. Complete it to release payment.'
+										: `Delivered ${ago(row.latest_delivery_at)}${Number(row.delivery_count) > 1 ? ` · version ${row.delivery_count}` : ''}`}
+								</div>
+								<span className="ml-auto inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-[15px] font-medium text-white transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] group-active:scale-[0.97] max-md:w-full max-md:justify-center">
+									{approved ? 'Complete & rate' : 'Review delivery'}
+								</span>
+							</Link>
+						</li>
+					)
+				})}
+			</ul>
+		</section>
+	)
+}
+
+/** Orders a freelancer is working on: who has it, what's happening, and when it's due. */
+function WorkList({ rows, coverFor }) {
+	if (!rows.length) return null
+	return (
+		<section className="mt-10">
+			<SectionHead title="In progress" count={rows.length} to="/orders?tab=active" />
+			<ul className="divide-y divide-ink-100 overflow-hidden rounded-2xl border border-ink-200 bg-white">
+				{rows.slice(0, 6).map(row => {
+					const state = WORK_STATE[row.stage] || WORK_STATE.in_progress
+					return (
+						<li key={row.id}>
+							<Link to={`/orders/${row.id}`} className={`${rowCls} !flex-nowrap`}>
+								<Thumb src={coverFor(row)} />
+								<div className="min-w-0 flex-1">
+									<div className="truncate text-[17px] font-medium text-ink-900">{row.snapshot?.title}</div>
+									<div className="truncate text-sm text-ink-500">{meta(row)}</div>
+									{/* Phones: state and due date tuck under the title. */}
+									<div className="mt-1 flex items-center gap-2 text-sm md:hidden">
+										<span className={`h-2 w-2 shrink-0 rounded-full ${state.dot}`} />
+										<span className="truncate text-ink-700">{state.text}</span>
+										<span className="text-ink-300">·</span>
+										<span className="shrink-0"><Due at={row.due_at} /></span>
+									</div>
+								</div>
+								<div className="hidden w-44 shrink-0 items-center gap-2 text-sm text-ink-700 md:flex">
+									<span className={`h-2 w-2 shrink-0 rounded-full ${state.dot}`} />
+									{state.text}
+								</div>
+								<div className="hidden w-28 shrink-0 text-right text-sm tabular-nums md:block"><Due at={row.due_at} /></div>
+								<Icon name="chevronRight" size={16} className="shrink-0 text-ink-300 transition-colors group-hover:text-ink-600" />
+							</Link>
+						</li>
+					)
+				})}
+			</ul>
 		</section>
 	)
 }
 
 /** One past order per service still on sale, with a one-tap way back to it. */
-function BookAgain({ rows }) {
-	const { data: catalog = [] } = useQuery({
-		queryKey: ['services-catalog'],
-		queryFn: () => servicesApi.catalog().then(res => res.data.data),
-		enabled: rows.length > 0,
-		staleTime: 5 * 60_000,
-	})
-	const onSale = new Map(catalog.map(item => [item.slug, item]))
+function BookAgain({ rows, onSale }) {
 	const seen = new Set()
 	const unique = rows.filter(row => {
 		const slug = row.template_slug || row.snapshot?.slug
@@ -187,6 +242,17 @@ export default function ClientHome() {
 		queryFn: () => servicesApi.bookings().then(res => res.data.data),
 		refetchInterval: 30_000,
 	})
+	const { data: catalog = [] } = useQuery({
+		queryKey: ['services-catalog'],
+		queryFn: () => servicesApi.catalog().then(res => res.data.data),
+		enabled: orders.length > 0,
+		staleTime: 5 * 60_000,
+	})
+	const onSale = new Map(catalog.map(item => [item.slug, item]))
+	const coverFor = (row) => {
+		const slug = row.template_slug || row.snapshot?.slug
+		return onSale.get(slug)?.cover_url || referenceCover(slug)
+	}
 	const { data: storefront } = useQuery({
 		queryKey: ['storefront'],
 		queryFn: () => servicesApi.storefront().then(res => res.data.data),
@@ -225,9 +291,9 @@ export default function ClientHome() {
 				<GettingStarted categories={storefront?.categories || []} popular={popular} />
 			) : (
 				<>
-					<OrderSection title="Ready for your review" rows={needsReview} to="/orders?tab=delivered" />
-					<OrderSection title="In progress" rows={active} to="/orders?tab=active" />
-					<BookAgain rows={completed} />
+					<ReviewQueue rows={needsReview} coverFor={coverFor} />
+					<WorkList rows={active} coverFor={coverFor} />
+					<BookAgain rows={completed} onSale={onSale} />
 
 					{popular?.services?.length > 0 && (
 						<StoreRow

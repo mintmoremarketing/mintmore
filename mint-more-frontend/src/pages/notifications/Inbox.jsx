@@ -286,14 +286,12 @@ export default function NotificationsInbox() {
 									${target ? 'cursor-pointer' : 'cursor-default'}
 								`}
 							>
-								{!n.is_read && (
-									<span className="absolute left-1.5 md:left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-mint-500" />
-								)}
 								<div 
-									className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" 
+									className="relative w-10 h-10 rounded-full flex items-center justify-center shrink-0" 
 									style={{ background: `${color}18`, color }}
 								>
 									<Icon name={notifIcon(n.type)} size={16} />
+									{!n.is_read && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-mint-500 ring-2 ring-white" aria-label="Unread" />}
 								</div>
 								<div className="flex-1 min-w-0">
 									<div className={`text-sm ${n.is_read ? 'font-medium' : 'font-semibold'} text-ink-950`}>

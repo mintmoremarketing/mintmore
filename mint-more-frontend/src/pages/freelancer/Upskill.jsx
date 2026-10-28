@@ -29,8 +29,7 @@ export default function Upskill() {
 	return (
 		<div className="mx-auto w-full max-w-[1200px] px-4 py-8 font-store md:px-10">
 			<header className="rounded-3xl bg-ink-900 px-6 py-10 text-white md:px-10">
-				<span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium"><Icon name="sparkles" size={13} /> Creatyv Academy</span>
-				<h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">Learn the skills clients book</h1>
+				<h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Learn the skills clients book</h1>
 				<p className="mt-2 max-w-xl text-[15px] text-white/70">Short, practical courses on editing, design and getting clients — built for freelancers on Creatyv.</p>
 			</header>
 

@@ -6,9 +6,11 @@ const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { getSetting } = require('../commerce/settings.service');
 const { getWalletByUserId, recordTransaction, holdEscrow } = require('../wallet/wallet.service');
-const { createChatRoom, appendSystemMessageByJob } = require('../chat/chat.service');
+const { createChatRoom, appendSystemMessageByJob, postFileMessage } = require('../chat/chat.service');
 const notificationService = require('../notifications/notification.service');
 const { writeAudit } = require('../audit/audit.service');
+const { rankFreelancers } = require('./fairMatch');
+const { defaultBriefFields, resolveBriefFields, normalizeBriefFields, validateBriefAnswers, formatBrief } = require('./briefFields');
 
 const razorpay = env.payments.mockCheckout
   ? null
@@ -176,7 +178,7 @@ const getCatalogItem = async (slug) => {
     ),
   ]);
 
-  return { ...template, variants: variants.rows, reviews: reviews.rows };
+  return { ...template, brief_fields: resolveBriefFields(template), variants: variants.rows, reviews: reviews.rows };
 };
 
 // ── Checkout ──────────────────────────────────────────────────────────────────
@@ -240,9 +242,11 @@ const createCheckout = async (clientId, { items, gstin, idempotency_key: idempot
   const variantIds = [...new Set(items.map((item) => item.variant_id))];
   const variantResult = await query(
     `SELECT v.*, t.slug, t.title, t.unit_label, t.option_group_label, t.revisions,
-            t.includes, t.excludes, t.category_id, t.requirements_hint
+            t.includes, t.excludes, t.category_id, t.requirements_hint, t.brief_fields,
+            c.slug AS category_slug
      FROM service_variants v
      JOIN service_templates t ON t.id = v.template_id
+     LEFT JOIN categories c ON c.id = t.category_id
      WHERE v.id = ANY($1::uuid[]) AND v.is_active AND t.is_active`,
     [variantIds]
   );
@@ -250,8 +254,22 @@ const createCheckout = async (clientId, { items, gstin, idempotency_key: idempot
   const missing = variantIds.filter((id) => !variants.has(id));
   if (missing.length) throw new AppError('One or more services in your cart are no longer available', 409);
 
+  // Every service's brief must be filled in before payment.
+  const briefErrors = [];
+  const briefs = items.map((item) => {
+    const variant = variants.get(item.variant_id);
+    const { brief, errors } = validateBriefAnswers(resolveBriefFields(variant), item.brief, variant.title);
+    briefErrors.push(...errors);
+    return brief;
+  });
+  if (briefErrors.length) {
+    const err = new AppError('Some brief details are missing', 422);
+    err.errors = briefErrors;
+    throw err;
+  }
+
   const gstRate = Number(settings.gst_rate);
-  const lines = items.map((item) => {
+  const lines = items.map((item, index) => {
     const variant = variants.get(item.variant_id);
     const quantity = Number(item.quantity ?? 1);
     const subtotal = money(Number(variant.price) * quantity);
@@ -264,6 +282,7 @@ const createCheckout = async (clientId, { items, gstin, idempotency_key: idempot
       payout,
       platformFee: money(subtotal - payout),
       gst: money((subtotal * gstRate) / 100),
+      brief: briefs[index],
     };
   });
   const subtotal = money(lines.reduce((sum, line) => sum + line.subtotal, 0));
@@ -306,12 +325,12 @@ const createCheckout = async (clientId, { items, gstin, idempotency_key: idempot
       await dbClient.query(
         `INSERT INTO service_bookings
            (checkout_id, client_id, template_id, variant_id, quantity, snapshot, instructions,
-            preferred_freelancer_id, unit_price, subtotal, gst_amount, freelancer_payout, platform_fee)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+            preferred_freelancer_id, unit_price, subtotal, gst_amount, freelancer_payout, platform_fee, brief)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [checkout.id, clientId, variant.template_id, variant.id, line.quantity, JSON.stringify(snapshot),
           line.item.instructions ? String(line.item.instructions).trim() : null,
           line.item.preferred_freelancer_id || null, Number(variant.price), line.subtotal, line.gst,
-          line.payout, line.platformFee]
+          line.payout, line.platformFee, JSON.stringify(line.brief)]
       );
     }
     await dbClient.query('COMMIT');
@@ -403,7 +422,7 @@ const finalizeCheckout = async (checkoutId, paymentId = null) => {
             booking.client_id,
             snapshot.category_id || null,
             `${snapshot.title}${optionText}${packText}${qtyText}`.slice(0, 255),
-            booking.instructions || `Fixed-price service: ${snapshot.title}`,
+            [formatBrief(booking.brief), booking.instructions].filter(Boolean).join('\n\n') || `Fixed-price service: ${snapshot.title}`,
             booking.instructions || null,
             booking.subtotal,
             JSON.stringify({
@@ -483,8 +502,14 @@ const finalizeCheckout = async (checkoutId, paymentId = null) => {
     }
   }
 
-  const bookingRows = await query('SELECT id FROM service_bookings WHERE checkout_id = $1 ORDER BY created_at', [checkoutId]);
-  return { checkout_id: checkoutId, status: 'paid', booking_ids: bookingRows.rows.map((row) => row.id) };
+  const bookingRows = await query('SELECT id, job_id, variant_id FROM service_bookings WHERE checkout_id = $1 ORDER BY created_at', [checkoutId]);
+  return {
+    checkout_id: checkoutId,
+    status: 'paid',
+    booking_ids: bookingRows.rows.map((row) => row.id),
+    // Lets the browser upload the brief files it is holding into each order.
+    bookings: bookingRows.rows,
+  };
 };
 
 const verifyCheckout = async (clientId, checkoutId, payload = {}) => {
@@ -547,32 +572,203 @@ const getSystemActorId = async (dbClient) => {
   return admin.rows[0].id;
 };
 
-const pickFreelancer = async (dbClient, booking, maxActiveJobs) => {
+// Everything fairMatch needs to score a freelancer.
+const CANDIDATE_FIELDS_SQL = `
+  u.id, u.full_name, u.email, u.avatar_url, u.bio, u.skills,
+  COALESCE(u.average_rating, 0) AS average_rating,
+  COALESCE(u.jobs_completed_count, 0) AS jobs_completed_count,
+  COALESCE(u.active_jobs_count, 0) AS active_jobs_count,
+  EXISTS (SELECT 1 FROM portfolio_items pi WHERE pi.freelancer_id = u.id) AS has_portfolio,
+  la.last_assigned_at,
+  EXTRACT(DAY FROM NOW() - la.last_assigned_at)::int AS days_since_last_assignment`;
+const LAST_ASSIGNED_JOIN_SQL = `
+  LEFT JOIN LATERAL (
+    SELECT MAX(ja.created_at) AS last_assigned_at FROM job_assignments ja
+    WHERE ja.freelancer_id = u.id AND ja.status IN ('accepted', 'completed')
+  ) la ON true`;
+
+const OFFER_MINUTES = 30;
+
+// Freelancers who already turned this order down (or let the offer lapse) aren't asked again.
+const pickFreelancer = async (dbClient, booking, matching) => {
+  // Lock every eligible opted-in freelancer so two orders can't both take someone's last slot.
   const result = await dbClient.query(
-    `SELECT u.id
+    `SELECT ${CANDIDATE_FIELDS_SQL}
      FROM freelancer_service_optins o
      JOIN users u ON u.id = o.freelancer_id
-     WHERE o.template_id = $1 AND o.is_active = true AND u.id <> $4
+     ${LAST_ASSIGNED_JOIN_SQL}
+     WHERE o.template_id = $1 AND o.is_active = true AND u.id <> $3
        AND ${ELIGIBLE_FREELANCER_SQL}
-     ORDER BY (u.id = $3) DESC,
-              COALESCE(u.average_rating, 0) DESC,
-              COALESCE(u.active_jobs_count, 0) ASC,
-              (SELECT MAX(sb.assigned_at) FROM service_bookings sb WHERE sb.freelancer_id = u.id) ASC NULLS FIRST
-     LIMIT 1
+       AND NOT EXISTS (
+         SELECT 1 FROM job_assignments ja
+         WHERE ja.job_id = $4 AND ja.freelancer_id = u.id AND ja.status IN ('declined', 'cancelled')
+       )
      FOR UPDATE OF u SKIP LOCKED`,
-    [booking.template_id, maxActiveJobs, booking.preferred_freelancer_id, booking.client_id]
+    [booking.template_id, Number(matching?.max_active_jobs || 5), booking.client_id, booking.job_id]
   );
-  return result.rows[0]?.id || null;
+  const [best] = rankFreelancers(result.rows, { preferredId: booking.preferred_freelancer_id, settings: matching });
+  if (!best) return null;
+  logger.info('Service booking matched', {
+    bookingId: booking.id, freelancerId: best.id, candidates: result.rows.length,
+    preferred: best.id === booking.preferred_freelancer_id, score: best.match.total, breakdown: best.match.breakdown,
+  });
+  return best.id;
+};
+
+const notifyAdminsUnassigned = async (booking) => {
+  const admins = await query(`SELECT id FROM users WHERE role = 'admin' AND is_active = true`);
+  await Promise.all(admins.rows.map((admin) => notificationService.createNotification({
+    userId: admin.id,
+    type: 'service_unassigned',
+    title: `${booking.booking_number} needs a freelancer`,
+    body: `No eligible freelancer took ${booking.snapshot?.title || 'a service order'}. Assign one manually.`,
+    entityType: 'service_booking',
+    entityId: booking.id,
+    data: { booking_id: booking.id },
+    dedupeKey: `service-unassigned:${booking.id}:${admin.id}`,
+  })));
+};
+
+/** Closes an open offer on a locked booking: the freelancer declined, timed out, or an admin stepped in. */
+const closeOffer = async (dbClient, booking, note) => {
+  if (!booking.offered_freelancer_id) return;
+  await dbClient.query(
+    `UPDATE job_assignments
+     SET status = 'declined', responded_at = NOW(), freelancer_note = $3
+     WHERE job_id = $1 AND freelancer_id = $2 AND status = 'pending_acceptance'`,
+    [booking.job_id, booking.offered_freelancer_id, note]
+  );
+  await dbClient.query(
+    'UPDATE service_bookings SET offered_freelancer_id = NULL, offered_at = NULL, offer_expires_at = NULL WHERE id = $1',
+    [booking.id]
+  );
 };
 
 /**
- * Assigns a paid booking. With no freelancerId it auto-picks the best eligible
- * opted-in freelancer; an admin can pass one explicitly (still eligibility-checked).
+ * Starts the work on a locked, paid booking: escrow, job, counters and the booking itself.
+ * Runs inside the caller's transaction; startOrder() does the chat and notifications after commit.
+ */
+const commitAssignment = async (dbClient, booking, freelancerId, { assignedBy, method }) => {
+  const deliveryDays = Number(booking.snapshot?.delivery_days || 1);
+  await holdEscrow({
+    jobId: booking.job_id,
+    clientId: booking.client_id,
+    freelancerId,
+    amount: Number(booking.subtotal),
+    freelancerPayout: Number(booking.freelancer_payout),
+    platformRevenue: Number(booking.platform_fee),
+    marginPercent: Number(booking.subtotal) > 0 ? money((Number(booking.platform_fee) / Number(booking.subtotal)) * 100) : 0,
+    dbClient,
+  });
+
+  // An offer being accepted becomes the assignment; anything else is recorded fresh.
+  const accepted = await dbClient.query(
+    `UPDATE job_assignments SET status = 'accepted', responded_at = NOW(), started_at = NOW()
+     WHERE job_id = $1 AND freelancer_id = $2 AND status = 'pending_acceptance'
+     RETURNING id`,
+    [booking.job_id, freelancerId]
+  );
+  if (!accepted.rows[0]) {
+    await dbClient.query(
+      `INSERT INTO job_assignments (job_id, freelancer_id, assigned_by, status, responded_at, started_at)
+       VALUES ($1, $2, $3, 'accepted', NOW(), NOW())`,
+      [booking.job_id, freelancerId, assignedBy]
+    );
+  }
+  await dbClient.query(
+    `UPDATE job_assignments SET status = 'cancelled', responded_at = NOW()
+     WHERE job_id = $1 AND freelancer_id <> $2 AND status = 'pending_acceptance'`,
+    [booking.job_id, freelancerId]
+  );
+  await dbClient.query(
+    `UPDATE jobs
+     SET status = 'in_progress', active_freelancer_id = $2, assigned_by = $3, assigned_at = NOW(),
+         matched_at = NOW(), match_method = $4, deadline = NOW() + ($5 || ' days')::interval
+     WHERE id = $1`,
+    [booking.job_id, freelancerId, assignedBy, method, String(deliveryDays)]
+  );
+  await dbClient.query(
+    'UPDATE users SET active_jobs_count = COALESCE(active_jobs_count, 0) + 1 WHERE id = $1',
+    [freelancerId]
+  );
+  const updated = await dbClient.query(
+    `UPDATE service_bookings
+     SET freelancer_id = $2, assignment_status = 'assigned', assigned_at = NOW(),
+         due_at = NOW() + ($3 || ' days')::interval,
+         offered_freelancer_id = NULL, offered_at = NULL, offer_expires_at = NULL
+     WHERE id = $1
+     RETURNING *`,
+    [booking.id, freelancerId, String(deliveryDays)]
+  );
+  return updated.rows[0];
+};
+
+/** After an assignment commits: open the chat, post the brief and its files, tell both sides. */
+const startOrder = async (booking, freelancerId) => {
+  await createChatRoom({ jobId: booking.job_id, clientId: booking.client_id, freelancerId })
+    .catch((err) => logger.warn('Service chat room creation failed', { bookingId: booking.id, error: err.message }));
+  const snapshot = booking.snapshot || {};
+  const header = [
+    `Order ${booking.booking_number} started: ${snapshot.title}${snapshot.option_label ? ` (${snapshot.option_label})` : ''}`,
+    Number(snapshot.pack_size) > 1 ? `Pack of ${snapshot.pack_size}` : null,
+    Number(booking.quantity) > 1 ? `Quantity: ${booking.quantity}` : null,
+    `Delivery in ${snapshot.delivery_days} day${Number(snapshot.delivery_days) === 1 ? '' : 's'} · ${snapshot.revisions} revision${Number(snapshot.revisions) === 1 ? '' : 's'} included`,
+  ].filter(Boolean).join('\n');
+  const answers = formatBrief(booking.brief);
+  const brief = [
+    header,
+    answers ? `Brief\n\n${answers}` : null,
+    booking.instructions ? `Anything else:\n${booking.instructions}` : null,
+    !answers && !booking.instructions ? 'Share your assets, references and instructions here so work can begin.' : null,
+  ].filter(Boolean).join('\n\n');
+  await appendSystemMessageByJob(booking.job_id, brief)
+    .catch((err) => logger.warn('Service brief message failed', { bookingId: booking.id, error: err.message }));
+  // Brief files that finished uploading before the chat existed go in right after the brief.
+  // Later ones are posted by Mintbox when their upload completes.
+  const earlyFiles = await query(
+    `SELECT * FROM mintbox_files WHERE job_id = $1 AND purpose = 'brief' AND uploaded_by = $2 ORDER BY created_at`,
+    [booking.job_id, booking.client_id]
+  ).catch(() => ({ rows: [] }));
+  for (const file of earlyFiles.rows) {
+    await postFileMessage({ jobId: booking.job_id, senderId: booking.client_id, senderRole: 'client', file })
+      .catch((err) => logger.warn('Brief file message failed', { bookingId: booking.id, error: err.message }));
+  }
+
+  await Promise.all([
+    notificationService.createNotification({
+      userId: freelancerId,
+      type: 'service_assigned',
+      title: `New order: ${snapshot.title}`,
+      body: `${booking.booking_number} is yours. Due in ${snapshot.delivery_days} day${Number(snapshot.delivery_days) === 1 ? '' : 's'}.`,
+      entityType: 'service_booking',
+      entityId: booking.id,
+      data: { booking_id: booking.id, job_id: booking.job_id, audience: 'freelancer' },
+      dedupeKey: `service-assigned:${booking.id}:${freelancerId}`,
+    }),
+    notificationService.createNotification({
+      userId: booking.client_id,
+      type: 'service_assigned',
+      title: 'Freelancer assigned',
+      body: `A freelancer has started ${booking.booking_number}. Share your files and instructions in the order chat.`,
+      entityType: 'service_booking',
+      entityId: booking.id,
+      data: { booking_id: booking.id, job_id: booking.job_id, audience: 'client' },
+      dedupeKey: `service-assigned-client:${booking.id}:${freelancerId}`,
+    }),
+  ]);
+};
+
+/**
+ * Finds a freelancer for a paid booking.
+ * - Admin with a freelancerId: assigns them straight away (still eligibility-checked).
+ * - Otherwise: offers it to the best-ranked freelancer, who has OFFER_MINUTES to accept.
+ *   A decline or no answer passes it to the next one (see declineOffer / expireOffers).
  */
 const assignBooking = async (bookingId, { freelancerId = null, actorId = null } = {}) => {
   const dbClient = await getClient();
   let booking;
   let chosen = null;
+  let offered = null;
   try {
     await dbClient.query('BEGIN');
     const bookingResult = await dbClient.query('SELECT * FROM service_bookings WHERE id = $1 FOR UPDATE', [bookingId]);
@@ -597,53 +793,9 @@ const assignBooking = async (bookingId, { freelancerId = null, actorId = null } 
       if (!check.rows[0]) {
         throw new AppError('That freelancer is not eligible (inactive, unavailable, KYC not verified or at capacity)', 400);
       }
+      if (booking.offered_freelancer_id !== freelancerId) await closeOffer(dbClient, booking, 'Assigned by admin to someone else');
       chosen = freelancerId;
-    } else {
-      chosen = await pickFreelancer(dbClient, booking, maxActiveJobs);
-    }
-
-    if (!chosen) {
-      await dbClient.query('COMMIT');
-    } else {
-      const deliveryDays = Number(booking.snapshot?.delivery_days || 1);
-      const assignedBy = actorId || await getSystemActorId(dbClient);
-
-      await holdEscrow({
-        jobId: booking.job_id,
-        clientId: booking.client_id,
-        freelancerId: chosen,
-        amount: Number(booking.subtotal),
-        freelancerPayout: Number(booking.freelancer_payout),
-        platformRevenue: Number(booking.platform_fee),
-        marginPercent: Number(booking.subtotal) > 0 ? money((Number(booking.platform_fee) / Number(booking.subtotal)) * 100) : 0,
-        dbClient,
-      });
-
-      await dbClient.query(
-        `INSERT INTO job_assignments (job_id, freelancer_id, assigned_by, status, responded_at, started_at)
-         VALUES ($1, $2, $3, 'accepted', NOW(), NOW())`,
-        [booking.job_id, chosen, assignedBy]
-      );
-      await dbClient.query(
-        `UPDATE jobs
-         SET status = 'in_progress', active_freelancer_id = $2, assigned_by = $3, assigned_at = NOW(),
-             matched_at = NOW(), match_method = $4, deadline = NOW() + ($5 || ' days')::interval
-         WHERE id = $1`,
-        [booking.job_id, chosen, assignedBy, freelancerId ? 'manual' : 'auto', String(deliveryDays)]
-      );
-      await dbClient.query(
-        'UPDATE users SET active_jobs_count = COALESCE(active_jobs_count, 0) + 1 WHERE id = $1',
-        [chosen]
-      );
-      const updated = await dbClient.query(
-        `UPDATE service_bookings
-         SET freelancer_id = $2, assignment_status = 'assigned', assigned_at = NOW(),
-             due_at = NOW() + ($3 || ' days')::interval
-         WHERE id = $1
-         RETURNING *`,
-        [booking.id, chosen, String(deliveryDays)]
-      );
-      booking = updated.rows[0];
+      booking = await commitAssignment(dbClient, booking, chosen, { assignedBy: actorId || await getSystemActorId(dbClient), method: 'manual' });
       if (actorId) {
         await writeAudit({
           actorId,
@@ -653,8 +805,29 @@ const assignBooking = async (bookingId, { freelancerId = null, actorId = null } 
           metadata: { freelancer_id: chosen },
         }, dbClient).catch(() => null);
       }
+    } else if (booking.offered_freelancer_id && new Date(booking.offer_expires_at) > new Date()) {
+      // Someone is already looking at it.
       await dbClient.query('COMMIT');
+      return { assigned: false, offered: true, freelancer_id: booking.offered_freelancer_id, expires_at: booking.offer_expires_at };
+    } else {
+      await closeOffer(dbClient, booking, 'Offer expired');
+      offered = await pickFreelancer(dbClient, booking, matching);
+      if (offered) {
+        await dbClient.query(
+          `INSERT INTO job_assignments (job_id, freelancer_id, assigned_by, status)
+           VALUES ($1, $2, $3, 'pending_acceptance')`,
+          [booking.job_id, offered, await getSystemActorId(dbClient)]
+        );
+        const updated = await dbClient.query(
+          `UPDATE service_bookings
+           SET offered_freelancer_id = $2, offered_at = NOW(), offer_expires_at = NOW() + ($3 || ' minutes')::interval
+           WHERE id = $1 RETURNING *`,
+          [booking.id, offered, String(OFFER_MINUTES)]
+        );
+        booking = updated.rows[0];
+      }
     }
+    await dbClient.query('COMMIT');
   } catch (err) {
     await dbClient.query('ROLLBACK');
     throw err;
@@ -662,59 +835,138 @@ const assignBooking = async (bookingId, { freelancerId = null, actorId = null } 
     dbClient.release();
   }
 
-  if (!chosen) {
-    const admins = await query(`SELECT id FROM users WHERE role = 'admin' AND is_active = true`);
-    await Promise.all(admins.rows.map((admin) => notificationService.createNotification({
-      userId: admin.id,
-      type: 'service_unassigned',
-      title: `${booking.booking_number} needs a freelancer`,
-      body: `No eligible freelancer was available for ${booking.snapshot?.title || 'a service order'}. Assign one manually.`,
-      entityType: 'service_booking',
-      entityId: booking.id,
-      data: { booking_id: booking.id },
-      dedupeKey: `service-unassigned:${booking.id}:${admin.id}`,
-    })));
-    return { assigned: false };
+  if (chosen) {
+    await startOrder(booking, chosen);
+    logger.info('Service booking assigned', { bookingId: booking.id, freelancerId: chosen, manual: true });
+    return { assigned: true, freelancer_id: chosen };
   }
-
-  await createChatRoom({ jobId: booking.job_id, clientId: booking.client_id, freelancerId: chosen })
-    .catch((err) => logger.warn('Service chat room creation failed', { bookingId: booking.id, error: err.message }));
-  const snapshot = booking.snapshot || {};
-  const brief = [
-    `Order ${booking.booking_number} started: ${snapshot.title}${snapshot.option_label ? ` (${snapshot.option_label})` : ''}`,
-    Number(snapshot.pack_size) > 1 ? `Pack of ${snapshot.pack_size}` : null,
-    Number(booking.quantity) > 1 ? `Quantity: ${booking.quantity}` : null,
-    `Delivery in ${snapshot.delivery_days} day${Number(snapshot.delivery_days) === 1 ? '' : 's'} · ${snapshot.revisions} revision${Number(snapshot.revisions) === 1 ? '' : 's'} included`,
-    booking.instructions ? `Client instructions: ${booking.instructions}` : 'Share your assets, references and instructions here so work can begin.',
-  ].filter(Boolean).join('\n');
-  await appendSystemMessageByJob(booking.job_id, brief)
-    .catch((err) => logger.warn('Service brief message failed', { bookingId: booking.id, error: err.message }));
-
-  await Promise.all([
-    notificationService.createNotification({
-      userId: chosen,
-      type: 'service_assigned',
-      title: `New order: ${snapshot.title}`,
-      body: `${booking.booking_number} is assigned to you. Due in ${snapshot.delivery_days} day${Number(snapshot.delivery_days) === 1 ? '' : 's'}.`,
+  if (offered) {
+    const snapshot = booking.snapshot || {};
+    await notificationService.createNotification({
+      userId: offered,
+      type: 'service_offer',
+      title: `New order offer: ${snapshot.title}`,
+      body: `Accept ${booking.booking_number} within ${OFFER_MINUTES} minutes or it goes to another freelancer.`,
       entityType: 'service_booking',
       entityId: booking.id,
-      data: { booking_id: booking.id, job_id: booking.job_id, audience: 'freelancer' },
-      dedupeKey: `service-assigned:${booking.id}:${chosen}`,
-    }),
-    notificationService.createNotification({
-      userId: booking.client_id,
-      type: 'service_assigned',
-      title: 'Freelancer assigned',
-      body: `A freelancer has started ${booking.booking_number}. Share your files and instructions in the order chat.`,
-      entityType: 'service_booking',
-      entityId: booking.id,
-      data: { booking_id: booking.id, job_id: booking.job_id, audience: 'client' },
-      dedupeKey: `service-assigned-client:${booking.id}:${chosen}`,
-    }),
-  ]);
+      data: { booking_id: booking.id, audience: 'freelancer', expires_at: booking.offer_expires_at },
+      dedupeKey: `service-offer:${booking.id}:${offered}`,
+    });
+    logger.info('Service booking offered', { bookingId: booking.id, freelancerId: offered, expiresAt: booking.offer_expires_at });
+    return { assigned: false, offered: true, freelancer_id: offered, expires_at: booking.offer_expires_at };
+  }
+  await notifyAdminsUnassigned(booking);
+  return { assigned: false };
+};
 
-  logger.info('Service booking assigned', { bookingId: booking.id, freelancerId: chosen, manual: !!freelancerId });
-  return { assigned: true, freelancer_id: chosen };
+/** The offered freelancer takes the order. Capacity is checked again, since offers can stack. */
+const acceptOffer = async (freelancerId, bookingId) => {
+  const dbClient = await getClient();
+  let booking;
+  try {
+    await dbClient.query('BEGIN');
+    const result = await dbClient.query('SELECT * FROM service_bookings WHERE id = $1 FOR UPDATE', [bookingId]);
+    booking = result.rows[0];
+    if (!booking || booking.offered_freelancer_id !== freelancerId) throw new AppError('This offer is no longer open to you', 409);
+    if (new Date(booking.offer_expires_at) <= new Date()) throw new AppError('This offer has expired and went to another freelancer', 410);
+    const matching = await getSetting('matching', { max_active_jobs: 5 }, dbClient);
+    const check = await dbClient.query(
+      `SELECT u.id FROM users u WHERE u.id = $1 AND u.id <> $3 AND ${ELIGIBLE_FREELANCER_SQL} FOR UPDATE`,
+      [freelancerId, Number(matching?.max_active_jobs || 5), booking.client_id]
+    );
+    if (!check.rows[0]) throw new AppError('You are at your active-order limit or booking is off. Finish an order or switch booking on first.', 409);
+    booking = await commitAssignment(dbClient, booking, freelancerId, { assignedBy: await getSystemActorId(dbClient), method: 'auto' });
+    await dbClient.query('COMMIT');
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    dbClient.release();
+  }
+  await startOrder(booking, freelancerId);
+  logger.info('Service offer accepted', { bookingId, freelancerId });
+  return { assigned: true, booking_id: bookingId };
+};
+
+/** Passes an open offer on: the freelancer declined, or it lapsed. Then offers the next one. */
+const passOffer = async (bookingId, { freelancerId = null, note }) => {
+  const dbClient = await getClient();
+  let passed = false;
+  try {
+    await dbClient.query('BEGIN');
+    const result = await dbClient.query('SELECT * FROM service_bookings WHERE id = $1 FOR UPDATE', [bookingId]);
+    const booking = result.rows[0];
+    const stillOpen = booking?.assignment_status === 'unassigned' && booking.offered_freelancer_id
+      && (!freelancerId || booking.offered_freelancer_id === freelancerId);
+    if (stillOpen) {
+      await closeOffer(dbClient, booking, note);
+      passed = booking.offered_freelancer_id;
+    }
+    await dbClient.query('COMMIT');
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    dbClient.release();
+  }
+  if (!passed) {
+    if (freelancerId) throw new AppError('This offer is no longer open to you', 409);
+    return null;
+  }
+  return assignBooking(bookingId);
+};
+
+const declineOffer = (freelancerId, bookingId) => passOffer(bookingId, { freelancerId, note: 'Declined by freelancer' });
+
+/** Offers that ran out: tell the freelancer and move to the next one. Run by the scheduler. */
+const expireOffers = async () => {
+  const due = await query(
+    `SELECT id, offered_freelancer_id, booking_number FROM service_bookings
+     WHERE assignment_status = 'unassigned' AND offered_freelancer_id IS NOT NULL AND offer_expires_at <= NOW()
+     ORDER BY offer_expires_at LIMIT 50`
+  );
+  for (const row of due.rows) {
+    try {
+      await passOffer(row.id, { note: `No answer within ${OFFER_MINUTES} minutes` });
+      await notificationService.createNotification({
+        userId: row.offered_freelancer_id,
+        type: 'service_offer_expired',
+        title: 'Order offer passed on',
+        body: `${row.booking_number} went to another freelancer because it wasn't accepted within ${OFFER_MINUTES} minutes.`,
+        entityType: 'service_booking',
+        entityId: row.id,
+        data: { booking_id: row.id, audience: 'freelancer' },
+        dedupeKey: `service-offer-expired:${row.id}:${row.offered_freelancer_id}`,
+      });
+    } catch (err) {
+      logger.error('Could not pass on expired offer', { bookingId: row.id, error: err.message });
+    }
+  }
+  return due.rows.length;
+};
+
+/** Paid orders that found nobody earlier get another try, e.g. after someone switches booking on. */
+const retryUnassigned = async () => {
+  const waiting = await query(
+    `SELECT id FROM service_bookings
+     WHERE assignment_status = 'unassigned' AND job_id IS NOT NULL AND offered_freelancer_id IS NULL
+     ORDER BY paid_at LIMIT 25`
+  );
+  for (const row of waiting.rows) {
+    await assignBooking(row.id).catch((err) => logger.warn('Retrying assignment failed', { bookingId: row.id, error: err.message }));
+  }
+  return waiting.rows.length;
+};
+
+/** Open offers for a freelancer, soonest to expire first. */
+const listMyOffers = async (freelancerId) => {
+  const result = await query(
+    `${BOOKING_SELECT}
+     WHERE b.offered_freelancer_id = $1 AND b.assignment_status = 'unassigned' AND b.offer_expires_at > NOW()
+     ORDER BY b.offer_expires_at`,
+    [freelancerId]
+  );
+  return result.rows.map((row) => shapeBooking(row, 'freelancer'));
 };
 
 // ── Booking reads ─────────────────────────────────────────────────────────────
@@ -894,13 +1146,13 @@ const setOptIn = async (freelancerId, templateId, optedIn) => {
 const TEMPLATE_FIELDS = [
   'slug', 'category_id', 'title', 'summary', 'description', 'unit_label', 'option_group_label',
   'revisions', 'includes', 'excludes', 'tools', 'faqs', 'requirements_hint', 'cover_url', 'gallery',
-  'is_active', 'sort_order',
+  'is_active', 'sort_order', 'brief_fields',
 ];
-const JSON_FIELDS = new Set(['includes', 'excludes', 'faqs', 'gallery']);
+const JSON_FIELDS = new Set(['includes', 'excludes', 'faqs', 'gallery', 'brief_fields']);
 
 const adminListTemplates = async () => {
   const result = await query(
-    `SELECT t.*, c.name AS category_name,
+    `SELECT t.*, c.name AS category_name, c.slug AS category_slug,
             (SELECT COUNT(*)::int FROM freelancer_service_optins o WHERE o.template_id = t.id AND o.is_active) AS freelancer_count,
             (SELECT COUNT(*)::int FROM service_bookings b WHERE b.template_id = t.id AND b.assignment_status <> 'pending_payment') AS order_count,
             COALESCE((
@@ -945,12 +1197,17 @@ const saveTemplate = async (adminId, templateId, payload = {}) => {
     throw new AppError('Slug may only contain lowercase letters, numbers and hyphens', 422);
   }
   if (variants !== undefined) validateVariants(variants);
+  if (payload.brief_fields !== undefined) payload = { ...payload, brief_fields: normalizeBriefFields(payload.brief_fields) };
 
   const dbClient = await getClient();
   try {
     await dbClient.query('BEGIN');
     const fields = TEMPLATE_FIELDS.filter((field) => payload[field] !== undefined);
-    const values = fields.map((field) => (JSON_FIELDS.has(field) ? JSON.stringify(payload[field] || []) : payload[field]));
+    const values = fields.map((field) => {
+      // No custom questions = NULL, so the category default applies.
+      if (field === 'brief_fields') return payload.brief_fields ? JSON.stringify(payload.brief_fields) : null;
+      return JSON_FIELDS.has(field) ? JSON.stringify(payload[field] || []) : payload[field];
+    });
     let id = templateId;
 
     if (!templateId) {
@@ -1039,21 +1296,38 @@ const adminEligibleFreelancers = async (bookingId) => {
   if (!booking.rows[0]) throw new AppError('Booking not found', 404);
   const matching = await getSetting('matching', { max_active_jobs: 5 });
   const result = await query(
-    `SELECT u.id, u.full_name, u.email, u.average_rating, COALESCE(u.active_jobs_count, 0) AS active_jobs_count,
+    `SELECT ${CANDIDATE_FIELDS_SQL},
             EXISTS (
               SELECT 1 FROM freelancer_service_optins o
               WHERE o.freelancer_id = u.id AND o.template_id = $1 AND o.is_active
             ) AS opted_in
      FROM users u
+     ${LAST_ASSIGNED_JOIN_SQL}
      WHERE u.id <> $3 AND ${ELIGIBLE_FREELANCER_SQL}
-     ORDER BY opted_in DESC, u.average_rating DESC NULLS LAST, u.active_jobs_count ASC
-     LIMIT 100`,
+     LIMIT 300`,
     [booking.rows[0].template_id, Number(matching?.max_active_jobs || 5), booking.rows[0].client_id]
   );
-  return result.rows;
+  // Same order auto-assign would use, with freelancers who offer this service first.
+  return rankFreelancers(result.rows, { settings: matching })
+    .sort((a, b) => b.opted_in - a.opted_in)
+    .slice(0, 100)
+    .map(({ match, bio, skills, avatar_url, last_assigned_at, days_since_last_assignment, has_portfolio, ...f }) => ({
+      ...f,
+      match_score: match.total,
+    }));
+};
+
+/** Default brief questions per category, so the admin editor can show what applies. */
+const adminBriefDefaults = async () => {
+  const categories = await query('SELECT id, slug FROM categories');
+  return {
+    by_category: Object.fromEntries(categories.rows.map((c) => [c.id, defaultBriefFields(c.slug)])),
+    general: defaultBriefFields(null),
+  };
 };
 
 module.exports = {
+  adminBriefDefaults,
   listCategories,
   listCatalog,
   getStorefront,
@@ -1064,6 +1338,11 @@ module.exports = {
   finalizeCheckout,
   processCapturedServicePayment,
   assignBooking,
+  acceptOffer,
+  declineOffer,
+  expireOffers,
+  retryUnassigned,
+  listMyOffers,
   listClientBookings,
   getClientBooking,
   listFreelancerWork,

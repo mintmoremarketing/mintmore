@@ -21,9 +21,13 @@ export const servicesApi = {
 	optOut: (templateId) => api.delete(`/services/templates/${templateId}/opt-in`),
 	work: (params) => api.get('/services/work', { params }),
 	workItem: (id) => api.get(`/services/work/${id}`),
+	offers: () => api.get('/services/offers'),
+	acceptOffer: (bookingId) => api.post(`/services/offers/${bookingId}/accept`),
+	declineOffer: (bookingId) => api.post(`/services/offers/${bookingId}/decline`),
 
 	// Admin
 	adminTemplates: () => api.get('/services/admin/templates'),
+	adminBriefDefaults: () => api.get('/services/admin/brief-defaults'),
 	adminCreateTemplate: (data) => api.post('/services/admin/templates', data),
 	adminUpdateTemplate: (id, data) => api.put(`/services/admin/templates/${id}`, data),
 	adminBookings: (params) => api.get('/services/admin/bookings', { params }),

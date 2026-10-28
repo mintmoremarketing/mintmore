@@ -1893,7 +1893,8 @@ export default function Settings() {
                   )}
                 </>
               )}
-              {profile.role === 'freelancer' && (
+              {/* LAUNCH-HIDDEN: freelancer levels are off; everyone works at one level for now. */}
+              {false && profile.role === 'freelancer' && (
                 <>
                   <div className="h-px bg-ink-100" />
                   <div className="flex justify-between items-center py-2">

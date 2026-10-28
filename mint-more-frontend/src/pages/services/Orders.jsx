@@ -3,6 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { servicesApi } from '../../api/services'
 import Icon from '../../components/ui/Icon'
 import StageBadge from '../../components/services/StageBadge'
+import OrderOffers from '../../components/services/OrderOffers'
 import { StoreCard } from '../../components/storefront/storefront'
 import { clientNextAction, dueText, formatDate, freelancerNextAction, inr, variantLabel } from '../../components/services/serviceUtils'
 
@@ -20,6 +21,53 @@ const FREELANCER_TABS = [
 ]
 
 /** Order list for clients (/orders) and freelancers (/work). */
+const hoursLeft = (at) => (at ? (new Date(at).getTime() - Date.now()) / 3_600_000 : null)
+const span = (h) => (Math.abs(h) < 24 ? `${Math.max(1, Math.round(Math.abs(h)))}h` : `${Math.round(Math.abs(h) / 24)}d`)
+const OPEN_STAGES = ['in_progress', 'revision_requested']
+
+/** Due date, coloured only when it needs attention: late is rose, under a day is amber. */
+function WorkDue({ row }) {
+	if (row.stage === 'completed') return <span className="text-ink-500">Paid {formatDate(row.completed_at)}</span>
+	if (!OPEN_STAGES.includes(row.stage)) return <span className="text-ink-500">{freelancerNextAction(row.stage)}</span>
+	const h = hoursLeft(row.due_at)
+	if (h === null) return <span className="text-ink-500">No due date</span>
+	if (h < 0) return <span className="font-medium text-rose-600">{span(h)} overdue</span>
+	if (h < 24) return <span className="font-medium text-amber-700">Due in {span(h)}</span>
+	return <span className="text-ink-600">Due in {span(h)}</span>
+}
+
+/** One assigned order. The only strong signals are lateness and a revision request. */
+function WorkRow({ row, showStage }) {
+	const open = OPEN_STAGES.includes(row.stage)
+	const late = open && hoursLeft(row.due_at) < 0
+	return (
+		<li>
+			<Link
+				to={row.room_id ? `/chat?room=${row.room_id}` : `/work/${row.id}`}
+				className="group flex items-center gap-4 px-4 py-4 transition-colors duration-150 hover:bg-ink-50/70 focus-visible:bg-ink-50/70 focus-visible:outline-none md:gap-6 md:px-5"
+			>
+				<span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${late ? 'bg-rose-500' : row.stage === 'revision_requested' ? 'bg-violet-500' : open ? 'bg-sky-500' : 'bg-ink-300'}`} />
+				<div className="min-w-0 flex-1">
+					<div className="flex items-center gap-2">
+						<span className="truncate text-[17px] font-medium text-ink-900">{row.snapshot?.title}</span>
+						{(showStage || row.stage === 'revision_requested') && <StageBadge stage={row.stage} />}
+					</div>
+					<div className="mt-0.5 truncate text-sm text-ink-500">
+						{[row.booking_number, `${variantLabel(row.snapshot || {}, row.snapshot?.option_group_label)}${Number(row.quantity) > 1 ? ` × ${row.quantity}` : ''}`, row.client_name].filter(Boolean).join(' · ')}
+					</div>
+					<div className="mt-1 text-sm md:hidden"><WorkDue row={row} /> <span className="text-ink-300">·</span> <span className="tabular-nums text-ink-700">{inr(row.freelancer_payout)}</span></div>
+				</div>
+				<div className="hidden w-40 shrink-0 text-right text-sm tabular-nums md:block"><WorkDue row={row} /></div>
+				<div className="hidden w-20 shrink-0 text-right text-[15px] tabular-nums text-ink-700 md:block">{inr(row.freelancer_payout)}</div>
+				<span className="hidden w-36 shrink-0 items-center justify-end gap-1 text-sm font-medium text-ink-900 lg:inline-flex">
+					{open ? <>{freelancerNextAction(row.stage)} <Icon name="arrowRight" size={14} className="transition-transform duration-150 group-hover:translate-x-0.5" /></> : null}
+				</span>
+				<Icon name="chevronRight" size={16} className="shrink-0 text-ink-300 transition-colors group-hover:text-ink-600 lg:hidden" />
+			</Link>
+		</li>
+	)
+}
+
 export default function Orders({ audience = 'client' }) {
 	const isClient = audience === 'client'
 	const location = useLocation()
@@ -37,7 +85,15 @@ export default function Orders({ audience = 'client' }) {
 		delivered: ['delivered', 'approved'],
 		completed: ['completed'],
 	}
-	const visible = tab === 'all' ? rows : rows.filter(row => groups[tab]?.includes(row.stage))
+	const filtered = tab === 'all' ? rows : rows.filter(row => groups[tab]?.includes(row.stage))
+	// Freelancers see the most urgent work first: earliest due date on top.
+	const visible = isClient ? filtered : [...filtered].sort((a, b) => {
+		const ao = OPEN_STAGES.includes(a.stage), bo = OPEN_STAGES.includes(b.stage)
+		if (ao !== bo) return ao ? -1 : 1
+		return new Date(a.due_at || 8.64e15) - new Date(b.due_at || 8.64e15)
+	})
+	const overdue = isClient ? 0 : rows.filter(row => OPEN_STAGES.includes(row.stage) && hoursLeft(row.due_at) < 0).length
+	const dueToday = isClient ? 0 : rows.filter(row => OPEN_STAGES.includes(row.stage) && hoursLeft(row.due_at) >= 0 && hoursLeft(row.due_at) < 24).length
 	const tabs = (isClient ? CLIENT_TABS : FREELANCER_TABS).map(item => ({
 		...item,
 		count: item.value === 'all' ? rows.length : rows.filter(row => groups[item.value]?.includes(row.stage)).length,
@@ -58,9 +114,17 @@ export default function Orders({ audience = 'client' }) {
 			<div className="flex items-end justify-between gap-4">
 				<div className="min-w-0">
 					<h1 className="text-3xl font-medium tracking-tight text-ink-900 md:text-[40px]">{isClient ? 'My orders' : 'My work'}</h1>
-					<p className="mt-1 text-ink-600">
-						{isClient ? 'Track progress, review deliveries and approve work.' : 'Everything assigned to you, by stage.'}
-					</p>
+					{isClient || (!overdue && !dueToday) ? (
+						<p className="mt-1 text-ink-600">
+							{isClient ? 'Track progress, review deliveries and approve work.' : 'Everything assigned to you, by stage.'}
+						</p>
+					) : (
+						<p className="mt-1.5 text-[17px] text-ink-700">
+							{overdue > 0 && <span className="font-medium text-rose-600">{overdue} overdue</span>}
+							{overdue > 0 && dueToday > 0 && <span className="text-ink-300"> · </span>}
+							{dueToday > 0 && <span className="font-medium text-amber-700">{dueToday} due today</span>}
+						</p>
+					)}
 				</div>
 				{isClient && (
 					<Link to="/services" className="landing-cta shrink-0 gap-1.5 !min-h-11 !px-5 !text-[15px]">
@@ -68,6 +132,8 @@ export default function Orders({ audience = 'client' }) {
 					</Link>
 				)}
 			</div>
+
+			{!isClient && <OrderOffers className="mt-8" />}
 
 			{location.state?.placed > 1 && (
 				<div className="mt-6 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -114,6 +180,10 @@ export default function Orders({ audience = 'client' }) {
 							<Link to="/my-services" className="landing-cta mt-5 !min-h-11 !px-5 !text-[15px]">Choose services</Link>
 						)}
 					</div>
+				) : !isClient ? (
+					<ul className="divide-y divide-ink-100 overflow-hidden rounded-2xl border border-ink-200 bg-white">
+						{visible.map(row => <WorkRow key={row.id} row={row} showStage={tab === 'all'} />)}
+					</ul>
 				) : visible.map(row => (
 					<Link
 						key={row.id}

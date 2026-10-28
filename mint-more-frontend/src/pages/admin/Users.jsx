@@ -491,7 +491,8 @@ function UserDetailModal({ userId, onClose }) {
           <span className={`badge ${user.kyc_status === 'approved' ? 'mint' : 'neutral'}`}>
             KYC: {user.kyc_status || 'none'}
           </span>
-          {user.role === 'freelancer' && user.freelancer_level && (
+          {/* LAUNCH-HIDDEN: freelancer levels are off; everyone works at one level for now. */}
+          {false && user.role === 'freelancer' && user.freelancer_level && (
             <span className="badge violet" style={{ textTransform: 'capitalize' }}>
               {user.freelancer_level}
             </span>
@@ -563,8 +564,8 @@ function UserDetailModal({ userId, onClose }) {
           </div>
         )}
 
-        {/* Freelancer level */}
-        {user.role === 'freelancer' && (
+        {/* LAUNCH-HIDDEN: freelancer levels are off; everyone works at one level for now. */}
+        {false && user.role === 'freelancer' && (
           <div>
             <div className="field-label" style={{ marginBottom: 8 }}>Freelancer level</div>
             <div className="row" style={{ gap: 8 }}>

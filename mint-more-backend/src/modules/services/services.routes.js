@@ -27,10 +27,14 @@ router.get('/templates', authorize('freelancer'), controller.listTemplatesForFre
 router.post('/templates/:id/opt-in', authorize('freelancer'), controller.optIn);
 router.delete('/templates/:id/opt-in', authorize('freelancer'), controller.optOut);
 router.get('/work', authorize('freelancer'), controller.listMyWork);
+router.get('/offers', authorize('freelancer'), controller.listMyOffers);
+router.post('/offers/:id/accept', authorize('freelancer'), controller.acceptOffer);
+router.post('/offers/:id/decline', authorize('freelancer'), controller.declineOffer);
 router.get('/work/:id', authorize('freelancer'), controller.getMyWork);
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.get('/admin/templates', authorize('admin'), requirePermission('ops.manage'), controller.adminListTemplates);
+router.get('/admin/brief-defaults', authorize('admin'), requirePermission('ops.manage'), controller.adminBriefDefaults);
 router.post('/admin/templates', authorize('admin'), requirePermission('ops.manage'), controller.adminCreateTemplate);
 router.put('/admin/templates/:id', authorize('admin'), requirePermission('ops.manage'), controller.adminUpdateTemplate);
 router.get('/admin/bookings', authorize('admin'), requirePermission('ops.manage'), controller.adminListBookings);

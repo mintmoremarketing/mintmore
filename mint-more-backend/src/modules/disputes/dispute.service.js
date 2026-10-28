@@ -19,6 +19,43 @@ const getAdminRecipients = async () => {
   return result.rows.map((row) => row.id);
 };
 
+/**
+ * What support reviews alongside a dispute: the order as booked (scope, brief, dates) and the
+ * full order chat, read live so nothing has to be copied in by hand. Clients see the
+ * freelancer as "Your freelancer", the same anonymity the order chat keeps.
+ */
+const getEvidence = async (jobId, role) => {
+  const booking = await query(
+    `SELECT b.booking_number, b.snapshot, b.quantity, b.brief, b.instructions, b.paid_at, b.assigned_at,
+            b.due_at, b.completed_at, b.freelancer_payout, b.subtotal,
+            (SELECT COUNT(*)::int FROM mintbox_files f WHERE f.job_id = b.job_id AND f.purpose = 'delivery') AS delivery_count,
+            (SELECT COUNT(*)::int FROM mintbox_revision_rounds rr WHERE rr.job_id = b.job_id) AS revisions_used
+     FROM service_bookings b WHERE b.job_id = $1 LIMIT 1`,
+    [jobId]
+  );
+  const chat = await query(
+    `SELECT m.id, m.sender_role, m.content, m.attachment_url, m.created_at, m.edited_at,
+            mf.original_name AS file_name,
+            CASE
+              WHEN m.sender_role = 'system' THEN 'CREATYV'
+              WHEN m.sender_role = 'freelancer' AND $2 = 'client' THEN 'Your freelancer'
+              ELSE u.full_name
+            END AS sender_name
+     FROM chat_rooms room
+     JOIN messages m ON m.room_id = room.id AND m.is_deleted = false
+     LEFT JOIN users u ON u.id = m.sender_id
+     LEFT JOIN mintbox_files mf ON mf.id = m.file_id
+     WHERE room.job_id = $1
+     ORDER BY m.created_at ASC
+     LIMIT 500`,
+    [jobId, role]
+  );
+  const order = booking.rows[0] || null;
+  if (order && role === 'client') delete order.freelancer_payout;
+  if (order && role === 'freelancer') delete order.subtotal;
+  return { order, chat: chat.rows };
+};
+
 const getDispute = async (disputeId, requesterId, role) => {
   const result = await query(
     `SELECT d.*, j.title AS job_title, j.client_id, j.active_freelancer_id,
@@ -43,7 +80,8 @@ const getDispute = async (disputeId, requesterId, role) => {
      ORDER BY message.created_at ASC`,
     [disputeId]
   );
-  return { dispute, messages: messages.rows };
+  const evidence = await getEvidence(dispute.job_id, role);
+  return { dispute, messages: messages.rows, evidence };
 };
 
 const listDisputes = async (requesterId, role, { status } = {}) => {
@@ -268,4 +306,4 @@ const resolveDispute = async (disputeId, adminId, { action, resolution_note }) =
   return dispute;
 };
 
-module.exports = { listDisputes, getDispute, openDispute, addMessage, resolveDispute };
+module.exports = { listDisputes, getDispute, getEvidence, openDispute, addMessage, resolveDispute };

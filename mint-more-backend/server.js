@@ -11,6 +11,7 @@ const { startAIWorker, closeAIWorker } = require('./src/modules/ai/queue/ai.work
 const { startFulfillmentWorker, closeFulfillmentWorker } = require('./src/modules/fulfillment/queue/fulfillment.worker');
 const { startOutboxWorker, closeOutboxWorker } = require('./src/modules/events/queue/outbox.worker');
 const { startSocialSchedulers, closeSocialSchedulers } = require('./src/modules/social/social.scheduler');
+const { startServicesScheduler, closeServicesScheduler } = require('./src/modules/services/services.scheduler');
 const { closePublishQueue } = require('./src/modules/social/queue/publish.queue');
 const { closeAIQueue } = require('./src/modules/ai/queue/ai.queue');
 const { closeFulfillmentQueue } = require('./src/modules/fulfillment/queue/fulfillment.queue');
@@ -57,6 +58,10 @@ const bootstrap = async () => {
       await startFulfillmentWorker();
       await startOutboxWorker();
     }
+
+    // Offer timeouts, retries and booking auto-off. Production only by default: it acts on real
+    // accounts, and local backends share the hosted database.
+    if (env.isProd || process.env.ENABLE_SERVICES_SCHEDULER === 'true') startServicesScheduler();
 
     server = app.listen(env.port, () => {
       logger.info(`🚀 Mint More API running`);
@@ -131,6 +136,7 @@ const gracefulShutdown = async (signal) => {
   await safeClose('Redis', closeRedis);
   await safeClose('PostgreSQL pool', () => pool.end());
   await safeClose('Social schedulers', closeSocialSchedulers);
+  await safeClose('Services scheduler', closeServicesScheduler);
 
   clearTimeout(forceTimer);
   process.exit(0);

@@ -28,6 +28,8 @@ const toForm = (t, categoryId = '') => ({
 	tools: (t?.tools || []).join(', '),
 	faqs: (t?.faqs || []).map(f => `${f.q} :: ${f.a}`).join('\n'),
 	variants: (t?.variants?.length ? t.variants : [blankVariant()]).map(v => ({ ...v, mrp: v.mrp ?? '' })),
+	// null = the category's default questions apply.
+	brief_fields: t?.brief_fields?.length ? t.brief_fields.map(f => ({ ...f, options: (f.options || []).join(', ') })) : null,
 })
 
 const lines = (text) => text.split('\n').map(s => s.trim()).filter(Boolean)
@@ -56,6 +58,9 @@ const toPayload = (form) => ({
 		id, option_label, pack_size: Number(pack_size), price: Number(price), mrp: mrp === '' ? null : Number(mrp),
 		freelancer_payout: Number(freelancer_payout), delivery_days: Number(delivery_days), is_default, is_active,
 	})),
+	brief_fields: form.brief_fields
+		? form.brief_fields.map(f => ({ ...f, options: f.type === 'choice' ? f.options.split(',').map(o => o.trim()).filter(Boolean) : [] }))
+		: null,
 })
 
 const UNCATEGORISED = 'none'
@@ -137,6 +142,87 @@ function OptionCell({ label, className = 'md:order-2 xl:order-none', children })
 }
 
 const OPTION_GRID = 'grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3 md:grid-cols-6 xl:grid-cols-[minmax(0,1.6fr)_64px_96px_96px_96px_80px_64px_96px] xl:items-center xl:gap-y-0'
+
+const BRIEF_TYPES = [
+	['textarea', 'Long answer'],
+	['text', 'Short answer'],
+	['link', 'Link'],
+	['choice', 'Pick one'],
+	['files', 'File upload'],
+]
+const briefTypeLabel = (type) => BRIEF_TYPES.find(([value]) => value === type)?.[1] || type
+const blankQuestion = () => ({ key: '', label: '', type: 'textarea', required: false, help: '', options: '' })
+
+/** The questions clients answer before paying. Uses the category default until customised. */
+function BriefEditor({ fields, categoryId, onChange }) {
+	const { data: defaults } = useQuery({
+		queryKey: ['service-brief-defaults'],
+		queryFn: () => servicesApi.adminBriefDefaults().then(res => res.data.data),
+		staleTime: Infinity,
+	})
+	const categoryDefault = (categoryId && defaults?.by_category?.[categoryId]) || defaults?.general || []
+	const setField = (index, patch) => onChange(fields.map((f, i) => (i === index ? { ...f, ...patch } : f)))
+	const move = (index, by) => {
+		const next = [...fields]
+		const [item] = next.splice(index, 1)
+		next.splice(index + by, 0, item)
+		onChange(next)
+	}
+
+	if (!fields) {
+		return (
+			<>
+				<ul className="m-0 list-none divide-y divide-ink-100 p-0">
+					{categoryDefault.map(f => (
+						<li key={f.key} className="flex items-center gap-3 px-4 py-3 text-sm md:px-6">
+							<span className="min-w-0 flex-1 truncate text-ink-900">{f.label}</span>
+							<span className="shrink-0 text-xs text-ink-500">{briefTypeLabel(f.type)}{f.required ? ' · Required' : ''}</span>
+						</li>
+					))}
+				</ul>
+				<div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-4 py-3 md:px-6">
+					<span className="text-xs text-ink-500">This is the default for the category. Changing the category changes these questions.</span>
+					<button type="button" className="btn ghost sm" onClick={() => onChange(categoryDefault.map(f => ({ ...f, options: (f.options || []).join(', ') })))}>
+						<Icon name="edit" size={13} /> Customise for this service
+					</button>
+				</div>
+			</>
+		)
+	}
+
+	return (
+		<>
+			<div className="divide-y divide-ink-100">
+				{fields.map((f, i) => (
+					<div key={i} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1fr)_160px_auto] md:items-start md:px-6">
+						<div className="grid gap-2">
+							<input className={inputCls} value={f.label} onChange={e => setField(i, { label: e.target.value })} placeholder="Question, like Raw footage link" aria-label={`Question ${i + 1}`} />
+							<input className={`${control} h-9 px-3`} value={f.help} onChange={e => setField(i, { help: e.target.value })} placeholder="Help text (optional)" aria-label={`Question ${i + 1} help text`} />
+							{f.type === 'choice' && (
+								<input className={`${control} h-9 px-3`} value={f.options} onChange={e => setField(i, { options: e.target.value })} placeholder="Options, separated by commas" aria-label={`Question ${i + 1} options`} />
+							)}
+						</div>
+						<Select value={f.type} onChange={e => setField(i, { type: e.target.value })} aria-label={`Question ${i + 1} type`}>
+							{BRIEF_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+						</Select>
+						<div className="flex items-center gap-1 md:h-10">
+							<label className="mr-2 flex items-center gap-2 text-xs text-ink-600">
+								<Switch checked={!!f.required} onChange={v => setField(i, { required: v })} label="Required" /> Required
+							</label>
+							<button type="button" className="grid h-8 w-8 place-items-center rounded-md text-ink-400 hover:bg-ink-50 hover:text-ink-700 disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up"><Icon name="chevronDown" size={14} className="rotate-180" /></button>
+							<button type="button" className="grid h-8 w-8 place-items-center rounded-md text-ink-400 hover:bg-ink-50 hover:text-ink-700 disabled:opacity-30" disabled={i === fields.length - 1} onClick={() => move(i, 1)} aria-label="Move down"><Icon name="chevronDown" size={14} /></button>
+							<button type="button" className="grid h-8 w-8 place-items-center rounded-md text-ink-400 hover:bg-rose-50 hover:text-rose-600" onClick={() => onChange(fields.filter((_, j) => j !== i))} aria-label="Remove question"><Icon name="trash" size={14} /></button>
+						</div>
+					</div>
+				))}
+			</div>
+			<div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-4 py-3 md:px-6">
+				<button type="button" className="btn ghost sm" disabled={fields.length >= 12} onClick={() => onChange([...fields, blankQuestion()])}><Icon name="plus" size={13} /> Add question</button>
+				<button type="button" className="text-xs font-medium text-ink-500 hover:text-ink-900" onClick={() => onChange(null)}>Use the category default instead</button>
+			</div>
+		</>
+	)
+}
 
 function Editor({ template, categories, defaultCategory, onClose }) {
 	const [form, setForm] = useState(() => toForm(template, defaultCategory))
@@ -258,13 +344,16 @@ function Editor({ template, categories, defaultCategory, onClose }) {
 				</div>
 			</Panel>
 
+			<Panel title="Client brief" description="Questions clients answer when they book. The answers are the first message the freelancer sees.">
+				<BriefEditor fields={form.brief_fields} categoryId={form.category_id} onChange={brief_fields => setForm(f => ({ ...f, brief_fields }))} />
+			</Panel>
+
 			<Panel title="Service page" description="What clients read before they book.">
 				<div className={section}>
 					<Field label="Description" className="md:col-span-2"><textarea rows={4} className={areaCls} value={form.description} onChange={set('description')} /></Field>
 					<Field label="Included" hint="One item per line"><textarea rows={5} className={areaCls} value={form.includes} onChange={set('includes')} /></Field>
 					<Field label="Not included" hint="One item per line"><textarea rows={5} className={areaCls} value={form.excludes} onChange={set('excludes')} /></Field>
 					<Field label="Tools" hint="Separate with commas"><input className={inputCls} value={form.tools} onChange={set('tools')} placeholder="Premiere Pro, After Effects" /></Field>
-					<Field label="What the client should send" hint="Shown at checkout"><input className={inputCls} value={form.requirements_hint} onChange={set('requirements_hint')} placeholder="Raw footage link and a reference reel" /></Field>
 					<Field label="FAQs" hint="One per line, as Question :: Answer" className="md:col-span-2"><textarea rows={4} className={areaCls} value={form.faqs} onChange={set('faqs')} /></Field>
 				</div>
 			</Panel>

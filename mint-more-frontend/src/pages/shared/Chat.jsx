@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { chatApi } from '../../api/chat'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
@@ -9,6 +9,8 @@ import Icon from '../../components/ui/Icon'
 import { timeAgo } from '../../utils/format'
 import { servicesApi } from '../../api/services'
 import OrderConversation from '../../components/services/OrderConversation'
+import OrderDetailsPane from '../../components/services/OrderDetailsPane'
+import RaiseIssueSheet from '../../components/support/RaiseIssueSheet'
 
 const fileNameFromUrl = (url = '') => {
 	try {
@@ -33,10 +35,29 @@ const deliveryAction = (message) => {
 	return 'shared a file'
 }
 
-/** An order's chat inside the inbox: the same conversation as the order page, with a link to the order. */
+// The details column's open/closed choice is remembered per browser.
+const DETAILS_KEY = 'creatyv_chat_details'
+const readColumnPref = () => { try { return localStorage.getItem(DETAILS_KEY) !== 'closed' } catch { return true } }
+const isWide = () => window.matchMedia('(min-width: 1280px)').matches
+
+/**
+ * An order's chat inside the inbox, with the order's details in a column beside it.
+ * Wide screens show the column and the Details button hides or shows it; narrower ones
+ * slide it over the chat. Raise an issue opens a dispute that carries the order and chat.
+ */
 function RoomOrderConversation({ bookingId, role, title, onBack }) {
 	const audience = role === 'client' ? 'client' : 'freelancer'
 	const queryClient = useQueryClient()
+	const [detailsOpen, setDetailsOpen] = useState(false)
+	const [column, setColumn] = useState(readColumnPref)
+	const [issueOpen, setIssueOpen] = useState(false)
+	const toggleDetails = () => {
+		if (!isWide()) { setDetailsOpen(true); return }
+		setColumn(prev => {
+			try { localStorage.setItem(DETAILS_KEY, prev ? 'closed' : 'open') } catch { /* private mode */ }
+			return !prev
+		})
+	}
 	const queryKey = ['service-booking', audience, bookingId]
 	const { data: booking } = useQuery({
 		queryKey,
@@ -45,9 +66,14 @@ function RoomOrderConversation({ bookingId, role, title, onBack }) {
 	})
 	if (!booking) return <div className="m-auto text-sm text-ink-500">Loading conversation…</div>
 	const counterpart = audience === 'client'
-		? { name: booking.freelancer_name, avatar: booking.freelancer_avatar }
-		: { name: booking.client_name, avatar: booking.client_avatar }
+		? { name: booking.freelancer_name, avatar: booking.freelancer_avatar, label: 'Your freelancer' }
+		: { name: booking.client_name, avatar: booking.client_avatar, label: 'Client' }
+	const details = (
+		<OrderDetailsPane booking={booking} snapshot={booking.snapshot || {}} isClient={audience === 'client'} counterpart={counterpart} onMessage={() => setDetailsOpen(false)} embedded />
+	)
 	return (
+		<div className="relative flex min-h-0 flex-1">
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 		<OrderConversation
 			booking={booking}
 			role={audience}
@@ -65,12 +91,37 @@ function RoomOrderConversation({ bookingId, role, title, onBack }) {
 						<div className="truncate text-[17px] font-medium text-ink-900">{counterpart.name || title}</div>
 						<div className="truncate text-sm text-ink-500">{booking.booking_number} · {booking.snapshot?.title}</div>
 					</div>
-					<Link to={`${audience === 'client' ? '/orders' : '/work'}/${bookingId}`} className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-ink-200 px-3 text-sm font-medium text-ink-800 hover:bg-ink-50">
-						View order <Icon name="chevronRight" size={14} />
-					</Link>
+					<button type="button" onClick={() => setIssueOpen(true)} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-ink-600 transition-[background-color,color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-100 hover:text-ink-900 active:scale-[0.97]" title="Raise an issue with support">
+						<Icon name="shield" size={15} /> <span className="hidden sm:inline">Raise an issue</span>
+					</button>
+					<button
+						type="button"
+						onClick={toggleDetails}
+						aria-pressed={column}
+						className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-medium transition-[background-color,border-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] ${column ? 'xl:border-ink-900 xl:bg-ink-900 xl:text-white xl:hover:bg-ink-700' : ''} border-ink-200 text-ink-800 hover:bg-ink-50`}
+					>
+						<Icon name="file" size={15} /> Details
+					</button>
 				</header>
 			)}
 		/>
+		</div>
+		{/* Wide screens: the details stay open as a third column. */}
+		{column && <aside className="detail-column hidden w-[340px] shrink-0 overflow-y-auto border-l border-ink-200 xl:block" aria-label="Order details">{details}</aside>}
+		{issueOpen && <RaiseIssueSheet order={booking} role={audience} onClose={() => setIssueOpen(false)} />}
+		{/* Narrower screens: the same details slide over the chat. */}
+		{detailsOpen && (
+			<div className="absolute inset-0 z-20 flex justify-end bg-black/30 xl:hidden" onClick={() => setDetailsOpen(false)}>
+				<aside onClick={e => e.stopPropagation()} className="brief-sheet flex h-full w-full max-w-[380px] flex-col bg-white shadow-[-8px_0_24px_rgba(0,0,0,0.12)]" aria-label="Order details">
+					<div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
+						<span className="text-[17px] font-medium text-ink-900">Order details</span>
+						<button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close details" className="grid h-9 w-9 place-items-center rounded-full text-ink-500 hover:bg-ink-100 hover:text-ink-900"><Icon name="x" size={18} /></button>
+					</div>
+					<div className="min-h-0 flex-1 overflow-y-auto">{details}</div>
+				</aside>
+			</div>
+		)}
+		</div>
 	)
 }
 

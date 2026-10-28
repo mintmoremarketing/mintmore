@@ -21,14 +21,11 @@ function useWork() {
 	})
 }
 
-function Stat({ label, value, icon, tone }) {
+function Stat({ label, value, tone = '' }) {
 	return (
-		<div className="flex items-start justify-between rounded-2xl border border-ink-100 p-4">
-			<div>
-				<div className="text-sm text-ink-500">{label}</div>
-				<div className="mt-1 text-2xl font-semibold tabular-nums text-ink-900">{value}</div>
-			</div>
-			<span className={`grid h-9 w-9 place-items-center rounded-xl ${tone}`}><Icon name={icon} size={17} /></span>
+		<div>
+			<dt className="text-sm text-ink-500">{label}</dt>
+			<dd className={`mt-0.5 text-2xl font-semibold tabular-nums ${tone || 'text-ink-900'}`}>{value}</dd>
 		</div>
 	)
 }
@@ -39,14 +36,13 @@ function Bookings() {
 	const revisions = rows.filter(r => r.stage === 'revision_requested').length
 	return (
 		<>
-			<h1 className="text-2xl font-semibold tracking-tight text-ink-900">Your Bookings</h1>
-			<p className="mt-1 text-[15px] text-ink-500">Service bookings made on your offerings.</p>
-			<div className="mt-6 grid gap-3 sm:grid-cols-3">
-				<Stat label="Total Projects" value={rows.length} icon="calendar" tone="bg-sky-50 text-sky-600" />
-				<Stat label="Ongoing Projects" value={ongoing} icon="clock" tone="bg-amber-50 text-amber-600" />
-				<Stat label="Revisions Requested" value={revisions} icon="refresh" tone="bg-rose-50 text-rose-600" />
-			</div>
-			<h2 className="mt-8 text-lg font-semibold text-ink-900">Recent Bookings</h2>
+			<h1 className="text-2xl font-semibold tracking-tight text-ink-900">Your bookings</h1>
+			<dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 border-y border-ink-100 py-4">
+				<Stat label="Total" value={rows.length} />
+				<Stat label="Ongoing" value={ongoing} />
+				<Stat label="Revisions requested" value={revisions} tone={revisions ? 'text-violet-700' : ''} />
+			</dl>
+			<h2 className="mt-8 text-lg font-semibold text-ink-900">Recent bookings</h2>
 			<div className="mt-3 overflow-hidden rounded-2xl border border-ink-100">
 				{isLoading ? (
 					<div className="h-32 animate-pulse bg-ink-50" />

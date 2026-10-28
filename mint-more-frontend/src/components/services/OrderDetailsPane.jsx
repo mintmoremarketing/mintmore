@@ -102,7 +102,7 @@ function Row({ label, value, strong }) {
  * The "Order details" side of an order: what was bought, where it stands, the
  * brief, scope and money. Full-bleed bands on phones, one panel beside the chat on desktop.
  */
-export default function OrderDetailsPane({ booking, snapshot, isClient, counterpart, onMessage }) {
+export default function OrderDetailsPane({ booking, snapshot, isClient, counterpart, onMessage, embedded = false }) {
 	const [copied, setCopied] = useState(false)
 	const [showExcluded, setShowExcluded] = useState(false)
 	const completed = booking.stage === 'completed'
@@ -123,7 +123,7 @@ export default function OrderDetailsPane({ booking, snapshot, isClient, counterp
 	}
 
 	return (
-		<div className="bg-white font-store md:max-h-[calc(100dvh-112px)] md:overflow-y-auto md:rounded-2xl md:border md:border-ink-200">
+		<div className={`bg-white font-store ${embedded ? '' : 'md:max-h-[calc(100dvh-112px)] md:overflow-y-auto md:rounded-2xl md:border md:border-ink-200'}`}>
 			{/* What was bought */}
 			<div className="flex gap-3.5 px-4 pb-5 pt-5 md:px-5">
 				<div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-ink-900 text-lg font-semibold text-white">

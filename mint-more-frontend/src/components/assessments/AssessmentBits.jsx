@@ -16,7 +16,7 @@ export function LevelAction({ level }) {
 		case 'submitted':
 			return <Link to={attempt} className={BTN_LINE}>Under review</Link>
 		case 'cooldown':
-			return <Link to={attempt || detail} className={BTN_LINE} title="See the result and when you can retake it">Not approved</Link>
+			return <Link to={attempt || detail} className={BTN_LINE} title="See the result and when you can retake it">Not approved · see feedback</Link>
 		case 'profile_required':
 			return <span aria-disabled="true" className={`${BTN_DARK} ${BTN_OFF}`}>Apply now</span>
 		case 'busy':

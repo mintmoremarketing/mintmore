@@ -9,6 +9,7 @@ import Icon from '../../components/ui/Icon'
 import { ImageSlot, PriceTag } from '../../components/storefront/storefront'
 import { deliveryLabel } from '../../components/storefront/storefrontUtils'
 import { referenceCover, referenceGallery } from '../../components/storefront/referencePhotos'
+import BriefSheet from '../../components/services/BriefSheet'
 
 const chip = (active) =>
 	`rounded-full border px-5 py-2.5 font-store text-[17px] transition-[background-color,border-color,color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-95 ${active ? 'border-black bg-black text-white' : 'border-ink-200 bg-white text-ink-900 hover:border-ink-400'}`
@@ -38,6 +39,9 @@ export default function ServiceDetail() {
 	const pushToast = useUIStore(s => s.pushToast)
 	const [choice, setChoice] = useState({ option: null, pack: 1 })
 	const [quantity, setQuantity] = useState(1)
+	// Set while the brief sheet is open: whether to go to the cart after it's filled in.
+	const [briefFor, setBriefFor] = useState(null)
+	const cartItems = useCartStore(s => s.items)
 
 	const { data: service, isLoading, isError } = useQuery({
 		queryKey: ['service-detail', slug],
@@ -77,6 +81,12 @@ export default function ServiceDetail() {
 
 	const toCart = (goToCart) => {
 		if (!variant) return
+		if (service.brief_fields?.length) setBriefFor({ goToCart })
+		else addToCart(goToCart, {})
+	}
+
+	const addToCart = (goToCart, { brief, instructions }) => {
+		setBriefFor(null)
 		addItem({
 			variant_id: variant.id,
 			template_id: service.id,
@@ -92,6 +102,9 @@ export default function ServiceDetail() {
 			revisions: service.revisions,
 			unit_label: service.unit_label,
 			quantity,
+			brief_fields: service.brief_fields || [],
+			brief,
+			instructions: instructions || '',
 		})
 		if (goToCart) navigate('/cart')
 		else pushToast({ title: 'Added to cart', body: service.title, icon: 'shoppingBag' })
@@ -289,6 +302,22 @@ export default function ServiceDetail() {
 					<button className="flex-1 rounded-xl bg-[#0b7a41] py-3 text-lg font-medium text-white" onClick={() => toCart(true)}>Book Now</button>
 				</div>
 			)}
+			{briefFor && variant && (() => {
+				// Booking the same option again starts from the brief already in the cart.
+				const existing = cartItems.find(i => i.variant_id === variant.id)
+				return (
+					<BriefSheet
+						title={service.title}
+						fields={service.brief_fields}
+						variantId={variant.id}
+						initial={existing?.brief || {}}
+						initialNotes={existing?.instructions || ''}
+						submitLabel={briefFor.goToCart ? 'Continue to cart' : 'Add to cart'}
+						onSubmit={answers => addToCart(briefFor.goToCart, answers)}
+						onClose={() => setBriefFor(null)}
+					/>
+				)
+			})()}
 		</div>
 	)
 }

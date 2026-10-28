@@ -4,6 +4,8 @@ import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import Icon from '../ui/Icon'
 import { useEntitlements } from '../../hooks/useEntitlements'
+import { useOrderOffers } from '../services/useOrderOffers'
+import { useChatUnread } from '../../hooks/useChatUnread'
 import { filterNavItems, navForRole } from './navigation'
 
 // Membership upsell is hidden for the services launch.
@@ -15,6 +17,8 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
   const { user, isGuest, logout } = useAuthStore()
   const [hovered, setHovered] = useState(false)
   const unreadCount = useUIStore((s) => s.unreadCount)
+  const { data: offers = [] } = useOrderOffers(role === 'freelancer')
+  const chatUnread = useChatUnread(!isGuest)
   const { data: access } = useEntitlements()
 
   const allItems = navForRole(role)
@@ -59,6 +63,7 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
           const isActive = (item.route === '/admin' || item.route === '/dashboard') 
             ? location.pathname === item.route 
             : (location.pathname === item.route || location.pathname.startsWith(`${item.route}/`))
+          const count = item.route === '/work' ? offers.length : item.route === '/chat' ? chatUnread : item.showCount ? unreadCount : 0
           return (
             <button
               key={item.label}
@@ -74,19 +79,20 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
               }}
               title={!expanded ? item.label : undefined}
             >
-              <span className="shrink-0 flex items-center justify-center w-5">
+              <span className="relative shrink-0 flex items-center justify-center w-5">
                 <Icon name={item.icon || 'briefcase'} size={18} />
+                {!expanded && count > 0 && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-mint-500 ring-2 ring-ink-950" />}
               </span>
               {expanded && (
                 <span className="ml-3 text-sm font-medium whitespace-nowrap overflow-hidden">
                   {item.label}
                 </span>
               )}
-              {expanded && item.showCount && unreadCount > 0 && (
+              {expanded && count > 0 && (
                 <span
                   className="ml-auto min-w-[20px] h-5 rounded-full bg-mint-500 text-white flex items-center justify-center text-[10px] font-bold px-1"
                 >
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                  {count > 9 ? '9+' : count}
                 </span>
               )}
             </button>

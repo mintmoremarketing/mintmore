@@ -168,6 +168,8 @@ export default function MarketplaceProfile() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* LAUNCH-HIDDEN: freelancers earn the admin-set payout per service, not their own rate. */}
+                {false && (
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold text-ink-900">Hourly rate (₹)</label>
                   <input
@@ -178,6 +180,7 @@ export default function MarketplaceProfile() {
                     placeholder="Optional"
                   />
                 </div>
+                )}
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold text-ink-900">Response time</label>
                   <select
@@ -281,7 +284,8 @@ export default function MarketplaceProfile() {
                 </p>
               )}
               <div className="flex flex-wrap mt-5 gap-3 text-sm text-ink-600 bg-ink-50/50 p-3 rounded-xl">
-                {hourlyRate && (
+                {/* LAUNCH-HIDDEN: own hourly rate is off (admin-set payouts only). */}
+                {false && hourlyRate && (
                   <span className="font-mono font-medium flex items-center gap-1 text-ink-900">
                     <Icon name="rupee" size={14} className="text-ink-400" />
                     {parseFloat(hourlyRate)}/hr

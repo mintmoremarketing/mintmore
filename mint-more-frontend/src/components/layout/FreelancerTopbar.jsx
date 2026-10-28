@@ -4,6 +4,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
+import { useChatUnread } from '../../hooks/useChatUnread'
 import Icon from '../ui/Icon'
 import { COMPLETION_QUERY_KEY, OPEN_COMPLETION_EVENT, fetchCompletion, useFreelancerApproved } from '../freelancer/completionApi'
 
@@ -122,32 +123,36 @@ function AccountMenu() {
 	)
 }
 
-/** Freelancer header: search, Explore / Upskill / Assessments, bookings switch, create post, messages, alerts, account. */
-export default function FreelancerTopbar({ isMobile, unreadCount = 0 }) {
+/**
+ * Freelancer header: search, bookings switch, create post, messages, alerts, account.
+ * Beside the desktop sidebar it drops the logo and tabs, which the sidebar carries.
+ */
+export default function FreelancerTopbar({ isMobile, unreadCount = 0, withSidebar = false }) {
 	const navigate = useNavigate()
 	const [q, setQ] = useState('')
 	const tabs = tabsFor(useFreelancerApproved())
+	const chatUnread = useChatUnread()
 	const iconBtn = 'relative grid h-9 w-9 place-items-center rounded-full text-ink-700 transition-colors hover:bg-ink-100'
 
 	return (
 		<header className="flex h-16 items-center gap-3 px-4 font-store md:gap-4 md:px-6 xl:gap-5 xl:px-10">
-			<Link to="/dashboard" className="flex shrink-0 items-center gap-2" aria-label="Creatyv home">
+			{!withSidebar && <Link to="/dashboard" className="flex shrink-0 items-center gap-2" aria-label="Creatyv home">
 				<img src="/logo-dark.png" alt="" className="h-7 w-7 object-contain" />
 				<span className="text-[19px] font-semibold tracking-tight text-ink-900">CREAT<span className="text-mint-500">YV</span></span>
-			</Link>
+			</Link>}
 
 			{!isMobile && (
 				<form
 					role="search"
 					onSubmit={e => { e.preventDefault(); navigate(q.trim() ? `/services?q=${encodeURIComponent(q.trim())}` : '/services') }}
-					className="hidden w-full max-w-[250px] items-center rounded-xl border border-ink-200 bg-white pl-3 pr-2 focus-within:border-ink-400 xl:flex"
+					className={`hidden w-full items-center rounded-xl border border-ink-200 bg-white pl-3 pr-2 focus-within:border-ink-400 ${withSidebar ? 'max-w-[320px] md:flex' : 'max-w-[250px] xl:flex'}`}
 				>
 					<input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by service, category…" aria-label="Search services" className="h-9 min-w-0 flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none" />
 					<button type="submit" aria-label="Search" className="text-ink-400 hover:text-ink-700"><Icon name="search" size={16} /></button>
 				</form>
 			)}
 
-			{!isMobile && (
+			{!isMobile && !withSidebar && (
 				<nav className="flex items-stretch gap-4 self-stretch xl:gap-5" aria-label="Freelancer">
 					{tabs.map(tab => (
 						<NavLink
@@ -174,7 +179,10 @@ export default function FreelancerTopbar({ isMobile, unreadCount = 0 }) {
 						<span className="h-6 w-px bg-ink-200" aria-hidden="true" />
 					</>
 				)}
-				<Link to="/chat" className={iconBtn} aria-label="Messages"><Icon name="chat" size={19} /></Link>
+				<Link to="/chat" className={iconBtn} aria-label={chatUnread ? `Messages, ${chatUnread} unread` : 'Messages'}>
+					<Icon name="chat" size={19} />
+					{chatUnread > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-mint-500" />}
+				</Link>
 				<Link to="/notifications" className={iconBtn} aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}>
 					<Icon name="bell" size={19} />
 					{unreadCount > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-mint-500" />}

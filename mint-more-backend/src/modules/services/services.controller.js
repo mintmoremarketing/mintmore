@@ -36,7 +36,11 @@ const listMyWork = handle(async (req) => ({ data: await service.listFreelancerWo
 const getMyWork = handle(async (req) => ({ data: await service.getFreelancerWork(req.user.sub, req.params.id) }));
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
+const listMyOffers = handle(async (req) => ({ data: await service.listMyOffers(req.user.sub) }));
+const acceptOffer = handle(async (req) => ({ data: await service.acceptOffer(req.user.sub, req.params.id), message: 'Order accepted' }));
+const declineOffer = handle(async (req) => ({ data: await service.declineOffer(req.user.sub, req.params.id), message: 'Offer declined' }));
 const adminListTemplates = handle(async () => ({ data: await service.adminListTemplates() }));
+const adminBriefDefaults = handle(async () => ({ data: await service.adminBriefDefaults() }));
 const adminCreateTemplate = handle(async (req) => ({
   data: await service.saveTemplate(req.user.sub, null, req.body || {}),
   statusCode: 201,
@@ -72,7 +76,11 @@ module.exports = {
   optOut,
   listMyWork,
   getMyWork,
+  listMyOffers,
+  acceptOffer,
+  declineOffer,
   adminListTemplates,
+  adminBriefDefaults,
   adminCreateTemplate,
   adminUpdateTemplate,
   adminListBookings,

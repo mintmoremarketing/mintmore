@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { servicesApi } from '../../api/services'
 import Icon from '../../components/ui/Icon'
 import Avatar from '../../components/ui/Avatar'
@@ -57,6 +57,9 @@ export default function OrderDetail({ audience = 'client' }) {
 			</div>
 		)
 	}
+
+	// Orders with a chat live in Messages, where the details sit beside the conversation.
+	if (booking.room_id) return <Navigate to={`/chat?room=${booking.room_id}`} replace />
 
 	const snapshot = booking.snapshot || {}
 	const counterpart = isClient

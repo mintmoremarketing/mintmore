@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { briefFiles } from './briefFiles'
 
 // Cart lives in localStorage so a visitor can build it before signing in.
 const STORAGE_KEY = 'creatyv_cart'
@@ -20,21 +21,26 @@ const writeCart = (items) => {
 export const useCartStore = create((set, get) => ({
 	items: readCart(),
 
-	// item: { variant_id, template_id, slug, title, option_label, pack_size, unit_price, mrp, delivery_days, revisions, unit_label, quantity }
+	// item: { variant_id, template_id, slug, title, option_label, pack_size, unit_price, mrp, delivery_days, revisions, unit_label, quantity,
+	//         brief_fields, brief: { [fieldKey]: answer | fileNames[] }, instructions }
 	addItem: (item) => set(() => {
 		const items = [...get().items]
 		const existing = items.find((entry) => entry.variant_id === item.variant_id)
-		if (existing) existing.quantity = Math.min(20, existing.quantity + (item.quantity || 1))
+		if (existing) {
+			existing.quantity = Math.min(20, existing.quantity + (item.quantity || 1))
+			if (item.brief) Object.assign(existing, { brief: item.brief, brief_fields: item.brief_fields, instructions: item.instructions })
+		}
 		else items.push({ instructions: '', ...item, quantity: item.quantity || 1 })
 		return { items: writeCart(items) }
 	}),
 	updateItem: (variantId, patch) => set(() => ({
 		items: writeCart(get().items.map((entry) => (entry.variant_id === variantId ? { ...entry, ...patch } : entry))),
 	})),
-	removeItem: (variantId) => set(() => ({
-		items: writeCart(get().items.filter((entry) => entry.variant_id !== variantId)),
-	})),
-	clear: () => set(() => ({ items: writeCart([]) })),
+	removeItem: (variantId) => {
+		briefFiles.remove(variantId)
+		set(() => ({ items: writeCart(get().items.filter((entry) => entry.variant_id !== variantId)) }))
+	},
+	clear: () => { briefFiles.clear(); set(() => ({ items: writeCart([]) })) },
 }))
 
 export const GST_RATE = 18

@@ -5,6 +5,8 @@ import { useEntitlements } from '../../hooks/useEntitlements'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import { useFreelancerApproved } from '../freelancer/completionApi'
+import { useOrderOffers } from '../services/useOrderOffers'
+import { useChatUnread } from '../../hooks/useChatUnread'
 
 const PRIMARY_ROUTES = {
   client: ['/dashboard', '/services', '/orders', '/chat', '/notifications'],
@@ -29,6 +31,9 @@ function FreelancerMobileNav() {
   const { pathname } = useLocation()
   const user = useAuthStore(s => s.user)
   const approved = useFreelancerApproved()
+  const { data: offers = [] } = useOrderOffers(approved)
+  const chatUnread = useChatUnread()
+  const badgeFor = route => (route === '/work' ? offers.length : route === '/chat' ? chatUnread : 0)
   const tabs = FREELANCER_TABS.map(item => (approved && item.route === '/assessments' ? WORK_TAB : item))
   const isOn = route => (route === '/dashboard' ? pathname === route : pathname === route || pathname.startsWith(`${route}/`))
   const profileOn = isOn('/profile')
@@ -40,7 +45,14 @@ function FreelancerMobileNav() {
         const active = isOn(item.route)
         return (
           <button key={item.route} type="button" aria-current={active ? 'page' : undefined} onClick={() => navigate(item.route)} className={`${tab} ${active ? 'text-ink-900' : 'text-ink-500 hover:text-ink-800'}`}>
-            {item.icon(active)}
+            <span className="relative">
+              {item.icon(active)}
+              {badgeFor(item.route) > 0 && (
+                <span className="absolute -right-2.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-mint-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white" aria-label={`${badgeFor(item.route)} new`}>
+                  {badgeFor(item.route) > 9 ? '9+' : badgeFor(item.route)}
+                </span>
+              )}
+            </span>
             <span className={`text-[11px] leading-none ${active ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
           </button>
         )

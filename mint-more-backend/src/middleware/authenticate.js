@@ -2,6 +2,21 @@ const { verifyAccessToken } = require('../utils/jwt');
 const { getRedis, handleRedisError, isRedisQuotaError } = require('../config/redis');
 const env = require('../config/env');
 const AppError = require('../utils/AppError');
+const { query } = require('../config/database');
+const logger = require('../utils/logger');
+
+// Freelancers idle for 24 hours have booking switched off, so record when each one was
+// last active. Written at most every 5 minutes per user to keep it off the hot path.
+const ACTIVITY_WRITE_MS = 5 * 60 * 1000;
+const lastActivityWrite = new Map();
+const recordActivity = (userId) => {
+  const now = Date.now();
+  if (now - (lastActivityWrite.get(userId) || 0) < ACTIVITY_WRITE_MS) return;
+  lastActivityWrite.set(userId, now);
+  if (lastActivityWrite.size > 50000) lastActivityWrite.clear();
+  query('UPDATE users SET last_active_at = NOW() WHERE id = $1', [userId])
+    .catch((err) => logger.warn('Could not record user activity', { userId, error: err.message }));
+};
 
 /**
  * Authenticate middleware.
@@ -45,6 +60,7 @@ const authenticate = async (req, res, next) => {
     // 4. Attach to request
     req.user  = decoded; // { sub, email, role, iat, exp }
     req.token = token;
+    if (decoded.role === 'freelancer') recordActivity(decoded.sub);
 
     next();
   } catch (err) {
