@@ -11,7 +11,7 @@ export function notificationTarget(notification, role) {
 	if (type?.startsWith('creative_')) return role === 'designer' ? '/designer/tasks' : null
 
 	// An open offer isn't the freelancer's order yet, so it opens the offers list on My work.
-	if (type === 'service_offer' || type === 'service_offer_expired') return '/work'
+	if (type === 'service_offer' || type === 'service_offer_expired' || type === 'service_offers_missed') return '/work'
 	if (type === 'booking_auto_off') return '/dashboard'
 
 	if (notification.entity_type === 'dispute' || data.dispute_id) {

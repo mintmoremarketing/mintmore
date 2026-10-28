@@ -84,7 +84,8 @@ function AccountMenu() {
 		{ label: 'Dashboard', to: '/dashboard', icon: 'grid' },
 		{ label: 'My Work', to: '/work', icon: 'briefcase' },
 		{ label: 'My Services', to: '/my-services', icon: 'layers' },
-		{ label: 'Account Settings', to: '/profile/edit', icon: 'settings' },
+		{ label: 'Edit profile', to: '/profile/edit', icon: 'user' },
+		{ label: 'Settings', to: '/settings', icon: 'settings' },
 	]
 
 	return (

@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/auth'
 import { useUIStore } from '../store/ui'
 import Icon from '../components/ui/Icon'
 import { SkeletonCard } from '../components/ui/Skeleton'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import VerificationPanel from '../components/settings/VerificationPanel'
 import { socialApi } from '../api/social'
 import AccountManager from '../components/social/AccountManager'
@@ -235,9 +235,15 @@ const normalizeHex = (value) => {
 
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   // Social-agency setup sections are hidden for the services launch.
-  const requestedSection = searchParams.get('section') || 'profile'
-  const section = HIDDEN_CLIENT_SECTIONS.has(requestedSection) ? 'profile' : requestedSection
+  // Freelancers edit their profile on /profile/edit, so Settings is only sign-in and verification for them.
+  const isFreelancer = useAuthStore.getState().user?.role === 'freelancer'
+  const home = isFreelancer ? 'verification' : 'profile'
+  const requestedSection = searchParams.get('section') || home
+  // LAUNCH-HIDDEN: "Account info" only repeated the email, role and verification shown elsewhere.
+  const section = HIDDEN_CLIENT_SECTIONS.has(requestedSection) || requestedSection === 'account'
+    || (isFreelancer && requestedSection === 'profile') ? home : requestedSection
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
   const { user, setAuth, refreshToken, accessToken, logout } = useAuthStore()
@@ -836,7 +842,7 @@ export default function Settings() {
   )
 
   const sections = [
-    ['profile', 'user', user?.role === 'client' ? 'Business profile' : 'Profile'],
+    ...(user?.role !== 'freelancer' ? [['profile', 'user', user?.role === 'client' ? 'Business profile' : 'Profile']] : []),
     ...(user?.role === 'client' ? [
       ['brand-assets', 'image', 'Brand assets'],
       ['social', 'layers', 'Social accounts'],
@@ -846,7 +852,6 @@ export default function Settings() {
     ].filter(([id]) => !HIDDEN_CLIENT_SECTIONS.has(id)) : []),
     ...(!['admin', 'designer'].includes(user?.role) ? [['verification', 'shield', 'Verification']] : []),
     ['security', 'lock', 'Password & security'],
-    ['account', 'settings', 'Account info'],
   ]
 
   return (
@@ -854,6 +859,11 @@ export default function Settings() {
       {/* Phones: the sections become one scrolling row so the content starts on the first screen. */}
       <aside className="w-full md:w-64 shrink-0 flex flex-row md:flex-col gap-1 md:sticky md:top-24 self-start overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:none]">
         <h1 className="hidden md:block mb-2 px-3 text-2xl font-display font-bold tracking-tight text-ink-900">Settings</h1>
+        {user?.role === 'freelancer' && (
+          <button className="flex shrink-0 items-center gap-3 whitespace-nowrap px-3 py-2.5 rounded-lg text-sm font-medium text-ink-600 transition-[background-color,color,transform] duration-150 active:scale-[0.97] hover:bg-ink-100 hover:text-ink-900" onClick={() => navigate('/profile/edit')}>
+            <Icon name="user" size={16} /> Edit profile
+          </button>
+        )}
         {sections.map(([id, icon, label]) => (
           <button key={id} className={`flex shrink-0 items-center gap-3 whitespace-nowrap px-3 py-2.5 rounded-lg text-sm font-medium transition-[background-color,color,transform] duration-150 active:scale-[0.97] ${section === id ? 'bg-white shadow-sm border border-ink-200 text-ink-900' : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'}`} onClick={() => setSearchParams({ section: id })}>
             <Icon name={icon} size={16} /> {label}
@@ -873,7 +883,7 @@ export default function Settings() {
           {sections.find(([id]) => id === section)?.[2] || 'Account settings'}
         </h2>
         <p className="text-ink-500 text-sm md:text-base max-w-2xl mt-2 mb-0">
-          Manage your profile, verification and sign-in details.
+          {user?.role === 'freelancer' ? 'Verification and sign-in. Your name, photo and bio live in Edit profile.' : 'Manage your profile, verification and sign-in details.'}
         </p>
       </div>
 

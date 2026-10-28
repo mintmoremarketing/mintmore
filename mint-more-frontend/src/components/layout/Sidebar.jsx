@@ -137,7 +137,7 @@ export default function Sidebar({ role, collapsed = false, onCollapsedChange }) 
           className={`flex items-center rounded-lg transition-colors h-12 w-full mt-1 group ${
             expanded ? 'px-2 hover:bg-ink-800' : 'justify-center hover:bg-ink-800'
           }`}
-          onClick={() => navigate('/settings?section=profile')}
+          onClick={() => navigate(role === 'freelancer' ? '/profile' : '/settings?section=profile')}
           title={!expanded ? 'Profile' : undefined}
         >
           <div className="w-8 h-8 rounded-full bg-ink-700 text-ink-200 border border-ink-600 flex items-center justify-center text-xs font-medium shrink-0 overflow-hidden transition-colors">

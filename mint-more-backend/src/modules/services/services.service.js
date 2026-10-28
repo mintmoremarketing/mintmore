@@ -219,6 +219,18 @@ const checkoutResponse = (checkout, extra = {}) => ({
   ...extra,
 });
 
+// Seeded demo accounts (only the seed script marks a @creatyv-demo.test email verified) pay
+// with test checkout even on the live site, and are only ever matched with each other.
+const TEST_ACCOUNT_SQL = (alias) => `(${alias}.email LIKE '%@creatyv-demo.test' AND ${alias}.is_email_verified = true)`;
+const isTestAccount = async (userId) => {
+  const result = await query(`SELECT ${TEST_ACCOUNT_SQL('u')} AS test FROM users u WHERE u.id = $1`, [userId]);
+  return Boolean(result.rows[0]?.test);
+};
+// LAUNCH-TEMP: the site isn't public yet, so every storefront order uses test checkout and no
+// money moves. Set to false to send real clients back through Razorpay.
+const TEST_CHECKOUT_FOR_EVERYONE = true;
+const testCheckoutAllowed = async (clientId) => TEST_CHECKOUT_FOR_EVERYONE || env.payments.mockCheckout || isTestAccount(clientId);
+
 const createCheckout = async (clientId, { items, gstin, idempotency_key: idempotencyKey } = {}) => {
   const settings = await getServiceSettings();
   validateCheckoutInput({ items, gstin }, settings);
@@ -288,7 +300,7 @@ const createCheckout = async (clientId, { items, gstin, idempotency_key: idempot
   const subtotal = money(lines.reduce((sum, line) => sum + line.subtotal, 0));
   const gstAmount = money(lines.reduce((sum, line) => sum + line.gst, 0));
   const total = money(subtotal + gstAmount);
-  const paymentMode = env.payments.mockCheckout ? 'mock' : 'razorpay';
+  const paymentMode = await testCheckoutAllowed(clientId) ? 'mock' : 'razorpay';
 
   const dbClient = await getClient();
   let checkout;
@@ -519,7 +531,7 @@ const verifyCheckout = async (clientId, checkoutId, payload = {}) => {
   if (checkout.status === 'paid') return finalizeCheckout(checkoutId);
 
   if (checkout.payment_mode === 'mock') {
-    if (!env.payments.mockCheckout) throw new AppError('Test checkout is disabled', 400);
+    if (!await testCheckoutAllowed(clientId)) throw new AppError('Test checkout is disabled', 400);
     return finalizeCheckout(checkoutId, `mock_${checkoutId.slice(0, 18)}`);
   }
 
@@ -559,7 +571,8 @@ const ELIGIBLE_FREELANCER_SQL = `
   AND u.is_active = true
   AND COALESCE(u.is_available, true) = true
   AND u.kyc_status = 'verified'
-  AND COALESCE(u.active_jobs_count, 0) < $2`;
+  AND COALESCE(u.active_jobs_count, 0) < $2
+  AND ${TEST_ACCOUNT_SQL('u')} = (SELECT ${TEST_ACCOUNT_SQL('client')} FROM users client WHERE client.id = $3)`;
 
 const getSystemActorId = async (dbClient) => {
   const settings = await getServiceSettings(dbClient);
@@ -918,6 +931,37 @@ const passOffer = async (bookingId, { freelancerId = null, note }) => {
 
 const declineOffer = (freelancerId, bookingId) => passOffer(bookingId, { freelancerId, note: 'Declined by freelancer' });
 
+/**
+ * One running tally per stretch away instead of a notification per missed order:
+ * misses since the freelancer was last active update the same unread notification.
+ */
+const noteMissedOffer = async (freelancerId) => {
+  const user = await query('SELECT last_active_at, is_available FROM users WHERE id = $1', [freelancerId]);
+  const { last_active_at: lastActive, is_available: available } = user.rows[0] || {};
+  const open = await query(
+    `SELECT id, data FROM notifications
+     WHERE user_id = $1 AND type = 'service_offers_missed' AND is_read = false
+       AND created_at > COALESCE($2::timestamptz, 'epoch')
+     ORDER BY created_at DESC LIMIT 1`,
+    [freelancerId, lastActive || null]
+  );
+  const count = (Number(open.rows[0]?.data?.count) || 0) + 1;
+  const title = count === 1 ? 'You missed an order' : `You missed ${count} orders`;
+  const body = `${count === 1 ? 'An order was' : `${count} orders were`} offered to you while you were away and went to someone else. `
+    + (available ? `Accept within ${OFFER_MINUTES} minutes to keep the next one.` : "Switch booking on when you're ready for more.");
+  const data = { count, audience: 'freelancer' };
+  if (open.rows[0]) {
+    await query(
+      'UPDATE notifications SET title = $2, body = $3, data = $4, created_at = NOW() WHERE id = $1',
+      [open.rows[0].id, title, body, JSON.stringify(data)]
+    );
+    return;
+  }
+  await notificationService.createNotification({
+    userId: freelancerId, type: 'service_offers_missed', title, body, entityType: 'user', entityId: freelancerId, data,
+  });
+};
+
 /** Offers that ran out: tell the freelancer and move to the next one. Run by the scheduler. */
 const expireOffers = async () => {
   const due = await query(
@@ -928,16 +972,8 @@ const expireOffers = async () => {
   for (const row of due.rows) {
     try {
       await passOffer(row.id, { note: `No answer within ${OFFER_MINUTES} minutes` });
-      await notificationService.createNotification({
-        userId: row.offered_freelancer_id,
-        type: 'service_offer_expired',
-        title: 'Order offer passed on',
-        body: `${row.booking_number} went to another freelancer because it wasn't accepted within ${OFFER_MINUTES} minutes.`,
-        entityType: 'service_booking',
-        entityId: row.id,
-        data: { booking_id: row.id, audience: 'freelancer' },
-        dedupeKey: `service-offer-expired:${row.id}:${row.offered_freelancer_id}`,
-      });
+      await noteMissedOffer(row.offered_freelancer_id)
+        .catch((err) => logger.warn('Missed-order notification failed', { userId: row.offered_freelancer_id, error: err.message }));
     } catch (err) {
       logger.error('Could not pass on expired offer', { bookingId: row.id, error: err.message });
     }
