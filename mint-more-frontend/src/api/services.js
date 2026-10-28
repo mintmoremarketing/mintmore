@@ -13,6 +13,7 @@ export const servicesApi = {
 	verifyCheckout: (checkoutId, data) => api.post(`/services/checkout/${checkoutId}/verify`, data),
 	bookings: (params) => api.get('/services/bookings', { params }),
 	booking: (id) => api.get(`/services/bookings/${id}`),
+	updateBookingBrief: (id, data) => api.patch(`/services/bookings/${id}/brief`, data),
 	pastFreelancers: (params) => api.get('/services/past-freelancers', { params }),
 
 	// Freelancer

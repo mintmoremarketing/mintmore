@@ -138,7 +138,7 @@ const isUrl = (value) => {
  * Checks a client's answers against the service's questions and returns the stored
  * form: [{ key, label, type, value }], value being a string or, for files, a list of names.
  */
-const validateBriefAnswers = (fields, answers = {}, itemLabel = 'This service') => {
+const validateBriefAnswers = (fields, answers = {}, itemLabel = 'This service', { allowIncomplete = false } = {}) => {
   const errors = [];
   const brief = [];
   for (const f of fields) {
@@ -146,13 +146,13 @@ const validateBriefAnswers = (fields, answers = {}, itemLabel = 'This service') 
     if (f.type === 'files') {
       const names = (Array.isArray(raw) ? raw : [])
         .map((name) => String(name).trim().slice(0, 200)).filter(Boolean).slice(0, 20);
-      if (f.required && !names.length) errors.push(`${itemLabel}: attach ${f.label.toLowerCase()}`);
+      if (f.required && !allowIncomplete && !names.length) errors.push(`${itemLabel}: attach ${f.label.toLowerCase()}`);
       if (names.length) brief.push({ key: f.key, label: f.label, type: f.type, value: names });
       continue;
     }
     const value = String(raw ?? '').trim();
     if (!value) {
-      if (f.required) errors.push(`${itemLabel}: ${f.label} is required`);
+      if (f.required && !allowIncomplete) errors.push(`${itemLabel}: ${f.label} is required`);
       continue;
     }
     if (value.length > MAX_ANSWER_LENGTH) errors.push(`${itemLabel}: ${f.label} is too long`);

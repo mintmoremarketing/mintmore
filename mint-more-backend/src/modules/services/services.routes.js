@@ -20,6 +20,7 @@ router.post('/checkout', authorize('client'), paymentCheckoutLimiter, controller
 router.post('/checkout/:id/verify', authorize('client'), paymentVerifyLimiter, controller.verifyCheckout);
 router.get('/bookings', authorize('client'), controller.listMyBookings);
 router.get('/bookings/:id', authorize('client'), controller.getMyBooking);
+router.patch('/bookings/:id/brief', authorize('client'), controller.updateMyBookingBrief);
 router.get('/past-freelancers', authorize('client'), controller.listPastFreelancers);
 
 // ── Freelancer ────────────────────────────────────────────────────────────────

@@ -143,8 +143,15 @@ export default function Chat() {
 		queryFn: () => chatApi.rooms().then(res => res.data?.data?.rooms || []),
 		refetchInterval: 60_000,
 	})
-	const selectedId = params.get('room') || rooms.find(room => room.job_id === params.get('job'))?.id || rooms[0]?.id || ''
+	const requestedJob = params.get('job')
+	const selectedId = params.get('room') || rooms.find(room => room.job_id === requestedJob)?.id || (requestedJob ? '' : rooms[0]?.id || '')
 	const selectedRoom = rooms.find(room => room.id === selectedId)
+	const { data: pendingBooking } = useQuery({
+		queryKey: ['pending-order-chat', requestedJob],
+		queryFn: () => servicesApi.booking(requestedJob).then(res => res.data.data),
+		enabled: role === 'client' && Boolean(requestedJob) && !selectedId,
+		refetchInterval: 20_000,
+	})
 
 	useEffect(() => {
 		chatApi.online().catch(() => {})
@@ -276,6 +283,20 @@ export default function Chat() {
 			<section className={`${chatOpen ? 'flex' : 'hidden md:flex'} min-h-0 min-w-0 flex-col`}>
 				{selectedRoom?.booking_id && ['client', 'freelancer', 'designer'].includes(role) ? (
 					<RoomOrderConversation key={selectedRoom.id} bookingId={selectedRoom.booking_id} role={role} title={roomTitle(selectedRoom)} onBack={() => setParams({})} />
+				) : !selectedId && pendingBooking ? (
+					<div className="flex min-h-0 flex-1 flex-col xl:flex-row">
+						<div className="flex min-h-[280px] flex-1 flex-col">
+							<header className="flex items-center gap-3 border-b border-ink-200 px-4 py-3">
+								<button type="button" className="icon-btn md:hidden" aria-label="Back to conversations" onClick={() => setParams({})}><Icon name="chevronLeft" size={18} /></button>
+								<span className="grid h-10 w-10 place-items-center rounded-full bg-ink-100 text-ink-600"><Icon name="clock" size={17} /></span>
+								<div className="min-w-0"><div className="truncate text-[16px] font-medium text-ink-900">{pendingBooking.snapshot?.title || 'Your order'}</div><div className="text-sm text-ink-500">{pendingBooking.booking_number} · Finding your freelancer</div></div>
+							</header>
+							<div className="grid flex-1 place-items-center px-6 py-12 text-center"><div><span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-ink-100 text-ink-500"><Icon name="clock" size={21} /></span><h2 className="mt-4 text-lg font-medium text-ink-900">Your brief is saved</h2><p className="mt-1 max-w-sm text-sm leading-relaxed text-ink-500">The order details are here while we find your freelancer. The conversation will open as soon as they’re assigned.</p></div></div>
+						</div>
+						<aside className="min-h-0 w-full overflow-y-auto border-t border-ink-200 xl:w-[360px] xl:border-l xl:border-t-0" aria-label="Order details">
+							<OrderDetailsPane booking={pendingBooking} snapshot={pendingBooking.snapshot || {}} isClient counterpart={{ name: pendingBooking.freelancer_name, avatar: pendingBooking.freelancer_avatar, label: 'Your freelancer' }} embedded />
+						</aside>
+					</div>
 				) : !selectedId ? (
 					<div className="m-auto flex flex-col items-center px-6 text-center">
 						<span className="grid h-14 w-14 place-items-center rounded-full bg-ink-100 text-ink-500"><Icon name="chat" size={24} /></span>

@@ -59,6 +59,7 @@ export default function OrderDetail({ audience = 'client' }) {
 	}
 
 	// Orders with a chat live in Messages, where the details sit beside the conversation.
+	if (isClient) return <Navigate to={booking.room_id ? `/chat?room=${booking.room_id}` : `/chat?job=${booking.job_id}`} replace />
 	if (booking.room_id) return <Navigate to={`/chat?room=${booking.room_id}`} replace />
 
 	const snapshot = booking.snapshot || {}

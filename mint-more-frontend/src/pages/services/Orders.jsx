@@ -187,7 +187,7 @@ export default function Orders({ audience = 'client' }) {
 				) : visible.map(row => (
 					<Link
 						key={row.id}
-						to={`${base}/${row.id}`}
+						to={isClient ? (row.room_id ? `/chat?room=${row.room_id}` : `/chat?job=${row.job_id}`) : `${base}/${row.id}`}
 						className="flex flex-col gap-3 rounded-2xl border border-ink-200 bg-white p-4 transition-[border-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-ink-300 active:scale-[0.99] sm:flex-row sm:items-center sm:p-5"
 					>
 						<div className="min-w-0 flex-1">

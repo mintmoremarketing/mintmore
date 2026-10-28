@@ -26,6 +26,7 @@ const verifyCheckout = handle(async (req) => ({
 }));
 const listMyBookings = handle(async (req) => ({ data: await service.listClientBookings(req.user.sub, req.query) }));
 const getMyBooking = handle(async (req) => ({ data: await service.getClientBooking(req.user.sub, req.params.id) }));
+const updateMyBookingBrief = handle(async (req) => ({ data: await service.updateClientBookingBrief(req.user.sub, req.params.id, req.body || {}), message: 'Brief saved' }));
 const listPastFreelancers = handle(async (req) => ({ data: await service.listPastFreelancers(req.user.sub, req.query) }));
 
 // ── Freelancer ────────────────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ module.exports = {
   verifyCheckout,
   listMyBookings,
   getMyBooking,
+  updateMyBookingBrief,
   listPastFreelancers,
   listTemplatesForFreelancer,
   optIn,

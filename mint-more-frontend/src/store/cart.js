@@ -28,7 +28,8 @@ export const useCartStore = create((set, get) => ({
 		const existing = items.find((entry) => entry.variant_id === item.variant_id)
 		if (existing) {
 			existing.quantity = Math.min(20, existing.quantity + (item.quantity || 1))
-			if (item.brief) Object.assign(existing, { brief: item.brief, brief_fields: item.brief_fields, instructions: item.instructions })
+			if (item.brief) Object.assign(existing, { brief: item.brief, brief_fields: item.brief_fields, instructions: item.instructions ?? existing.instructions })
+			else if (item.instructions?.trim()) existing.instructions = item.instructions.trim()
 		}
 		else items.push({ instructions: '', ...item, quantity: item.quantity || 1 })
 		return { items: writeCart(items) }

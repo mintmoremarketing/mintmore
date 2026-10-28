@@ -9,53 +9,22 @@ import { openRazorpayCheckout } from '../../utils/razorpay'
 import { ServiceCover } from '../../components/services/ServiceCard'
 import Icon from '../../components/ui/Icon'
 import { deliveryText, inr, variantLabel } from '../../components/services/serviceUtils'
-import BriefSheet from '../../components/services/BriefSheet'
-import { briefFiles, missingBriefFiles, unansweredBrief } from '../../store/briefFiles'
+import { briefFiles } from '../../store/briefFiles'
 import { mintboxApi } from '../../api/mintbox'
 import { uploadMintboxFile } from '../../utils/mintboxUpload'
 
-/** What still has to be done on an item's brief before checkout, or null when it's ready. */
-function briefStatus(item) {
-	if (!item.brief_fields) return 'Add your brief'
-	const unanswered = unansweredBrief(item)
-	if (unanswered.length) return `${unanswered.length} required ${unanswered.length === 1 ? 'answer' : 'answers'} missing`
-	if (missingBriefFiles(item).length) return 'Pick your files again'
-	return null
-}
-
-function BriefSummary({ item, onEdit }) {
-	const status = briefStatus(item)
+function BriefSummary({ item, onChange }) {
 	const answered = (item.brief_fields || []).filter(f => {
 		const v = item.brief?.[f.key]
 		return Array.isArray(v) ? v.length : String(v ?? '').trim()
 	})
+	const question = item.category_slug === 'video-editing' ? 'What is this video for?' : 'What is this service for?'
 	return (
-		<div className={`mt-4 rounded-xl border px-3.5 py-3 ${status ? 'border-amber-300 bg-amber-50/60' : 'border-ink-200'}`}>
-			<div className="flex items-center gap-3">
-				<div className="min-w-0 flex-1">
-					<div className="text-[15px] font-medium text-ink-900">Brief</div>
-					<div className={`text-sm ${status ? 'text-amber-800' : 'text-ink-500'}`}>
-						{status || `${answered.length} ${answered.length === 1 ? 'answer' : 'answers'} ready for your freelancer`}
-					</div>
-				</div>
-				<button type="button" className="shrink-0 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-sm font-medium text-ink-900 hover:border-ink-400" onClick={onEdit}>
-					{item.brief_fields ? 'Edit' : 'Add brief'}
-				</button>
-			</div>
-			{!status && answered.length > 0 && (
-				<dl className="mt-2.5 space-y-1 border-t border-ink-100 pt-2.5 text-sm">
-					{answered.slice(0, 3).map(f => {
-						const v = item.brief[f.key]
-						return (
-							<div key={f.key} className="flex gap-2">
-								<dt className="shrink-0 text-ink-500">{f.label.replace(/[?:]$/, '')}</dt>
-								<dd className="min-w-0 truncate text-ink-900">{Array.isArray(v) ? `${v.length} file${v.length === 1 ? '' : 's'}` : v}</dd>
-							</div>
-						)
-					})}
-					{answered.length > 3 && <div className="text-ink-500">+{answered.length - 3} more</div>}
-				</dl>
-			)}
+			<div className="mt-4 rounded-xl border border-ink-200 px-3.5 py-3">
+				<label htmlFor={`quick-brief-${item.variant_id}`} className="flex items-center gap-2 text-[15px] font-medium text-ink-900">{question}<span className="text-sm font-normal text-ink-400">Optional</span></label>
+				<p className="mt-1 text-sm text-ink-500">A short note is enough to check out. You can send your full brief and files after payment.</p>
+				<textarea id={`quick-brief-${item.variant_id}`} rows={2} value={item.instructions || ''} onChange={event => onChange(event.target.value)} placeholder="What should your freelancer know?" className="mt-2 w-full resize-y rounded-xl border border-ink-200 bg-white px-3.5 py-2.5 text-[15px] text-ink-900 placeholder:text-ink-400 focus:border-ink-500 focus:outline-none" />
+				{answered.length > 0 && <p className="mt-1.5 text-sm text-ink-500">{answered.length} brief detail{answered.length === 1 ? '' : 's'} already saved and will be shared after checkout.</p>}
 		</div>
 	)
 }
@@ -74,7 +43,6 @@ export default function Cart() {
 	const [paying, setPaying] = useState(false)
 	const [error, setError] = useState('')
 	const [uploading, setUploading] = useState(null) // { done, total } while brief files upload
-	const [editing, setEditing] = useState(null) // cart item whose brief is open
 	const idempotencyRef = useRef(null)
 
 	const isClient = isAuthed && user?.role === 'client'
@@ -87,25 +55,16 @@ export default function Cart() {
 	const totals = cartTotals(items)
 	const gstinValue = gstin.trim().toUpperCase()
 	const gstinInvalid = wantsGst && gstinValue && !GSTIN_PATTERN.test(gstinValue)
-	const briefsPending = items.filter(briefStatus).length
-
-	const openBrief = async (item) => {
-		if (item.brief_fields) { setEditing(item); return }
-		// Added before briefs existed: fetch the service's questions first.
-		try {
-			const service = (await servicesApi.catalogItem(item.slug)).data.data
-			updateItem(item.variant_id, { brief_fields: service.brief_fields || [] })
-			setEditing({ ...item, brief_fields: service.brief_fields || [] })
-		} catch {
-			pushToast({ title: 'Could not load this service', body: 'It may no longer be available.', tone: 'amber', icon: 'x' })
-		}
-	}
 
 	// Brief files are uploaded into each paid order. A failed file can still be sent in the chat.
 	const uploadBriefFiles = async (bookings) => {
-		const queue = bookings.flatMap(b => Object.values(briefFiles.get(b.variant_id)).flat().map(file => ({ file, jobId: b.job_id })))
-		if (!queue.length) return 0
+		const queue = bookings.flatMap(b => Object.entries(briefFiles.get(b.variant_id)).flatMap(([fieldKey, files]) => files.map(file => ({ file, jobId: b.job_id, variantId: b.variant_id, fieldKey }))))
+		if (!queue.length) {
+			bookings.forEach(b => briefFiles.remove(b.variant_id))
+			return 0
+		}
 		let failed = 0
+		const failedByVariant = new Map()
 		setUploading({ done: 0, total: queue.length })
 		for (const [i, { file, jobId }] of queue.entries()) {
 			const type = file.type || 'application/octet-stream'
@@ -116,19 +75,23 @@ export default function Cart() {
 				await mintboxApi.completeUpload(config.upload_id)
 			} catch {
 				failed += 1
+				const pending = failedByVariant.get(queue[i].variantId) || {}
+				pending[queue[i].fieldKey] = [...(pending[queue[i].fieldKey] || []), file]
+				failedByVariant.set(queue[i].variantId, pending)
 			}
 			setUploading({ done: i + 1, total: queue.length })
 		}
+		bookings.forEach(b => {
+			const pending = failedByVariant.get(b.variant_id)
+			if (pending) briefFiles.set(b.variant_id, pending)
+			else briefFiles.remove(b.variant_id)
+		})
 		return failed
 	}
 
 	const checkout = async () => {
 		if (!isClient) {
 			navigate(`/login?next=${encodeURIComponent('/cart')}`)
-			return
-		}
-		if (briefsPending) {
-			setError(`Finish the brief for ${briefsPending === 1 ? '1 service' : `${briefsPending} services`} before paying.`)
 			return
 		}
 		if (wantsGst && !GSTIN_PATTERN.test(gstinValue)) {
@@ -168,13 +131,15 @@ export default function Cart() {
 			queryClient.invalidateQueries({ queryKey: ['service-bookings'] })
 			pushToast({
 				title: 'Payment successful',
-				body: order.checkout_mode === 'mock' ? 'Test checkout: no money was charged.' : 'Your freelancer is being assigned now.',
+				body: order.checkout_mode === 'mock' ? 'Test checkout: no money was charged. Complete your full brief to open the order chat.' : 'Complete your full brief to open the order chat.',
 				icon: 'check',
 			})
 			if (failedUploads) {
 				pushToast({ title: `${failedUploads} file${failedUploads === 1 ? '' : 's'} didn't upload`, body: 'Send them in the order chat instead.', tone: 'amber', icon: 'paperclip' })
 			}
-			navigate(bookingIds.length === 1 ? `/orders/${bookingIds[0]}` : '/orders', { state: { placed: bookingIds.length } })
+			const briefParams = new URLSearchParams()
+			bookingIds.forEach(id => briefParams.append('booking', id))
+			navigate(`/order-brief?${briefParams.toString()}`, { replace: true })
 		} catch (err) {
 			if (err?.dismissed) setError('Payment was cancelled. Your cart is saved, so you can try again.')
 			else if (err?.failed) setError(err.reason || 'Payment failed. No money was taken, so you can try again.')
@@ -236,7 +201,7 @@ export default function Cart() {
 									</div>
 								</div>
 							</div>
-							<BriefSummary item={item} onEdit={() => openBrief(item)} />
+							<BriefSummary item={item} onChange={instructions => updateItem(item.variant_id, { instructions })} />
 							{pastFreelancers.length > 0 && (
 								<label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-600">
 									Rebook a freelancer you've worked with
@@ -306,18 +271,6 @@ export default function Cart() {
 					</div>
 				</aside>
 			</div>
-			{editing && (
-				<BriefSheet
-					title={editing.title}
-					fields={editing.brief_fields}
-					variantId={editing.variant_id}
-					initial={editing.brief || {}}
-					initialNotes={editing.instructions || ''}
-					submitLabel="Save brief"
-					onSubmit={({ brief, instructions }) => { updateItem(editing.variant_id, { brief, instructions }); setEditing(null) }}
-					onClose={() => setEditing(null)}
-				/>
-			)}
 		</div>
 	)
 }

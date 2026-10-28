@@ -190,7 +190,8 @@ export default function OrderDetailsPane({ booking, snapshot, isClient, counterp
 			</Section>
 
 			<Section title="Brief">
-				<p className="whitespace-pre-wrap text-[14px] leading-relaxed text-ink-700">{booking.instructions || 'No written brief. Files and notes shared in the conversation count as the brief.'}</p>
+				{Array.isArray(booking.brief) && booking.brief.some(answer => String(answer.value || '').trim()) && <dl className="space-y-3">{booking.brief.filter(answer => String(answer.value || '').trim()).map(answer => <div key={answer.key}><dt className="text-[13px] font-medium text-ink-500">{answer.label || answer.key}</dt><dd className="mt-0.5 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-800 [overflow-wrap:anywhere]">{Array.isArray(answer.value) ? answer.value.join(', ') : String(answer.value)}</dd></div>)}</dl>}
+				{booking.instructions ? <p className="mt-3 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-700">{booking.instructions}</p> : !booking.brief?.length && <p className="text-[14px] leading-relaxed text-ink-700">No written brief. Files and notes shared in the conversation count as the brief.</p>}
 				{snapshot.requirements_hint && (
 					<p className="mt-3 flex gap-2 text-[13px] text-ink-500"><Icon name="file" size={14} className="mt-0.5 shrink-0" />{snapshot.requirements_hint}</p>
 				)}

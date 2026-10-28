@@ -8,10 +8,10 @@ const formatSize = (bytes) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1
 
 const withProtocol = (value) => (value && !/^https?:\/\//i.test(value) ? `https://${value}` : value)
 
-function FilesInput({ id, files, onChange, names }) {
+function FilesInput({ id, files, onChange, names, alreadyUploaded = false }) {
 	const inputRef = useRef(null)
 	// Names without files: picked before a reload, so they need picking again.
-	const stale = !files.length && names.length > 0
+	const stale = !alreadyUploaded && !files.length && names.length > 0
 	return (
 		<div>
 			{files.length > 0 && (
@@ -28,6 +28,7 @@ function FilesInput({ id, files, onChange, names }) {
 					))}
 				</ul>
 			)}
+			{alreadyUploaded && names.length > 0 && !files.length && <p className="mb-2 text-sm text-ink-500">{names.length} file{names.length === 1 ? '' : 's'} already attached to this order.</p>}
 			{stale && <p className="mb-2 text-sm text-amber-700">Pick {names.length === 1 ? names[0] : `these ${names.length} files`} again. Files aren't kept after the page reloads.</p>}
 			<button id={id} type="button" onClick={() => inputRef.current?.click()} className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-ink-300 px-3 py-3 text-sm font-medium text-ink-700 transition-colors hover:border-ink-500 hover:bg-ink-50">
 				<Icon name="upload" size={15} /> {files.length ? 'Add more files' : 'Choose files'}
@@ -38,26 +39,27 @@ function FilesInput({ id, files, onChange, names }) {
 }
 
 /**
- * The questions a client answers before booking a service. Answers are saved on the
- * cart item; picked files are held in memory and uploaded into the order after payment.
+ * The client brief form. Cart files stay in memory until payment; the post-payment
+ * page uploads its selected files into the order before opening the order chat.
  */
-export default function BriefSheet({ title, fields, variantId, initial = {}, initialNotes = '', submitLabel = 'Continue', onSubmit, onClose }) {
+export default function BriefSheet({ title, fields, variantId, initial = {}, initialNotes = '', submitLabel = 'Continue', description, presentation = 'sheet', submitting = false, onSubmit, onClose }) {
 	const [answers, setAnswers] = useState(() => ({ ...initial }))
 	const [files, setFiles] = useState(() => ({ ...briefFiles.get(variantId) }))
 	const [notes, setNotes] = useState(initialNotes)
 	const [showErrors, setShowErrors] = useState(false)
 
 	useEffect(() => {
+		if (presentation === 'page') return undefined
 		const onKey = (e) => { if (e.key === 'Escape') onClose() }
 		document.addEventListener('keydown', onKey)
 		const overflow = document.body.style.overflow
 		document.body.style.overflow = 'hidden'
 		return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = overflow }
-	}, [onClose])
+	}, [onClose, presentation])
 
 	const set = (key, value) => setAnswers(a => ({ ...a, [key]: value }))
 	const problem = (f) => {
-		if (f.type === 'files') return f.required && !(files[f.key] || []).length ? 'Attach at least one file' : null
+		if (f.type === 'files') return f.required && !(files[f.key] || []).length && !(initial[f.key] || []).length ? 'Attach at least one file' : null
 		const value = String(answers[f.key] ?? '').trim()
 		if (!value) return f.required ? 'Required' : null
 		if (f.type === 'link') { try { new URL(withProtocol(value)) } catch { return 'Enter a valid link' } }
@@ -76,7 +78,7 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 		}
 		const cleaned = {}
 		fields.forEach(f => {
-			if (f.type === 'files') cleaned[f.key] = (files[f.key] || []).map(file => file.name)
+			if (f.type === 'files') cleaned[f.key] = [...(initial[f.key] || []), ...(files[f.key] || []).map(file => file.name)]
 			else if (f.type === 'link') cleaned[f.key] = withProtocol(String(answers[f.key] ?? '').trim())
 			else cleaned[f.key] = String(answers[f.key] ?? '').trim()
 		})
@@ -84,17 +86,17 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 		onSubmit({ brief: cleaned, instructions: notes.trim() })
 	}
 
-	return (
-		<div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/40 font-store md:items-stretch md:justify-end" onClick={onClose}>
-			<form onSubmit={submit} onClick={e => e.stopPropagation()} className="brief-sheet flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white md:max-h-none md:max-w-[520px] md:rounded-none" noValidate>
+	const isPage = presentation === 'page'
+	const form = (
+		<form onSubmit={submit} onClick={e => e.stopPropagation()} className={isPage ? 'overflow-hidden rounded-2xl border border-ink-200 bg-white' : 'brief-sheet flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white md:max-h-none md:max-w-[520px] md:rounded-none'} noValidate>
 				<div className="flex items-start gap-3 border-b border-ink-100 px-5 py-4 md:px-7 md:py-5">
 					<div className="min-w-0 flex-1">
-						<h2 className="text-xl font-medium tracking-tight text-ink-900">Your brief</h2>
-						<p className="mt-0.5 truncate text-sm text-ink-500">{title} · the freelancer sees this as soon as they start</p>
+						<h2 className="text-xl font-medium tracking-tight text-ink-900">{isPage ? 'Complete your full brief' : 'Your brief'}</h2>
+						<p className="mt-0.5 text-sm text-ink-500">{description || `${title} · the freelancer sees this as soon as they start`}</p>
 					</div>
-					<button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-100" aria-label="Close">
+					{!isPage && <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-100" aria-label="Close">
 						<Icon name="x" size={16} />
-					</button>
+					</button>}
 				</div>
 
 				<div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 md:px-7">
@@ -121,7 +123,7 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 										))}
 									</div>
 								)}
-								{f.type === 'files' && <FilesInput id={id} files={files[f.key] || []} names={initial[f.key] || []} onChange={list => setFiles(s => ({ ...s, [f.key]: list }))} />}
+								{f.type === 'files' && <FilesInput id={id} files={files[f.key] || []} names={initial[f.key] || []} alreadyUploaded={isPage} onChange={list => setFiles(s => ({ ...s, [f.key]: list }))} />}
 								{error && <p className="mt-1.5 text-sm text-rose-600">{error}</p>}
 							</div>
 						)
@@ -134,9 +136,10 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 
 				<div className="flex items-center gap-3 border-t border-ink-100 px-5 py-4 md:px-7">
 					<span className="flex-1 text-sm tabular-nums text-ink-500">{done} of {fields.length} answered</span>
-					<button type="submit" className="rounded-xl bg-black px-6 py-3 text-[15px] font-medium text-white transition-transform hover:bg-ink-800 active:scale-[0.98]">{submitLabel}</button>
+					<button type="submit" disabled={submitting} className="rounded-xl bg-black px-6 py-3 text-[15px] font-medium text-white transition-transform hover:bg-ink-800 active:scale-[0.97] disabled:cursor-wait disabled:opacity-60">{submitLabel}</button>
 				</div>
-			</form>
-		</div>
+		</form>
 	)
+	if (isPage) return <main className="mx-auto w-full max-w-3xl px-4 py-8 font-store md:px-8 md:py-12">{form}</main>
+	return <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/40 font-store md:items-stretch md:justify-end" onClick={onClose}>{form}</div>
 }

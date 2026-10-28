@@ -287,16 +287,17 @@ const createCheckout = async (clientId, { items, gstin, idempotency_key: idempot
   const missing = variantIds.filter((id) => !variants.has(id));
   if (missing.length) throw new AppError('One or more services in your cart are no longer available', 409);
 
-  // Every service's brief must be filled in before payment.
+  // Checkout stays low-friction: accept blank or partial answers and let the client
+  // send the full brief in the order chat after payment. Validate provided answers.
   const briefErrors = [];
   const briefs = items.map((item) => {
     const variant = variants.get(item.variant_id);
-    const { brief, errors } = validateBriefAnswers(resolveBriefFields(variant), item.brief, variant.title);
+    const { brief, errors } = validateBriefAnswers(resolveBriefFields(variant), item.brief, variant.title, { allowIncomplete: true });
     briefErrors.push(...errors);
     return brief;
   });
   if (briefErrors.length) {
-    const err = new AppError('Some brief details are missing', 422);
+    const err = new AppError('Some brief details are invalid', 422);
     err.errors = briefErrors;
     throw err;
   }
@@ -1120,6 +1121,72 @@ const getClientBooking = async (clientId, bookingId) => {
   return shapeBooking(result.rows[0], 'client');
 };
 
+const updateClientBookingBrief = async (clientId, bookingId, { brief: answers, instructions } = {}) => {
+  if (!UUID_PATTERN.test(String(bookingId))) throw new AppError('Order not found', 404);
+  const dbClient = await getClient();
+  let booking;
+  let cleanedBrief;
+  let cleanInstructions;
+  try {
+    await dbClient.query('BEGIN');
+    const result = await dbClient.query(
+      `SELECT b.*, t.title AS template_title, t.brief_fields, c.slug AS category_slug, j.status AS job_status
+       FROM service_bookings b
+       JOIN service_templates t ON t.id = b.template_id
+       LEFT JOIN categories c ON c.id = t.category_id
+       LEFT JOIN jobs j ON j.id = b.job_id
+       WHERE b.id = $1 AND b.client_id = $2
+       FOR UPDATE OF b`,
+      [bookingId, clientId]
+    );
+    booking = result.rows[0];
+    if (!booking) throw new AppError('Order not found', 404);
+    if (booking.assignment_status === 'pending_payment' || booking.assignment_status === 'cancelled'
+      || booking.completed_at || ['completed', 'cancelled'].includes(booking.job_status)) {
+      throw new AppError('The brief can no longer be changed for this order', 409);
+    }
+
+    const validated = validateBriefAnswers(resolveBriefFields(booking), answers, booking.template_title);
+    if (validated.errors.length) {
+      const err = new AppError('Complete the required brief details', 422);
+      err.errors = validated.errors;
+      throw err;
+    }
+    cleanedBrief = validated.brief;
+    cleanInstructions = String(instructions || '').trim();
+    if (cleanInstructions.length > 4000) throw new AppError('Additional instructions are too long', 422);
+    assertBriefIsClean(clientId, [cleanedBrief], [{ instructions: cleanInstructions }]);
+
+    const description = [formatBrief(cleanedBrief), cleanInstructions].filter(Boolean).join('\n\n')
+      || `Fixed-price service: ${booking.template_title}`;
+    await dbClient.query(
+      'UPDATE service_bookings SET brief = $2, instructions = $3 WHERE id = $1',
+      [bookingId, JSON.stringify(cleanedBrief), cleanInstructions || null]
+    );
+    if (booking.job_id) {
+      await dbClient.query(
+        'UPDATE jobs SET description = $2, requirements = $3 WHERE id = $1',
+        [booking.job_id, description, cleanInstructions || null]
+      );
+    }
+    await dbClient.query('COMMIT');
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    dbClient.release();
+  }
+
+  if (booking.job_id) {
+    const answersText = formatBrief(cleanedBrief);
+    const updateMessage = ['The client completed their full brief after checkout.', answersText, cleanInstructions ? `Anything else:\n${cleanInstructions}` : null]
+      .filter(Boolean).join('\n\n');
+    await appendSystemMessageByJob(booking.job_id, updateMessage)
+      .catch((err) => logger.warn('Updated service brief message failed', { bookingId, error: err.message }));
+  }
+  return getClientBooking(clientId, bookingId);
+};
+
 const listFreelancerWork = async (freelancerId, { filter } = {}) => {
   const result = await query(
     `${BOOKING_SELECT}
@@ -1403,6 +1470,7 @@ module.exports = {
   listMyOffers,
   listClientBookings,
   getClientBooking,
+  updateClientBookingBrief,
   listFreelancerWork,
   getFreelancerWork,
   listPastFreelancers,

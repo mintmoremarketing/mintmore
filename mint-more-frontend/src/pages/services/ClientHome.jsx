@@ -79,7 +79,7 @@ function ReviewQueue({ rows, coverFor }) {
 					const approved = row.stage === 'approved'
 					return (
 						<li key={row.id}>
-							<Link to={`/orders/${row.id}`} className={rowCls}>
+							<Link to={row.room_id ? `/chat?room=${row.room_id}` : `/chat?job=${row.job_id}`} className={rowCls}>
 								<Thumb src={coverFor(row)} />
 								<div className="min-w-0 flex-1 basis-[calc(100%-5rem)] md:basis-auto">
 									<div className="truncate text-[17px] font-medium text-ink-900">{row.snapshot?.title}</div>
@@ -113,7 +113,7 @@ function WorkList({ rows, coverFor }) {
 					const state = WORK_STATE[row.stage] || WORK_STATE.in_progress
 					return (
 						<li key={row.id}>
-							<Link to={`/orders/${row.id}`} className={`${rowCls} !flex-nowrap`}>
+							<Link to={row.room_id ? `/chat?room=${row.room_id}` : `/chat?job=${row.job_id}`} className={`${rowCls} !flex-nowrap`}>
 								<Thumb src={coverFor(row)} />
 								<div className="min-w-0 flex-1">
 									<div className="truncate text-[17px] font-medium text-ink-900">{row.snapshot?.title}</div>
