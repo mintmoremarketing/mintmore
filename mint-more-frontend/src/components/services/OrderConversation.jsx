@@ -63,7 +63,17 @@ const receiptOf = (message, role) => {
 	return 'sent'
 }
 
-function FileBody({ kind, src, name, size, poster }) {
+// A delivery under review is a preview: no download, picture-in-picture or save-as from the
+// player. This is friction, not protection; the clean file should unlock only on approval.
+const blockMenu = (event) => event.preventDefault()
+
+function FileBody({ kind, src, name, size, poster, preview = false }) {
+	if (preview && kind === 'image' && src) {
+		return <img src={src} alt={name} loading="lazy" draggable={false} onContextMenu={blockMenu} className="max-h-80 w-full select-none rounded-md bg-black/5 object-cover" />
+	}
+	if (preview && kind === 'video' && src) {
+		return <video src={src} poster={poster} controls controlsList="nodownload noremoteplayback" disablePictureInPicture onContextMenu={blockMenu} preload="metadata" className="max-h-80 w-full rounded-md bg-black" />
+	}
 	if (kind === 'image' && src) {
 		return (
 			<a href={src} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md bg-black/5">
@@ -240,6 +250,9 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 	const shellRef = useRef(null)
 	const [pending, setPending] = useState([])
 	const [revisionFor, setRevisionFor] = useState(null)
+	// Approving is final for that version, so it takes a second, deliberate step.
+	const [approveFor, setApproveFor] = useState(null)
+	const [approveChecked, setApproveChecked] = useState(false)
 	const [revisionNote, setRevisionNote] = useState('')
 	const [showRating, setShowRating] = useState(false)
 	const [ratings, setRatings] = useState({ rating_quality: 5, rating_communication: 5, timeliness_rating: 5, brief_adherence_rating: 5 })
@@ -346,6 +359,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 		onSuccess: (_res, vars) => {
 			pushToast({ title: vars.action === 'approve' ? 'Delivery approved' : 'Revision requested', icon: 'check' })
 			setRevisionFor(null)
+			setApproveFor(null)
 			setRevisionNote('')
 			refreshSoon()
 		},
@@ -440,7 +454,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 							{status && <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${status.cls}`}>{status.label}</span>}
 						</div>
 					)}
-					<FileBody kind={kindOf(m.file_mime)} src={src} name={m.file_name} size={m.file_size} />
+					<FileBody kind={kindOf(m.file_mime)} src={src} name={m.file_name} size={m.file_size} preview={isDelivery && isClient && m.file_status !== 'approved'} />
 					{m.content && <p className="mt-1 whitespace-pre-wrap px-1 text-[16px] leading-[21px] [overflow-wrap:anywhere]">{m.content}</p>}
 					{isDelivery && isClient && isLatest && m.file_status === 'submitted' && !completed && (
 						<div className="mt-2 grid grid-cols-2 gap-2">
@@ -448,7 +462,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 								className="h-9 rounded-xl border border-ink-200 bg-white text-sm font-medium text-ink-800 hover:bg-ink-50 disabled:opacity-50">
 								Request changes
 							</button>
-							<button type="button" disabled={review.isPending} onClick={() => review.mutate({ fileId: m.file_id, action: 'approve' })}
+							<button type="button" disabled={review.isPending} onClick={() => { setApproveFor(m); setApproveChecked(false) }}
 								className="h-9 rounded-xl bg-ink-900 text-sm font-semibold text-white hover:bg-ink-700 disabled:opacity-50">
 								Approve
 							</button>
@@ -566,6 +580,33 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 						placeholder="What should change? Mention timestamps, colours or text."
 						className="w-full rounded-xl border border-ink-200 px-3 py-2 text-sm focus:border-mint-400 focus:outline-none"
 					/>
+				</Modal>
+			)}
+
+			{approveFor && (
+				<Modal
+					title={`Approve v${versions[approveFor.file_id]}?`}
+					subtitle="This tells your freelancer this version is final. You can't ask for changes on it afterwards."
+					onClose={() => setApproveFor(null)}
+					footer={(
+						<>
+							<button className="btn ghost" onClick={() => setApproveFor(null)}>Keep reviewing</button>
+							<button className="btn primary" disabled={!approveChecked || review.isPending} onClick={() => review.mutate({ fileId: approveFor.file_id, action: 'approve' })}>
+								{review.isPending ? 'Approving…' : 'Approve this version'}
+							</button>
+						</>
+					)}
+				>
+					<label className="flex cursor-pointer items-start gap-3 rounded-xl border border-ink-200 p-3 text-sm text-ink-800">
+						<input type="checkbox" checked={approveChecked} onChange={e => setApproveChecked(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-ink-900" />
+						<span>I watched the whole delivery and it's what I asked for.</span>
+					</label>
+					{revisionsLeft > 0 && (
+						<p className="mt-3 text-sm text-ink-600">
+							Not quite right? You still have {revisionsLeft} revision{revisionsLeft === 1 ? '' : 's'}.{' '}
+							<button type="button" className="font-medium text-ink-900 underline underline-offset-2" onClick={() => { setRevisionFor(approveFor); setApproveFor(null) }}>Request changes instead</button>
+						</p>
+					)}
 				</Modal>
 			)}
 
