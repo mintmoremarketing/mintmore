@@ -13,6 +13,7 @@ export function notificationTarget(notification, role) {
 	// An open offer isn't the freelancer's order yet, so it opens the offers list on My work.
 	if (type === 'service_offer' || type === 'service_offer_expired' || type === 'service_offers_missed') return '/work'
 	if (type === 'booking_auto_off') return '/dashboard'
+	if (notification.entity_type === 'ai_edit') return `/ai-edits/${notification.entity_id}`
 
 	if (notification.entity_type === 'dispute' || data.dispute_id) {
 		return `/disputes?id=${notification.entity_id || data.dispute_id}`

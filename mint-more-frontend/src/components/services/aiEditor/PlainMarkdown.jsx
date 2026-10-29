@@ -12,6 +12,9 @@ const inline = (text, keyBase) => {
 	})
 }
 
+const LIST_ITEM = /^\s*([-*]|\d+\.)\s+/
+const BLOCK_START = /^(#{1,4}\s|\s*\|)/
+
 const cells = (row) => row.trim().replace(/^\||\|$/g, '').split('|').map(cell => cell.trim())
 
 export default function PlainMarkdown({ source }) {
@@ -45,16 +48,28 @@ export default function PlainMarkdown({ source }) {
 			)
 			continue
 		}
-		if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
+		if (LIST_ITEM.test(line)) {
 			const ordered = /^\s*\d+\./.test(line)
+			const start = ordered ? Number(/^\s*(\d+)/.exec(line)[1]) : undefined
 			const items = []
-			while (index < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[index])) {
-				items.push(lines[index].replace(/^\s*([-*]|\d+\.)\s+/, ''))
-				index += 1
+			while (index < lines.length) {
+				const current = lines[index]
+				if (LIST_ITEM.test(current)) {
+					items.push(current.replace(LIST_ITEM, ''))
+					index += 1
+				} else if (current.trim() && !BLOCK_START.test(current)) {
+					// A long item wrapped onto the next line belongs to that item.
+					items[items.length - 1] += ` ${current.trim()}`
+					index += 1
+				} else if (!current.trim() && (LIST_ITEM.test(lines[index + 1] || '') || /^\s{2,}\S/.test(lines[index + 1] || ''))) {
+					index += 1
+				} else {
+					break
+				}
 			}
 			const List = ordered ? 'ol' : 'ul'
 			blocks.push(
-				<List key={key} className={`mt-3 space-y-1.5 pl-5 text-[15px] text-ink-700 ${ordered ? 'list-decimal' : 'list-disc'}`}>
+				<List key={key} start={start} className={`mt-3 space-y-1.5 pl-5 text-[15px] text-ink-700 ${ordered ? 'list-decimal' : 'list-disc'}`}>
 					{items.map((item, i) => <li key={i}>{inline(item, `${key}i${i}`)}</li>)}
 				</List>
 			)

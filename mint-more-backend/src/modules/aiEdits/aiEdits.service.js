@@ -4,12 +4,14 @@ const env = require('../../config/env');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const services = require('../services/services.service');
+const notificationService = require('../notifications/notification.service');
 const { getAiEditSettings, aiPrice, usageCost } = require('./aiEdits.pricing');
 
 /**
  * "Make with AI": the client buys AI edits of a storefront service. The edit itself runs in the
- * Creatyv desktop app on their computer. Paying creates one unlock code per video; the app swaps
- * a code for a token, and that token is the only way to reach our AI and licence proxies.
+ * Creatyv helper on their computer, driven from the AI edit page. Paying creates one unlock per
+ * video; the page hands the helper that video's token (or a code is redeemed for it), and the
+ * token is the only way to reach our AI and licence proxies.
  */
 
 const money = (value) => Math.round(Number(value) * 100) / 100;
@@ -308,7 +310,17 @@ const recordUsage = async (unlockId, model, usage) => {
 };
 
 const APP_STATES = ['draft', 'queued', 'planning', 'plan_ready', 'building', 'done', 'failed', 'stopped', 'interrupted'];
-const setAppState = async (token, { state } = {}) => {
+// The moments the client should hear about even with the tab closed: the outline is waiting on
+// them (rendering before they answer would spend the budget on a wrong video), and the end.
+const STATE_NOTICES = {
+  plan_ready: (questions) => (questions > 0
+    ? { title: 'Your AI edit has questions', body: `Answer ${questions === 1 ? '1 question' : `${questions} questions`} on the outline so the editor can render the reel.` }
+    : { title: 'Your outline is ready', body: 'Check it and approve it to render the reel.' }),
+  done: () => ({ title: 'Your AI reel is ready', body: 'Watch it on Creatyv. The file is saved on your computer.' }),
+  failed: () => ({ title: 'Your AI edit needs attention', body: 'The editor stopped. Open the edit to see what happened.' }),
+};
+
+const setAppState = async (token, { state, questions } = {}) => {
   if (!APP_STATES.includes(state)) throw new AppError('Unknown state', 422);
   const unlock = await unlockForToken(token).catch((err) => {
     // A video that used its whole budget may still report that it finished.
@@ -316,6 +328,25 @@ const setAppState = async (token, { state } = {}) => {
     throw err;
   });
   await query('UPDATE ai_edit_unlocks SET app_state = $2, app_state_at = NOW() WHERE id = $1', [unlock.id, state]);
+
+  const notice = STATE_NOTICES[state];
+  if (notice && unlock.app_state !== state) {
+    const edit = (await query('SELECT client_id, videos FROM ai_edits WHERE id = $1', [unlock.ai_edit_id])).rows[0];
+    const { title, body } = notice(Math.max(0, Number(questions) || 0));
+    if (edit) {
+      notificationService.createNotification({
+        userId: edit.client_id,
+        type: 'ai_edit_update',
+        title: edit.videos > 1 ? `${title} (video ${unlock.video_number})` : title,
+        body,
+        entityType: 'ai_edit',
+        entityId: unlock.ai_edit_id,
+        data: { ai_edit_id: unlock.ai_edit_id, video_number: unlock.video_number, state },
+        // One per state change; a later revision that finishes again notifies again.
+        dedupeKey: `ai-edit:${unlock.id}:${state}:${Date.now()}`,
+      });
+    }
+  }
   return { ok: true };
 };
 

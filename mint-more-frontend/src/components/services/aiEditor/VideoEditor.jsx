@@ -67,6 +67,57 @@ function LiveLog({ lines }) {
 	)
 }
 
+/**
+ * What the outline leaves to the client. Answered before the render, so a wrong word or a guessed
+ * detail never costs a whole render. Questions without a safe default must be answered.
+ */
+function OutlineQuestions({ questions, answers, onChange }) {
+	if (!questions?.length) return null
+	return (
+		<div className="mt-6 rounded-xl bg-amber-50 p-4 md:p-5">
+			<h4 className="text-lg font-medium text-ink-900">{questions.length === 1 ? 'One question before the render' : `${questions.length} questions before the render`}</h4>
+			<p className="mt-1 text-sm text-ink-700">Rendering costs most of the video's budget, so the editor asks instead of guessing.</p>
+			<ol className="mt-4 space-y-5">
+				{questions.map(question => {
+					const value = answers[question.id] || ''
+					const custom = value && !question.options?.includes(value)
+					return (
+						<li key={question.id}>
+							<p className="text-[15px] font-medium text-ink-900">
+								{question.question}
+								{question.default === null && <span className="font-normal text-ink-600"> (needed)</span>}
+							</p>
+							{question.why && <p className="mt-0.5 text-sm text-ink-600">{question.why}</p>}
+							{question.options?.length > 0 && (
+								<div className="mt-2 flex flex-wrap gap-2">
+									{question.options.map(option => (
+										<button
+											key={option}
+											type="button"
+											aria-pressed={value === option}
+											onClick={() => onChange(question.id, value === option ? '' : option)}
+											className={`min-h-10 rounded-full border px-4 py-2 text-left text-sm ${press} ${value === option ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-200 bg-white text-ink-900 hover:border-ink-400'}`}
+										>
+											{option}{question.default === option && value !== option ? ' (default)' : ''}
+										</button>
+									))}
+								</div>
+							)}
+							<input
+								value={custom || !question.options?.length ? value : ''}
+								onChange={(event) => onChange(question.id, event.target.value)}
+								placeholder={question.options?.length ? 'Or write your own answer' : question.default ? `Leave empty for: ${question.default}` : 'Your answer'}
+								className="mt-2 h-11 w-full rounded-lg border border-ink-200 bg-white px-3 text-[15px] text-ink-900 placeholder:text-ink-400 focus:border-ink-900 focus:outline-none"
+								aria-label={question.question}
+							/>
+						</li>
+					)
+				})}
+			</ol>
+		</div>
+	)
+}
+
 function Section({ step, title, current, children }) {
 	return (
 		<section className="rounded-2xl bg-white p-5 md:p-7">
@@ -84,6 +135,7 @@ export default function VideoEditor({ jobId, meta, onLocked }) {
 	const [job, setJob] = useState(null)
 	const [lines, setLines] = useState([])
 	const [notes, setNotes] = useState('')
+	const [answers, setAnswers] = useState({})
 	const [busy, setBusy] = useState(false)
 	const [error, setError] = useState('')
 
@@ -111,6 +163,7 @@ export default function VideoEditor({ jobId, meta, onLocked }) {
 	const bust = job.updated_at
 	const state = APP_STATE[job.status] || APP_STATE.draft
 	const step = hasFinal ? 4 : hasPlan ? 3 : hasFootage ? 2 : 1
+	const unanswered = (job.questions || []).filter(q => q.default === null && !String(answers[q.id] || '').trim()).length
 
 	const act = async (fn) => {
 		setBusy(true)
@@ -173,14 +226,16 @@ export default function VideoEditor({ jobId, meta, onLocked }) {
 					<div className="mt-2">
 						{job.outputs.planStills && <img src={helperFileUrl(jobId, 'output/plan-stills.jpg', bust)} alt="Stills from the outline" className="mb-5 w-full rounded-xl bg-ink-100" />}
 						<PlainMarkdown source={job.planMd} />
+						{canApprove && <OutlineQuestions questions={job.questions} answers={answers} onChange={(id, value) => setAnswers(prev => ({ ...prev, [id]: value }))} />}
 						{canApprove && (
 							<div className="mt-6 border-t border-ink-100 pt-5">
 								<label htmlFor={`notes-${jobId}`} className="text-sm font-medium text-ink-900">Notes for the editor (optional)</label>
 								<textarea id={`notes-${jobId}`} rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="e.g. Open on the night sign, shorter end card" className="mt-1.5 w-full rounded-lg border border-ink-200 px-3 py-2.5 text-[15px] focus:border-ink-900 focus:outline-none" />
 								<div className="mt-3 flex flex-wrap gap-3">
-									<button disabled={busy} onClick={() => act(() => helperApi.approve(jobId, notes))} className={primary}>Approve and make the reel</button>
+									<button disabled={busy || unanswered > 0} onClick={() => act(() => helperApi.approve(jobId, notes, answers))} className={primary}>Approve and make the reel</button>
 									<button disabled={busy || !notes.trim()} onClick={() => act(() => helperApi.plan(jobId, notes))} className={secondary}>Redo the outline</button>
 								</div>
+								{unanswered > 0 && <p className="mt-2 text-sm text-ink-700">Answer {unanswered === 1 ? 'the question' : `the ${unanswered} questions`} marked needed first.</p>}
 							</div>
 						)}
 					</div>
