@@ -27,6 +27,7 @@ import Orders            from './pages/services/Orders'
 import OrderDetail       from './pages/services/OrderDetail'
 import PostPaymentBrief from './pages/services/PostPaymentBrief'
 import ClientHome        from './pages/services/ClientHome'
+import AiEdit            from './pages/services/AiEdit'
 import MyServices        from './pages/services/MyServices'
 
 // Client pages
@@ -263,6 +264,7 @@ export default function App() {
           <Route path="/orders"      element={<ClientOnly><Orders audience="client" /></ClientOnly>} />
           <Route path="/orders/:id"  element={<ClientOnly><OrderDetail audience="client" /></ClientOnly>} />
           <Route path="/order-brief" element={<ClientOnly><PostPaymentBrief /></ClientOnly>} />
+          <Route path="/ai-edits/:id" element={<ClientOnly><AiEdit /></ClientOnly>} />
           <Route path="/work"        element={<FreelancerOnly><Orders audience="freelancer" /></FreelancerOnly>} />
           <Route path="/work/:id"    element={<FreelancerOnly><OrderDetail audience="freelancer" /></FreelancerOnly>} />
           <Route path="/my-services" element={<FreelancerOnly><MyServices /></FreelancerOnly>} />

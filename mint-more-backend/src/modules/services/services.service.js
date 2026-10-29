@@ -11,6 +11,7 @@ const notificationService = require('../notifications/notification.service');
 const { writeAudit } = require('../audit/audit.service');
 const { rankFreelancers } = require('./fairMatch');
 const { assertNoContactInfo, findContactInfo, CONTACT_BLOCKED_MESSAGE } = require('../../utils/contactGuard');
+const { getAiEditSettings, aiPrice } = require('../aiEdits/aiEdits.pricing');
 const { defaultBriefFields, resolveBriefFields, normalizeBriefFields, validateBriefAnswers, formatBrief } = require('./briefFields');
 
 const razorpay = env.payments.mockCheckout
@@ -160,7 +161,7 @@ const getCatalogItem = async (slug) => {
 
   const [variants, reviews] = await Promise.all([
     query(
-      `SELECT id, option_label, pack_size, price, mrp, delivery_days, is_default
+      `SELECT id, option_label, pack_size, price, mrp, delivery_days, is_default, ai_price
        FROM service_variants
        WHERE template_id = $1 AND is_active
        ORDER BY sort_order, pack_size, price`,
@@ -179,7 +180,12 @@ const getCatalogItem = async (slug) => {
     ),
   ]);
 
-  return { ...template, brief_fields: resolveBriefFields(template), variants: variants.rows, reviews: reviews.rows };
+  const aiSettings = template.ai_enabled ? await getAiEditSettings() : null;
+  const variantRows = variants.rows.map(({ ai_price: aiPriceOverride, ...variant }) => ({
+    ...variant,
+    ai_price: aiSettings ? aiPrice({ ...variant, ai_price: aiPriceOverride }, aiSettings) : null,
+  }));
+  return { ...template, brief_fields: resolveBriefFields(template), variants: variantRows, reviews: reviews.rows };
 };
 
 // ── Checkout ──────────────────────────────────────────────────────────────────
@@ -578,7 +584,8 @@ const verifyCheckout = async (clientId, checkoutId, payload = {}) => {
 const processCapturedServicePayment = async (orderId, paymentId, amountPaise) => {
   const result = await query('SELECT * FROM service_checkouts WHERE razorpay_order_id = $1', [orderId]);
   const checkout = result.rows[0];
-  if (!checkout) return false;
+  // Required here, not at the top: ai-edits uses this module's checkout helpers.
+  if (!checkout) return require('../aiEdits/aiEdits.service').processCapturedAiEditPayment(orderId, paymentId, amountPaise);
   if (Number(amountPaise) !== Math.round(Number(checkout.total) * 100)) {
     logger.error('Service webhook amount mismatch', { checkoutId: checkout.id, amountPaise });
     return true;
@@ -1466,6 +1473,12 @@ module.exports = {
   acceptOffer,
   declineOffer,
   expireOffers,
+  // Shared with ai-edits, which sells AI edits of the same services through the same checkout rules.
+  testCheckoutAllowed,
+  getServiceSettings,
+  callRazorpay,
+  signaturesMatch,
+  getRazorpay: () => razorpay,
   retryUnassigned,
   listMyOffers,
   listClientBookings,

@@ -55,8 +55,15 @@ const paymentVerifyLimiter = createSensitiveEndpointLimiter({
   message: 'Too many payment verification attempts. Please wait and try again.',
 });
 
+// Unlock codes are 12 characters from 31 symbols, so guessing is hopeless anyway; this keeps it so.
+const aiEditRedeemLimiter = createSensitiveEndpointLimiter({
+  max: 20,
+  message: 'Too many unlock attempts. Please wait and try again.',
+});
+
 module.exports = {
   globalRateLimiter,
+  aiEditRedeemLimiter,
   authLoginLimiter,
   passwordResetLimiter,
   paymentCheckoutLimiter,

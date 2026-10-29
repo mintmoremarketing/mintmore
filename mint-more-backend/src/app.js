@@ -41,6 +41,8 @@ const disputeRouter      = require('./modules/disputes/dispute.routes');
 const creativeRouter     = require('./modules/creative/creative.routes');
 const supportRouter      = require('./modules/support/support.routes');
 const servicesRouter     = require('./modules/services/services.routes');
+const aiEditsRouter      = require('./modules/aiEdits/aiEdits.routes');
+const aiEditsProxy       = require('./modules/aiEdits/aiEdits.proxy');
 const assessmentsRouter  = require('./modules/assessments/assessments.routes');
 const publicRouter       = require('./modules/public/public.routes');
 
@@ -87,6 +89,10 @@ app.use(`/api/${env.apiVersion}/whatsapp`,  whatsappRouter);
 // Social webhooks also need raw body
 app.get(`/api/${env.apiVersion}/social/webhook/facebook`, fbVerify);
 app.post(`/api/${env.apiVersion}/social/webhook/facebook`, rawBody, fbWebhook);
+
+// The desktop app's AI and licence proxy: raw bodies, streamed replies, its own token checks,
+// and no global rate limit (one edit makes hundreds of AI calls).
+app.use(`/api/${env.apiVersion}/ai-edits/proxy`, aiEditsProxy);
 
 // ── Standard body parsing ─────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
@@ -139,6 +145,7 @@ app.use(`/api/${env.apiVersion}/disputes`,      disputeRouter);
 app.use(`/api/${env.apiVersion}/creative`,      creativeRouter);
 app.use(`/api/${env.apiVersion}/support`,       supportRouter);
 app.use(`/api/${env.apiVersion}/services`,      servicesRouter);
+app.use(`/api/${env.apiVersion}/ai-edits`,      aiEditsRouter);
 app.use(`/api/${env.apiVersion}/assessments`,   assessmentsRouter);
 
 app.use(notFound);

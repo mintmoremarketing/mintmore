@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { servicesApi } from '../../api/services'
@@ -6,6 +7,7 @@ import Icon from '../../components/ui/Icon'
 import { StoreRow } from '../../components/storefront/storefront'
 import { referenceCover } from '../../components/storefront/referencePhotos'
 import { inr, variantLabel } from '../../components/services/serviceUtils'
+import AiEditsPanel from '../../components/services/AiEditsPanel'
 
 const greeting = () => {
 	const hour = new Date().getHours()
@@ -188,6 +190,16 @@ const HOW_IT_WORKS = [
 	{ title: 'Approve, then pay out', body: 'Ask for revisions, approve the work, and payment is released.' },
 ]
 
+// Folder tab sides, drawn in a 44×56 box: the curve eases flat into the panel's top edge.
+const CURVED_SIDE = 'M0 0C13 0 18 7 21.5 24.5C25 42 30 56 44 56H0Z'
+const TUCKED_SIDE = 'M0 0H44V56H0Z'
+
+const CLIENT_HOME_AREAS = [
+	{ id: 'ai', label: 'Edit with AI' },
+	{ id: 'hire', label: 'Hire a creator' },
+	{ id: 'pro', label: 'Creatyv Pro' },
+]
+
 /** First-run screen: no orders yet. Keeps the title, then shows how it works and where to start. */
 function GettingStarted({ categories = [], popular }) {
 	return (
@@ -236,6 +248,8 @@ function GettingStarted({ categories = [], popular }) {
 
 /** Client home: what is happening with your orders. The full catalogue lives on /services. */
 export default function ClientHome() {
+	const [activeArea, setActiveArea] = useState('hire')
+	const areaTabs = useRef([])
 	const name = useAuthStore(s => s.user?.full_name || '')
 	const { data: orders = [], isLoading } = useQuery({
 		queryKey: ['service-bookings', 'client'],
@@ -275,35 +289,111 @@ export default function ClientHome() {
 
 	return (
 		<div className="mx-auto w-full max-w-[1400px] px-4 py-8 font-store md:px-8 md:py-10">
-			<div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-				<div className="min-w-0">
-					<h1 className="text-3xl font-medium tracking-tight text-ink-900 md:text-[44px]">
-						{greeting()}{name ? `, ${name.split(' ')[0]}` : ''}
-					</h1>
-					<p className="mt-2 max-w-xl text-lg text-ink-600">{summary}</p>
-				</div>
-				<Link to="/services" className="landing-cta shrink-0 gap-1.5 self-start !min-h-12 !px-6 !text-base sm:self-auto">
-					<Icon name="plus" size={16} /> New order
-				</Link>
+			<div
+				className="-mb-[2px] flex max-w-[960px] items-end px-4 sm:px-6 md:px-7"
+				role="tablist"
+				aria-label="Choose a Creatyv service"
+			>
+				{CLIENT_HOME_AREAS.map((area, index) => {
+					const selected = activeArea === area.id
+					// Folder tabs: the open one joins the panel, the rest step back in tone the further they sit.
+					const activeIndex = CLIENT_HOME_AREAS.findIndex(a => a.id === activeArea)
+					const tone = selected ? 'open' : Math.abs(index - activeIndex) === 1 ? 'near' : 'far'
+					// Left over right like real folders. Closed tabs sit behind the panel (z 5), which covers
+					// their bottoms with its own clean edge; the open one comes in front and joins it.
+					const layer = i => (i === activeIndex ? 10 : CLIENT_HOME_AREAS.length - i)
+					const coveredLeft = index > 0 && layer(index - 1) > layer(index)
+					const coveredRight = index < CLIENT_HOME_AREAS.length - 1 && layer(index + 1) > layer(index)
+					return (
+						<button
+							key={area.id}
+							ref={element => { areaTabs.current[index] = element }}
+							type="button"
+							role="tab"
+							id={`client-home-tab-${area.id}`}
+							aria-selected={selected}
+							aria-controls={`client-home-panel-${area.id}`}
+							tabIndex={selected ? 0 : -1}
+							onClick={() => setActiveArea(area.id)}
+							onKeyDown={event => {
+								const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+								const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (index + direction + 3) % 3
+								if (direction || event.key === 'Home' || event.key === 'End') {
+									event.preventDefault()
+									const nextArea = ['ai', 'hire', 'pro'][nextIndex]
+									setActiveArea(nextArea)
+									areaTabs.current[nextIndex]?.focus()
+								}
+							}}
+							style={{ zIndex: layer(index) }}
+							className={`folder-tab folder-tab--${tone} group relative flex h-12 min-w-0 flex-1 focus-visible:outline-none sm:h-14 ${index > 0 ? '-ml-6 sm:-ml-9 md:-ml-11' : ''}`}
+						>
+							{/* Each side curves into the panel's top edge. A side tucked under a neighbour is drawn
+							    straight, so the front tab's curve always lies over solid tab, never a gap. */}
+							<svg className="folder-tab__ear h-full w-6 shrink-0 -scale-x-100 sm:w-9 md:w-11" viewBox="0 0 44 56" preserveAspectRatio="none" aria-hidden="true">
+								<path d={coveredLeft ? TUCKED_SIDE : CURVED_SIDE} />
+							</svg>
+							<span className="folder-tab__body -mx-px min-w-0 flex-1" />
+							<svg className="folder-tab__ear h-full w-6 shrink-0 sm:w-9 md:w-11" viewBox="0 0 44 56" preserveAspectRatio="none" aria-hidden="true">
+								<path d={coveredRight ? TUCKED_SIDE : CURVED_SIDE} />
+							</svg>
+							{/* The label spans the body and the top of both curves, clear of any side a neighbour covers. */}
+							<span className={`pointer-events-none absolute inset-y-0 flex items-center justify-center ${coveredLeft ? 'left-6 sm:left-9 md:left-11' : 'left-3 sm:left-5 md:left-6'} ${coveredRight ? 'right-6 sm:right-9 md:right-11' : 'right-3 sm:right-5 md:right-6'}`}>
+								<span className={`truncate text-[13px] font-medium sm:text-[15px] ${selected ? 'text-ink-950' : 'text-ink-600 group-hover:text-ink-900'}`}>{area.label}</span>
+							</span>
+						</button>
+					)
+				})}
 			</div>
 
-			{firstRun ? (
-				<GettingStarted categories={storefront?.categories || []} popular={popular} />
-			) : (
-				<>
-					<ReviewQueue rows={needsReview} coverFor={coverFor} />
-					<WorkList rows={active} coverFor={coverFor} />
-					<BookAgain rows={completed} onSale={onSale} />
+			<div className="relative z-[5] overflow-hidden rounded-[20px] bg-white sm:rounded-[24px] md:rounded-[28px]">
+				{/* The bright band the open tab grows out of; the work below sits on white. */}
+				<div className="folder-hero flex flex-col gap-5 px-4 pb-8 pt-6 sm:flex-row sm:items-end sm:justify-between md:px-8 md:pb-10 md:pt-8">
+					<div className="min-w-0">
+						<h1 className="text-3xl font-medium tracking-tight text-ink-950 md:text-[44px]">
+							{greeting()}{name ? `, ${name.split(' ')[0]}` : ''}
+						</h1>
+						<p className="mt-2 max-w-xl text-balance text-lg text-ink-900">{summary}</p>
+					</div>
+					<Link to="/services" className="inline-flex h-12 shrink-0 items-center gap-1.5 self-start rounded-full bg-white px-6 text-base font-semibold text-ink-950 shadow-[0_1px_2px_rgb(120_40_0/0.12),0_10px_24px_-10px_rgb(120_40_0/0.45)] transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-orange-50 active:scale-[0.97] sm:self-auto">
+						<Icon name="plus" size={16} /> New order
+					</Link>
+				</div>
+				<div className="p-4 md:p-8">
+					{CLIENT_HOME_AREAS.map(area => (
+						<div
+							key={area.id}
+							id={`client-home-panel-${area.id}`}
+							role="tabpanel"
+							aria-labelledby={`client-home-tab-${area.id}`}
+							tabIndex={activeArea === area.id ? 0 : -1}
+							hidden={activeArea !== area.id}
+							className="min-h-[40vh] focus-visible:outline-none"
+						>
+					{area.id === 'ai' && <AiEditsPanel />}
+					{area.id === 'hire' && <>
+					{firstRun ? (
+						<GettingStarted categories={storefront?.categories || []} popular={popular} />
+					) : (
+						<>
+							<ReviewQueue rows={needsReview} coverFor={coverFor} />
+							<WorkList rows={active} coverFor={coverFor} />
+							<BookAgain rows={completed} onSale={onSale} />
 
-					{popular?.services?.length > 0 && (
-						<StoreRow
-							title="Popular right now"
-							services={popular.services.slice(0, 8)}
-							action={<Link to="/services" className="inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-ink-900 hover:underline">See all services <Icon name="arrowRight" size={14} /></Link>}
-						/>
+							{popular?.services?.length > 0 && (
+								<StoreRow
+									title="Popular right now"
+									services={popular.services.slice(0, 8)}
+									action={<Link to="/services" className="inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-ink-900 hover:underline">See all services <Icon name="arrowRight" size={14} /></Link>}
+								/>
+							)}
+						</>
 					)}
-				</>
-			)}
+							</>}
+						</div>
+					))}
+				</div>
+			</div>
 		</div>
 	)
 }

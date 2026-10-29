@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { servicesApi } from '../../api/services'
+import { aiEditsApi } from '../../api/aiEdits'
 import { useCartStore } from '../../store/cart'
 import { useUIStore } from '../../store/ui'
 import { useAuthStore } from '../../store/auth'
@@ -38,6 +39,7 @@ export default function ServiceDetail() {
 	const pushToast = useUIStore(s => s.pushToast)
 	const [choice, setChoice] = useState({ option: null, pack: 1 })
 	const [quantity, setQuantity] = useState(1)
+	const [startingAi, setStartingAi] = useState(false)
 
 	const { data: service, isLoading, isError } = useQuery({
 		queryKey: ['service-detail', slug],
@@ -102,6 +104,21 @@ export default function ServiceDetail() {
 		})
 		if (goToCart) navigate('/cart')
 		else pushToast({ title: 'Added to cart', body: service.title, icon: 'shoppingBag' })
+	}
+
+	// Make with AI: a separate purchase of the same option, edited by the Creatyv app on the client's computer.
+	const aiPrice = variant?.ai_price ? Number(variant.ai_price) * quantity : null
+	const makeWithAi = async () => {
+		if (!variant) return
+		if (!role) return navigate(`/login?next=${encodeURIComponent(`/services/${service.slug}`)}`)
+		setStartingAi(true)
+		try {
+			const { data } = await aiEditsApi.create({ variant_id: variant.id, quantity })
+			navigate(`/ai-edits/${data.data.id}`)
+		} catch (error) {
+			pushToast({ title: 'Could not start the AI edit', body: error.response?.data?.message || 'Please try again.', icon: 'x' })
+			setStartingAi(false)
+		}
 	}
 
 	const share = async () => {
@@ -271,7 +288,19 @@ export default function ServiceDetail() {
 						)}
 						{canBuy ? (
 							<div className="grid gap-3">
-								<button className="rounded-2xl bg-black py-4 text-xl font-medium text-white hover:bg-ink-800" onClick={() => toCart(true)}>Book Now</button>
+								{service.ai_enabled && aiPrice && (
+									<div className="mb-2">
+										<button
+											className="ai-make-btn flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-xl font-medium text-ink-950 active:scale-[0.97] disabled:opacity-60"
+											disabled={startingAi}
+											onClick={makeWithAi}
+										>
+											<Icon name="sparkles" size={20} /> {startingAi ? 'Starting…' : 'Make with AI'}
+										</button>
+										<p className="mt-2 text-center text-sm text-ink-600">₹{aiPrice.toLocaleString('en-IN')} + GST · usually ready within an hour, on your computer</p>
+									</div>
+								)}
+								<button className="rounded-2xl bg-black py-4 text-xl font-medium text-white transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-800 active:scale-[0.97]" onClick={() => toCart(true)}>Hire freelancer</button>
 								<button className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-white py-4 text-xl font-medium text-ink-900 hover:bg-ink-50" onClick={() => toCart(false)}><Icon name="shoppingBag" size={20} /> Add to cart</button>
 							</div>
 						) : (
@@ -292,8 +321,14 @@ export default function ServiceDetail() {
 			{canBuy && variant && (
 				<div className="fixed inset-x-0 z-40 flex items-center gap-3 border-t border-ink-200 bg-white px-4 py-3 lg:hidden" style={{ bottom: 'var(--bottom-nav-h, 0px)' }}>
 					{stepper}
-					<button className="flex-1 rounded-xl border border-[#0b7a41] py-3 text-lg font-medium text-[#0b7a41]" onClick={() => toCart(false)}>Add to Cart</button>
-					<button className="flex-1 rounded-xl bg-[#0b7a41] py-3 text-lg font-medium text-white" onClick={() => toCart(true)}>Book Now</button>
+					{service.ai_enabled && aiPrice ? (
+						<button className="ai-make-btn flex-1 whitespace-nowrap rounded-xl py-3 text-base font-medium text-ink-950 active:scale-[0.97] disabled:opacity-60" disabled={startingAi} onClick={makeWithAi}>
+							{startingAi ? 'Starting…' : 'Make with AI'}
+						</button>
+					) : (
+						<button className="flex-1 rounded-xl border border-[#0b7a41] py-3 text-lg font-medium text-[#0b7a41]" onClick={() => toCart(false)}>Add to Cart</button>
+					)}
+					<button className="flex-1 whitespace-nowrap rounded-xl bg-[#0b7a41] py-3 text-base font-medium text-white transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]" onClick={() => toCart(true)}>Hire freelancer</button>
 				</div>
 			)}
 		</div>
