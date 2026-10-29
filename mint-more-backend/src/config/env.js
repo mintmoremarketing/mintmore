@@ -40,6 +40,8 @@ const normalizeStorageProvider = (value) => {
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 const isProd = nodeEnv === 'production';
+const storageProvider = normalizeStorageProvider(process.env.STORAGE_PROVIDER);
+const mintboxMaxFileSizeMb = parseInt(process.env.MINTBOX_MAX_FILE_SIZE_MB, 10) || 2048;
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 const looksLikeRazorpayKey = (keyId) => /^rzp_(test|live)_/.test(String(keyId || '').trim());
 const hasUsableRazorpayCredentials = () => {
@@ -115,7 +117,7 @@ const env = {
   },
 
   storage: {
-    provider: normalizeStorageProvider(process.env.STORAGE_PROVIDER),
+    provider: storageProvider,
   },
 
   r2: {
@@ -154,8 +156,12 @@ const env = {
     allowedFileTypes: process.env.ALLOWED_FILE_TYPES
       ? process.env.ALLOWED_FILE_TYPES.split(',')
       : ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
-    mintboxMaxFileSizeMb: parseInt(process.env.MINTBOX_MAX_FILE_SIZE_MB, 10) || 2048,
-    mintboxBucketMaxFileSizeMb: parseInt(process.env.MINTBOX_BUCKET_MAX_FILE_SIZE_MB, 10) || 50,
+    mintboxMaxFileSizeMb,
+    // Supabase's bucket cap applies only when Supabase is the active provider.
+    // R2 uploads use the app cap instead of inheriting Supabase's 50 MiB default.
+    mintboxBucketMaxFileSizeMb: storageProvider === 'r2'
+      ? mintboxMaxFileSizeMb
+      : parseInt(process.env.MINTBOX_BUCKET_MAX_FILE_SIZE_MB, 10) || 50,
     mintboxAllowedFileTypes: process.env.MINTBOX_ALLOWED_FILE_TYPES
       ? process.env.MINTBOX_ALLOWED_FILE_TYPES.split(',').map((type) => type.trim())
       : [
