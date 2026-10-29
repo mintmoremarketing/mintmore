@@ -27,6 +27,11 @@ const client = new S3Client({
     secretAccessKey: env.r2.secretAccessKey || '',
   },
   forcePathStyle: true,
+  // Newer SDKs sign a CRC32 of the request body into every URL. A presigned upload has no body
+  // when it is signed, so the URL would carry the empty file's checksum and R2 would reject the
+  // real file. Only send checksums when an operation requires one.
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 const trimSlash = (value = '') => String(value).replace(/\/+$/, '');
