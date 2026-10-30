@@ -11,6 +11,7 @@ const reviewService = require('../reviews/review.service');
 const { getSetting } = require('../commerce/settings.service');
 const { appendSystemMessageByJob, postFileMessage } = require('../chat/chat.service');
 const { assertNoContactInfo } = require('../../utils/contactGuard');
+const { briefTitle } = require('../services/briefFields');
 
 const BUCKET = storage.getBucket();
 const CLIENT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;
@@ -281,6 +282,37 @@ const listClientFolders = async (clientId, role) => {
       limit,
       remaining: Math.max(0, limit - used),
     },
+  };
+};
+
+/**
+ * Everything freelancers delivered to a client, across all their orders, newest first: the
+ * client's Files gallery. Brief files the client uploaded themselves are left out. A delivery
+ * still under review can be viewed but only downloaded once approved, as in the order chat.
+ */
+const listClientGallery = async (clientId, role) => {
+  if (role !== 'client') throw new AppError('Only clients have a delivery gallery', 403);
+  const result = await query(
+    `SELECT f.id, f.original_name, f.mime_type, f.size_bytes, f.file_category, f.status, f.share_token,
+            f.share_revoked_at, f.created_at, f.job_id, j.title AS job_title,
+            b.id AS booking_id, b.booking_number, b.brief, b.snapshot->>'title' AS service_title,
+            room.id AS room_id
+     FROM mintbox_files f
+     JOIN jobs j ON j.id = f.job_id
+     LEFT JOIN service_bookings b ON b.job_id = j.id
+     LEFT JOIN chat_rooms room ON room.job_id = j.id
+     WHERE j.client_id = $1 AND f.purpose = 'delivery' AND f.deleted_by_client_at IS NULL AND f.uploaded_by <> $1
+     ORDER BY f.created_at DESC
+     LIMIT 1000`,
+    [clientId]
+  );
+  return {
+    files: result.rows.map(({ brief, share_token: token, share_revoked_at: revoked, ...file }) => ({
+      ...file,
+      order_title: briefTitle(brief) || file.service_title || file.job_title,
+      file_token: revoked ? null : token,
+      downloadable: file.status === 'approved',
+    })),
   };
 };
 
@@ -1682,6 +1714,7 @@ module.exports = {
   CLIENT_QUOTA_BYTES,
   getUploadPolicy,
   listClientFolders,
+  listClientGallery,
   getFolderByJob,
   listBrandLibrary,
   getBrandFolder,

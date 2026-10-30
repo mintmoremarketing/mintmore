@@ -13,6 +13,7 @@ router.get('/public/files/:token/content', controller.streamPublicFile);
 router.use(authenticate);
 
 router.get('/', requireEntitlement('can_access_mintbox'), controller.listFolders);
+router.get('/gallery', requireEntitlement('can_access_mintbox'), controller.listGallery);
 router.get('/library', requireEntitlement('can_access_mintbox'), controller.listBrandLibrary);
 router.post('/library/folders', requireEntitlement('can_access_mintbox'), controller.createBrandFolder);
 router.get('/library/folders/:folderId', requireEntitlement('can_access_mintbox'), controller.getBrandFolder);
