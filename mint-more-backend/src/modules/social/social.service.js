@@ -1339,7 +1339,7 @@ const executePublish = async (postId) => {
         try {
           const { getPublicFileStream } = require('../mintbox/mintbox.service');
           // Give Facebook 24 hours to crawl the video
-          const { signedUrl } = await getPublicFileStream(token, 24 * 60 * 60);
+          const { signedUrl } = await getPublicFileStream(token, {}, 24 * 60 * 60);
           if (signedUrl) {
             m.media_url = signedUrl;
             logger.debug('Resolved internal Mintbox URL to direct signed URL for social publish', { token });

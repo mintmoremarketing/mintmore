@@ -10,4 +10,6 @@ export const chatApi = {
 	markDelivered:() => api.post('/chat/delivered'),
 	online: () => api.post('/chat/presence/online'),
 	offline: () => api.post('/chat/presence/offline'),
+	moderate: (roomId, data) => api.post(`/chat/admin/rooms/${roomId}/moderation`, data),
+	moderationHistory: (roomId) => api.get(`/chat/admin/rooms/${roomId}/moderation`),
 }

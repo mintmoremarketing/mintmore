@@ -61,13 +61,18 @@ const publishProjectActivity = (jobId, content) => {
 };
 
 const makeToken = () => crypto.randomBytes(24).toString('base64url');
+// No public link while a delivery waits for the client's approval (see isLockedDelivery).
 const toSharedFile = (file) => ({
   ...file,
-  public_url: file.share_revoked_at ? null : `/mintbox/file/${file.share_token}`,
-  share_url: file.share_revoked_at ? null : `/mintbox/file/${file.share_token}`,
+  public_url: file.share_revoked_at || isLockedDelivery(file) ? null : `/mintbox/file/${file.share_token}`,
+  share_url: file.share_revoked_at || isLockedDelivery(file) ? null : `/mintbox/file/${file.share_token}`,
   storage_bucket: undefined,
   storage_path: undefined,
 });
+// A freelancer's delivery is a preview until the client approves it: it can be watched
+// in the chat, but not downloaded or opened from a public link.
+const isLockedDelivery = (file) => file?.purpose === 'delivery' && file?.status !== 'approved';
+
 const safeName = (value) => String(value || 'file').replace(/[^\w.\- ]+/g, '').trim() || 'file';
 const MINTBOX_MAX_FILE_BYTES = env.upload.mintboxMaxFileSizeMb * 1024 * 1024;
 const MINTBOX_BUCKET_MAX_FILE_BYTES = env.upload.mintboxBucketMaxFileSizeMb * 1024 * 1024;
@@ -371,7 +376,7 @@ const getPublicFolderByShareToken = async (token) => {
   );
   const folder = folderResult.rows[0];
   if (!folder) throw new AppError('Mintbox folder not found', 404);
-  const files = (await listFiles(folder.id)).filter((file) => !file.share_revoked_at);
+  const files = (await listFiles(folder.id)).filter((file) => !file.share_revoked_at && !isLockedDelivery(file));
   return {
     folder,
     files,
@@ -391,7 +396,7 @@ const getPublicCategoryByShareToken = async (token) => {
   if (!share) throw new AppError('Shared folder not found', 404);
   return {
     folder: { id: share.folder_id, job_id: share.job_id, name: `${share.name} / ${share.category}`, shared_category: share.category },
-    files: (await listFiles(share.folder_id, share.category)).filter((file) => !file.share_revoked_at),
+    files: (await listFiles(share.folder_id, share.category)).filter((file) => !file.share_revoked_at && !isLockedDelivery(file)),
     category_shares: [],
   };
 };
@@ -1206,7 +1211,7 @@ const listBrandFiles = async (folderId) => {
 const getPublicFile = async (token) => {
   const result = await query(
     `SELECT id, original_name, storage_bucket, storage_path, mime_type, size_bytes,
-            file_category, created_at
+            file_category, created_at, purpose, status
      FROM mintbox_files
      WHERE share_token = $1 AND share_revoked_at IS NULL AND deleted_by_client_at IS NULL`,
     [token]
@@ -1216,8 +1221,14 @@ const getPublicFile = async (token) => {
   return file;
 };
 
-const getPublicFileStream = async (token, expiresIn = 4 * 60 * 60) => {
+const getPublicFileStream = async (token, { download = false } = {}, expiresIn = 4 * 60 * 60) => {
   const file = await getPublicFile(token);
+  if (isLockedDelivery(file)) {
+    // Photos, video and audio stream so the client can review them; anything else (ZIP, PSD,
+    // PDF…) can only be had as the file itself, so it waits for approval like a download.
+    const previewable = /^(image|video|audio)\//.test(String(file.mime_type || ''));
+    if (download || !previewable) throw new AppError('Approve this delivery to download it', 403);
+  }
   const signedUrl = await storage.createDownloadUrl(file.storage_path, expiresIn);
   if (!signedUrl) throw new AppError('File is temporarily unavailable', 503);
   return { file, signedUrl };
@@ -1751,6 +1762,7 @@ module.exports = {
   getPublicFolderByShareToken,
   getPublicCategoryByShareToken,
   getPublicFile,
+  isLockedDelivery,
   getPublicFileStream,
   revokeShare,
   rotateShare,

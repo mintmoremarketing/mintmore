@@ -75,7 +75,7 @@ export default function OrderDetail({ audience = 'client' }) {
 		<OrderDetailsPane booking={booking} snapshot={snapshot} isClient={isClient} counterpart={counterpart} onMessage={() => setTab('chat')} />
 	)
 
-	const conversationHeader = (
+	const conversationHeader = searchField => (
 		<div className="relative z-[2] flex items-center gap-2.5 bg-[#f6f6f6] px-2 py-2 shadow-[0_0.5px_0_#a6a6aa] md:px-3">
 			<Link to={isClient ? '/orders' : '/work'} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-mint-600 hover:bg-black/5" aria-label={isClient ? 'Back to my orders' : 'Back to my work'}>
 				<Icon name="chevronLeft" size={22} />
@@ -86,6 +86,7 @@ export default function OrderDetail({ audience = 'client' }) {
 				<div className="truncate text-[12px] text-[#8e8e93]">{booking.booking_number} · {snapshot.title} · {variantLabel(snapshot, snapshot.option_group_label)}{Number(booking.quantity) > 1 ? ` × ${booking.quantity}` : ''}</div>
 			</div>
 			<StageBadge stage={booking.stage} />
+			{searchField}
 		</div>
 	)
 

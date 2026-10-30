@@ -39,6 +39,10 @@ router.get('/presence/:userId', controller.getPresence);
 
 // ── Admin: WhatsApp number management ────────────────────────────────────────
 // GET    /api/v1/chat/admin/wa-numbers
+// POST   /api/v1/chat/admin/rooms/:roomId/moderation — flag, unflag, warn, close or reopen
+router.post('/admin/rooms/:roomId/moderation', authorize('admin'), requirePermission('support.manage'), controller.moderateRoom);
+router.get('/admin/rooms/:roomId/moderation', authorize('admin'), requirePermission('support.manage'), controller.getModerationHistory);
+
 router.get('/admin/wa-numbers', authorize('admin'), requirePermission('support.manage'), controller.getWhatsAppNumbers);
 
 // POST   /api/v1/chat/admin/wa-numbers
