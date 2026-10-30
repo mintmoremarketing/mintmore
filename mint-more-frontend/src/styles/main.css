@@ -411,7 +411,8 @@ html.landing-scrollbar-hidden::-webkit-scrollbar {
   display: flex;
   align-items: center;
   padding: 0 28px;
-  height: 56px;
+  /* Matches the 64px the app shell reserves above the page, so no strip shows under it. */
+  height: 64px;
   gap: 16px;
   background: var(--paper);
   position: sticky;
