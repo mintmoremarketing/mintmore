@@ -10,6 +10,7 @@ import { timeAgo } from '../../utils/format'
 import { servicesApi } from '../../api/services'
 import OrderConversation from '../../components/services/OrderConversation'
 import OrderDetailsPane from '../../components/services/OrderDetailsPane'
+import InlineBriefEditor from '../../components/services/InlineBriefEditor'
 import RaiseIssueSheet from '../../components/support/RaiseIssueSheet'
 
 const fileNameFromUrl = (url = '') => {
@@ -51,6 +52,7 @@ function RoomOrderConversation({ bookingId, role, title, onBack }) {
 	const [detailsOpen, setDetailsOpen] = useState(false)
 	const [column, setColumn] = useState(readColumnPref)
 	const [issueOpen, setIssueOpen] = useState(false)
+	const [editingBrief, setEditingBrief] = useState(false)
 	const toggleDetails = () => {
 		if (!isWide()) { setDetailsOpen(true); return }
 		setColumn(prev => {
@@ -74,13 +76,21 @@ function RoomOrderConversation({ bookingId, role, title, onBack }) {
 	return (
 		<div className="relative flex min-h-0 flex-1">
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-		<OrderConversation
+		{editingBrief ? (
+			<InlineBriefEditor booking={booking} onBack={() => setEditingBrief(false)} onSaved={() => setEditingBrief(false)} />
+		) : <OrderConversation
 			booking={booking}
 			role={audience}
 			counterpartName={counterpart.name}
 			counterpartAvatar={counterpart.avatar}
 			onChanged={() => queryClient.invalidateQueries({ queryKey })}
 			className="h-full"
+			briefNotice={audience === 'client' && !booking.brief_complete && !['completed', 'cancelled'].includes(booking.stage) ? (
+				<div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3">
+					<div className="min-w-0 flex-1"><div className="text-sm font-medium text-ink-900">Your full brief is incomplete</div><p className="mt-0.5 text-sm text-ink-600">Your progress is saved. Continue your brief so your freelancer has the details to get started.</p></div>
+					<button type="button" onClick={() => setEditingBrief(true)} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-ink-900 px-3.5 text-sm font-medium text-white transition-transform hover:bg-ink-700 active:scale-[0.97]">Continue brief <Icon name="arrowRight" size={14} /></button>
+				</div>
+			) : null}
 			header={(
 				<header className="flex items-center gap-3 border-b border-ink-200 px-3 py-3 md:px-5">
 					<button type="button" className="icon-btn md:hidden" aria-label="Back to conversations" onClick={onBack}>
@@ -104,7 +114,7 @@ function RoomOrderConversation({ bookingId, role, title, onBack }) {
 					</button>
 				</header>
 			)}
-		/>
+		/>}
 		</div>
 		{/* Wide screens: the details stay open as a third column. */}
 		{column && <aside className="detail-column hidden w-[340px] shrink-0 overflow-y-auto border-l border-ink-200 xl:block" aria-label="Order details">{details}</aside>}
@@ -135,7 +145,9 @@ export default function Chat() {
 	const [attachmentUrl, setAttachmentUrl] = useState('')
 	const [showAttachment, setShowAttachment] = useState(false)
 	const [search, setSearch] = useState('')
+	const [chatSearch, setChatSearch] = useState('')
 	const [filter, setFilter] = useState('all')
+	const [editingPendingBrief, setEditingPendingBrief] = useState(false)
 	const navigate = useNavigate()
 
 	const { data: rooms = [], isLoading: roomsLoading } = useQuery({
@@ -143,6 +155,12 @@ export default function Chat() {
 		queryFn: () => chatApi.rooms().then(res => res.data?.data?.rooms || []),
 		refetchInterval: 60_000,
 	})
+	const { data: searchMessages = [] } = useQuery({
+		queryKey: ['chat-search', search.trim()],
+		queryFn: () => chatApi.search({ q: search.trim() }).then(res => res.data?.data?.messages || []),
+		enabled: search.trim().length >= 2,
+	})
+	const searchedRoomIds = useMemo(() => new Set(searchMessages.map(item => item.room_id)), [searchMessages])
 	const requestedJob = params.get('job')
 	const selectedId = params.get('room') || rooms.find(room => room.job_id === requestedJob)?.id || (requestedJob ? '' : rooms[0]?.id || '')
 	const selectedRoom = rooms.find(room => room.id === selectedId)
@@ -175,6 +193,11 @@ export default function Chat() {
 		refetchInterval: 60_000,
 	})
 	const messages = messageData?.messages || []
+	const { data: chatSearchResults = [] } = useQuery({
+		queryKey: ['chat-search-room', selectedId, chatSearch.trim()],
+		queryFn: () => chatApi.search({ q: chatSearch.trim(), room_id: selectedId }).then(res => res.data?.data?.messages || []),
+		enabled: Boolean(selectedId) && chatSearch.trim().length >= 2 && !selectedRoom?.booking_id,
+	})
 
 	useEffect(() => {
 		streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: 'smooth' })
@@ -197,9 +220,9 @@ export default function Chat() {
 		return rooms.filter(item => {
 			const done = DONE_STATUSES.includes(item.job_status)
 			if ((filter === 'active' && done) || (filter === 'completed' && !done)) return false
-			return !needle || [item.job_title, item.client_name, item.freelancer_name, item.last_message_preview].some(value => String(value || '').toLowerCase().includes(needle))
+			return !needle || [item.job_title, item.client_name, item.freelancer_name, item.last_message_preview].some(value => String(value || '').toLowerCase().includes(needle)) || searchedRoomIds.has(item.id)
 		})
-	}, [rooms, search, filter])
+	}, [rooms, search, filter, searchedRoomIds])
 
 	// Clients see every room as the same anonymous channel, so lead with the service instead.
 	const roomTitle = item => (role === 'client' ? item.job_title || roomLabel(item) : roomLabel(item))
@@ -285,14 +308,27 @@ export default function Chat() {
 					<RoomOrderConversation key={selectedRoom.id} bookingId={selectedRoom.booking_id} role={role} title={roomTitle(selectedRoom)} onBack={() => setParams({})} />
 				) : !selectedId && pendingBooking ? (
 					<div className="flex min-h-0 flex-1 flex-col xl:flex-row">
-						<div className="flex min-h-[280px] flex-1 flex-col">
+						{editingPendingBrief ? (
+							<InlineBriefEditor booking={pendingBooking} onBack={() => setEditingPendingBrief(false)} onSaved={() => setEditingPendingBrief(false)} />
+						) : <div className="flex min-h-[280px] flex-1 flex-col">
 							<header className="flex items-center gap-3 border-b border-ink-200 px-4 py-3">
 								<button type="button" className="icon-btn md:hidden" aria-label="Back to conversations" onClick={() => setParams({})}><Icon name="chevronLeft" size={18} /></button>
 								<span className="grid h-10 w-10 place-items-center rounded-full bg-ink-100 text-ink-600"><Icon name="clock" size={17} /></span>
 								<div className="min-w-0"><div className="truncate text-[16px] font-medium text-ink-900">{pendingBooking.snapshot?.title || 'Your order'}</div><div className="text-sm text-ink-500">{pendingBooking.booking_number} · Finding your freelancer</div></div>
 							</header>
-							<div className="grid flex-1 place-items-center px-6 py-12 text-center"><div><span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-ink-100 text-ink-500"><Icon name="clock" size={21} /></span><h2 className="mt-4 text-lg font-medium text-ink-900">Your brief is saved</h2><p className="mt-1 max-w-sm text-sm leading-relaxed text-ink-500">The order details are here while we find your freelancer. The conversation will open as soon as they’re assigned.</p></div></div>
-						</div>
+							<div className="grid flex-1 place-items-center px-6 py-12 text-center">
+								{pendingBooking.brief_complete ? (
+									<div><span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-ink-100 text-ink-500"><Icon name="clock" size={21} /></span><h2 className="mt-4 text-lg font-medium text-ink-900">Your brief is saved</h2><p className="mt-1 max-w-sm text-sm leading-relaxed text-ink-500">The order details are here while we find your freelancer. The conversation will open as soon as they’re assigned.</p></div>
+								) : (
+									<div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50/70 p-6">
+										<span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-white text-amber-700"><Icon name="file" size={20} /></span>
+										<h2 className="mt-4 text-lg font-medium text-ink-900">Your full brief is incomplete</h2>
+										<p className="mt-1 text-sm leading-relaxed text-ink-600">Your progress is saved. Add the remaining required details so your freelancer knows how to get started.</p>
+										<button type="button" onClick={() => setEditingPendingBrief(true)} className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-ink-900 px-5 text-[15px] font-medium text-white transition-transform hover:bg-ink-700 active:scale-[0.97]">Continue your brief <Icon name="arrowRight" size={16} /></button>
+									</div>
+								)}
+							</div>
+						</div>}
 						<aside className="min-h-0 w-full overflow-y-auto border-t border-ink-200 xl:w-[360px] xl:border-l xl:border-t-0" aria-label="Order details">
 							<OrderDetailsPane booking={pendingBooking} snapshot={pendingBooking.snapshot || {}} isClient counterpart={{ name: pendingBooking.freelancer_name, avatar: pendingBooking.freelancer_avatar, label: 'Your freelancer' }} embedded />
 						</aside>
@@ -317,9 +353,10 @@ export default function Chat() {
 							{room?.client_wa_number && <span className="hidden rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 sm:inline">WhatsApp connected</span>}
 							{role === 'admin' && <span className="rounded-md bg-ink-100 px-2 py-1 text-xs font-medium text-ink-600">Read only</span>}
 						</header>
+						<div className="border-b border-ink-100 px-3 py-2 md:px-5"><div className="relative max-w-sm"><Icon name="search" size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" /><input value={chatSearch} onChange={event => setChatSearch(event.target.value)} placeholder="Search this chat" aria-label="Search this chat" className="h-9 w-full rounded-full border border-ink-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-ink-400" /></div></div>
 
 						<div ref={streamRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-ink-50/50 px-3 py-5 md:px-6">
-							{messagesLoading ? (
+							{chatSearch.trim().length >= 2 ? chatSearchResults.length ? chatSearchResults.map(result => <div key={result.id} className="mx-auto max-w-xl rounded-xl border border-ink-200 bg-white px-3 py-2.5"><div className="mb-1 text-xs text-ink-500">{result.sender_role} · {timeAgo(result.created_at)}</div><p className="whitespace-pre-wrap text-sm text-ink-900">{result.content}</p></div>) : <div className="py-12 text-center text-sm text-ink-500">No messages found.</div> : messagesLoading ? (
 								<div className="text-sm text-ink-500">Loading messages…</div>
 							) : messages.length === 0 ? (
 								<div className="py-16 text-center">

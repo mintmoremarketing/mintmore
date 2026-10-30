@@ -37,7 +37,7 @@ function milestones(booking, isClient) {
 			at: booking.completed_at,
 			note: booking.completed_at
 				? (isClient ? null : 'Payout released to your wallet')
-				: booking.stage === 'approved' ? (isClient ? 'Complete & rate in the conversation to release payment' : 'Waiting for the client to complete') : null,
+				: booking.stage === 'approved' ? (isClient ? 'Complete & rate in the conversation to release the freelancer’s payment' : 'Your payout releases as soon as the client completes the order') : null,
 		},
 	]
 	const firstOpen = steps.findIndex(step => !step.at)

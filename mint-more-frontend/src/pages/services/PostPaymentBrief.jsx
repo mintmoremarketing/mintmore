@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { servicesApi } from '../../api/services'
@@ -18,6 +18,10 @@ export default function PostPaymentBrief() {
 	const [index, setIndex] = useState(0)
 	const [saving, setSaving] = useState(false)
 	const [saveError, setSaveError] = useState('')
+	const draftTimer = useRef(null)
+	const latestDraft = useRef(null)
+	const draftRequest = useRef(Promise.resolve())
+	const activeBookingId = useRef(null)
 
 	const { data: orders = [], isLoading, isError } = useQuery({
 		queryKey: ['post-payment-brief', bookingIds],
@@ -29,6 +33,26 @@ export default function PostPaymentBrief() {
 		enabled: bookingIds.length > 0,
 	})
 	const current = orders[index]
+	const flushDraft = useCallback(() => {
+		if (draftTimer.current) clearTimeout(draftTimer.current)
+		draftTimer.current = null
+		const pending = latestDraft.current
+		latestDraft.current = null
+		if (pending) {
+			draftRequest.current = draftRequest.current.catch(() => {}).then(() => servicesApi.updateBookingBrief(pending.bookingId, { ...pending.payload, draft: true }))
+		}
+		return draftRequest.current
+	}, [])
+	const queueDraft = useCallback((payload) => {
+		if (!activeBookingId.current) return
+		latestDraft.current = { bookingId: activeBookingId.current, payload }
+		if (draftTimer.current) clearTimeout(draftTimer.current)
+		draftTimer.current = setTimeout(() => { flushDraft().catch(() => {}) }, 650)
+	}, [flushDraft])
+	useEffect(() => {
+		activeBookingId.current = current?.booking?.id || null
+		return () => { flushDraft().catch(() => {}) }
+	}, [current?.booking?.id, flushDraft])
 
 	const saveBrief = async ({ brief, instructions }) => {
 		if (!current || saving) return
@@ -36,6 +60,7 @@ export default function PostPaymentBrief() {
 		setSaving(true)
 		setSaveError('')
 		try {
+			await flushDraft().catch(() => {})
 			await servicesApi.updateBookingBrief(booking.id, { brief, instructions })
 			const queuedFiles = Object.values(briefFiles.get(booking.variant_id)).flat()
 			let failedUploads = 0
@@ -94,7 +119,7 @@ export default function PostPaymentBrief() {
 		<div>
 			<div className="mx-auto w-full max-w-3xl px-4 pt-8 font-store md:px-8 md:pt-12">
 				<h1 className="text-3xl font-medium tracking-tight text-ink-900 md:text-[40px]">Your payment is complete</h1>
-				<p className="mt-2 text-[15px] leading-relaxed text-ink-600">Add the details your freelancer needs to get started. After you save, this order opens in chat.</p>
+				<p className="mt-2 text-[15px] leading-relaxed text-ink-600">Your progress saves as you go. Complete the required details now, or return to this brief from the order chat later.</p>
 				{orders.length > 1 && <p className="mt-3 text-sm font-medium text-ink-700">Service {index + 1} of {orders.length}</p>}
 				{saveError && <p role="alert" className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{saveError}</p>}
 			</div>
@@ -108,6 +133,7 @@ export default function PostPaymentBrief() {
 				initialNotes={booking.instructions || ''}
 				presentation="page"
 				submitting={saving}
+				onDraftChange={queueDraft}
 				submitLabel={saving ? 'Saving brief…' : isLast ? 'Save brief & open chat' : 'Save brief & continue'}
 				onSubmit={saveBrief}
 			/>

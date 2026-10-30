@@ -9,6 +9,13 @@ const getMyRooms = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const searchMessages = async (req, res, next) => {
+  try {
+    const messages = await chatService.searchMessages(req.user.sub, req.user.role, req.query.q, req.query.room_id);
+    return sendSuccess(res, { data: { messages } });
+  } catch (err) { next(err); }
+};
+
 const getRoom = async (req, res, next) => {
   try {
     const room = await chatService.getRoomById(
@@ -118,6 +125,7 @@ const upsertWhatsAppNumber = async (req, res, next) => {
 
 module.exports = {
   getMyRooms,
+  searchMessages,
   getRoom,
   getMessages,
   sendMessage,

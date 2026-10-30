@@ -22,6 +22,7 @@ const NOTIF_ICONS = {
 	revision_requested: 'refresh',
 	revision_delivered: 'upload',
 	work_delivered: 'upload',
+	delivery_approved: 'check',
 	mintbox_seen: 'eye',
 	assignment_declined: 'x',
 	kyc_approved: 'shield',
@@ -56,6 +57,7 @@ const NOTIF_COLORS = {
 	revision_requested: 'var(--amber)',
 	revision_delivered: 'var(--mint-600)',
 	work_delivered: 'var(--mint-600)',
+	delivery_approved: 'var(--mint-600)',
 	mintbox_seen: 'var(--ink-500)',
 	assignment_declined: 'var(--rose)',
 	kyc_approved: 'var(--mint-600)',
@@ -86,6 +88,7 @@ const JOB_TYPES = new Set([
 	'revision_requested',
 	'revision_delivered',
 	'work_delivered',
+	'delivery_approved',
 	'mintbox_seen',
 ])
 

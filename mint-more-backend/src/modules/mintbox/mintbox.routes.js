@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const controller = require('./mintbox.controller');
-const { authenticate } = require('../../middleware/authenticate');
-const { requireEntitlement } = require('../../middleware/permissions');
+const { authenticate, authorize } = require('../../middleware/authenticate');
+const { requireEntitlement, requirePermission } = require('../../middleware/permissions');
 
 const router = Router();
 
@@ -29,6 +29,9 @@ router.delete('/jobs/:jobId', controller.deleteProject);
 router.delete('/jobs/:jobId/categories/:category', controller.deleteCategory);
 router.post('/jobs/:jobId/uploads/prepare', controller.prepareUpload);
 router.post('/uploads/:uploadId/complete', controller.completeUpload);
+router.get('/first-drafts/mine', controller.listMyFirstDrafts);
+router.get('/admin/first-drafts', authorize('admin'), requirePermission('ops.manage'), controller.listAdminFirstDrafts);
+router.patch('/admin/first-drafts/:draftId', authorize('admin'), requirePermission('ops.manage'), controller.reviewFirstDraft);
 router.delete('/uploads/:uploadId', controller.cancelUpload);
 router.patch('/files/:fileId/review', controller.reviewFile);
 router.delete('/files/:fileId', controller.deleteFile);

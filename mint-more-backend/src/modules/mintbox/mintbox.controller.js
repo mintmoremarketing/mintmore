@@ -144,46 +144,12 @@ const getPublicFile = async (req, res, next) => {
 
 const streamPublicFile = async (req, res, next) => {
   try {
-    const { file, signedUrl } = await mintboxService.getPublicFileStream(req.params.token);
-    const range = req.headers.range;
-    const upstream = await fetch(signedUrl, {
-      headers: range ? { Range: range } : undefined,
-    });
-    if (!upstream.ok || !upstream.body) {
-      const logger = require('../../utils/logger');
-      const errText = await upstream.text().catch(() => '');
-      logger.error('Storage download failed in streamPublicFile', {
-        status: upstream.status,
-        statusText: upstream.statusText,
-        range,
-        errText,
-      });
-      throw new Error(`Storage download failed: ${upstream.status} ${upstream.statusText}`);
-    }
-
-    const contentLength = upstream.headers.get('content-length') || String(file.size_bytes);
-    const contentRange = upstream.headers.get('content-range');
-
-    if (upstream.status === 206) {
-      res.status(206);
-      if (contentRange) res.setHeader('Content-Range', contentRange);
-    }
-
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
-    res.setHeader('Content-Length', contentLength);
-    res.setHeader('Content-Disposition', `${req.query.download === '1' ? 'attachment' : 'inline'}; filename="${encodeURIComponent(file.original_name)}"`);
-    const { Readable } = require('stream');
-    const { pipeline } = require('stream/promises');
-    await pipeline(Readable.fromWeb(upstream.body), res);
+    const { signedUrl } = await mintboxService.getPublicFileStream(req.params.token);
+    // Let object storage serve range requests and video bytes directly rather than
+    // routing every playback/download byte through the API process.
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.redirect(302, signedUrl);
   } catch (err) {
-    if (res.headersSent) {
-      res.destroy(err);
-      return;
-    }
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     next(err);
   }
@@ -244,6 +210,27 @@ const completeUpload = async (req, res, next) => {
       req.user.role
     );
     return sendSuccess(res, { data: { file }, message: 'Work uploaded to Mintbox' });
+  } catch (err) { next(err); }
+};
+
+const listMyFirstDrafts = async (req, res, next) => {
+  try {
+    const drafts = await mintboxService.listMyFirstDrafts(req.user.sub);
+    return sendSuccess(res, { data: { drafts } });
+  } catch (err) { next(err); }
+};
+
+const listAdminFirstDrafts = async (req, res, next) => {
+  try {
+    const drafts = await mintboxService.listAdminFirstDrafts();
+    return sendSuccess(res, { data: { drafts } });
+  } catch (err) { next(err); }
+};
+
+const reviewFirstDraft = async (req, res, next) => {
+  try {
+    const result = await mintboxService.reviewFirstDraft(req.params.draftId, req.user.sub, req.body);
+    return sendSuccess(res, { data: { result }, message: 'First draft review saved' });
   } catch (err) { next(err); }
 };
 
@@ -341,6 +328,9 @@ module.exports = {
   prepareUpload,
   markSeen,
   completeUpload,
+  listMyFirstDrafts,
+  listAdminFirstDrafts,
+  reviewFirstDraft,
   cancelUpload,
   reviewFile,
   deleteFile,

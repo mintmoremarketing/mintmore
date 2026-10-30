@@ -2,6 +2,7 @@ import { api } from './client'
 
 export const chatApi = {
 	rooms: () => api.get('/chat/rooms'),
+	search: (params) => api.get('/chat/search', { params }),
 	room: (roomId) => api.get(`/chat/rooms/${roomId}`),
 	messages: (roomId, params) => api.get(`/chat/rooms/${roomId}/messages`, { params }),
 	send: (roomId, data) => api.post(`/chat/rooms/${roomId}/messages`, data),

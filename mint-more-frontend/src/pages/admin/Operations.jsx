@@ -13,6 +13,7 @@ import { statusAccent } from '../../components/ui/statusMeta'
 import StatusSelect from '../../components/ui/StatusSelect'
 import AdminRejectModal from '../../components/admin/AdminRejectModal'
 import AdminDirectUploadModal from '../../components/admin/AdminDirectUploadModal'
+import { mintboxApi } from '../../api/mintbox'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const monthKey = (date = today()) => String(date || today()).slice(0, 7)
@@ -68,7 +69,7 @@ export default function AdminOperations() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const rawTab = searchParams.get('tab')
-  const validTabs = ['review', 'clients', 'tasks', 'requests', 'calendar', 'selections']
+  const validTabs = ['first-drafts', 'review', 'clients', 'tasks', 'requests', 'calendar', 'selections']
   const tab = validTabs.includes(rawTab) ? rawTab : 'review'
 
   const handleTabChange = (newTab) => {
@@ -114,6 +115,18 @@ export default function AdminOperations() {
     queryFn: () => creativeApi.getAdminReviewQueue().then(r => r.data?.data?.queue || r.data?.queue || []),
   })
   const reviewQueue = Array.isArray(reviewQueueData) ? reviewQueueData : []
+
+  const { data: firstDrafts = [], refetch: refetchFirstDrafts } = useQuery({
+    queryKey: ['admin-first-drafts'],
+    queryFn: () => mintboxApi.adminFirstDrafts().then(response => response.data?.data?.drafts || []),
+    refetchInterval: 30_000,
+  })
+  const reviewFirstDraft = useMutation({
+    mutationFn: ({ id, action, note }) => mintboxApi.reviewFirstDraft(id, { action, note }),
+    onSuccess: () => { refetchFirstDrafts(); queryClient.invalidateQueries({ queryKey: ['chat-rooms'] }); pushToast({ title: 'First draft review saved', icon: 'check' }) },
+    onError: error => pushToast({ title: 'Could not review first draft', body: error.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+  })
+  const [firstDraftNotes, setFirstDraftNotes] = useState({})
 
   // Admin clients query
   const { data: clientsData, isLoading: isLoadingClients } = useQuery({
@@ -505,6 +518,7 @@ export default function AdminOperations() {
         value={tab}
         onChange={handleTabChange}
         items={[
+          { value: 'first-drafts', label: 'First drafts', count: firstDrafts.length },
           { value: 'review', label: 'Review queue', count: reviewQueue.length },
           { value: 'clients', label: 'Client assignments', count: unassignedClientsCount ? `${unassignedClientsCount} unassigned` : clients.length },
           { value: 'tasks', label: 'Tasks', count: tasks.length },
@@ -515,6 +529,16 @@ export default function AdminOperations() {
       />
 
       <div className="mt-4">
+        {tab === 'first-drafts' && (
+          <div className="grid gap-5">
+            {firstDrafts.length === 0 ? <div className="rounded-3xl border border-ink-200 bg-white p-12 text-center text-ink-500">No first drafts are waiting for review.</div> : firstDrafts.map(draft => (
+              <article key={draft.id} className="grid gap-4 rounded-3xl border border-ink-200 bg-white p-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div><div className="text-lg font-semibold text-ink-950">{draft.job_title}</div><p className="mt-1 text-sm text-ink-600">{draft.freelancer_name} · {draft.original_name} · {(Number(draft.size_bytes) / 1024 / 1024).toFixed(1)} MB</p><video src={draft.preview_url} controls preload="metadata" className="mt-4 max-h-[520px] w-full rounded-2xl bg-black" /></div>
+                <div className="flex flex-col gap-3"><label className="text-sm font-medium text-ink-800">Feedback for freelancer<textarea value={firstDraftNotes[draft.id] || ''} onChange={event => setFirstDraftNotes(current => ({ ...current, [draft.id]: event.target.value }))} rows={4} className="mt-1.5 w-full rounded-xl border border-ink-200 p-3 text-sm" placeholder="Required when requesting changes" /></label><button type="button" disabled={reviewFirstDraft.isPending} onClick={() => reviewFirstDraft.mutate({ id: draft.id, action: 'approve' })} className="h-10 rounded-xl bg-ink-950 px-4 text-sm font-semibold text-white disabled:opacity-50">Approve and show client</button><button type="button" disabled={reviewFirstDraft.isPending || !(firstDraftNotes[draft.id] || '').trim()} onClick={() => reviewFirstDraft.mutate({ id: draft.id, action: 'changes_requested', note: firstDraftNotes[draft.id] })} className="h-10 rounded-xl border border-ink-200 px-4 text-sm font-semibold text-ink-900 disabled:opacity-50">Request changes</button></div>
+              </article>
+            ))}
+          </div>
+        )}
         {/* ── TAB 1: PENDING REVIEW QUEUE ── */}
         {tab === 'review' && (
           <div className="flex flex-col gap-6">

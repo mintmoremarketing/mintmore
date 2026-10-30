@@ -115,13 +115,38 @@ function SendSheet({ items, setItems, onSend, onCancel, onAddMore, hint, sendLab
  * Message box for an order conversation: text, plus files that open a preview
  * sheet with captions before they are sent. Files can also be dropped or pasted.
  */
-export default function ConversationComposer({ placeholder, canAttach, attachDisabledReason, attachHint, sendLabel = 'Send', onSendText, onSendFiles, sending, dropTarget, editing = null, onSaveEdit, onCancelEdit }) {
+export default function ConversationComposer({ placeholder, canAttach, firstDraftMode = false, onSendFirstDraft, attachDisabledReason, attachHint, sendLabel = 'Send', onSendText, onSendFiles, sending, dropTarget, editing = null, onSaveEdit, onCancelEdit }) {
 	const inputRef = useRef(null)
+	const draftInputRef = useRef(null)
+	const plusButtonRef = useRef(null)
+	const attachMenuRef = useRef(null)
+	const firstDraftOptionRef = useRef(null)
 	const textRef = useRef(null)
 	const [draft, setDraft] = useState('')
 	const draftBlocked = findContactInfo(draft).blocked
 	const [items, setItems] = useState([])
+	const [showAttachMenu, setShowAttachMenu] = useState(false)
 	const parkedDraft = useRef('')
+
+	useEffect(() => {
+		if (!showAttachMenu) return undefined
+		firstDraftOptionRef.current?.focus()
+		const dismiss = (event) => {
+			if (event.type === 'keydown' && event.key === 'Escape') {
+				event.preventDefault()
+				setShowAttachMenu(false)
+				plusButtonRef.current?.focus()
+			} else if (event.type === 'pointerdown' && !attachMenuRef.current?.contains(event.target)) {
+				setShowAttachMenu(false)
+			}
+		}
+		document.addEventListener('pointerdown', dismiss)
+		document.addEventListener('keydown', dismiss)
+		return () => {
+			document.removeEventListener('pointerdown', dismiss)
+			document.removeEventListener('keydown', dismiss)
+		}
+	}, [showAttachMenu])
 
 	// Editing loads the message into the box; leaving edit mode brings back what was being typed.
 	const editingId = editing?.id
@@ -199,17 +224,60 @@ export default function ConversationComposer({ placeholder, canAttach, attachDis
 					</div>
 				)}
 				<div className="flex items-end gap-2">
+					<div className="relative">
 					<button
+						ref={plusButtonRef}
 						type="button"
-						onClick={() => inputRef.current?.click()}
-						disabled={!canAttach || Boolean(editing)}
-						title={canAttach ? 'Attach files' : attachDisabledReason}
-						aria-label="Attach files"
-						className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-mint-600 transition-colors hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40"
+						onClick={() => firstDraftMode ? setShowAttachMenu(value => !value) : inputRef.current?.click()}
+						disabled={(!canAttach && !firstDraftMode) || Boolean(editing)}
+						title={canAttach || firstDraftMode ? 'Add to chat' : attachDisabledReason}
+						aria-label={firstDraftMode ? 'More chat options' : 'Attach files'}
+						aria-haspopup={firstDraftMode ? 'menu' : undefined}
+						aria-expanded={firstDraftMode ? showAttachMenu : undefined}
+						className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-mint-600 transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-black/5 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
 					>
-						<Icon name="plus" size={22} />
+						<Icon name={showAttachMenu ? 'x' : 'plus'} size={showAttachMenu ? 18 : 22} />
 					</button>
+					{firstDraftMode && (
+						<div
+							ref={attachMenuRef}
+							role="menu"
+							aria-label="Chat attachments"
+							aria-hidden={!showAttachMenu}
+							className={`absolute bottom-[calc(100%+10px)] left-0 z-30 w-[min(288px,calc(100vw-32px))] origin-bottom-left rounded-2xl border border-ink-200 bg-white p-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.14)] transition-[opacity,transform,visibility] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none ${showAttachMenu ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible translate-y-1 scale-[0.98] opacity-0'}`}
+						>
+							<button
+								ref={firstDraftOptionRef}
+								type="button"
+								role="menuitem"
+								tabIndex={showAttachMenu ? 0 : -1}
+								onClick={() => { setShowAttachMenu(false); plusButtonRef.current?.focus(); draftInputRef.current?.click() }}
+								className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-500 active:scale-[0.97]"
+							>
+								<span className="min-w-0 flex-1">
+									<span className="flex items-center gap-2 text-sm font-semibold text-ink-950">Send first draft <span className="rounded-md bg-ink-100 px-1.5 py-0.5 text-[11px] font-medium text-ink-700">MP4</span></span>
+									<span className="mt-0.5 block text-xs leading-4 text-ink-600">CREATYV reviews it before the client can see it.</span>
+								</span>
+							</button>
+							{canAttach && (
+								<button
+									type="button"
+									role="menuitem"
+									tabIndex={showAttachMenu ? 0 : -1}
+									onClick={() => { setShowAttachMenu(false); plusButtonRef.current?.focus(); inputRef.current?.click() }}
+									className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-500 active:scale-[0.97]"
+								>
+									<span className="min-w-0 flex-1">
+										<span className="block text-sm font-semibold text-ink-950">Send files</span>
+										<span className="mt-0.5 block text-xs leading-4 text-ink-600">Designs, documents and other non-video work.</span>
+									</span>
+								</button>
+							)}
+						</div>
+					)}
+					{firstDraftMode && <input ref={draftInputRef} type="file" accept="video/mp4,.mp4" className="hidden" onChange={e => { onSendFirstDraft?.(Array.from(e.target.files || [])); e.target.value = '' }} />}
 					<input ref={inputRef} type="file" multiple className="hidden" onChange={e => addFiles(e.target.files)} />
+					</div>
 					<textarea
 						ref={textRef}
 						rows={1}

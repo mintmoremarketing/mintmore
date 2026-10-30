@@ -42,7 +42,7 @@ function FilesInput({ id, files, onChange, names, alreadyUploaded = false }) {
  * The client brief form. Cart files stay in memory until payment; the post-payment
  * page uploads its selected files into the order before opening the order chat.
  */
-export default function BriefSheet({ title, fields, variantId, initial = {}, initialNotes = '', submitLabel = 'Continue', description, presentation = 'sheet', submitting = false, onSubmit, onClose }) {
+export default function BriefSheet({ title, fields, variantId, initial = {}, initialNotes = '', submitLabel = 'Continue', description, presentation = 'sheet', submitting = false, onDraftChange, onSubmit, onClose }) {
 	const [answers, setAnswers] = useState(() => ({ ...initial }))
 	const [files, setFiles] = useState(() => ({ ...briefFiles.get(variantId) }))
 	const [notes, setNotes] = useState(initialNotes)
@@ -57,7 +57,22 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 		return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = overflow }
 	}, [onClose, presentation])
 
-	const set = (key, value) => setAnswers(a => ({ ...a, [key]: value }))
+	const set = (key, value) => {
+		const next = { ...answers, [key]: value }
+		setAnswers(next)
+		const brief = Object.fromEntries(fields.filter(field => field.type !== 'files').map(field => [field.key, String(next[field.key] ?? '').trim()]))
+		onDraftChange?.({ brief, instructions: notes.trim() })
+	}
+	const updateFiles = (key, list) => {
+		const next = { ...files, [key]: list }
+		setFiles(next)
+		briefFiles.set(variantId, next)
+	}
+	const updateNotes = (value) => {
+		setNotes(value)
+		const brief = Object.fromEntries(fields.filter(field => field.type !== 'files').map(field => [field.key, String(answers[field.key] ?? '').trim()]))
+		onDraftChange?.({ brief, instructions: value.trim() })
+	}
 	const problem = (f) => {
 		if (f.type === 'files') return f.required && !(files[f.key] || []).length && !(initial[f.key] || []).length ? 'Attach at least one file' : null
 		const value = String(answers[f.key] ?? '').trim()
@@ -123,14 +138,14 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 										))}
 									</div>
 								)}
-								{f.type === 'files' && <FilesInput id={id} files={files[f.key] || []} names={initial[f.key] || []} alreadyUploaded={isPage} onChange={list => setFiles(s => ({ ...s, [f.key]: list }))} />}
+								{f.type === 'files' && <FilesInput id={id} files={files[f.key] || []} names={initial[f.key] || []} alreadyUploaded={isPage} onChange={list => updateFiles(f.key, list)} />}
 								{error && <p className="mt-1.5 text-sm text-rose-600">{error}</p>}
 							</div>
 						)
 					})}
 					<div>
 						<label htmlFor="brief-notes" className="mb-1.5 flex items-baseline gap-1.5 text-[15px] font-medium text-ink-900">Anything else <span className="text-sm font-normal text-ink-400">Optional</span></label>
-						<textarea id="brief-notes" rows={2} className={`${inputCls} resize-y leading-6`} value={notes} onChange={e => setNotes(e.target.value)} />
+						<textarea id="brief-notes" rows={2} className={`${inputCls} resize-y leading-6`} value={notes} onChange={e => updateNotes(e.target.value)} />
 					</div>
 				</div>
 

@@ -114,6 +114,7 @@ const ICONS = {
     arrowLeft: RiArrowLeftLine,
     arrowUpRight: RiArrowRightUpLine,
     check: RiCheckLine,
+    checks: RiCheckDoubleFill,
     x: RiCloseLine,
     chevronDown: RiArrowDownSLine,
     chevronLeft: RiArrowLeftSLine,

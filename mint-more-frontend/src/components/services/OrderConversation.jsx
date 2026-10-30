@@ -9,6 +9,7 @@ import Modal from '../ui/Modal'
 import Icon from '../ui/Icon'
 import Avatar from '../ui/Avatar'
 import ConversationComposer from './ConversationComposer'
+import MessageMediaGallery from './MessageMediaGallery'
 
 const RATING_FIELDS = [
 	['rating_quality', 'Quality of work'],
@@ -243,7 +244,7 @@ function MessageMenu({ menu, onCopy, onEdit, onClose }) {
  * The order as one conversation: messages, client references and freelancer
  * deliveries in a single timeline, with review actions on the deliveries.
  */
-export default function OrderConversation({ booking, role, counterpartName, counterpartAvatar, onChanged, header = null, className = '' }) {
+export default function OrderConversation({ booking, role, counterpartName, counterpartAvatar, onChanged, header = null, briefNotice = null, className = '' }) {
 	const queryClient = useQueryClient()
 	const pushToast = useUIStore(s => s.pushToast)
 	const streamRef = useRef(null)
@@ -259,6 +260,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 	const [reviewText, setReviewText] = useState('')
 	const [menu, setMenu] = useState(null)
 	const [editing, setEditing] = useState(null)
+	const [chatSearch, setChatSearch] = useState('')
 	const closeMenu = useCallback(() => setMenu(null), [])
 
 	const roomId = booking.room_id
@@ -274,6 +276,18 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 		refetchInterval: 5_000,
 	})
 	const messages = useMemo(() => data?.messages || [], [data])
+	const { data: firstDraftData } = useQuery({
+		queryKey: ['my-first-drafts', jobId],
+		queryFn: () => mintboxApi.myFirstDrafts().then(res => res.data?.data?.drafts || []),
+		enabled: role === 'freelancer' && Boolean(jobId),
+		refetchInterval: 15_000,
+	})
+	const firstDrafts = (firstDraftData || []).filter(item => item.job_id === jobId)
+	const { data: chatSearchResults = [] } = useQuery({
+		queryKey: ['chat-search-room', roomId, chatSearch.trim()],
+		queryFn: () => chatApi.search({ q: chatSearch.trim(), room_id: roomId }).then(res => res.data?.data?.messages || []),
+		enabled: Boolean(roomId) && chatSearch.trim().length >= 2,
+	})
 
 	// Number the freelancer's deliveries v1, v2… in the order they were sent.
 	const { versions, latestDelivery } = useMemo(() => {
@@ -327,7 +341,15 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 		pushToast({ title: 'Message copied', icon: 'check' })
 	}
 
-	const sendFiles = async (items) => {
+	const sendFiles = async (incoming) => {
+		// Video work reaches the client only through a reviewed first draft.
+		const videos = isClient ? [] : incoming.filter(item => item.kind === 'video' || (item.file.type || '').startsWith('video/'))
+		if (videos.length) {
+			videos.forEach(item => URL.revokeObjectURL(item.url))
+			pushToast({ title: 'Send videos as a first draft', body: 'Use + then Send first draft so CREATYV can review it first.', tone: 'amber', icon: 'x' })
+		}
+		const items = incoming.filter(item => !videos.includes(item))
+		if (!items.length) return
 		setPending(list => [...list, ...items.map(item => ({ ...item, progress: 0, status: 'uploading' }))])
 		for (const item of items) {
 			const type = item.file.type || 'application/octet-stream'
@@ -352,6 +374,30 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 			}
 		}
 		refreshAll()
+	}
+
+	const sendFirstDraft = async (files) => {
+		const file = files[0]
+		if (!file) return
+		if (files.length !== 1 || file.type !== 'video/mp4' || !file.name.toLowerCase().endsWith('.mp4')) {
+			pushToast({ title: 'MP4 required', body: 'Send one MP4 video as your first draft.', tone: 'amber', icon: 'x' })
+			return
+		}
+		const pendingItem = { id: `first-draft-${Date.now()}`, file, kind: 'video', url: URL.createObjectURL(file), progress: 0, status: 'uploading' }
+		setPending(list => [...list, pendingItem])
+		try {
+			const prepared = await mintboxApi.prepareUpload(jobId, { name: file.name, size: file.size, type: file.type, purpose: 'first_draft' })
+			const config = prepared.data?.data?.upload
+			await uploadMintboxFile({ file, config, fileType: file.type, onProgress: (done, total) => setPending(list => list.map(item => item.id === pendingItem.id ? { ...item, progress: Math.round((done / total) * 100) } : item)) })
+			await mintboxApi.completeUpload(config.upload_id)
+			setPending(list => list.filter(item => item.id !== pendingItem.id))
+			URL.revokeObjectURL(pendingItem.url)
+			await queryClient.invalidateQueries({ queryKey: ['my-first-drafts', jobId] })
+			pushToast({ title: 'First draft submitted', body: 'It is private while CREATYV reviews it. The client can’t see it yet.', icon: 'check' })
+		} catch (error) {
+			setPending(list => list.map(item => item.id === pendingItem.id ? { ...item, status: 'failed' } : item))
+			pushToast({ title: 'First draft not submitted', body: error.response?.data?.message || error.message || 'Try again', tone: 'amber', icon: 'x' })
+		}
 	}
 
 	const review = useMutation({
@@ -387,25 +433,41 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 	const revisionsLeft = Number(booking.revisions_left ?? 0)
 	const awaitingReview = isClient && !completed && latestDelivery?.file_status === 'submitted'
 	const readyToComplete = isClient && !completed && latestDelivery?.file_status === 'approved'
+	const payoutWaitingOnClient = !isClient && booking.stage === 'approved' && latestDelivery?.file_status === 'approved'
 	const revisionOpen = !isClient && !completed && latestDelivery?.file_status === 'revision_requested'
 	const canAttach = !completed
+	const firstDraftMode = !completed && role === 'freelancer'
 	const attachHint = isClient
 		? 'Files you send here are shared with your freelancer as references.'
-		: `Each file is sent as a delivery the client can approve or send back. ${revisionsLeft} of ${booking.revisions_included} revisions left.`
+		: `Each file is sent as a delivery the client can approve or send back. Videos go through Send first draft. ${revisionsLeft} of ${booking.revisions_included} revisions left.`
 
 	// Timeline rows with day separators.
 	const rows = []
 	let lastDay = null
-	for (const m of messages) {
+	for (let index = 0; index < messages.length; index += 1) {
+		const m = messages[index]
 		const day = new Date(m.created_at).toDateString()
 		if (day !== lastDay) { rows.push({ type: 'day', key: `day-${day}`, label: dayLabel(m.created_at) }); lastDay = day }
-		rows.push({ type: 'message', key: m.id, message: m })
+		const isClientMedia = m.sender_role === 'client' && m.file_purpose === 'brief' && /^(image|video)\//.test(m.file_mime || '')
+		if (isClientMedia) {
+			const grouped = [m]
+			while (index + 1 < messages.length) {
+				const next = messages[index + 1]
+				const closeInTime = new Date(next.created_at).getTime() - new Date(grouped[grouped.length - 1].created_at).getTime() <= 5 * 60 * 1000
+				if (next.sender_role !== 'client' || next.file_purpose !== 'brief' || !/^(image|video)\//.test(next.file_mime || '') || !closeInTime || new Date(next.created_at).toDateString() !== day) break
+				grouped.push(next)
+				index += 1
+			}
+			rows.push({ type: 'gallery', key: `gallery-${m.id}`, messages: grouped })
+		} else rows.push({ type: 'message', key: m.id, message: m })
 	}
 	// A bubble gets its tail when it ends a run from the same sender on the same day.
 	rows.forEach((row, i) => {
-		if (row.type !== 'message') return
+		if (row.type !== 'message' && row.type !== 'gallery') return
 		const next = rows[i + 1]
-		row.tail = !next || next.type !== 'message' || next.message.sender_role !== row.message.sender_role
+		const sender = row.type === 'gallery' ? 'client' : row.message.sender_role
+		const nextSender = next?.type === 'gallery' ? 'client' : next?.message?.sender_role
+		row.tail = !next || !['message', 'gallery'].includes(next.type) || nextSender !== sender
 	})
 
 	const renderMessage = (m, tail) => {
@@ -490,21 +552,49 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 					</div>
 				</div>
 			)}
+			<div className="border-b border-ink-100 px-3 py-2 md:px-4">
+				<div className="relative max-w-sm">
+					<Icon name="search" size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+					<input value={chatSearch} onChange={event => setChatSearch(event.target.value)} placeholder="Search this chat" aria-label="Search this chat" className="h-9 w-full rounded-full border border-ink-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-ink-400" />
+				</div>
+			</div>
 
-			{(awaitingReview || readyToComplete || revisionOpen) && (
-				<div className={`flex items-center gap-3 border-b px-4 py-2.5 text-sm ${readyToComplete ? 'border-emerald-100 bg-emerald-50 text-emerald-900' : revisionOpen ? 'border-violet-100 bg-violet-50 text-violet-900' : 'border-amber-100 bg-amber-50 text-amber-900'}`}>
-					<Icon name={readyToComplete ? 'checkCircle' : revisionOpen ? 'refresh' : 'eye'} size={16} className="shrink-0" />
+			{readyToComplete ? (
+				<section className="flex flex-col gap-4 border-b border-emerald-200 bg-emerald-50 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
+					<div className="flex min-w-0 items-start gap-3">
+						<Icon name="checkCircle" size={21} className="mt-0.5 shrink-0 text-emerald-700" />
+						<div className="min-w-0">
+							<h2 className="text-base font-semibold text-ink-900 md:text-lg">Release the freelancer&apos;s payment</h2>
+							<p className="mt-1 text-sm leading-5 text-ink-700">Your approval is saved. Complete the order and rate your freelancer to release their payout.</p>
+						</div>
+					</div>
+					<button type="button" onClick={() => setShowRating(true)} className="min-h-11 shrink-0 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition-transform duration-150 hover:bg-ink-700 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-500 focus-visible:ring-offset-2">
+						Complete order &amp; rate
+					</button>
+				</section>
+			) : payoutWaitingOnClient ? (
+				<section className="flex items-start gap-3 border-b border-emerald-200 bg-emerald-50 px-4 py-4 md:px-6" role="status">
+					<Icon name="checkCircle" size={21} className="mt-0.5 shrink-0 text-emerald-700" />
+					<div className="min-w-0">
+						<h2 className="text-base font-semibold text-ink-900">The client approved your delivery</h2>
+						<p className="mt-1 text-sm leading-5 text-ink-700">Your payout is released to your wallet as soon as the client completes the order.</p>
+					</div>
+				</section>
+			) : (awaitingReview || revisionOpen) ? (
+				<div className={`flex items-center gap-3 border-b px-4 py-2.5 text-sm ${revisionOpen ? 'border-violet-100 bg-violet-50 text-violet-900' : 'border-amber-100 bg-amber-50 text-amber-900'}`}>
+					<Icon name={revisionOpen ? 'refresh' : 'eye'} size={16} className="shrink-0" />
 					<span className="min-w-0 flex-1">
-						{readyToComplete && 'You approved the latest version. Complete the order to release payment.'}
 						{awaitingReview && `v${versions[latestDelivery.file_id]} is ready for your review.`}
 						{revisionOpen && `Changes requested on v${versions[latestDelivery.file_id]}. Send the updated file here.`}
 					</span>
-					{readyToComplete && <button type="button" onClick={() => setShowRating(true)} className="h-8 shrink-0 rounded-lg bg-ink-900 px-3 text-xs font-semibold text-white hover:bg-ink-700">Complete &amp; rate</button>}
 				</div>
-			)}
+			) : null}
+			{briefNotice}
 
 			<div ref={streamRef} className="conversation-stream min-h-0 flex-1 overflow-y-auto px-2 py-3 md:px-6">
-				{isLoading ? (
+				{chatSearch.trim().length >= 2 ? (
+					chatSearchResults.length ? <div className="mx-auto w-full max-w-xl space-y-2">{chatSearchResults.map(result => <div key={result.id} className="rounded-xl border border-ink-200 bg-white px-3 py-2.5"><div className="mb-1 text-xs text-ink-500">{result.sender_role === 'client' ? 'Client' : result.sender_role === 'system' ? 'CREATYV' : 'Freelancer'} · {dayLabel(result.created_at)} {clock(result.created_at)}</div><p className="whitespace-pre-wrap text-sm text-ink-900">{result.content}</p></div>)}</div> : <div className="py-12 text-center text-sm text-ink-500">No messages found.</div>
+				) : isLoading ? (
 					<div className="py-10 text-center text-sm text-ink-500">Loading conversation…</div>
 				) : rows.length === 0 && !pending.length ? (
 					<div className="py-16 text-center">
@@ -514,6 +604,8 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 				) : rows.map(row => (
 					row.type === 'day'
 						? <div key={row.key} className="flex justify-center py-2"><span className="rounded-lg bg-[#dddde9] px-2.5 py-[3px] text-[12px] text-[#3c3c43] shadow-[0_-0.4px_0_#eeeef4,0_0.4px_0_rgba(98,98,98,0.2)]">{row.label}</span></div>
+					: row.type === 'gallery'
+						? <MessageMediaGallery key={row.key} messages={row.messages} mine={isClient} time={clock(row.messages.at(-1).created_at)} receipt={isClient ? receiptOf(row.messages.at(-1), role) : null} tail={row.tail} />
 						: <div key={row.key}>{renderMessage(row.message, row.tail)}</div>
 				))}
 				{pending.map(item => (
@@ -532,15 +624,20 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 						)}
 					</Bubble>
 				))}
+				{firstDrafts.filter(item => item.status !== 'approved').map(item => (
+					<div key={item.id} className="my-2 flex justify-end"><div className={`max-w-sm rounded-2xl border px-4 py-3 text-sm ${item.status === 'pending' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-violet-200 bg-violet-50 text-violet-900'}`}><div className="font-semibold">{item.status === 'pending' ? 'First draft pending approval' : 'Changes requested on first draft'}</div><div className="mt-1">{item.original_name}</div>{item.review_note && <p className="mt-2 whitespace-pre-wrap">{item.review_note}</p>}</div></div>
+				))}
 			</div>
 
 			<ConversationComposer
 				dropTarget={shellRef}
 				placeholder={isClient ? 'Message your freelancer' : `Message ${counterpartName || 'the client'}`}
 				canAttach={canAttach}
-				attachDisabledReason="This order is complete"
+				firstDraftMode={firstDraftMode}
+				onSendFirstDraft={sendFirstDraft}
+				attachDisabledReason={completed ? 'This order is complete' : 'Freelancers can submit MP4 first drafts for review'}
 				attachHint={attachHint}
-				sendLabel={isClient ? 'Send' : 'Send delivery'}
+				sendLabel="Send"
 				sending={sendText.isPending}
 				onSendText={content => sendText.mutateAsync(content)}
 				onSendFiles={sendFiles}

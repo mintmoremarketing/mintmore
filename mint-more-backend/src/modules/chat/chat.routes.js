@@ -10,6 +10,7 @@ router.use(authenticate);
 // ── Chat rooms ────────────────────────────────────────────────────────────────
 // GET    /api/v1/chat/rooms                    — list my rooms
 router.get('/rooms', requirePermissionIfAdmin('support.manage'), controller.getMyRooms);
+router.get('/search', requirePermissionIfAdmin('support.manage'), controller.searchMessages);
 
 // GET    /api/v1/chat/rooms/:roomId            — room detail
 router.get('/rooms/:roomId', requirePermissionIfAdmin('support.manage'), controller.getRoom);

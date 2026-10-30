@@ -645,7 +645,12 @@ const deleteBrandFile = async (fileId, requesterId, role) => {
 
 const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, purpose = 'delivery' } = {}) => {
   if (!['client', 'freelancer', 'designer'].includes(role)) throw new AppError('Only project participants can upload files', 403);
-  const uploadPurpose = role === 'client' ? 'brief' : 'delivery';
+  const isFirstDraft = role === 'freelancer' && purpose === 'first_draft';
+  if (purpose === 'first_draft' && !isFirstDraft) throw new AppError('Only freelancers can submit a first draft', 403);
+  if (isFirstDraft && (String(type).toLowerCase() !== 'video/mp4' || path.extname(String(name || '')).toLowerCase() !== '.mp4')) {
+    throw new AppError('First drafts must be MP4 video files', 422);
+  }
+  const uploadPurpose = role === 'client' ? 'brief' : isFirstDraft ? 'first_draft' : 'delivery';
   validateMintboxFile({ name, size, type });
   if (note) assertNoContactInfo(note, { userId: uploaderId, role, where: 'file_caption' });
   // File names show in the chat too: "call_raj_98765_43210.pdf".
@@ -655,6 +660,9 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
   try {
     await dbClient.query('BEGIN');
     const job = await getJobForAccess(jobId, uploaderId, role, dbClient);
+    if (role === 'freelancer' && !isFirstDraft && String(type || '').toLowerCase().startsWith('video/')) {
+      throw new AppError('Use Send first draft to submit video work for review', 403);
+    }
     if (role === 'freelancer' && !['assigned', 'in_progress'].includes(job.status)) {
       throw new AppError('Work can only be submitted after the assignment starts', 400);
     }
@@ -689,8 +697,11 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
       `SELECT COALESCE(SUM(size_bytes), 0)::BIGINT AS reserved
        FROM mintbox_upload_sessions
        WHERE client_id = $1
-         AND status = 'pending'
-         AND expires_at > NOW()`,
+         AND ((status = 'pending' AND expires_at > NOW())
+           OR id IN (
+             SELECT upload_id FROM service_draft_submissions
+             WHERE status IN ('pending', 'changes_requested')
+           ))`,
       [job.client_id]
     );
     const reserved = Number(reservedResult.rows[0]?.reserved || 0);
@@ -768,6 +779,14 @@ const completeUpload = async (uploadId, uploaderId, role) => {
     const session = sessionResult.rows[0];
     if (!session) throw new AppError('Upload session not found', 404);
     if (session.status === 'completed') {
+      if (session.purpose === 'first_draft') {
+        const draft = await dbClient.query(
+          'SELECT status FROM service_draft_submissions WHERE upload_id = $1',
+          [session.id]
+        );
+        await dbClient.query('COMMIT');
+        return { pending_approval: draft.rows[0]?.status === 'pending', upload_id: session.id, status: draft.rows[0]?.status || 'pending' };
+      }
       const existing = await dbClient.query(
         'SELECT * FROM mintbox_files WHERE storage_path = $1',
         [session.storage_path]
@@ -788,6 +807,26 @@ const completeUpload = async (uploadId, uploaderId, role) => {
 
     const exists = await storage.objectExists(session.storage_path);
     if (!exists) throw new AppError('Upload has not finished yet', 409);
+
+    if (session.purpose === 'first_draft') {
+      const signedUrl = await storage.createDownloadUrl(session.storage_path, 60);
+      const preview = await fetch(signedUrl, { headers: { Range: 'bytes=0-15' } });
+      const header = preview.ok ? Buffer.from(await preview.arrayBuffer()) : Buffer.alloc(0);
+      if (header.length < 8 || header.toString('ascii', 4, 8) !== 'ftyp') {
+        throw new AppError('The uploaded file is not a valid MP4 video', 422);
+      }
+      await dbClient.query(
+        `INSERT INTO service_draft_submissions (upload_id, job_id, freelancer_id)
+         VALUES ($1, $2, $3) ON CONFLICT (upload_id) DO NOTHING`,
+        [session.id, session.job_id, session.uploaded_by]
+      );
+      await dbClient.query(
+        `UPDATE mintbox_upload_sessions SET status = 'completed', completed_at = NOW() WHERE id = $1`,
+        [session.id]
+      );
+      await dbClient.query('COMMIT');
+      return { pending_approval: true, upload_id: session.id, status: 'pending' };
+    }
 
     const inserted = await dbClient.query(
       `INSERT INTO mintbox_files
@@ -897,6 +936,93 @@ const completeUpload = async (uploadId, uploaderId, role) => {
   } finally {
     dbClient.release();
   }
+};
+
+const listMyFirstDrafts = async (freelancerId) => {
+  const result = await query(
+    `SELECT draft.id, draft.job_id, draft.status, draft.review_note, draft.created_at, draft.reviewed_at,
+            upload.original_name, upload.size_bytes, upload.mime_type, job.title AS job_title
+     FROM service_draft_submissions draft
+     JOIN mintbox_upload_sessions upload ON upload.id = draft.upload_id
+     JOIN jobs job ON job.id = draft.job_id
+     WHERE draft.freelancer_id = $1
+     ORDER BY draft.created_at DESC LIMIT 50`,
+    [freelancerId]
+  );
+  return result.rows;
+};
+
+const listAdminFirstDrafts = async () => {
+  const result = await query(
+    `SELECT draft.id, draft.status, draft.created_at, upload.original_name,
+            upload.size_bytes, upload.mime_type, upload.storage_path,
+            job.id AS job_id, job.title AS job_title, user_row.full_name AS freelancer_name
+     FROM service_draft_submissions draft
+     JOIN mintbox_upload_sessions upload ON upload.id = draft.upload_id
+     JOIN jobs job ON job.id = draft.job_id
+     JOIN users user_row ON user_row.id = draft.freelancer_id
+     WHERE draft.status = 'pending'
+     ORDER BY draft.created_at ASC LIMIT 100`
+  );
+  return Promise.all(result.rows.map(async (draft) => ({
+    ...draft,
+    preview_url: await storage.createDownloadUrl(draft.storage_path, 15 * 60),
+    storage_path: undefined,
+  })));
+};
+
+const reviewFirstDraft = async (draftId, adminId, { action, note } = {}) => {
+  if (!['approve', 'changes_requested'].includes(action)) throw new AppError('Choose approve or request changes', 400);
+  if (action === 'changes_requested' && !String(note || '').trim()) throw new AppError('Add feedback for the freelancer', 422);
+  if (note) assertNoContactInfo(note, { userId: adminId, role: 'admin', where: 'draft_review_note' });
+  const client = await getClient();
+  let file = null;
+  let jobId;
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `SELECT draft.id AS draft_id, draft.status AS draft_status,
+              draft.upload_id, draft.job_id,
+              upload.folder_id, upload.uploaded_by, upload.original_name,
+              upload.storage_bucket, upload.storage_path, upload.mime_type,
+              upload.size_bytes, upload.freelancer_note
+       FROM service_draft_submissions draft
+       JOIN mintbox_upload_sessions upload ON upload.id = draft.upload_id
+       WHERE draft.id = $1 FOR UPDATE OF draft`,
+      [draftId]
+    );
+    const row = result.rows[0];
+    if (!row) throw new AppError('Draft not found', 404);
+    if (row.draft_status !== 'pending') throw new AppError('This draft has already been reviewed', 409);
+    jobId = row.job_id;
+    if (action === 'approve') {
+      const inserted = await client.query(
+        `INSERT INTO mintbox_files
+           (folder_id, job_id, uploaded_by, original_name, storage_bucket, storage_path,
+            public_url, mime_type, size_bytes, freelancer_note, file_category, purpose)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'video','delivery') RETURNING *`,
+        [row.folder_id, row.job_id, row.uploaded_by, row.original_name, row.storage_bucket,
+          row.storage_path, `internal://mintbox/${row.storage_path}`, row.mime_type,
+          row.size_bytes, row.freelancer_note]
+      );
+      file = inserted.rows[0];
+      await client.query('UPDATE mintbox_folders SET storage_used = storage_used + $1 WHERE id = $2', [row.size_bytes, row.folder_id]);
+    }
+    await client.query(
+      `UPDATE service_draft_submissions
+       SET status = $2, review_note = $3, reviewed_by = $4, reviewed_at = NOW(), file_id = $5
+       WHERE id = $1`,
+      [draftId, action === 'approve' ? 'approved' : 'changes_requested', String(note || '').trim() || null, adminId, file?.id || null]
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  if (file) await postFileMessage({ jobId, senderId: file.uploaded_by, senderRole: 'freelancer', file, caption: file.freelancer_note || 'First draft approved by CREATYV.' });
+  return { id: draftId, status: action === 'approve' ? 'approved' : 'changes_requested', file_id: file?.id || null };
 };
 
 const cancelUpload = async (uploadId, uploaderId, role) => {
@@ -1014,7 +1140,7 @@ const getPublicFile = async (token) => {
   return file;
 };
 
-const getPublicFileStream = async (token, expiresIn = 60) => {
+const getPublicFileStream = async (token, expiresIn = 4 * 60 * 60) => {
   const file = await getPublicFile(token);
   const signedUrl = await storage.createDownloadUrl(file.storage_path, expiresIn);
   if (!signedUrl) throw new AppError('File is temporarily unavailable', 503);
@@ -1299,6 +1425,7 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
     );
     const file = fileResult.rows[0];
     if (!file) throw new AppError('File not found', 404);
+    const wasApproved = file.status === 'approved';
     if (file.purpose !== 'delivery') {
       throw new AppError('Only creative deliveries can be reviewed', 400);
     }
@@ -1435,6 +1562,18 @@ const reviewFile = async (fileId, clientId, role, { action, note }) => {
         );
       }
     } else {
+      if (!wasApproved && file.active_freelancer_id) {
+        notificationService.createNotification({
+          userId: file.active_freelancer_id,
+          type: 'delivery_approved',
+          title: 'Delivery approved — payout pending',
+          body: `The client approved your latest delivery. Your payout will be released to your wallet as soon as they complete the order.`,
+          entityType: 'job',
+          entityId: file.job_id,
+          data: { job_id: file.job_id, file_id: file.id },
+          dedupeKey: `delivery-approved:${file.id}`,
+        });
+      }
       publishProjectActivity(file.job_id, `Client approved delivery: ${file.original_name}`);
     }
   } catch (err) {
@@ -1540,6 +1679,9 @@ module.exports = {
   rotateShare,
   prepareUpload,
   completeUpload,
+  listMyFirstDrafts,
+  listAdminFirstDrafts,
+  reviewFirstDraft,
   cancelUpload,
   reviewFile,
   deleteFile,

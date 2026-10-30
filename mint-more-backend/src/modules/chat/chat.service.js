@@ -150,6 +150,33 @@ const getMyRooms = async (userId, role) => {
   return result.rows;
 };
 
+const searchMessages = async (userId, role, term, roomId = null) => {
+  const needle = String(term || '').trim();
+  if (needle.length < 2) return [];
+  const accessClause = role === 'admin'
+    ? '($1::uuid IS NOT NULL)'
+    : role === 'client'
+      ? 'cr.client_id = $1'
+      : ['freelancer', 'designer'].includes(role)
+        ? 'cr.freelancer_id = $1'
+        : 'false';
+  const result = await query(
+    `SELECT m.id, m.room_id, m.content, m.sender_role, m.created_at,
+            j.title AS job_title, cr.last_message_at
+     FROM messages m
+     JOIN chat_rooms cr ON cr.id = m.room_id
+     JOIN jobs j ON j.id = cr.job_id
+     WHERE ${accessClause}
+       AND ($2::uuid IS NULL OR cr.id = $2)
+       AND m.is_deleted = false
+       AND m.content ILIKE $3
+     ORDER BY m.created_at DESC
+     LIMIT 100`,
+    [userId, roomId || null, `%${needle.replace(/[\\%_]/g, '\\$&')}%`]
+  );
+  return result.rows;
+};
+
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 /**
@@ -254,9 +281,10 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
 
   // Fetch room
   const roomResult = await query(
-    `SELECT cr.*, wn.waba_phone_id
+    `SELECT cr.*, wn.waba_phone_id, j.metadata AS job_metadata
      FROM chat_rooms cr
      LEFT JOIN whatsapp_numbers wn ON wn.waba_phone_id = cr.mm_wa_number_id
+     JOIN jobs j ON j.id = cr.job_id
      WHERE cr.id = $1`,
     [roomId]
   );
@@ -271,6 +299,10 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
     }
   }
   const persistedSenderRole = senderRole === 'designer' ? 'freelancer' : senderRole;
+
+  if (attachment_url && persistedSenderRole === 'freelancer') {
+    throw new AppError('Use Send first draft to submit MP4 work for moderation', 403);
+  }
 
   if (content) {
     // The sender's recent messages too, so a number can't go out a few digits at a time.
@@ -413,6 +445,36 @@ const appendSystemMessageByJob = async (jobId, content) => {
   );
   await publishMessageToRoom(room.id, result.rows[0], 'system');
   return result.rows[0];
+};
+
+// Keep long service briefs readable in chat by posting each section as its own bubble.
+const appendSystemMessagesByJob = async (jobId, contents = []) => {
+  const messages = contents.map((content) => String(content || '').trim()).filter(Boolean);
+  if (!messages.length) return [];
+  const roomResult = await query(
+    'SELECT id FROM chat_rooms WHERE job_id = $1 AND is_active = true',
+    [jobId]
+  );
+  const room = roomResult.rows[0];
+  if (!room) return [];
+  const inserted = [];
+  for (const content of messages) {
+    const result = await query(
+      `INSERT INTO messages
+         (room_id, sender_id, sender_role, content, channel, read_by_client, read_by_freelancer)
+       VALUES ($1, NULL, 'system', $2, 'web', false, false)
+       RETURNING *`,
+      [room.id, content]
+    );
+    inserted.push(result.rows[0]);
+    await publishMessageToRoom(room.id, result.rows[0], 'system');
+  }
+  const last = messages[messages.length - 1];
+  await query(
+    `UPDATE chat_rooms SET last_message_at = NOW(), last_message_preview = $1 WHERE id = $2`,
+    [last.slice(0, 100), room.id]
+  );
+  return inserted;
 };
 
 /**
@@ -704,10 +766,12 @@ module.exports = {
   createChatRoom,
   getRoomById,
   getMyRooms,
+  searchMessages,
   getMessages,
   sendMessage,
   editMessage,
   appendSystemMessageByJob,
+  appendSystemMessagesByJob,
   receiveWhatsAppMessage,
   setOnline,
   setOffline,

@@ -37,7 +37,7 @@ function Due({ at }) {
 const WORK_STATE = {
 	finding_freelancer: { dot: 'bg-amber-500', text: 'Finding a freelancer' },
 	in_progress: { dot: 'bg-sky-500', text: 'Being worked on' },
-	revision_requested: { dot: 'bg-violet-500', text: 'Revision underway' },
+	revision_requested: { dot: 'bg-ink-500', text: 'Revision underway' },
 }
 
 function Thumb({ src }) {
@@ -58,9 +58,9 @@ function SectionHead({ title, count, to, label = 'View all' }) {
 	return (
 		<div className="mb-3 flex items-baseline gap-2.5">
 			<h2 className="text-2xl font-medium tracking-tight text-ink-900 md:text-3xl">{title}</h2>
-			{count > 0 && <span className="text-lg tabular-nums text-ink-400 md:text-xl">{count}</span>}
+			{count > 0 && <span className="text-lg tabular-nums text-ink-900 md:text-xl">{count}</span>}
 			{to && (
-				<Link to={to} className="ml-auto inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-ink-700 underline-offset-4 hover:text-ink-900 hover:underline">
+				<Link to={to} className="ml-auto inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-ink-900 underline-offset-4 hover:underline">
 					{label} <Icon name="arrowRight" size={14} />
 				</Link>
 			)}

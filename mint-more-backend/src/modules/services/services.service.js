@@ -6,7 +6,7 @@ const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { getSetting } = require('../commerce/settings.service');
 const { getWalletByUserId, recordTransaction, holdEscrow } = require('../wallet/wallet.service');
-const { createChatRoom, appendSystemMessageByJob, postFileMessage } = require('../chat/chat.service');
+const { createChatRoom, appendSystemMessageByJob, appendSystemMessagesByJob, postFileMessage } = require('../chat/chat.service');
 const notificationService = require('../notifications/notification.service');
 const { writeAudit } = require('../audit/audit.service');
 const { rankFreelancers } = require('./fairMatch');
@@ -757,14 +757,14 @@ const startOrder = async (booking, freelancerId) => {
     Number(booking.quantity) > 1 ? `Quantity: ${booking.quantity}` : null,
     `Delivery in ${snapshot.delivery_days} day${Number(snapshot.delivery_days) === 1 ? '' : 's'} · ${snapshot.revisions} revision${Number(snapshot.revisions) === 1 ? '' : 's'} included`,
   ].filter(Boolean).join('\n');
-  const answers = formatBrief(booking.brief);
-  const brief = [
+  const answers = Array.isArray(booking.brief) ? booking.brief : [];
+  const briefMessages = [
     header,
-    answers ? `Brief\n\n${answers}` : null,
+    ...answers.map((answer) => formatBrief([answer])).filter(Boolean),
     booking.instructions ? `Anything else:\n${booking.instructions}` : null,
-    !answers && !booking.instructions ? 'Share your assets, references and instructions here so work can begin.' : null,
-  ].filter(Boolean).join('\n\n');
-  await appendSystemMessageByJob(booking.job_id, brief)
+    !answers.length && !booking.instructions ? 'Share your assets, references and instructions here so work can begin.' : null,
+  ].filter(Boolean);
+  await appendSystemMessagesByJob(booking.job_id, briefMessages)
     .catch((err) => logger.warn('Service brief message failed', { bookingId: booking.id, error: err.message }));
   // Brief files that finished uploading before the chat existed go in right after the brief.
   // Later ones are posted by Mintbox when their upload completes.
@@ -1039,7 +1039,7 @@ const listMyOffers = async (freelancerId) => {
 
 const BOOKING_SELECT = `
   SELECT b.*, t.slug AS template_slug, t.title AS template_title, t.cover_url,
-         c.name AS category_name,
+         t.brief_fields, c.name AS category_name, c.slug AS category_slug,
          j.status AS job_status, j.deadline,
          fu.full_name AS freelancer_name, fu.avatar_url AS freelancer_avatar,
          fu.average_rating AS freelancer_rating,
@@ -1088,9 +1088,16 @@ const STAGE_GROUPS = {
 const shapeBooking = (row, audience) => {
   const stage = deriveStage(row);
   const revisionsIncluded = Number(row.snapshot?.revisions ?? 0);
+  const savedAnswers = Object.fromEntries((Array.isArray(row.brief) ? row.brief : []).map((answer) => [answer.key, answer.value]));
+  const briefComplete = validateBriefAnswers(
+    resolveBriefFields({ brief_fields: row.brief_fields, category_slug: row.category_slug }),
+    savedAnswers,
+    row.template_title || 'This service'
+  ).errors.length === 0;
   const shaped = {
     ...row,
     stage,
+    brief_complete: briefComplete,
     revisions_included: revisionsIncluded,
     revisions_left: Math.max(0, revisionsIncluded - Number(row.revisions_used || 0)),
   };
@@ -1128,7 +1135,7 @@ const getClientBooking = async (clientId, bookingId) => {
   return shapeBooking(result.rows[0], 'client');
 };
 
-const updateClientBookingBrief = async (clientId, bookingId, { brief: answers, instructions } = {}) => {
+const updateClientBookingBrief = async (clientId, bookingId, { brief: answers, instructions, draft = false } = {}) => {
   if (!UUID_PATTERN.test(String(bookingId))) throw new AppError('Order not found', 404);
   const dbClient = await getClient();
   let booking;
@@ -1153,13 +1160,18 @@ const updateClientBookingBrief = async (clientId, bookingId, { brief: answers, i
       throw new AppError('The brief can no longer be changed for this order', 409);
     }
 
-    const validated = validateBriefAnswers(resolveBriefFields(booking), answers, booking.template_title);
+    const validated = validateBriefAnswers(resolveBriefFields(booking), answers, booking.template_title, { allowIncomplete: Boolean(draft) });
     if (validated.errors.length) {
       const err = new AppError('Complete the required brief details', 422);
       err.errors = validated.errors;
       throw err;
     }
     cleanedBrief = validated.brief;
+    if (draft) {
+      const savedFiles = (Array.isArray(booking.brief) ? booking.brief : []).filter((answer) => answer.type === 'files');
+      const includedKeys = new Set(cleanedBrief.map((answer) => answer.key));
+      cleanedBrief.push(...savedFiles.filter((answer) => !includedKeys.has(answer.key)));
+    }
     cleanInstructions = String(instructions || '').trim();
     if (cleanInstructions.length > 4000) throw new AppError('Additional instructions are too long', 422);
     assertBriefIsClean(clientId, [cleanedBrief], [{ instructions: cleanInstructions }]);
@@ -1184,11 +1196,13 @@ const updateClientBookingBrief = async (clientId, bookingId, { brief: answers, i
     dbClient.release();
   }
 
-  if (booking.job_id) {
-    const answersText = formatBrief(cleanedBrief);
-    const updateMessage = ['The client completed their full brief after checkout.', answersText, cleanInstructions ? `Anything else:\n${cleanInstructions}` : null]
-      .filter(Boolean).join('\n\n');
-    await appendSystemMessageByJob(booking.job_id, updateMessage)
+  if (booking.job_id && !draft) {
+    const updateMessages = [
+      'The client completed their full brief after checkout.',
+      ...cleanedBrief.map((answer) => formatBrief([answer])).filter(Boolean),
+      cleanInstructions ? `Anything else:\n${cleanInstructions}` : null,
+    ].filter(Boolean);
+    await appendSystemMessagesByJob(booking.job_id, updateMessages)
       .catch((err) => logger.warn('Updated service brief message failed', { bookingId, error: err.message }));
   }
   return getClientBooking(clientId, bookingId);
@@ -1459,6 +1473,12 @@ const adminBriefDefaults = async () => {
 };
 
 module.exports = {
+  // Shared with ai-edits, which sells AI edits of the same services through the same checkout rules.
+  testCheckoutAllowed,
+  getServiceSettings,
+  callRazorpay,
+  signaturesMatch,
+  getRazorpay: () => razorpay,
   adminBriefDefaults,
   listCategories,
   listCatalog,
@@ -1473,12 +1493,6 @@ module.exports = {
   acceptOffer,
   declineOffer,
   expireOffers,
-  // Shared with ai-edits, which sells AI edits of the same services through the same checkout rules.
-  testCheckoutAllowed,
-  getServiceSettings,
-  callRazorpay,
-  signaturesMatch,
-  getRazorpay: () => razorpay,
   retryUnassigned,
   listMyOffers,
   listClientBookings,
