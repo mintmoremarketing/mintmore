@@ -140,18 +140,14 @@ export default function PurchasedItems() {
 
 	return (
 		<div className="mx-auto w-full max-w-6xl px-4 py-8 font-store md:px-8 md:py-10">
-			<Link to="/orders?tab=items" className="inline-flex items-center gap-2 text-[15px] text-ink-600 hover:text-ink-900">
-				<Icon name="arrowLeft" size={16} /> Purchased orders
-			</Link>
-			<h1 className="mt-4 text-3xl font-medium tracking-tight text-ink-900 [text-wrap:balance] md:text-[40px]">{snapshot.title || purchase.template_title}</h1>
-			<p className="mt-2 text-[15px] text-ink-600">
-				{purchase.item_count} orders · {variantLabel(snapshot, snapshot.option_group_label)}{Number(snapshot.pack_size) > 1 && purchase.item_count > Number(snapshot.pack_size) ? ` × ${purchase.item_count / Number(snapshot.pack_size)}` : ''} · paid {formatDate(purchase.paid_at)}
-			</p>
-			<p className="mt-1 max-w-[70ch] text-[15px] text-ink-600">{perItemDeliveryText(snapshot.delivery_days)}</p>
-
-			<div className="mt-8 grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-10">
-				<aside className="lg:sticky lg:top-[88px] lg:self-start">
-					<p className="mb-3 text-[15px] text-ink-700">
+			{/* The orders get their own column from the top of the page. It sticks at the height it
+			    starts at (top bar + page padding), so it never moves while the brief scrolls. */}
+			<div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-10">
+				<aside className="lg:sticky lg:top-[104px] lg:max-h-[calc(100dvh-128px)] lg:self-start lg:overflow-y-auto" aria-label="Orders in this purchase">
+					<Link to="/orders?tab=items" className="inline-flex items-center gap-2 text-[15px] text-ink-600 hover:text-ink-900">
+						<Icon name="arrowLeft" size={16} /> Purchased orders
+					</Link>
+					<p className="mb-3 mt-6 text-[15px] text-ink-700">
 						{open ? <><span className="font-medium text-ink-900">{open} of {purchase.item_count}</span> still need a brief</> : 'Every order has its brief'}
 					</p>
 					<ol className="overflow-hidden rounded-2xl bg-ink-50">
@@ -180,7 +176,14 @@ export default function PurchasedItems() {
 					)}
 				</aside>
 
-				<section id="item-panel" className="min-w-0 scroll-mt-6" aria-live="polite">
+				<div className="min-w-0">
+					<h1 className="text-3xl font-medium leading-tight tracking-tight text-ink-900 [text-wrap:balance] md:text-[40px]">{snapshot.title || purchase.template_title}</h1>
+					<p className="mt-2 text-[15px] text-ink-600">
+						{purchase.item_count} orders · {variantLabel(snapshot, snapshot.option_group_label)}{Number(snapshot.pack_size) > 1 && purchase.item_count > Number(snapshot.pack_size) ? ` × ${purchase.item_count / Number(snapshot.pack_size)}` : ''} · paid {formatDate(purchase.paid_at)}
+					</p>
+					<p className="mt-1 max-w-[70ch] text-[15px] text-ink-600">{perItemDeliveryText(snapshot.delivery_days)}</p>
+
+				<section id="item-panel" className="mt-8 min-w-0 scroll-mt-6" aria-live="polite">
 					{error && <p role="alert" className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
 					{selected?.stage === 'needs_brief' ? (
 						<BriefSheet
@@ -226,6 +229,7 @@ export default function PurchasedItems() {
 						</div>
 					)}
 				</section>
+				</div>
 			</div>
 		</div>
 	)

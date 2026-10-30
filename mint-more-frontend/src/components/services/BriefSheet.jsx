@@ -49,7 +49,9 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 	const [showErrors, setShowErrors] = useState(false)
 
 	useEffect(() => {
-		if (presentation === 'page') return undefined
+		// Only the pop-up sheet locks the page; inline and page briefs scroll with it. A locked
+		// body becomes its own scroll box, which also breaks every position: sticky beside it.
+		if (presentation !== 'sheet') return undefined
 		const onKey = (e) => { if (e.key === 'Escape') onClose() }
 		document.addEventListener('keydown', onKey)
 		const overflow = document.body.style.overflow
