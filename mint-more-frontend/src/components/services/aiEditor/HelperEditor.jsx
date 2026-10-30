@@ -4,8 +4,9 @@ import { aiEditsApi } from '../../../api/aiEdits'
 import { helperApi, listenToHelper } from '../../../api/helper'
 import VideoEditor from './VideoEditor'
 
-// The helper download. Until it's published the page says so instead of linking nowhere.
-const HELPER_DOWNLOAD_URL = import.meta.env.VITE_AI_HELPER_URL || ''
+// The one-click Windows installer, served with the site from public/downloads. It is built by
+// scripts/build-helper.mjs in editing-os-saas. VITE_AI_HELPER_URL can point somewhere else.
+const HELPER_DOWNLOAD_URL = import.meta.env.VITE_AI_HELPER_URL || '/downloads/CreatyvHelperSetup.exe'
 
 const press = 'transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]'
 const primary = `ai-make-btn inline-flex h-12 items-center justify-center gap-2 rounded-full px-7 text-base font-semibold text-ink-950 disabled:opacity-50 ${press}`
@@ -32,13 +33,13 @@ function InstallHelper({ looking }) {
 				It edits and renders on your computer, so your footage is never uploaded. You use it from this page. There's no separate app to open.
 			</p>
 			<ol className="mt-5 grid gap-4 text-[15px] md:grid-cols-3 md:gap-6">
-				<li><span className="font-medium text-ink-900">1. Download and unzip it.</span> <span className="text-ink-600">Windows only for now.</span></li>
-				<li><span className="font-medium text-ink-900">2. Double-click install.cmd.</span> <span className="text-ink-600">It runs in the background and starts with Windows.</span></li>
+				<li><span className="font-medium text-ink-900">1. Download it.</span> <span className="text-ink-600">Windows only for now.</span></li>
+				<li><span className="font-medium text-ink-900">2. Open CreatyvHelperSetup.exe.</span> <span className="text-ink-600">If Windows says it protected your PC, choose More info, then Run anyway. It installs itself and starts with Windows.</span></li>
 				<li><span className="font-medium text-ink-900">3. Come back here.</span> <span className="text-ink-600">This page finds it by itself. If the browser asks to reach apps on your device, allow it.</span></li>
 			</ol>
 			<div className="mt-6 flex flex-wrap items-center gap-4">
 				{HELPER_DOWNLOAD_URL ? (
-					<a href={HELPER_DOWNLOAD_URL} className={primary}><Icon name="download" size={16} /> Download the helper</a>
+					<a href={HELPER_DOWNLOAD_URL} download className={primary}><Icon name="download" size={16} /> Download the helper</a>
 				) : (
 					<p className="text-[15px] text-ink-900">The helper is in private testing and not available to download yet.</p>
 				)}
