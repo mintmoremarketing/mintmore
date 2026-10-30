@@ -171,4 +171,13 @@ const formatBrief = (brief = []) => brief.map((answer) => (
     : `${heading(answer.label)}\n${answer.value}`
 )).join('\n\n');
 
-module.exports = { FIELD_TYPES, defaultBriefFields, resolveBriefFields, normalizeBriefFields, validateBriefAnswers, formatBrief };
+/** A short name for an order from its brief: the first written answer, cut to one line. */
+const briefTitle = (brief, maxLength = 60) => {
+  const answer = (Array.isArray(brief) ? brief : [])
+    .find((entry) => ['textarea', 'text'].includes(entry?.type) && String(entry.value || '').trim());
+  if (!answer) return null;
+  const line = String(answer.value).trim().split(/\r?\n/)[0].trim();
+  return line.length > maxLength ? `${line.slice(0, maxLength - 1).trimEnd()}…` : line;
+};
+
+module.exports = { FIELD_TYPES, defaultBriefFields, resolveBriefFields, normalizeBriefFields, validateBriefAnswers, formatBrief, briefTitle };
