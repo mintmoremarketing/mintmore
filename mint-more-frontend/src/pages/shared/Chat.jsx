@@ -256,6 +256,9 @@ export default function Chat() {
 	const [showAttachment, setShowAttachment] = useState(false)
 	const [search, setSearch] = useState('')
 	const [chatSearch, setChatSearch] = useState('')
+	// Admins read a chat as one side sees it: that side's messages on the right.
+	const [pov, setPov] = useState('client')
+	const viewer = role === 'admin' ? pov : role
 	const [filter, setFilter] = useState('all')
 	const [grouping, setGrouping] = useState(readGrouping)
 	const [editingPendingBrief, setEditingPendingBrief] = useState(false)
@@ -515,7 +518,17 @@ export default function Chat() {
 <div className="truncate text-sm text-ink-500">{role === 'client' && !selectedRoom?.brief_title ? roomLabel(selectedRoom || {}) : room?.job_title || selectedRoom?.job_title}{role === 'admin' && selectedRoom?.closed_at ? <span className="text-ink-900"> · Closed</span> : role === 'admin' && selectedRoom?.flagged_at ? <span className="text-amber-700"> · Flagged: {selectedRoom.flag_reason}</span> : null}</div>
 							</div>
 							{room?.client_wa_number && <span className="hidden rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 sm:inline">WhatsApp connected</span>}
-<ChatSearch value={chatSearch} onChange={setChatSearch} />
+{role === 'admin' && (
+									<div role="radiogroup" aria-label="Read the chat as" className="hidden shrink-0 gap-0.5 rounded-xl bg-ink-100 p-0.5 sm:flex">
+										{[['client', 'Client view'], ['freelancer', 'Freelancer view']].map(([key, label]) => (
+											<button key={key} type="button" role="radio" aria-checked={pov === key} onClick={() => setPov(key)}
+												className={`rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors ${pov === key ? 'bg-white text-ink-900 shadow-[0_1px_2px_rgba(0,0,0,0.08)]' : 'text-ink-600 hover:text-ink-900'}`}>
+												{label}
+											</button>
+										))}
+									</div>
+								)}
+								<ChatSearch value={chatSearch} onChange={setChatSearch} />
 								{role === 'admin' && selectedRoom && <ModerationBar room={selectedRoom} onDone={refreshModeration} />}
 						</header>
 
@@ -528,9 +541,9 @@ export default function Chat() {
 									<p className="mt-1 text-sm text-ink-500">Share your references and instructions here. Files and feedback stay with this order.</p>
 								</div>
 							) : messages.map(message => {
-								const mine = message.sender_role === role || (role === 'designer' && message.sender_role === 'freelancer')
+								const mine = message.sender_role === viewer || (['designer', 'freelancer'].includes(viewer) && ['designer', 'freelancer'].includes(message.sender_role))
 								const system = message.sender_role === 'system'
-								const read = role === 'client' ? message.read_by_freelancer : message.read_by_client
+								const read = viewer === 'client' ? message.read_by_freelancer : message.read_by_client
 								const fileAction = deliveryAction(message)
 								const meta = `${message.channel === 'whatsapp' ? 'WhatsApp · ' : ''}${timeAgo(message.created_at)}${mine ? ` · ${read ? 'Seen' : 'Sent'}` : ''}`
 								if (system) {
@@ -544,8 +557,8 @@ export default function Chat() {
 								if (fileAction) {
 									return (
 										<div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-											<div className="w-[min(520px,88%)] rounded-2xl border border-ink-200 bg-white p-4">
-												<div className="text-sm text-ink-500"><span className="font-medium text-ink-900">{mine ? 'You' : message.sender_name}</span> {fileAction}</div>
+											<div className={`w-[min(520px,88%)] rounded-2xl p-4 shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] ${mine ? 'bg-[#dcf7c5]' : 'bg-white'}`}>
+												<div className="text-sm text-ink-500"><span className="font-medium text-ink-900">{mine && role !== 'admin' ? 'You' : message.sender_name}</span> {fileAction}</div>
 {message.file_token && message.file_mime?.startsWith('image/') && (
 	<a href={fileContentUrl(message.file_token)} target="_blank" rel="noopener noreferrer" className="mt-3 block overflow-hidden rounded-xl bg-ink-100">
 		<img src={fileContentUrl(message.file_token)} alt={message.file_name || ''} loading="lazy" className="max-h-72 w-full object-cover" />
@@ -566,15 +579,15 @@ export default function Chat() {
 								}
 								return (
 									<div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-										<div className={`max-w-[78%] rounded-2xl px-4 py-2.5 ${mine ? 'rounded-br-md bg-ink-900 text-white' : 'rounded-bl-md border border-ink-200 bg-white text-ink-900'}`}>
-											{!mine && <div className="mb-0.5 text-[13px] font-medium text-ink-500">{message.sender_name}</div>}
-											<div className="whitespace-pre-wrap text-[15px] [overflow-wrap:anywhere]">{linkify(message.content, mine ? 'text-white decoration-white/50 hover:decoration-white' : undefined)}</div>
+										<div className={`max-w-[78%] rounded-2xl px-4 py-2.5 ${mine ? 'rounded-br-md bg-[#dcf7c5] text-ink-900' : 'rounded-bl-md bg-white text-ink-900'} shadow-[0_1px_0.5px_rgba(0,0,0,0.13)]`}>
+											{(!mine || role === 'admin') && <div className="mb-0.5 text-[13px] font-medium text-ink-500">{message.sender_name}</div>}
+											<div className="whitespace-pre-wrap text-[15px] [overflow-wrap:anywhere]">{linkify(message.content)}</div>
 											{message.attachment_url && (
-												<a href={message.attachment_url} target="_blank" rel="noreferrer" className={`mt-1 inline-flex items-center gap-1 text-sm underline underline-offset-2 ${mine ? 'text-white' : 'text-ink-900'}`}>
+												<a href={message.attachment_url} target="_blank" rel="noreferrer" className={`mt-1 inline-flex items-center gap-1 text-sm underline underline-offset-2 text-ink-900`}>
 													<Icon name="paperclip" size={12} /> Open attachment
 												</a>
 											)}
-											<div className={`mt-1 text-xs ${mine ? 'text-white/70' : 'text-ink-500'}`}>{meta}</div>
+											<div className={`mt-1 text-xs text-ink-500`}>{meta}</div>
 										</div>
 									</div>
 								)
