@@ -62,7 +62,7 @@ export default function Assessments() {
 	const active = categories.find(c => c.slug === params.get('category')) || categories[0]
 
 	return (
-		<div className="mx-auto w-full max-w-[1240px] px-4 pb-16 pt-6 font-store md:px-10 md:pt-10">
+		<div className="mx-auto w-full max-w-[1400px] px-4 pb-16 pt-8 font-store md:px-8 md:pt-10">
 			<h1 className="text-[28px] font-medium tracking-[-0.02em] text-ink-900 md:text-[40px]">Assessments</h1>
 			<p className="mt-2 text-[15px] text-ink-500 md:text-base">Pass a level to qualify for the services that need it, and start getting orders.</p>
 

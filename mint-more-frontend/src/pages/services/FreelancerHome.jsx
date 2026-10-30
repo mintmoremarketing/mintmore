@@ -39,7 +39,7 @@ export default function FreelancerHome() {
 	]
 
 	return (
-		<div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10">
+		<div className="mx-auto w-full max-w-[1400px] px-4 py-8 md:px-8 md:py-10">
 			<div className="mb-6">
 				<div className="text-[11px] font-bold uppercase tracking-wider text-mint-500">Workspace</div>
 				<h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-ink-900">Hi{name ? ` ${name.split(' ')[0]}` : ''}, here's your work</h1>

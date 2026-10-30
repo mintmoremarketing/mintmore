@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { servicesApi } from '../../api/services'
 import { mintboxApi } from '../../api/mintbox'
@@ -20,6 +20,7 @@ const filesKey = (itemId) => `item:${itemId}`
 export default function PurchasedItems() {
 	const { id } = useParams()
 	const [params, setParams] = useSearchParams()
+	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 	const pushToast = useUIStore(s => s.pushToast)
 	const [submitting, setSubmitting] = useState(false)
@@ -82,6 +83,17 @@ export default function PurchasedItems() {
 		return { queued: queued.length, failed }
 	}
 
+	// The brief already saves as it's typed; this only makes sure the last change is in, then moves on.
+	const later = async () => {
+		if (!selected) return
+		const item = selected
+		await flushDraft().catch(() => {})
+		pushToast({ title: `Order ${item.item_index} saved for later`, body: 'Its brief stays here until you send it.', icon: 'check' })
+		const next = items.find(entry => entry.stage === 'needs_brief' && entry.id !== item.id)
+		if (next) select(next.id)
+		else navigate('/orders?tab=items')
+	}
+
 	const submit = async ({ brief, instructions }) => {
 		if (!selected || submitting) return
 		const item = selected
@@ -138,7 +150,7 @@ export default function PurchasedItems() {
 			<p className="mt-1 max-w-[70ch] text-[15px] text-ink-600">{perItemDeliveryText(snapshot.delivery_days)}</p>
 
 			<div className="mt-8 grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-10">
-				<aside className="lg:sticky lg:top-6 lg:self-start">
+				<aside className="lg:sticky lg:top-[88px] lg:self-start">
 					<p className="mb-3 text-[15px] text-ink-700">
 						{open ? <><span className="font-medium text-ink-900">{open} of {purchase.item_count}</span> still need a brief</> : 'Every order has its brief'}
 					</p>
@@ -184,6 +196,7 @@ export default function PurchasedItems() {
 							initialNotes={selected.instructions || ''}
 							submitting={submitting}
 							onDraftChange={queueDraft}
+							onLater={later}
 							submitLabel={uploading ? `Uploading files ${uploading.done} of ${uploading.total}…` : submitting ? 'Sending…' : open > 1 ? 'Send brief & next order' : 'Send brief'}
 							onSubmit={submit}
 						/>

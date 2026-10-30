@@ -190,7 +190,8 @@ function WithdrawModal({ wallet, payoutRules, onClose }) {
 						</div>
 					</div>
 				)}
-				{method === 'upi' && (
+
+				{method === 'upi' && (
 					<div className="field">
 						<label className="field-label">UPI ID</label>
 						<input className="input" value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="name@upi" />
@@ -225,14 +226,13 @@ export default function FreelancerWallet() {
 	const txns = txData?.transactions || []
 
 	return (
-		<div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto">
-			<div className="flex flex-col gap-1">
-				<div className="text-sm font-semibold text-ink-500 tracking-wide uppercase">Earnings</div>
-				<h1 className="text-3xl md:text-4xl font-display font-bold text-ink-950 tracking-tight m-0">Wallet and withdrawals</h1>
+		<div className="flex flex-col gap-6 md:gap-8 px-4 py-8 md:px-8 md:py-10 w-full max-w-[1400px] mx-auto">
+			<div className="flex flex-col gap-1 font-store">
+				<h1 className="text-3xl font-medium leading-tight tracking-tight text-ink-900 md:text-[40px] m-0">Wallet and withdrawals</h1>
 			</div>
 
 			<div className="flex flex-col lg:flex-row gap-6 items-stretch w-full">
-				<div className="flex-1 lg:w-2/3 bg-gradient-to-br from-ink-900 via-ink-950 to-black rounded-[32px] p-8 md:p-10 shadow-2xl relative overflow-hidden text-white min-h-[320px] border border-white/10">
+				<div className="flex-1 lg:w-2/3 bg-gradient-to-br from-ink-900 via-ink-950 to-black rounded-[32px] p-8 md:p-10 shadow-2xl relative overflow-hidden text-white min-h-[260px] border border-white/10">
 					{/* Decorative card shine and chip */}
 					<div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50" />
 					<div className="absolute top-10 right-10 w-16 h-16 bg-white/5 rounded-full blur-2xl" />

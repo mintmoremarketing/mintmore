@@ -176,7 +176,7 @@ export default function Profile() {
 	]
 
 	return (
-		<div className="mx-auto w-full max-w-[1000px] px-4 py-8 font-store md:px-6">
+		<div className="mx-auto w-full max-w-[1400px] px-4 py-8 font-store md:px-8 md:py-10">
 			<header className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
 				<div className="flex items-center gap-5">
 					<div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full bg-ink-100 text-2xl font-semibold text-ink-500 md:h-24 md:w-24">
