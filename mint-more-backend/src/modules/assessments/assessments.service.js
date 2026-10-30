@@ -26,6 +26,18 @@ const ATTEMPT_COLUMNS = `
   t.id, t.assessment_id, t.freelancer_id, t.status, t.started_at, t.deadline_at, t.submitted_at,
   t.is_late, t.notes, t.score, t.criteria_scores, t.review_note, t.reviewed_at, t.created_at`;
 
+/**
+ * The task itself: what to make, how, and the files to make it from. It is only sent while the
+ * freelancer's own attempt is running (or after they pass), so nobody can read the brief, do the
+ * work, and start the timer just to submit it.
+ */
+const TASK_FIELDS = ['task_brief', 'task_guide', 'expected_outcome', 'deliverables', 'assets'];
+const withoutTask = (assessment) => {
+  const shown = { ...assessment, task_locked: true };
+  TASK_FIELDS.forEach((field) => { delete shown[field]; });
+  return shown;
+};
+
 const addDays = (date, days) => new Date(new Date(date).getTime() + days * 86_400_000);
 
 const profileGate = async (userId) => {
@@ -129,7 +141,9 @@ const getForFreelancer = async (slug, userId) => {
   const [assessment, attempts, gate] = await Promise.all([getAssessmentRow(slug), loadAttemptsFor(userId), profileGate(userId)]);
   const openAttempt = attempts.find((attempt) => attempt.status === 'in_progress') || null;
   const unlocks = await resolveUnlocks(assessment.unlock_slugs);
-  return { ...shapeLevel(assessment, attempts, openAttempt, gate), unlocks, profile: gate };
+  const level = shapeLevel(assessment, attempts, openAttempt, gate);
+  const shown = ['in_progress', 'held'].includes(level.state) ? level : withoutTask(level);
+  return { ...shown, unlocks, profile: gate };
 };
 
 const startAttempt = async (slug, userId) => {
@@ -201,10 +215,11 @@ const getAttempt = async (attemptId, userId, role) => {
   const retryAt = ['failed', 'closed'].includes(attempt.status)
     ? addDays(attempt.reviewed_at || attempt.submitted_at || attempt.created_at, assessment.retry_cooldown_days).toISOString()
     : null;
+  const taskOpen = role === 'admin' || ['in_progress', 'passed'].includes(attempt.status);
   return {
     ...attempt,
     items: await signItems(items.rows),
-    assessment,
+    assessment: taskOpen ? assessment : withoutTask(assessment),
     unlocks,
     next_level: nextLevel,
     attempts_left: Math.max(0, assessment.max_attempts - attemptsUsed),
