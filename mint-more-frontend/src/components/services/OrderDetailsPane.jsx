@@ -37,7 +37,7 @@ function milestones(booking, isClient) {
 			at: booking.completed_at,
 			note: booking.completed_at
 				? (isClient ? null : 'Payout released to your wallet')
-				: booking.stage === 'approved' ? (isClient ? 'Complete & rate in the conversation to release the freelancer’s payment' : 'Your payout releases as soon as the client completes the order') : null,
+				: booking.stage === 'approved' ? (isClient ? 'Complete the order and rate your freelancer' : 'Your payout releases as soon as the client completes the order') : null,
 		},
 	]
 	// Until a freelancer accepts, the client's order is only placed: the rest appears once it's assigned.
@@ -229,7 +229,7 @@ export default function OrderDetailsPane({ booking, snapshot, isClient, counterp
 				<p className="mt-3 flex gap-2 text-[13px] leading-snug text-ink-500">
 					<Icon name="shield" size={14} className="mt-px shrink-0 text-ink-500" />
 					{isClient
-						? `Paid on ${formatDate(booking.paid_at)}. Creatyv holds it and releases it to the freelancer only when you complete the order.`
+						? `Paid on ${formatDate(booking.paid_at)}.`
 						: completed ? 'Released to your wallet.' : 'Held by Creatyv and released to your wallet when the client completes the order.'}
 				</p>
 			</Section>
