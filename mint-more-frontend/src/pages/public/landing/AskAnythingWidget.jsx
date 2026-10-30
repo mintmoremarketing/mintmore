@@ -185,7 +185,7 @@ export default function AskAnythingWidget({
       <div className="landing-ask-controls">
         {(showSuggestions || open) && (
           <div className="landing-ask-collapsed-chips">
-            {questions.map(item => <button key={item} type="button" onClick={() => ask(item)}>{item}</button>)}
+            {questions.map((item, index) => <button key={item} type="button" style={{ '--i': index }} onClick={() => ask(item)}>{item}</button>)}
           </div>
         )}
         <form className="landing-ask-bar" onSubmit={onSubmit}>
@@ -194,9 +194,12 @@ export default function AskAnythingWidget({
             onClick={() => setShowSuggestions(true)}
             onFocus={() => setShowSuggestions(true)}
             onChange={event => setQuestion(event.target.value)}
-            placeholder="Ask me anything..."
+            placeholder="Ask me anything…"
+            aria-label="Ask a question about CREATYV"
           />
-          <button type="submit" aria-label="Ask question">↑</button>
+          <button type="submit" aria-label="Ask question" disabled={!question.trim() || loading || typing}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+          </button>
         </form>
       </div>
     </div>
