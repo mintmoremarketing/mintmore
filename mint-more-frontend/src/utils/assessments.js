@@ -43,7 +43,7 @@ export const dateOnly = (value) => (value
 export const fileExt = (name = '') => (name.includes('.') ? name.split('.').pop().slice(0, 4).toUpperCase() : 'FILE')
 
 // Action buttons: full width on phones, a fixed 210px column on desktop.
-export const BTN = 'inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg px-4 text-[15px] font-medium whitespace-nowrap transition-colors duration-150 md:w-[210px]'
+export const BTN = 'inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg px-4 text-[15px] font-medium whitespace-nowrap transition-colors duration-150 md:w-auto md:min-w-[210px]'
 export const BTN_DARK = `${BTN} bg-ink-900 text-white hover:bg-ink-700`
 export const BTN_LINE = `${BTN} border border-ink-200 bg-white text-ink-900 hover:border-ink-300`
 export const BTN_OFF = 'cursor-not-allowed opacity-50'
