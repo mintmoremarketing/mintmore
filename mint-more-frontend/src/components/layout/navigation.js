@@ -11,7 +11,8 @@ export const CLIENT_NAV = [
 ]
 
 export const FREELANCER_NAV = [
-  { route: '/dashboard', icon: 'overview', label: 'Explore' },
+  { route: '/home', icon: 'overview', label: 'Dashboard' },
+  { route: '/dashboard', icon: 'marketplace', label: 'Explore' },
   { route: '/upskill', icon: 'sparkles', label: 'Upskill' },
   { route: '/assessments', icon: 'checkCircle', label: 'Assessments' },
   { route: '/work', icon: 'requests', label: 'My Work' },

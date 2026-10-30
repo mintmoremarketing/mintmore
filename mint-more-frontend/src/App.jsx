@@ -58,6 +58,7 @@ import FreelancerWallet     from './pages/freelancer/Wallet'
 import MarketplaceProfile   from './pages/freelancer/MarketplaceProfile'
 import ManageAccount from './pages/freelancer/ManageAccount'
 import FreelancerExplore from './pages/freelancer/Explore'
+import FreelancerHome    from './pages/freelancer/Home'
 import FreelancerProfilePage from './pages/freelancer/Profile'
 import FreelancerSettings from './pages/freelancer/FreelancerSettings'
 import Upskill from './pages/freelancer/Upskill'
@@ -265,6 +266,7 @@ export default function App() {
           <Route path="/orders/:id"  element={<ClientOnly><OrderDetail audience="client" /></ClientOnly>} />
           <Route path="/order-brief" element={<ClientOnly><PostPaymentBrief /></ClientOnly>} />
           <Route path="/ai-edits/:id" element={<ClientOnly><AiEdit /></ClientOnly>} />
+          <Route path="/home"        element={<FreelancerOnly><FreelancerHome /></FreelancerOnly>} />
           <Route path="/work"        element={<FreelancerOnly><Orders audience="freelancer" /></FreelancerOnly>} />
           <Route path="/work/:id"    element={<FreelancerOnly><OrderDetail audience="freelancer" /></FreelancerOnly>} />
           <Route path="/my-services" element={<FreelancerOnly><MyServices /></FreelancerOnly>} />

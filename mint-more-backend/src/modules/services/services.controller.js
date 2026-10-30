@@ -1,4 +1,5 @@
 const service = require('./services.service');
+const dashboard = require('./freelancerDashboard.service');
 const { sendSuccess } = require('../../utils/apiResponse');
 
 const handle = (fn) => async (req, res, next) => {
@@ -34,6 +35,7 @@ const listTemplatesForFreelancer = handle(async (req) => ({ data: await service.
 const optIn = handle(async (req) => ({ data: await service.setOptIn(req.user.sub, req.params.id, true), message: 'You will now receive orders for this service' }));
 const optOut = handle(async (req) => ({ data: await service.setOptIn(req.user.sub, req.params.id, false), message: 'You will no longer receive new orders for this service' }));
 const listMyWork = handle(async (req) => ({ data: await service.listFreelancerWork(req.user.sub, req.query) }));
+const getMyDashboard = handle(async (req) => ({ data: await dashboard.getFreelancerDashboard(req.user.sub) }));
 const getMyWork = handle(async (req) => ({ data: await service.getFreelancerWork(req.user.sub, req.params.id) }));
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
@@ -78,6 +80,7 @@ module.exports = {
   optOut,
   listMyWork,
   getMyWork,
+  getMyDashboard,
   listMyOffers,
   acceptOffer,
   declineOffer,
