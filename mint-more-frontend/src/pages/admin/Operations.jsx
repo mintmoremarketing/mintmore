@@ -64,6 +64,11 @@ const downloadCsv = (rows) => {
   URL.revokeObjectURL(url)
 }
 
+// LAUNCH-HIDDEN: the design-agency tools (review queue, client workspaces, designers, CSV and
+// sheet sync, calendar, selections) aren't part of the services launch. Code kept; set to true.
+const SHOW_AGENCY_TOOLS = false
+const LAUNCH_TABS = ['first-drafts', 'notifications']
+
 export default function AdminOperations() {
   const queryClient = useQueryClient()
   const pushToast = useUIStore(s => s.pushToast)
@@ -71,7 +76,8 @@ export default function AdminOperations() {
 
   const rawTab = searchParams.get('tab')
   const validTabs = ['first-drafts', 'review', 'clients', 'tasks', 'requests', 'calendar', 'selections', 'notifications']
-  const tab = validTabs.includes(rawTab) ? rawTab : 'review'
+  // LAUNCH-HIDDEN: only the services launch's tabs show; the agency ones still work by URL.
+  const tab = validTabs.includes(rawTab) && (SHOW_AGENCY_TOOLS || LAUNCH_TABS.includes(rawTab)) ? rawTab : 'first-drafts'
 
   const handleTabChange = (newTab) => {
     setSearchParams(prev => {
@@ -409,8 +415,15 @@ export default function AdminOperations() {
   return (
     <div className="flex flex-col gap-8 md:gap-10 p-4 md:p-8 w-full max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
       
+      {!SHOW_AGENCY_TOOLS && (
+        <div>
+          <h1 className="m-0 text-2xl font-semibold tracking-[-0.02em] text-ink-950 md:text-[28px] md:leading-9">First drafts</h1>
+          <p className="m-0 mt-1 max-w-[70ch] text-sm text-ink-500">Freelancers send a first draft before the final delivery. Watch it, then approve it so the client sees it, or ask for changes.</p>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {SHOW_AGENCY_TOOLS && <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-1">
           <div className="text-sm font-semibold text-ink-500 tracking-wide uppercase">Operations</div>
           <h1 className="text-3xl md:text-4xl font-display font-bold text-ink-950 tracking-tight m-0">Creative Operations & Review</h1>
@@ -437,10 +450,10 @@ export default function AdminOperations() {
             <Icon name="refresh" size={16} /> {syncSheet.isPending ? 'Syncing...' : 'Sync sheet'}
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {SHOW_AGENCY_TOOLS && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           {
             label: 'Review queue',
@@ -487,10 +500,10 @@ export default function AdminOperations() {
             </div>
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Designer Add */}
-      <div className="bg-white border border-ink-200/60 rounded-3xl p-6 md:p-8 shadow-sm">
+      {SHOW_AGENCY_TOOLS && <div className="bg-white border border-ink-200/60 rounded-3xl p-6 md:p-8 shadow-sm">
         <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6">
           <div className="max-w-xl">
             <div className="text-xs font-bold tracking-widest uppercase text-ink-400 mb-2">Design team</div>
@@ -512,7 +525,7 @@ export default function AdminOperations() {
             </button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Navigation Tabs */}
       <Tabs
@@ -526,8 +539,8 @@ export default function AdminOperations() {
           { value: 'requests', label: 'Custom requests', count: requests.length },
           { value: 'calendar', label: 'Calendar', count: events.length },
           { value: 'selections', label: 'Selections', count: selections.length },
-          { value: 'notifications', label: 'Notifications' },
-        ]}
+          { value: 'notifications', label: 'Notification log' },
+        ].filter(item => SHOW_AGENCY_TOOLS || LAUNCH_TABS.includes(item.value))}
       />
 
       <div className="mt-4">

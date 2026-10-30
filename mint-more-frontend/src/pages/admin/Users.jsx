@@ -12,6 +12,12 @@ import { SkeletonCard } from '../../components/ui/Skeleton'
 import { useEntitlements } from '../../hooks/useEntitlements'
 import { useAuthStore } from '../../store/auth'
 
+// LAUNCH-HIDDEN: not part of the services launch, so the admin doesn't see them. Code kept;
+// set to true to bring each back.
+const SHOW_MINTCOINS = false
+const SHOW_MEMBERSHIPS = false
+const SHOW_FREELANCER_LEVELS = false
+
 function WalletAdjustModal({ user, onClose }) {
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
@@ -482,46 +488,39 @@ function UserDetailModal({ userId, onClose }) {
   return (
     <Modal title={user.full_name} subtitle={`${user.role} · ${user.email}`} onClose={onClose} maxWidth={580}>
       <div className="stack" style={{ gap: 18 }}>
-        {/* Status badges */}
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <span className={`badge ${user.is_approved ? 'mint' : 'amber'}`}>
-            <span className="bdot" />
-            {user.is_approved ? 'Approved' : 'Pending approval'}
+        {/* Where the account stands, in words */}
+        <p className="text-[14px] text-ink-700">
+          <span className={`font-semibold ${user.is_approved ? 'text-emerald-700' : 'text-amber-700'}`}>{user.is_approved ? 'Approved' : 'Waiting for approval'}</span>
+          {user.role === 'freelancer' && <> · KYC {['approved', 'verified'].includes(user.kyc_status) ? 'verified' : user.kyc_status && user.kyc_status !== 'none' ? user.kyc_status : 'not submitted'}</>}
+        </p>
+        {/* LAUNCH-HIDDEN: freelancer levels are off; everyone works at one level for now. */}
+        {SHOW_FREELANCER_LEVELS && user.role === 'freelancer' && user.freelancer_level && (
+          <span className="badge violet" style={{ textTransform: 'capitalize' }}>
+            {user.freelancer_level}
           </span>
-          <span className={`badge ${user.kyc_status === 'approved' ? 'mint' : 'neutral'}`}>
-            KYC: {user.kyc_status || 'none'}
-          </span>
-          {/* LAUNCH-HIDDEN: freelancer levels are off; everyone works at one level for now. */}
-          {false && user.role === 'freelancer' && user.freelancer_level && (
-            <span className="badge violet" style={{ textTransform: 'capitalize' }}>
-              {user.freelancer_level}
-            </span>
-          )}
-        </div>
+        )}
 
-        {/* Wallet */}
+        {/* Money: one flat tone step, words of the trade */}
         {wallet && (
-          <div style={{ padding: 14, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
-            <div className="row between" style={{ marginBottom: 8 }}>
-              <div className="h-eyebrow">Wallet</div>
-              <button className="btn ghost" style={{ fontSize: 12 }} onClick={() => setShowWalletAdjust(true)}>
-                <Icon name="edit" size={12} /> Adjust
-              </button>
+          <div className="rounded-xl bg-ink-50 px-4 py-3.5">
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 className="text-[14px] font-semibold text-ink-900">Wallet</h3>
+              <button type="button" className="text-[13px] font-medium text-ink-600 underline-offset-4 hover:text-ink-900 hover:underline" onClick={() => setShowWalletAdjust(true)}>Adjust</button>
             </div>
-            <div className="row" style={{ gap: 20, fontSize: 13 }}>
+            <dl className="mt-2 grid grid-cols-2 gap-3">
               <div>
-                <div style={{ color: 'var(--ink-500)' }}>Balance</div>
-                <div className="mono" style={{ fontWeight: 600, marginTop: 2 }}>{rupee(wallet.balance)}</div>
+                <dt className="text-[12px] text-ink-500">{user.role === 'freelancer' ? 'Earned, not withdrawn' : 'Balance'}</dt>
+                <dd className="mt-0.5 text-[16px] font-semibold tabular-nums text-ink-900">{rupee(wallet.balance)}</dd>
               </div>
               <div>
-                <div style={{ color: 'var(--ink-500)' }}>Escrowed</div>
-                <div className="mono" style={{ fontWeight: 600, marginTop: 2 }}>{rupee(wallet.escrow_balance)}</div>
+                <dt className="text-[12px] text-ink-500">{user.role === 'client' ? 'Held for open orders' : 'Held in escrow'}</dt>
+                <dd className="mt-0.5 text-[16px] font-semibold tabular-nums text-ink-900">{rupee(wallet.escrow_balance)}</dd>
               </div>
-            </div>
+            </dl>
           </div>
         )}
 
-        {user.role === 'client' && (
+        {SHOW_MINTCOINS && user.role === 'client' && (
           <div style={{ padding: 14, background: 'rgba(247,127,0,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(247,127,0,0.2)' }}>
             <div className="row between" style={{ marginBottom: 8 }}>
               <div className="h-eyebrow">MintCoins</div>
@@ -540,7 +539,7 @@ function UserDetailModal({ userId, onClose }) {
           </div>
         )}
 
-        {user.role === 'client' && (
+        {SHOW_MEMBERSHIPS && user.role === 'client' && (
           <div style={{ padding: 14, background: 'var(--paper-tint)', borderRadius: 'var(--radius-md)', border: '1px solid var(--hairline)' }}>
             <div className="row between" style={{ marginBottom: 12 }}>
               <div className="h-eyebrow">Membership Plan</div>
@@ -565,7 +564,7 @@ function UserDetailModal({ userId, onClose }) {
         )}
 
         {/* LAUNCH-HIDDEN: freelancer levels are off; everyone works at one level for now. */}
-        {false && user.role === 'freelancer' && (
+        {SHOW_FREELANCER_LEVELS && user.role === 'freelancer' && (
           <div>
             <div className="field-label" style={{ marginBottom: 8 }}>Freelancer level</div>
             <div className="row" style={{ gap: 8 }}>
@@ -825,14 +824,15 @@ export default function AdminUsers() {
                       <span className="px-2 py-0.5 bg-ink-100 text-ink-700 text-xs font-medium capitalize rounded-md">{u.role}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-xs font-medium capitalize ${u.kyc_status === 'approved' ? 'text-mint-600' : 'text-ink-400'}`}>
-                        {u.kyc_status || 'None'}
-                      </span>
+                      {u.role === 'freelancer' ? (
+                        <span className={`text-[13px] capitalize ${['approved', 'verified'].includes(u.kyc_status) ? 'font-medium text-emerald-700' : u.kyc_status === 'pending' ? 'font-medium text-amber-700' : 'text-ink-500'}`}>
+                          {['approved', 'verified'].includes(u.kyc_status) ? 'Verified' : u.kyc_status && u.kyc_status !== 'none' ? u.kyc_status : 'Not submitted'}
+                        </span>
+                      ) : <span className="text-[13px] text-ink-400">—</span>}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${u.is_approved ? 'bg-mint-50 text-mint-700' : 'bg-amber-50 text-amber-700'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${u.is_approved ? 'bg-mint-500' : 'bg-amber-500 animate-pulse'}`} />
-                        {u.is_approved ? 'Approved' : 'Pending'}
+                      <span className={`text-[13px] font-medium ${u.is_approved ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {u.is_approved ? 'Approved' : 'Waiting'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-ink-500">

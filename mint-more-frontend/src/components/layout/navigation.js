@@ -41,6 +41,7 @@ export const ADMIN_NAV = [
   { route: '/notifications', icon: 'inbox', label: 'Inbox', showCount: true },
   { route: '/admin/service-orders', icon: 'requests', label: 'Orders', group: 'Work', permission: 'ops.manage' },
   { route: '/admin/services', icon: 'layers', label: 'Service catalogue', group: 'Work', permission: 'ops.manage' },
+  { route: '/admin/operations', icon: 'video', label: 'First drafts', group: 'Work', permission: 'ops.manage' },
   { route: '/admin/users', icon: 'users', label: 'Users & KYC', group: 'People', permission: 'users.manage' },
   { route: '/admin/assessments', icon: 'checkCircle', label: 'Assessments', group: 'People', permission: 'ops.manage' },
   { route: '/admin/wallet', icon: 'platform_wallet', label: 'Payouts & escrow', group: 'Money', permission: 'payments.manage' },
@@ -50,7 +51,6 @@ export const ADMIN_NAV = [
   { route: '/admin/commerce', icon: 'settings', label: 'Platform settings', group: 'System', permission: 'pricing.manage' },
   { route: '/admin/audit', icon: 'audit', label: 'Audit records', group: 'System', permission: 'audit.read' },
   // LAUNCH-HIDDEN: social-agency and negotiation tools. Routes still work by URL.
-  { route: '/admin/operations', icon: 'operations', label: 'Operations', permission: 'ops.manage', hidden: true },
   { route: '/admin/brands', icon: 'layers', label: 'Brands', permission: 'users.manage', hidden: true },
   { route: '/admin/approvals', icon: 'approvals', label: 'Approvals', permission: 'deals.approve', hidden: true },
   { route: '/admin/pricing', icon: 'pricing', label: 'Freelancer models', permission: 'pricing.manage', hidden: true },
