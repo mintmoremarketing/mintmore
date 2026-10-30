@@ -41,6 +41,7 @@ import FreelancerProfile from './pages/client/FreelancerProfile'
 import Settings          from './pages/Settings'
 import NotificationsInbox from './pages/notifications/Inbox'
 import Mintbox           from './pages/shared/Mintbox'
+import ClientFiles       from './pages/client/Files'
 import Chat              from './pages/shared/Chat'
 import SharedFile        from './pages/public/SharedFile'
 // LAUNCH-HIDDEN: agency landing page, replaced by the storefront at "/".
@@ -299,7 +300,9 @@ export default function App() {
           {/* Shared */}
           <Route path="/chat"     element={<PermissionIfAdmin permission="support.manage"><Chat /></PermissionIfAdmin>} />
           <Route path="/messages" element={<PermissionIfAdmin permission="support.manage"><Chat /></PermissionIfAdmin>} />
-          <Route path="/mintbox" element={<ClientOnly><ClientFeature flag="mintbox"><Mintbox /></ClientFeature></ClientOnly>} />
+          <Route path="/mintbox" element={<ClientOnly><ClientFeature flag="mintbox"><ClientFiles /></ClientFeature></ClientOnly>} />
+          {/* The per-order folders view, kept for direct links; Files shows everything by month. */}
+          <Route path="/mintbox/folders" element={<ClientOnly><ClientFeature flag="mintbox"><Mintbox /></ClientFeature></ClientOnly>} />
           <Route path="/mintbox/jobs/:jobId" element={<Mintbox />} />
           <Route path="/mintbox/library/:folderId" element={<Mintbox />} />
           <Route path="/notifications" element={<NotificationsInbox />} />

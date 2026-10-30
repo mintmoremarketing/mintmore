@@ -2,6 +2,7 @@ import { api } from './client'
 
 export const mintboxApi = {
 	getFolders: () => api.get('/mintbox'),
+	getGallery: () => api.get('/mintbox/gallery'),
 	getBrandLibrary: () => api.get('/mintbox/library'),
 	getBrandFolder: (folderId) => api.get(`/mintbox/library/folders/${folderId}`),
 	createBrandFolder: (data) => api.post('/mintbox/library/folders', data),
