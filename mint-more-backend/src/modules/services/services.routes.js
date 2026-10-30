@@ -33,6 +33,7 @@ router.get('/templates', authorize('freelancer'), controller.listTemplatesForFre
 router.post('/templates/:id/opt-in', authorize('freelancer'), controller.optIn);
 router.delete('/templates/:id/opt-in', authorize('freelancer'), controller.optOut);
 router.get('/work', authorize('freelancer'), controller.listMyWork);
+router.get('/dashboard', authorize('freelancer'), controller.getMyDashboard);
 router.get('/offers', authorize('freelancer'), controller.listMyOffers);
 router.post('/offers/:id/accept', authorize('freelancer'), controller.acceptOffer);
 router.post('/offers/:id/decline', authorize('freelancer'), controller.declineOffer);

@@ -26,6 +26,7 @@ export const servicesApi = {
 	optIn: (templateId) => api.post(`/services/templates/${templateId}/opt-in`),
 	optOut: (templateId) => api.delete(`/services/templates/${templateId}/opt-in`),
 	work: (params) => api.get('/services/work', { params }),
+	dashboard: () => api.get('/services/dashboard'),
 	workItem: (id) => api.get(`/services/work/${id}`),
 	offers: () => api.get('/services/offers'),
 	acceptOffer: (bookingId) => api.post(`/services/offers/${bookingId}/accept`),
