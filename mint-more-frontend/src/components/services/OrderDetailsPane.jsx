@@ -40,8 +40,10 @@ function milestones(booking, isClient) {
 				: booking.stage === 'approved' ? (isClient ? 'Complete & rate in the conversation to release the freelancer’s payment' : 'Your payout releases as soon as the client completes the order') : null,
 		},
 	]
-	const firstOpen = steps.findIndex(step => !step.at)
-	return steps.map((step, index) => ({
+	// Until a freelancer accepts, the client's order is only placed: the rest appears once it's assigned.
+	const shown = isClient && !booking.assigned_at ? steps.slice(0, 1) : steps
+	const firstOpen = shown.findIndex(step => !step.at)
+	return shown.map((step, index) => ({
 		...step,
 		done: Boolean(step.at) && !(step.key === 'delivered' && revising),
 		current: revising ? step.key === 'delivered' : index === firstOpen,
