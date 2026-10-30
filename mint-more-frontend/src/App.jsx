@@ -26,6 +26,7 @@ import Cart              from './pages/services/Cart'
 import Orders            from './pages/services/Orders'
 import OrderDetail       from './pages/services/OrderDetail'
 import PostPaymentBrief from './pages/services/PostPaymentBrief'
+import PurchasedItems    from './pages/services/PurchasedItems'
 import ClientHome        from './pages/services/ClientHome'
 import AiEdit            from './pages/services/AiEdit'
 import MyServices        from './pages/services/MyServices'
@@ -265,6 +266,7 @@ export default function App() {
           <Route path="/orders"      element={<ClientOnly><Orders audience="client" /></ClientOnly>} />
           <Route path="/orders/:id"  element={<ClientOnly><OrderDetail audience="client" /></ClientOnly>} />
           <Route path="/order-brief" element={<ClientOnly><PostPaymentBrief /></ClientOnly>} />
+          <Route path="/purchases/:id" element={<ClientOnly><PurchasedItems /></ClientOnly>} />
           <Route path="/ai-edits/:id" element={<ClientOnly><AiEdit /></ClientOnly>} />
           <Route path="/home"        element={<FreelancerOnly><FreelancerHome /></FreelancerOnly>} />
           <Route path="/work"        element={<FreelancerOnly><Orders audience="freelancer" /></FreelancerOnly>} />

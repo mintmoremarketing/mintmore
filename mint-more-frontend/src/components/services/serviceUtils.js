@@ -10,6 +10,9 @@ export const percentOff = (price, mrp) => {
 
 export const deliveryText = (days) => `${days} day${Number(days) === 1 ? '' : 's'}`
 
+/** For purchases of more than one item: delivery runs per item, from its freelancer accepting. */
+export const perItemDeliveryText = (days) => `Each order is delivered ${deliveryText(days)} after its freelancer accepts. Finding a freelancer can take longer.`
+
 export const variantLabel = (variant, optionGroupLabel) => {
 	const parts = []
 	if (variant.option_label && variant.option_label !== 'Standard') parts.push(variant.option_label)
@@ -58,3 +61,15 @@ export const dueText = (dueAt) => {
 export const formatDate = (value) => (value
 	? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 	: '—')
+
+/** Purchased item stages come from the backend's itemStage(). */
+export const itemStageText = (item) => ({
+	needs_brief: item.has_draft ? 'Draft saved' : 'Needs a brief',
+	matching: 'Finding a freelancer',
+	active: item.freelancer_name ? `With ${item.freelancer_name}` : 'In progress',
+	completed: 'Completed',
+	cancelled: 'Cancelled',
+	refunded: 'Refunded',
+}[item.stage] || 'Open')
+
+export const itemChatLink = (item) => (item.room_id ? `/chat?room=${item.room_id}` : `/chat?job=${item.job_id}`)

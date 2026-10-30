@@ -42,7 +42,7 @@ function FilesInput({ id, files, onChange, names, alreadyUploaded = false }) {
  * The client brief form. Cart files stay in memory until payment; the post-payment
  * page uploads its selected files into the order before opening the order chat.
  */
-export default function BriefSheet({ title, fields, variantId, initial = {}, initialNotes = '', submitLabel = 'Continue', description, presentation = 'sheet', submitting = false, onDraftChange, onSubmit, onClose }) {
+export default function BriefSheet({ title, fields, variantId, initial = {}, initialNotes = '', submitLabel = 'Continue', description, presentation = 'sheet', submitting = false, filesAttached = presentation === 'page', heading, onDraftChange, onSubmit, onClose }) {
 	const [answers, setAnswers] = useState(() => ({ ...initial }))
 	const [files, setFiles] = useState(() => ({ ...briefFiles.get(variantId) }))
 	const [notes, setNotes] = useState(initialNotes)
@@ -101,12 +101,13 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 		onSubmit({ brief: cleaned, instructions: notes.trim() })
 	}
 
-	const isPage = presentation === 'page'
+	// 'inline' is the page form without the page wrapper, for screens that lay it out themselves.
+	const isPage = presentation !== 'sheet'
 	const form = (
 		<form onSubmit={submit} onClick={e => e.stopPropagation()} className={isPage ? 'overflow-hidden rounded-2xl border border-ink-200 bg-white' : 'brief-sheet flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white md:max-h-none md:max-w-[520px] md:rounded-none'} noValidate>
 				<div className="flex items-start gap-3 border-b border-ink-100 px-5 py-4 md:px-7 md:py-5">
 					<div className="min-w-0 flex-1">
-						<h2 className="text-xl font-medium tracking-tight text-ink-900">{isPage ? 'Complete your full brief' : 'Your brief'}</h2>
+						<h2 className="text-xl font-medium tracking-tight text-ink-900">{heading || (isPage ? 'Complete your full brief' : 'Your brief')}</h2>
 						<p className="mt-0.5 text-sm text-ink-500">{description || `${title} · the freelancer sees this as soon as they start`}</p>
 					</div>
 					{!isPage && <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-100" aria-label="Close">
@@ -138,7 +139,7 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 										))}
 									</div>
 								)}
-								{f.type === 'files' && <FilesInput id={id} files={files[f.key] || []} names={initial[f.key] || []} alreadyUploaded={isPage} onChange={list => updateFiles(f.key, list)} />}
+								{f.type === 'files' && <FilesInput id={id} files={files[f.key] || []} names={initial[f.key] || []} alreadyUploaded={filesAttached} onChange={list => updateFiles(f.key, list)} />}
 								{error && <p className="mt-1.5 text-sm text-rose-600">{error}</p>}
 							</div>
 						)
@@ -155,6 +156,7 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 				</div>
 		</form>
 	)
+	if (presentation === 'inline') return form
 	if (isPage) return <main className="mx-auto w-full max-w-3xl px-4 py-8 font-store md:px-8 md:py-12">{form}</main>
 	return <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/40 font-store md:items-stretch md:justify-end" onClick={onClose}>{form}</div>
 }

@@ -66,11 +66,72 @@ function AssignModal({ booking, onClose }) {
 	)
 }
 
+function RefundModal({ item, onClose }) {
+	const queryClient = useQueryClient()
+	const pushToast = useUIStore(s => s.pushToast)
+	const [note, setNote] = useState('')
+	const amount = Number(item.subtotal) + Number(item.gst_amount)
+	const refund = useMutation({
+		mutationFn: () => servicesApi.adminRefundItem(item.id, { note: note.trim() || undefined }),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['admin-unused-items'] })
+			pushToast({ title: `Refunded ${inr(amount)}`, body: item.payment_mode === 'mock' ? 'Test checkout: no money moved.' : 'Sent back to the original payment.', icon: 'check' })
+			onClose()
+		},
+		onError: err => pushToast({ title: 'Could not refund', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
+	})
+	return (
+		<Modal
+			title={`Refund order ${item.item_index} of ${item.item_count}`}
+			subtitle={`${item.title} · ${item.client_name}`}
+			onClose={onClose}
+			maxWidth={480}
+			footer={<>
+				<button className="btn ghost" onClick={onClose}>Cancel</button>
+				<button className="btn primary" disabled={refund.isPending} onClick={() => refund.mutate()}>{refund.isPending ? 'Refunding…' : `Refund ${inr(amount)}`}</button>
+			</>}
+		>
+			<p className="text-sm text-ink-600">This order has no brief yet, so no freelancer has it. The refund is its share of the payment plus its GST, sent back to the original payment. The client can't use it after this.</p>
+			<label className="mt-4 block text-sm font-medium text-ink-900" htmlFor="refund-note">Note</label>
+			<textarea id="refund-note" rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="Why the client asked, for the audit log" className="mt-1.5 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 focus:border-mint-400 focus:outline-none" />
+		</Modal>
+	)
+}
+
+/** Paid items still waiting for a brief. Refunds for them go through support. */
+function UnusedItems({ items, isLoading }) {
+	const [refunding, setRefunding] = useState(null)
+	return (
+		<Panel>
+			{isLoading ? <SkeletonRows rows={4} /> : items.length === 0 ? (
+				<EmptyState title="No unused orders" body="Orders from multi-order purchases show here until the client sends their brief." />
+			) : (
+				<ul className="divide-y divide-ink-100">
+					{items.map(item => (
+						<li key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 md:px-5">
+							<div className="min-w-0 flex-1">
+								<div className="truncate text-sm font-semibold text-ink-900">{item.title} · order {item.item_index} of {item.item_count}</div>
+								<div className="truncate text-xs text-ink-500">{item.client_name} · {item.client_email} · paid {formatDate(item.paid_at)}{item.payment_mode === 'mock' ? ' · test checkout' : ''}</div>
+							</div>
+							<span className="text-sm font-semibold tabular-nums text-ink-900">{inr(Number(item.subtotal) + Number(item.gst_amount))}</span>
+							{item.status === 'refunding'
+								? <span className="text-xs text-ink-500">Refund in progress</span>
+								: <button type="button" className="btn ghost sm" onClick={() => setRefunding(item)}>Refund</button>}
+						</li>
+					))}
+				</ul>
+			)}
+			{refunding && <RefundModal item={refunding} onClose={() => setRefunding(null)} />}
+		</Panel>
+	)
+}
+
 const VIEWS = {
 	unassigned: { label: 'Needs a freelancer', match: row => row.stage === 'finding_freelancer' },
 	open: { label: 'Open', match: row => ['in_progress', 'revision_requested', 'delivered', 'approved'].includes(row.stage) },
 	completed: { label: 'Closed', match: row => row.stage === 'completed' || row.stage === 'cancelled' },
 	all: { label: 'All', match: () => true },
+	unused: { label: 'Unused orders', match: () => false },
 }
 
 const isOverdue = row => row.due_at && ['in_progress', 'revision_requested'].includes(row.stage) && new Date(row.due_at).getTime() < Date.now()
@@ -93,7 +154,15 @@ export default function AdminServiceOrders() {
 		refetchInterval: 30_000,
 	})
 
-	const counts = useMemo(() => Object.fromEntries(Object.entries(VIEWS).map(([key, v]) => [key, rows.filter(v.match).length])), [rows])
+	const { data: unusedItems = [], isLoading: unusedLoading } = useQuery({
+		queryKey: ['admin-unused-items'],
+		queryFn: () => servicesApi.adminUnusedItems().then(res => res.data.data || []),
+	})
+
+	const counts = useMemo(() => ({
+		...Object.fromEntries(Object.entries(VIEWS).map(([key, v]) => [key, rows.filter(v.match).length])),
+		unused: unusedItems.length,
+	}), [rows, unusedItems])
 	const visible = useMemo(() => {
 		const q = search.trim().toLowerCase()
 		return rows.filter(VIEWS[view].match).filter(row => !q || [row.booking_number, row.snapshot?.title, row.client_name, row.freelancer_name]
@@ -120,7 +189,7 @@ export default function AdminServiceOrders() {
 				</label>
 			</div>
 
-			<Panel>
+			{view === 'unused' ? <UnusedItems items={unusedItems} isLoading={unusedLoading} /> : <Panel>
 				{isLoading ? <SkeletonRows rows={5} /> : visible.length === 0 ? (
 					<EmptyState
 						title={search ? 'No orders match that search' : view === 'unassigned' ? 'Every paid order has a freelancer' : 'No orders here yet'}
@@ -178,7 +247,7 @@ export default function AdminServiceOrders() {
 						</div>
 					</>
 				)}
-			</Panel>
+			</Panel>}
 			{assigning && <AssignModal booking={assigning} onClose={() => setAssigning(null)} />}
 		</AdminPage>
 	)
