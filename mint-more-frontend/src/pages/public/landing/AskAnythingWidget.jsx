@@ -78,6 +78,8 @@ export default function AskAnythingWidget({
   const [loading, setLoading] = useState(false)
   const [typing, setTyping] = useState(false)
   const messagesRef = useRef(null)
+  const rootRef = useRef(null)
+  const [everOpened, setEverOpened] = useState(false)
   const messageIdRef = useRef(0)
   const [messages, setMessages] = useState([
     { id: 'intro', role: 'assistant', text: intro },
@@ -87,6 +89,22 @@ export default function AskAnythingWidget({
     messageIdRef.current += 1
     return `${prefix}-${messageIdRef.current}`
   }
+
+  // A click anywhere else, or Escape, folds the widget back to just the bar.
+  useEffect(() => {
+    if (!open && !showSuggestions) return undefined
+    const collapse = event => {
+      if (event.type === 'keydown' ? event.key !== 'Escape' : rootRef.current?.contains(event.target)) return
+      setOpen(false)
+      setShowSuggestions(false)
+    }
+    document.addEventListener('pointerdown', collapse)
+    document.addEventListener('keydown', collapse)
+    return () => {
+      document.removeEventListener('pointerdown', collapse)
+      document.removeEventListener('keydown', collapse)
+    }
+  }, [open, showSuggestions])
 
   useEffect(() => {
     if (!open || !messagesRef.current) return
@@ -123,6 +141,7 @@ export default function AskAnythingWidget({
       return
     }
     setOpen(true)
+    setEverOpened(true)
     setShowSuggestions(false)
     setQuestion('')
     setMessages(prev => [...prev, { id: nextMessageId('user'), role: 'user', text: cleaned }])
@@ -154,9 +173,9 @@ export default function AskAnythingWidget({
   }
 
   return (
-    <div className={'landing-ask-widget' + (visible ? ' is-visible' : '') + (showSuggestions ? ' is-suggesting' : '') + (open ? ' is-open' : '')}>
-      {open && (
-        <div className="landing-ask-panel">
+    <div ref={rootRef} className={'landing-ask-widget' + (visible ? ' is-visible' : '') + (showSuggestions ? ' is-suggesting' : '') + (open ? ' is-open' : '')}>
+      {everOpened && (
+        <div className="landing-ask-panel" aria-hidden={!open} inert={!open}>
           <div className="landing-ask-head">
             <div className="landing-ask-avatar" aria-hidden="true"><span /></div>
             <div>
@@ -183,16 +202,17 @@ export default function AskAnythingWidget({
         </div>
       )}
       <div className="landing-ask-controls">
-        {(showSuggestions || open) && (
+        {/* Always mounted so it can fold open and shut instead of popping in. */}
+        <div className="landing-ask-chips-fold" aria-hidden={!(showSuggestions || open)}>
           <div className="landing-ask-collapsed-chips">
-            {questions.map((item, index) => <button key={item} type="button" style={{ '--i': index }} onClick={() => ask(item)}>{item}</button>)}
+            {questions.map((item, index) => <button key={item} type="button" tabIndex={showSuggestions || open ? 0 : -1} style={{ '--i': index }} onClick={() => ask(item)}>{item}</button>)}
           </div>
-        )}
+        </div>
         <form className="landing-ask-bar" onSubmit={onSubmit}>
           <input
             value={question}
             onClick={() => setShowSuggestions(true)}
-            onFocus={() => setShowSuggestions(true)}
+            onFocus={() => { setShowSuggestions(true); if (everOpened) setOpen(true) }}
             onChange={event => setQuestion(event.target.value)}
             placeholder="Ask me anything…"
             aria-label="Ask a question about CREATYV"
