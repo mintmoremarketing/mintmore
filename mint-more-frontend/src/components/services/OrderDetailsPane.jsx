@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import Icon from '../ui/Icon'
 import Avatar from '../ui/Avatar'
-import StageBadge from './StageBadge'
-import { deliveryText, formatDate, inr, variantLabel } from './serviceUtils'
+import { deliveryText, formatDate, inr, STAGE_META, variantLabel } from './serviceUtils'
 
 const timeOf = (value) => new Date(value).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 
@@ -12,10 +11,11 @@ function dueState(dueAt) {
 	const hours = (new Date(dueAt).getTime() - Date.now()) / 3_600_000
 	if (hours < 0) {
 		const late = Math.abs(hours)
-		return { text: `Overdue by ${late < 24 ? `${Math.ceil(late)}h` : `${Math.round(late / 24)}d`}`, tone: 'text-rose-700 bg-rose-50' }
+		return { text: `overdue by ${late < 24 ? `${Math.ceil(late)}h` : `${Math.round(late / 24)}d`}`, tone: 'text-rose-700' }
 	}
-	if (hours < 24) return { text: `${Math.max(1, Math.floor(hours))}h left`, tone: 'text-amber-800 bg-amber-50' }
-	return { text: `${Math.round(hours / 24)}d left`, tone: 'text-ink-700 bg-ink-100' }
+	if (hours < 24) return { text: `${Math.max(1, Math.floor(hours))}h left`, tone: 'text-amber-700' }
+	const days = Math.round(hours / 24)
+	return { text: `${days} day${days === 1 ? '' : 's'} left`, tone: 'text-ink-600' }
 }
 
 /** Order milestones from the booking's own timestamps; the first unreached step is "current". */
@@ -52,23 +52,23 @@ function milestones(booking, isClient) {
 
 function Timeline({ steps }) {
 	return (
-		<ol className="relative">
+		<ol>
 			{steps.map((step, index) => {
 				const last = index === steps.length - 1
 				return (
-					<li key={step.key} className="relative flex gap-3 pb-5 last:pb-0">
-						{!last && <span aria-hidden="true" className={`absolute left-[9px] top-5 h-[calc(100%-12px)] w-px ${step.done ? 'bg-ink-900' : 'bg-ink-200'}`} />}
-						<span aria-hidden="true" className={`relative z-[1] mt-0.5 grid h-[19px] w-[19px] shrink-0 place-items-center rounded-full ${
-							step.done ? 'bg-ink-900 text-white' : step.current ? 'border-2 border-mint-500 bg-white' : 'border border-ink-300 bg-white'
+					<li key={step.key} className="relative flex gap-3 pb-4 last:pb-0">
+						{!last && <span aria-hidden="true" className={`absolute left-[7px] top-[18px] bottom-0 w-px ${step.done ? 'bg-ink-900' : 'bg-ink-200'}`} />}
+						<span aria-hidden="true" className={`relative z-[1] mt-[3px] grid h-[15px] w-[15px] shrink-0 place-items-center rounded-full ${
+							step.done ? 'bg-ink-900 text-white' : step.current ? 'bg-mint-500 ring-4 ring-mint-500/15' : 'border border-ink-300 bg-white'
 						}`}>
-							{step.done ? <Icon name="check" size={11} /> : step.current && <span className="h-[7px] w-[7px] rounded-full bg-mint-500" />}
+							{step.done && <Icon name="check" size={9} />}
 						</span>
 						<div className="min-w-0 flex-1">
-							<div className="flex items-baseline justify-between gap-3">
-								<span className={`text-[14px] ${step.done || step.current ? 'font-semibold text-ink-900' : 'text-ink-500'}`}>{step.label}</span>
-								{step.at && <time className="shrink-0 text-xs tabular-nums text-ink-500" dateTime={step.at}>{timeOf(step.at)}</time>}
-							</div>
-							{step.note && <p className={`mt-0.5 text-[13px] ${step.current ? 'text-ink-700' : 'text-ink-500'}`}>{step.note}</p>}
+							<p className={`text-[14px] leading-5 ${step.done || step.current ? 'font-medium text-ink-900' : 'text-ink-500'}`}>
+								{step.label}
+								{step.at && <time className="ml-2 text-[12px] font-normal tabular-nums text-ink-500" dateTime={step.at}>{timeOf(step.at)}</time>}
+							</p>
+							{step.note && <p className={`mt-0.5 text-[13px] leading-5 ${step.current ? 'text-ink-700' : 'text-ink-500'}`}>{step.note}</p>}
 						</div>
 					</li>
 				)
@@ -77,12 +77,13 @@ function Timeline({ steps }) {
 	)
 }
 
+// Sections are told apart by space and a heading, not by rules between them.
 function Section({ title, children, action }) {
 	return (
-		<section className="border-t-8 border-ink-50 px-4 py-5 md:border-t md:border-ink-100 md:px-5">
+		<section className="px-5 pt-7 last:pb-7">
 			{title && (
-				<div className="mb-3 flex items-center justify-between gap-3">
-					<h2 className="text-[15px] font-semibold text-ink-900">{title}</h2>
+				<div className="mb-3 flex items-baseline justify-between gap-3">
+					<h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ink-900">{title}</h2>
 					{action}
 				</div>
 			)}
@@ -109,6 +110,8 @@ export default function OrderDetailsPane({ booking, snapshot, isClient, counterp
 	const [showExcluded, setShowExcluded] = useState(false)
 	const completed = booking.stage === 'completed'
 	const due = completed ? null : dueState(booking.due_at)
+	const stageLabel = (STAGE_META[booking.stage] || { label: booking.stage }).label
+	const stageTone = { revision_requested: 'text-violet-700', delivered: 'text-mint-600', cancelled: 'text-rose-700' }[booking.stage] || 'text-ink-900'
 	const total = Number(booking.subtotal) + Number(booking.gst_amount)
 	const revisionsLeft = Number(booking.revisions_left ?? 0)
 	const revisionsIncluded = Number(booking.revisions_included ?? 0)
@@ -126,73 +129,65 @@ export default function OrderDetailsPane({ booking, snapshot, isClient, counterp
 
 	return (
 		<div className={`bg-white font-store ${embedded ? '' : 'md:max-h-[calc(100dvh-112px)] md:overflow-y-auto md:rounded-2xl md:border md:border-ink-200'}`}>
-			{/* What was bought */}
-			<div className="flex gap-3.5 px-4 pb-5 pt-5 md:px-5">
-				<div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-ink-900 text-lg font-semibold text-white">
-					{booking.cover_url ? <img src={booking.cover_url} alt="" className="h-full w-full object-cover" /> : (snapshot.title || 'C').slice(0, 1)}
-				</div>
-				<div className="min-w-0 flex-1">
-					<h1 className="text-[17px] font-semibold leading-snug tracking-[-0.01em] text-ink-900 [text-wrap:balance]">{snapshot.title || booking.template_title}</h1>
-					<p className="mt-0.5 text-[13px] text-ink-500">
-						{variantLabel(snapshot, snapshot.option_group_label)}{Number(booking.quantity) > 1 ? ` × ${booking.quantity}` : ''}
-						{booking.category_name ? ` · ${booking.category_name}` : ''}
-					</p>
-					<div className="mt-2 flex flex-wrap items-center gap-2">
-						<StageBadge stage={booking.stage} />
-						<button type="button" onClick={copyNumber} className="inline-flex h-6 items-center gap-1 rounded-full px-2 text-xs font-medium tabular-nums text-ink-600 transition-colors hover:bg-ink-100 active:scale-[0.97]" aria-label={`Copy order number ${booking.booking_number}`}>
-							{booking.booking_number}
-							<Icon name={copied ? 'check' : 'copy'} size={12} />
-						</button>
+			{/* What was bought and where it stands, in one place */}
+			<header className="px-5 pt-5">
+				<div className="flex items-start gap-3">
+					{booking.cover_url && <img src={booking.cover_url} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />}
+					<div className="min-w-0 flex-1">
+						<h1 className="text-[17px] font-semibold leading-snug tracking-[-0.01em] text-ink-900 [text-wrap:balance]">{snapshot.title || booking.template_title}</h1>
+						<p className="mt-0.5 text-[13px] text-ink-500">
+							{variantLabel(snapshot, snapshot.option_group_label)}{Number(booking.quantity) > 1 ? ` × ${booking.quantity}` : ''}
+							{snapshot.purchase_item ? ` · Order ${snapshot.purchase_item.index} of ${snapshot.purchase_item.count}` : ''}
+							{booking.category_name ? ` · ${booking.category_name}` : ''}
+						</p>
 					</div>
+					<button type="button" onClick={copyNumber} className="-mr-2 inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-medium tabular-nums text-ink-500 transition-[background-color,color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-100 hover:text-ink-900 active:scale-[0.96]" aria-label={`Copy order number ${booking.booking_number}`}>
+						{booking.booking_number}
+						<Icon name={copied ? 'check' : 'copy'} size={12} />
+					</button>
 				</div>
-			</div>
+				<p className="mt-3 text-[14px] text-ink-900">
+					<span className={`font-semibold ${stageTone}`}>{stageLabel}</span>
+					{!completed && due && <span className={due.tone}> · {due.text}</span>}
+				</p>
+			</header>
 
-			{/* Deadline, delivery time and revisions at a glance */}
-			<dl className="mx-4 mb-5 grid grid-cols-3 divide-x divide-ink-100 rounded-xl bg-ink-50 py-3 md:mx-5">
-				<div className="px-3">
-					<dt className="text-xs text-ink-500">{completed ? 'Completed' : 'Due'}</dt>
-					<dd className="mt-0.5 text-[14px] font-semibold text-ink-900">{completed ? formatDate(booking.completed_at) : booking.due_at ? new Date(booking.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</dd>
-					{due && <dd className={`mt-1 inline-flex rounded-full px-1.5 py-px text-[11px] font-semibold ${due.tone}`}>{due.text}</dd>}
+			{/* Deadline, delivery time and revisions at a glance: one tone step, no dividers */}
+			<dl className="mx-5 mt-4 grid grid-cols-3 gap-3 rounded-2xl bg-ink-50 px-4 py-3.5">
+				<div>
+					<dt className="text-[12px] text-ink-500">{completed ? 'Completed' : 'Due'}</dt>
+					<dd className="mt-0.5 text-[15px] font-semibold tabular-nums text-ink-900">{completed ? formatDate(booking.completed_at) : booking.due_at ? new Date(booking.due_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'On acceptance'}</dd>
 				</div>
-				<div className="px-3">
-					<dt className="text-xs text-ink-500">Turnaround</dt>
-					<dd className="mt-0.5 text-[14px] font-semibold text-ink-900">{deliveryText(snapshot.delivery_days)}</dd>
+				<div>
+					<dt className="text-[12px] text-ink-500">Turnaround</dt>
+					<dd className="mt-0.5 text-[15px] font-semibold text-ink-900">{deliveryText(snapshot.delivery_days)}</dd>
 				</div>
-				<div className="px-3">
-					<dt className="text-xs text-ink-500">Revisions</dt>
-					<dd className="mt-0.5 text-[14px] font-semibold tabular-nums text-ink-900">{revisionsLeft} left</dd>
-					{revisionsIncluded > 0 && (
-						<dd className="mt-1.5 flex gap-1" aria-label={`${revisionsLeft} of ${revisionsIncluded} revisions left`}>
-							{Array.from({ length: revisionsIncluded }, (_, i) => <span key={i} className={`h-1 flex-1 rounded-full ${i < revisionsIncluded - revisionsLeft ? 'bg-ink-300' : 'bg-mint-500'}`} />)}
-						</dd>
-					)}
+				<div>
+					<dt className="text-[12px] text-ink-500">Revisions</dt>
+					<dd className="mt-0.5 text-[15px] font-semibold tabular-nums text-ink-900">{revisionsIncluded > 0 ? `${revisionsLeft} of ${revisionsIncluded}` : 'None'}</dd>
 				</div>
 			</dl>
+
+			{/* Who's on the other side */}
+			<div className="mx-5 mt-4 flex items-center gap-3">
+				{counterpart.name ? <Avatar name={counterpart.name} src={counterpart.avatar} size="sm" /> : <span className="grid h-8 w-8 place-items-center rounded-full bg-ink-100 text-ink-500"><Icon name="clock" size={14} /></span>}
+				<p className="min-w-0 flex-1 truncate text-[14px] text-ink-600">
+					{counterpart.name ? <><span className="font-medium text-ink-900">{counterpart.name}</span> · {counterpart.label.toLowerCase()}</> : 'Finding your freelancer'}
+					{isClient && rating > 0 && <> · <Icon name="star" size={12} className="-mt-0.5 inline text-amber-500" /> {rating.toFixed(1)}</>}
+				</p>
+				{counterpart.name && onMessage && (
+					<button type="button" onClick={onMessage} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-ink-100 px-3 text-[13px] font-medium text-ink-900 transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-200 active:scale-[0.96] md:hidden">
+						<Icon name="chat" size={14} /> Message
+					</button>
+				)}
+			</div>
 
 			<Section title="Order status">
 				<Timeline steps={milestones(booking, isClient)} />
 			</Section>
 
-			<Section>
-				<div className="flex items-center gap-3">
-					{counterpart.name ? <Avatar name={counterpart.name} src={counterpart.avatar} size="md" /> : <span className="grid h-10 w-10 place-items-center rounded-full bg-ink-100 text-ink-500"><Icon name="clock" size={16} /></span>}
-					<div className="min-w-0 flex-1">
-						<div className="truncate text-[15px] font-semibold text-ink-900">{counterpart.name || 'Finding your freelancer'}</div>
-						<div className="flex items-center gap-1.5 text-[13px] text-ink-500">
-							{counterpart.label}
-							{isClient && rating > 0 && <><span aria-hidden="true">·</span><Icon name="star" size={12} className="text-amber-500" />{rating.toFixed(1)}</>}
-						</div>
-					</div>
-					{counterpart.name && (
-						<button type="button" onClick={onMessage} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-ink-200 px-3.5 text-sm font-medium text-ink-900 transition-[background-color,transform] hover:bg-ink-50 active:scale-[0.97] md:hidden">
-							<Icon name="chat" size={15} /> Message
-						</button>
-					)}
-				</div>
-			</Section>
-
 			<Section title="Brief">
-				{Array.isArray(booking.brief) && booking.brief.some(answer => String(answer.value || '').trim()) && <dl className="space-y-3">{booking.brief.filter(answer => String(answer.value || '').trim()).map(answer => <div key={answer.key}><dt className="text-[13px] font-medium text-ink-500">{answer.label || answer.key}</dt><dd className="mt-0.5 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-800 [overflow-wrap:anywhere]">{Array.isArray(answer.value) ? answer.value.join(', ') : String(answer.value)}</dd></div>)}</dl>}
+				{Array.isArray(booking.brief) && booking.brief.some(answer => String(answer.value || '').trim()) && <dl className="space-y-3.5">{booking.brief.filter(answer => String(answer.value || '').trim()).map(answer => <div key={answer.key}><dt className="text-[13px] text-ink-500">{answer.label || answer.key}</dt><dd className="mt-0.5 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-900 [overflow-wrap:anywhere]">{Array.isArray(answer.value) ? answer.value.join(', ') : String(answer.value)}</dd></div>)}</dl>}
 				{booking.instructions ? <p className="mt-3 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-700">{booking.instructions}</p> : !booking.brief?.length && <p className="text-[14px] leading-relaxed text-ink-700">No written brief. Files and notes shared in the conversation count as the brief.</p>}
 				{snapshot.requirements_hint && (
 					<p className="mt-3 flex gap-2 text-[13px] text-ink-500"><Icon name="file" size={14} className="mt-0.5 shrink-0" />{snapshot.requirements_hint}</p>
@@ -212,7 +207,7 @@ export default function OrderDetailsPane({ booking, snapshot, isClient, counterp
 						{includes.map(item => <li key={item} className="flex gap-2.5"><Icon name="check" size={15} className="mt-0.5 shrink-0 text-emerald-600" />{item}</li>)}
 					</ul>
 					{showExcluded && (
-						<ul className="mt-3 space-y-2 border-t border-ink-100 pt-3 text-[14px] text-ink-500">
+						<ul className="mt-3 space-y-2 text-[14px] text-ink-500">
 							{excludes.map(item => <li key={item} className="flex gap-2.5"><Icon name="x" size={15} className="mt-0.5 shrink-0 text-ink-400" />{item}</li>)}
 						</ul>
 					)}
@@ -225,15 +220,14 @@ export default function OrderDetailsPane({ booking, snapshot, isClient, counterp
 						<>
 							<Row label="Service price" value={inr(booking.subtotal)} />
 							<Row label="GST (18%)" value={inr(booking.gst_amount)} />
-							<div className="my-1.5 border-t border-dashed border-ink-200" />
-							<Row label="Total paid" value={inr(total)} strong />
+							<div className="mt-1.5 pt-1.5"><Row label="Total paid" value={inr(total)} strong /></div>
 						</>
 					) : (
 						<Row label="Your payout" value={inr(booking.freelancer_payout)} strong />
 					)}
 				</dl>
-				<p className="mt-3 flex gap-2 rounded-xl bg-ink-50 p-3 text-[13px] leading-snug text-ink-600">
-					<Icon name="shield" size={15} className="mt-px shrink-0 text-ink-700" />
+				<p className="mt-3 flex gap-2 text-[13px] leading-snug text-ink-500">
+					<Icon name="shield" size={14} className="mt-px shrink-0 text-ink-500" />
 					{isClient
 						? `Paid on ${formatDate(booking.paid_at)}. Creatyv holds it and releases it to the freelancer only when you complete the order.`
 						: completed ? 'Released to your wallet.' : 'Held by Creatyv and released to your wallet when the client completes the order.'}
