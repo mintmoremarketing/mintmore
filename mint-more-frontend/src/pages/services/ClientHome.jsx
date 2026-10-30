@@ -90,7 +90,7 @@ function ReviewQueue({ rows, coverFor }) {
 								</div>
 								<div className="text-sm text-ink-600 md:w-56 md:shrink-0 md:text-right">
 									{approved
-										? 'Approved. Complete it to release payment.'
+										? 'Approved. Complete and rate it.'
 										: `Delivered ${ago(row.latest_delivery_at)}${Number(row.delivery_count) > 1 ? ` · version ${row.delivery_count}` : ''}`}
 								</div>
 								<span className="ml-auto inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-[15px] font-medium text-white transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] group-active:scale-[0.97] max-md:w-full max-md:justify-center">
@@ -188,7 +188,7 @@ function BookAgain({ rows, onSale }) {
 const HOW_IT_WORKS = [
 	{ title: 'Pick a service', body: 'Fixed price, fixed scope. Choose the length and pack you need.' },
 	{ title: 'A freelancer starts', body: 'A vetted freelancer is assigned right away and a chat opens.' },
-	{ title: 'Approve, then pay out', body: 'Ask for revisions, approve the work, and payment is released.' },
+	{ title: 'Approve and rate', body: 'Ask for revisions, approve the work, then complete the order and rate your freelancer.' },
 ]
 
 // Folder tab sides, drawn in a 44×56 box: the curve eases flat into the panel's top edge.

@@ -143,7 +143,7 @@ export default function DeliveriesPanel({ booking, role, onChanged }) {
 	const complete = useMutation({
 		mutationFn: () => mintboxApi.completeProject(jobId, { ...ratings, review_text: reviewText.trim() || undefined }),
 		onSuccess: () => {
-			pushToast({ title: 'Order completed', body: 'Thanks! Payment has been released to the freelancer.', icon: 'check' })
+			pushToast({ title: 'Order completed', body: 'Thanks for rating your freelancer.', icon: 'check' })
 			setShowRating(false)
 			refresh()
 		},
@@ -181,7 +181,6 @@ export default function DeliveriesPanel({ booking, role, onChanged }) {
 				<div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
 					<div className="flex-1">
 						<div className="text-sm font-bold text-emerald-800">You approved the latest delivery</div>
-						<div className="text-xs text-emerald-700 mt-0.5">Complete the order and rate the freelancer to release their payment.</div>
 					</div>
 					<button className="btn primary" onClick={() => setShowRating(true)}><Icon name="checkCircle" size={14} /> Complete &amp; rate</button>
 				</div>
@@ -296,7 +295,7 @@ export default function DeliveriesPanel({ booking, role, onChanged }) {
 			{showRating && (
 				<Modal
 					title="Complete order & rate"
-					subtitle="Completing releases payment to the freelancer. This can't be undone."
+					subtitle="This closes the order. It can't be undone."
 					onClose={() => setShowRating(false)}
 					footer={(
 						<>

@@ -415,7 +415,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 	const complete = useMutation({
 		mutationFn: () => mintboxApi.completeProject(jobId, { ...ratings, review_text: reviewText.trim() || undefined }),
 		onSuccess: () => {
-			pushToast({ title: 'Order completed', body: 'Thanks! Payment has been released to the freelancer.', icon: 'check' })
+			pushToast({ title: 'Order completed', body: 'Thanks for rating your freelancer.', icon: 'check' })
 			setShowRating(false)
 			refreshSoon()
 		},
@@ -565,8 +565,8 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 					<div className="flex min-w-0 items-start gap-3">
 						<Icon name="checkCircle" size={21} className="mt-0.5 shrink-0 text-emerald-700" />
 						<div className="min-w-0">
-							<h2 className="text-base font-semibold text-ink-900 md:text-lg">Release the freelancer&apos;s payment</h2>
-							<p className="mt-1 text-sm leading-5 text-ink-700">Your approval is saved. Complete the order and rate your freelancer to release their payout.</p>
+							<h2 className="text-base font-semibold text-ink-900 md:text-lg">You approved the work</h2>
+							<p className="mt-1 text-sm leading-5 text-ink-700">Complete the order and rate your freelancer.</p>
 						</div>
 					</div>
 					<button type="button" onClick={() => setShowRating(true)} className="min-h-11 shrink-0 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition-transform duration-150 hover:bg-ink-700 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-500 focus-visible:ring-offset-2">
@@ -711,7 +711,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 			{showRating && (
 				<Modal
 					title="Complete order & rate"
-					subtitle="Completing releases payment to the freelancer. This can't be undone."
+					subtitle="This closes the order. It can't be undone."
 					onClose={() => setShowRating(false)}
 					footer={(
 						<>
