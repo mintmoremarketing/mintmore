@@ -14,6 +14,21 @@ import NotificationSettings from '../components/settings/NotificationSettings'
 const HIDDEN_CLIENT_SECTIONS = new Set(['brand-assets', 'social', 'google-business', 'posting-preferences', 'smart-festival-plan', 'setup'])
 
 const GOOGLE_PLACES_SCRIPT_ID = 'creatyv-google-places-script'
+
+// LAUNCH-HIDDEN: profile fields nobody uses in the services launch. Code kept; set to true.
+const SHOW_BIO = false
+const SHOW_WHATSAPP_BRIDGE = false
+
+const FIELD_LABEL = 'mb-1.5 block text-[14px] font-medium text-ink-900'
+const PRIMARY_BUTTON = 'inline-flex h-10 items-center rounded-xl bg-ink-900 px-5 text-[14px] font-medium text-white transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-800 active:scale-[0.97] disabled:opacity-50'
+const SECONDARY_BUTTON = 'inline-flex h-10 items-center rounded-xl border border-ink-200 bg-white px-4 text-[14px] font-medium text-ink-900 transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-50 active:scale-[0.97]'
+
+// One line under each section's title, saying what it's for.
+const SECTION_LINES = {
+  profile: 'Your name, photo and business details.',
+  security: 'Change the password you sign in with.',
+  notifications: 'Where you hear about your orders, messages and payments.',
+}
 let googlePlacesPromise = null
 
 const loadGooglePlacesScript = (apiKey) => {
@@ -243,8 +258,10 @@ export default function Settings() {
   const home = isFreelancer ? 'verification' : 'profile'
   const requestedSection = searchParams.get('section') || home
   // LAUNCH-HIDDEN: "Account info" only repeated the email, role and verification shown elsewhere.
+  // LAUNCH-HIDDEN: clients don't verify their identity for the services launch; freelancers still do (KYC).
+  const isClient = useAuthStore.getState().user?.role === 'client'
   const section = HIDDEN_CLIENT_SECTIONS.has(requestedSection) || requestedSection === 'account'
-    || (isFreelancer && requestedSection === 'profile') ? home : requestedSection
+    || (isFreelancer && requestedSection === 'profile') || (isClient && requestedSection === 'verification') ? home : requestedSection
   const queryClient = useQueryClient()
   const pushToast   = useUIStore(s => s.pushToast)
   const { user, setAuth, refreshToken, accessToken, logout } = useAuthStore()
@@ -851,7 +868,7 @@ export default function Settings() {
       ['posting-preferences', 'calendar', 'Posting cadence'],
       ['smart-festival-plan', 'sparkles', 'Smart Festival Plan'],
     ].filter(([id]) => !HIDDEN_CLIENT_SECTIONS.has(id)) : []),
-    ...(!['admin', 'designer'].includes(user?.role) ? [['verification', 'shield', 'Verification']] : []),
+    ...(!['admin', 'designer', 'client'].includes(user?.role) ? [['verification', 'shield', 'Verification']] : []),
     ['security', 'lock', 'Password & security'],
     ['notifications', 'bell', 'Notifications'],
   ]
@@ -860,7 +877,7 @@ export default function Settings() {
     <div className="flex flex-col md:flex-row gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
       {/* Phones: the sections become one scrolling row so the content starts on the first screen. */}
       <aside className="w-full md:w-64 shrink-0 flex flex-row md:flex-col gap-1 md:sticky md:top-24 self-start overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:none]">
-        <h1 className="hidden md:block mb-2 px-3 text-2xl font-display font-bold tracking-tight text-ink-900">Settings</h1>
+        <h1 className="mb-2 hidden px-3 font-store text-[22px] font-medium tracking-[-0.02em] text-ink-900 md:block">Settings</h1>
         {user?.role === 'freelancer' && (
           <button className="flex shrink-0 items-center gap-3 whitespace-nowrap px-3 py-2.5 rounded-lg text-sm font-medium text-ink-600 transition-[background-color,color,transform] duration-150 active:scale-[0.97] hover:bg-ink-100 hover:text-ink-900" onClick={() => navigate('/profile/edit')}>
             <Icon name="user" size={16} /> Edit profile
@@ -880,241 +897,142 @@ export default function Settings() {
         </button>
       </aside>
       <div className="flex-1 flex flex-col gap-6 min-w-0">
-      <div className="mb-2">
-        <h2 className="text-3xl md:text-4xl font-display font-bold tracking-tight text-ink-950 m-0 pb-1">
+      <div className="font-store">
+        <h2 className="m-0 text-[26px] font-medium tracking-[-0.02em] text-ink-900 md:text-[30px]">
           {sections.find(([id]) => id === section)?.[2] || 'Account settings'}
         </h2>
-        <p className="text-ink-500 text-sm md:text-base max-w-2xl mt-2 mb-0">
-          {user?.role === 'freelancer' ? 'Verification and sign-in. Your name, photo and bio live in Edit profile.' : 'Manage your profile, verification and sign-in details.'}
+        <p className="mb-0 mt-1 max-w-[65ch] text-[15px] text-ink-600">
+          {SECTION_LINES[section] || (user?.role === 'freelancer' ? 'Verification and sign-in. Your name, photo and bio live in Edit profile.' : '')}
         </p>
       </div>
 
       {/* Profile & Account */}
       {section === 'notifications' && <NotificationSettings />}
       {section === 'profile' && (
-        <div className="flex flex-col gap-6">
-          {/* Avatar */}
-          <div className="bg-white border border-ink-200 shadow-sm rounded-2xl p-6 md:p-8">
-            <h2 className="text-lg font-bold text-ink-950 mb-6 tracking-tight">Profile photo</h2>
-            <div className="flex flex-col md:flex-row gap-6 md:items-center">
-              <div className="relative shrink-0">
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="" className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border-4 border-white shadow-md" />
-                ) : (
-                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-ink-100 to-ink-200 text-ink-500 flex items-center justify-center font-display text-3xl font-medium border-4 border-white shadow-md">
-                    {(profile.full_name || 'U').split(' ').map(p => p[0]).slice(0, 2).join('')}
+        <div className="max-w-3xl rounded-2xl border border-ink-200 bg-white font-store">
+          {/* Photo and who this is */}
+          <div className="flex flex-wrap items-center gap-4 px-5 py-5 md:px-6">
+            {avatarPreview ? (
+              <img src={avatarPreview} alt="" className="h-16 w-16 shrink-0 rounded-full object-cover" />
+            ) : (
+              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-ink-100 text-xl font-medium text-ink-600">
+                {(profile.full_name || 'U').split(' ').map(p => p[0]).slice(0, 2).join('')}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[17px] font-medium text-ink-900">{profile.full_name}</p>
+              <p className="truncate text-[14px] text-ink-500">{profile.email}</p>
+            </div>
+            <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarChange} />
+            <div className="flex items-center gap-2">
+              <button type="button" className={SECONDARY_BUTTON} onClick={() => avatarInputRef.current?.click()}>
+                {avatarPreview ? 'Change photo' : 'Add photo'}
+              </button>
+              {avatarFile && (
+                <button type="button" className={PRIMARY_BUTTON} onClick={() => uploadAvatar()} disabled={uploadingAvatar}>
+                  {uploadingAvatar ? 'Saving…' : 'Save photo'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* You */}
+          <div className="border-t border-ink-100 px-5 py-5 md:px-6">
+            <h3 className="text-[15px] font-semibold text-ink-900">You</h3>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label htmlFor="settings-name" className={FIELD_LABEL}>Full name</label>
+                <input id="settings-name" className="input w-full" value={fullName} onChange={e => setFullName(e.target.value)} autoComplete="name" />
+              </div>
+              <div>
+                <label htmlFor="settings-phone" className={FIELD_LABEL}>Phone {profile.phone_verified && <span className="ml-1 font-normal text-emerald-700">verified</span>}</label>
+                <input id="settings-phone" className="input w-full" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91" autoComplete="tel" />
+              </div>
+            </div>
+            {/* LAUNCH-HIDDEN: no one reads a client's bio in the services launch. Freelancers edit theirs in Edit profile. */}
+            {SHOW_BIO && user?.role !== 'admin' && (
+              <div className="mt-4">
+                <label htmlFor="settings-bio" className={FIELD_LABEL}>Bio</label>
+                <textarea id="settings-bio" className="textarea w-full" rows={3} value={bio} onChange={e => setBio(e.target.value)} />
+              </div>
+            )}
+            {/* LAUNCH-HIDDEN: the WhatsApp chat bridge isn't part of the launch; WhatsApp updates live in Notifications. */}
+            {SHOW_WHATSAPP_BRIDGE && user?.role !== 'admin' && (
+              <div className="mt-4">
+                <label htmlFor="settings-wa" className={FIELD_LABEL}>WhatsApp number</label>
+                <input id="settings-wa" className="input w-full" value={waNumber} onChange={e => setWaNumber(e.target.value)} placeholder="+91" />
+              </div>
+            )}
+          </div>
+
+          {/* Your business */}
+          <div className="border-t border-ink-100 px-5 py-5 md:px-6">
+            <h3 className="text-[15px] font-semibold text-ink-900">Your business</h3>
+            <p className="mt-0.5 text-[14px] text-ink-500">Freelancers see this, so they know who the work is for.</p>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="relative md:col-span-2">
+                <label htmlFor="settings-business" className={FIELD_LABEL}>Business name</label>
+                <input id="settings-business" className="input w-full" ref={businessRef} value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="Start typing to find it on Google" autoComplete="off" />
+                {placesReady && <p className="mt-1.5 text-[13px] text-ink-500">Pick it from the list to fill in the address for you.</p>}
+                {businessSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-40 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+                    {businessSuggestions.map((prediction) => (
+                      <button key={prediction.place_id} type="button" className="block w-full px-4 py-2.5 text-left transition-colors hover:bg-ink-50" onMouseDown={(e) => e.preventDefault()} onClick={() => applyPredictionSelection(prediction, 'business')}>
+                        <span className="block truncate text-[14px] font-medium text-ink-900">{prediction.structured_formatting?.main_text || prediction.description}</span>
+                        <span className="block truncate text-[13px] text-ink-500">{prediction.structured_formatting?.secondary_text || prediction.description}</span>
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
-              <div className="flex flex-col items-start">
-                <div className="text-xl font-bold text-ink-950 mb-1">{profile.full_name}</div>
-                <div className="text-sm font-medium text-ink-500 mb-4">
-                  <span className="capitalize">{profile.role}</span> · {profile.email}
+              {user?.role === 'client' && (
+                <div className="md:col-span-2">
+                  <label htmlFor="settings-type" className={FIELD_LABEL}>What kind of business</label>
+                  <select id="settings-type" className="input w-full cursor-pointer" value={businessType} onChange={e => setBusinessType(e.target.value)}>
+                    <option value="restaurant">Restaurant, café or dhaba</option>
+                    <option value="fashion">Clothing, retail or boutique</option>
+                    <option value="fitness">Gym, yoga or wellness studio</option>
+                    <option value="education">Coaching or training institute</option>
+                    <option value="wedding">Wedding venue or planner</option>
+                    <option value="salon">Salon, spa or grooming</option>
+                    <option value="hotel">Hotel, resort or homestay</option>
+                    <option value="other">Something else</option>
+                  </select>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <input
-                    ref={avatarInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={handleAvatarChange}
-                  />
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-ink-50 text-ink-700 hover:bg-ink-100 transition-colors border border-ink-200"
-                    onClick={() => avatarInputRef.current?.click()}
-                  >
-                    <Icon name="image" size={16} /> Choose photo
-                  </button>
-                  {avatarFile && (
-                    <button
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-mint-500 text-white hover:bg-mint-600 transition-colors shadow-sm"
-                      onClick={() => uploadAvatar()}
-                      disabled={uploadingAvatar}
-                    >
-                      {uploadingAvatar ? 'Uploading...' : 'Save photo'}
-                    </button>
-                  )}
-                </div>
+              )}
+              <div className="relative md:col-span-2">
+                <label htmlFor="settings-address" className={FIELD_LABEL}>Address</label>
+                <input id="settings-address" className="input w-full" ref={addressRef} value={address} onChange={e => { setAddress(e.target.value); setAddressLine1(e.target.value) }} autoComplete="off" />
+                {addressSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-40 overflow-hidden rounded-xl border border-ink-200 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+                    {addressSuggestions.map((prediction) => (
+                      <button key={prediction.place_id} type="button" className="block w-full px-4 py-2.5 text-left transition-colors hover:bg-ink-50" onMouseDown={(e) => e.preventDefault()} onClick={() => applyPredictionSelection(prediction, 'address')}>
+                        <span className="block truncate text-[14px] font-medium text-ink-900">{prediction.structured_formatting?.main_text || prediction.description}</span>
+                        <span className="block truncate text-[13px] text-ink-500">{prediction.structured_formatting?.secondary_text || prediction.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label htmlFor="settings-city" className={FIELD_LABEL}>City</label>
+                <input id="settings-city" className="input w-full" value={city} onChange={e => setCity(e.target.value)} autoComplete="address-level2" />
+              </div>
+              <div>
+                <label htmlFor="settings-state" className={FIELD_LABEL}>State</label>
+                <input id="settings-state" className="input w-full" value={state} onChange={e => setState(e.target.value)} autoComplete="address-level1" />
+              </div>
+              <div>
+                <label htmlFor="settings-country" className={FIELD_LABEL}>Country</label>
+                <input id="settings-country" className="input w-full" value={country} onChange={e => setCountry(e.target.value)} autoComplete="country-name" />
               </div>
             </div>
           </div>
 
-          {/* Personal info */}
-          <div className="bg-white border border-ink-200 shadow-sm rounded-2xl p-6 md:p-8">
-            <div className="flex items-center gap-3 mb-6 pb-6 border-b border-ink-100">
-              <div className="w-10 h-10 rounded-xl bg-mint-50 text-mint-600 flex items-center justify-center">
-                <Icon name="briefcase" size={18} />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-ink-950 m-0">Personal & Business Info</h2>
-                <p className="text-sm text-ink-500 m-0 mt-0.5">Update your contact details and business location</p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">Full name</label>
-                  <input className="input w-full bg-ink-50" value={fullName} onChange={e => setFullName(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">Phone number</label>
-                  <div className="flex gap-2">
-                    <input className="input w-full bg-ink-50" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" />
-                    {profile.phone_verified && (
-                      <div className="flex items-center text-emerald-600 gap-1 px-3 bg-emerald-50 rounded-xl text-sm font-bold border border-emerald-100">
-                        <Icon name="checkCircle" size={16} /> Verified
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {user?.role !== 'admin' && (
-                <div>
-                  <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">Bio</label>
-                  <textarea className="textarea w-full bg-ink-50" rows={3} value={bio} onChange={e => setBio(e.target.value)} placeholder="Tell others about yourself..." />
-                </div>
-              )}
-
-              <div className="relative">
-                <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">Business name / place</label>
-                <input
-                  className="input w-full bg-ink-50"
-                  ref={businessRef}
-                  value={businessName}
-                  onChange={e => setBusinessName(e.target.value)}
-                  placeholder="Start typing your business name..."
-                  autoComplete="off"
-                />
-                <div className="text-xs font-medium text-ink-500 mt-2 flex items-center gap-1.5">
-                  <Icon name="search" size={14} /> Select a place to auto-fill the full address, city, state, and country.
-                </div>
-                {!placesReady && (
-                  <div className="text-xs font-medium text-rose-500 mt-2">
-                    Google Places is not ready yet. Add <span className="font-mono bg-rose-50 px-1 py-0.5 rounded text-[10px]">VITE_GOOGLE_PLACES_API_KEY</span> to enable suggestions.
-                  </div>
-                )}
-                {businessSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-40 bg-white border border-ink-200 rounded-xl shadow-xl overflow-hidden divide-y divide-ink-100">
-                    {businessSuggestions.map((prediction) => (
-                      <button
-                        key={prediction.place_id}
-                        type="button"
-                        className="w-full px-4 py-3 text-left hover:bg-ink-50 transition-colors flex items-center justify-between group"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => applyPredictionSelection(prediction, 'business')}
-                      >
-                        <div className="min-w-0 pr-4">
-                          <div className="text-sm font-bold text-ink-950 truncate">
-                            {prediction.structured_formatting?.main_text || prediction.description}
-                          </div>
-                          <div className="text-xs font-medium text-ink-500 mt-0.5 truncate">
-                            {prediction.structured_formatting?.secondary_text || prediction.description}
-                          </div>
-                        </div>
-                        <Icon name="arrowRight" size={16} className="text-ink-300 group-hover:text-ink-600 shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="relative">
-                <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">Address (Google Auto-fill)</label>
-                <input
-                  className="input w-full bg-ink-50"
-                  ref={addressRef}
-                  value={address}
-                  onChange={e => {
-                    setAddress(e.target.value)
-                    setAddressLine1(e.target.value)
-                  }}
-                  placeholder="Start typing your address..."
-                  autoComplete="off"
-                />
-                {addressSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-40 bg-white border border-ink-200 rounded-xl shadow-xl overflow-hidden divide-y divide-ink-100">
-                    {addressSuggestions.map((prediction) => (
-                      <button
-                        key={prediction.place_id}
-                        type="button"
-                        className="w-full px-4 py-3 text-left hover:bg-ink-50 transition-colors flex items-center justify-between group"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => applyPredictionSelection(prediction, 'address')}
-                      >
-                        <div className="min-w-0 pr-4">
-                          <div className="text-sm font-bold text-ink-950 truncate">
-                            {prediction.structured_formatting?.main_text || prediction.description}
-                          </div>
-                          <div className="text-xs font-medium text-ink-500 mt-0.5 truncate">
-                            {prediction.structured_formatting?.secondary_text || prediction.description}
-                          </div>
-                        </div>
-                        <Icon name="arrowRight" size={16} className="text-ink-300 group-hover:text-ink-600 shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">City</label>
-                  <input className="input w-full bg-ink-50" value={city} onChange={e => setCity(e.target.value)} placeholder="e.g. Mumbai" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">State</label>
-                  <input className="input w-full bg-ink-50" value={state} onChange={e => setState(e.target.value)} placeholder="e.g. Maharashtra" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">Country</label>
-                <input className="input w-full bg-ink-50" value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g. India" />
-              </div>
-
-              {user?.role !== 'admin' && (
-                <div>
-                  <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">WhatsApp number</label>
-                  <input className="input w-full bg-ink-50" value={waNumber} onChange={e => setWaNumber(e.target.value)} placeholder="+91 XXXXX XXXXX" />
-                  <div className="text-xs font-medium text-ink-500 mt-2 flex items-center gap-1.5">
-                    <Icon name="whatsapp" size={14} /> Used to bridge your WhatsApp with the platform chat
-                  </div>
-                </div>
-              )}
-
-              {user?.role === 'client' && (
-                <div>
-                  <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">Business Type / Vertical</label>
-                  <select
-                    className="input w-full bg-ink-50 cursor-pointer"
-                    value={businessType}
-                    onChange={e => setBusinessType(e.target.value)}
-                  >
-                    <option value="restaurant">Restaurant / Cafe / Dhaba</option>
-                    <option value="fashion">Clothing / Retail / Boutique</option>
-                    <option value="fitness">Gym / Yoga / Wellness Studio</option>
-                    <option value="education">Coaching / Training Institute</option>
-                    <option value="wedding">Wedding Venue / Planner</option>
-                    <option value="salon">Salon / Spa / Grooming</option>
-                    <option value="hotel">Hotel / Resort / Boutique Homestay</option>
-                    <option value="other">Other Local Business</option>
-                  </select>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-ink-100 flex justify-end">
-              <button 
-                onClick={() => saveProfile()} 
-                disabled={savingProfile} 
-                className="bg-ink-950 hover:bg-black text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-sm disabled:opacity-70"
-              >
-                {savingProfile ? 'Saving...' : 'Save Profile Changes'}
-              </button>
-            </div>
+          <div className="flex items-center gap-3 border-t border-ink-100 px-5 py-4 md:px-6">
+            <button type="button" onClick={() => saveProfile()} disabled={savingProfile} className={PRIMARY_BUTTON}>
+              {savingProfile ? 'Saving…' : 'Save changes'}
+            </button>
           </div>
         </div>
       )}
@@ -1787,53 +1705,29 @@ export default function Settings() {
 
       {/* Change password */}
       {section === 'security' && (
-        <div className="flex flex-col gap-6">
-          <div className="bg-white border border-ink-200 shadow-sm rounded-2xl p-6 md:p-8">
-            {/* Section header */}
-            <div className="flex items-center gap-3 mb-6 pb-6 border-b border-ink-100">
-              <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
-                <Icon name="lock" size={18} />
+        <div className="max-w-xl rounded-2xl border border-ink-200 bg-white font-store">
+          <div className="px-5 py-5 md:px-6">
+            <h3 className="text-[15px] font-semibold text-ink-900">Change password</h3>
+            <div className="mt-4 flex flex-col gap-4">
+              <div>
+                <label htmlFor="pw-current" className={FIELD_LABEL}>Current password</label>
+                <input id="pw-current" className="input w-full" type="password" autoComplete="current-password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-ink-950 m-0">Password & Security</h2>
-                <p className="text-sm text-ink-500 m-0 mt-0.5">Keep your account credentials safe</p>
+                <label htmlFor="pw-new" className={FIELD_LABEL}>New password</label>
+                <input id="pw-new" className="input w-full" type="password" autoComplete="new-password" value={newPw} onChange={e => setNewPw(e.target.value)} />
               </div>
-            </div>
-
-            <div className="flex flex-col gap-6">
               <div>
-                <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">Current password</label>
-                <input className="input w-full bg-ink-50" type="password" autoComplete="current-password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} />
+                <label htmlFor="pw-confirm" className={FIELD_LABEL}>New password again</label>
+                <input id="pw-confirm" className="input w-full" type="password" autoComplete="new-password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">New password</label>
-                  <input className="input w-full bg-ink-50" type="password" autoComplete="new-password" value={newPw} onChange={e => setNewPw(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold tracking-widest uppercase text-ink-500 mb-2">Confirm new password</label>
-                  <input className="input w-full bg-ink-50" type="password" autoComplete="new-password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
-                </div>
-              </div>
-
-              {pwError && (
-                <div className="text-sm text-rose-600 px-4 py-3 bg-rose-50 rounded-xl border border-rose-200 flex items-center gap-2">
-                  <Icon name="error" size={16} className="text-rose-600" />
-                  {pwError}
-                </div>
-              )}
-
-              <div className="pt-6 border-t border-ink-100 flex justify-end">
-                <button
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-sm disabled:opacity-70 disabled:pointer-events-none"
-                  onClick={handlePasswordSubmit}
-                  disabled={changingPw || !currentPw || !newPw || !confirmPw}
-                >
-                  {changingPw ? 'Changing...' : 'Change Password'}
-                </button>
-              </div>
+              {pwError && <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-[14px] text-rose-700">{pwError}</p>}
             </div>
+          </div>
+          <div className="border-t border-ink-100 px-5 py-4 md:px-6">
+            <button type="button" className={PRIMARY_BUTTON} onClick={handlePasswordSubmit} disabled={changingPw || !currentPw || !newPw || !confirmPw}>
+              {changingPw ? 'Changing…' : 'Change password'}
+            </button>
           </div>
         </div>
       )}
