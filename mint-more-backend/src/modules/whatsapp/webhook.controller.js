@@ -123,6 +123,7 @@ const processStatusUpdate = async (status) => {
   const { id: waMessageId, status: waStatus } = status;
 
   try {
+    await require('../notifications/notification-delivery.service').recordWhatsAppStatus(status);
     await require('../../config/database').query(
       `UPDATE messages SET wa_status = $1 WHERE wa_message_id = $2`,
       [waStatus, waMessageId]

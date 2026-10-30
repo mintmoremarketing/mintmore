@@ -4,6 +4,10 @@ import { HeroUIProvider } from "@heroui/system"
 import App from './App'
 import './styles/main.css'
 
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {}))
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

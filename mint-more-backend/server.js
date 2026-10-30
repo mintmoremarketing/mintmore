@@ -17,6 +17,7 @@ const { closeAIQueue } = require('./src/modules/ai/queue/ai.queue');
 const { closeFulfillmentQueue } = require('./src/modules/fulfillment/queue/fulfillment.queue');
 const { closeOutboxQueue } = require('./src/modules/events/queue/outbox.queue');
 const { ensureAIEngineSchema } = require('./src/modules/ai/ai.schema');
+const { startNotificationWorker, closeNotificationWorker } = require('./src/modules/notifications/notification-delivery.service');
 
 let server;
 let shuttingDown = false;
@@ -62,6 +63,7 @@ const bootstrap = async () => {
     // Offer timeouts, retries and booking auto-off. Production only by default: it acts on real
     // accounts, and local backends share the hosted database.
     if (env.isProd || process.env.ENABLE_SERVICES_SCHEDULER === 'true') startServicesScheduler();
+    startNotificationWorker();
 
     server = app.listen(env.port, () => {
       logger.info(`🚀 Mint More API running`);
@@ -125,6 +127,7 @@ const gracefulShutdown = async (signal) => {
     safeClose('AI worker', closeAIWorker),
     safeClose('Fulfillment worker', closeFulfillmentWorker),
     safeClose('Outbox worker', closeOutboxWorker),
+    safeClose('Notification worker', closeNotificationWorker),
   ]);
   await Promise.all([
     safeClose('Social publish queue', closePublishQueue),

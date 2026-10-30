@@ -4,6 +4,10 @@ const { authenticate, authorize } = require('../../middleware/authenticate');
 const { requirePermission } = require('../../middleware/permissions');
 
 const router = Router();
+const channels = require('./notification-channels.controller');
+
+router.get('/email/unsubscribe', channels.emailUnsubscribe);
+router.post('/email/unsubscribe', channels.emailUnsubscribe);
 
 // ── SSE stream — authenticate inline (token via query param supported) ─────────
 // Must be BEFORE router.use(authenticate) because EventSource can't set headers
@@ -11,6 +15,12 @@ router.get('/stream', controller.stream);
 
 // All other routes require standard Bearer token auth
 router.use(authenticate);
+router.get('/preferences', channels.getPreferences);
+router.patch('/preferences', channels.savePreferences);
+router.post('/push/subscribe', channels.subscribe);
+router.delete('/push/subscribe', channels.unsubscribe);
+router.get('/admin/deliveries', authorize('admin'), requirePermission('support.manage'), channels.deliveries);
+router.post('/admin/test', authorize('admin'), requirePermission('support.manage'), channels.testToMe);
 
 // GET    /api/v1/notifications                   — paginated list
 router.get('/', controller.getNotifications);

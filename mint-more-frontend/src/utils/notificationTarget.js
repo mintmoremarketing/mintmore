@@ -4,6 +4,8 @@
 export function notificationTarget(notification, role) {
 	const data = notification.data || {}
 	const type = notification.type
+	if (data.notification_event === 'payout_released') return '/wallet'
+	if (data.room_id || data.roomId) return `/chat?room=${encodeURIComponent(data.room_id || data.roomId)}`
 
 	if (type === 'calendar_completed') return '/admin/operations?tab=clients'
 	if (type === 'designer_assigned') return '/designer/tasks'

@@ -375,6 +375,21 @@ const releaseEscrow = async (jobId, adminId, externalClient = null) => {
       );
     }
 
+    // The outbox row commits with the wallet credit, including when a caller owns this transaction.
+    await dbClient.query('SAVEPOINT payout_notification');
+    try {
+      await require('../events/outbox.service').enqueueOutboxEvent('notification.create', {
+        userId: escrow.freelancer_id, type: 'system', title: 'Your payment is in your wallet',
+        body: 'Your order payment has been released. Open Wallet to see your available balance.',
+        entityType: 'wallet', entityId: jobId,
+        data: { notification_event: 'payout_released', job_id: jobId }, dedupeKey: `payout-released:${jobId}`,
+      }, { dedupeKey: `payout-notification:${jobId}`, db: dbClient.query.bind(dbClient) });
+      await dbClient.query('RELEASE SAVEPOINT payout_notification');
+    } catch (error) {
+      await dbClient.query('ROLLBACK TO SAVEPOINT payout_notification');
+      await dbClient.query('RELEASE SAVEPOINT payout_notification');
+      logger.warn('Payout notification could not be queued', { jobId, error: error.message });
+    }
     if (!useExternal) await dbClient.query('COMMIT');
 
     logger.info('Escrow released', {

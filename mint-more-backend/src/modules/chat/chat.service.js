@@ -331,6 +331,15 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
   );
   const message = msgResult.rows[0];
 
+  await require('../notifications/notification.service').createNotification({
+    userId: senderId === room.client_id ? room.freelancer_id : room.client_id,
+    type: 'system', title: 'New message on Creatyv',
+    body: 'Open your order conversation to read the latest message.',
+    entityType: 'job', entityId: room.job_id,
+    data: { notification_event: 'chat_message', room_id: roomId, job_id: room.job_id, message_id: message.id, actor_id: senderId },
+    dedupeKey: `chat-message:${message.id}`,
+  });
+
   // Update room preview
   await query(
     `UPDATE chat_rooms

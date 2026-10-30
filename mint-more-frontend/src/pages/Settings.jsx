@@ -9,6 +9,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import VerificationPanel from '../components/settings/VerificationPanel'
 import { socialApi } from '../api/social'
 import AccountManager from '../components/social/AccountManager'
+import NotificationSettings from '../components/settings/NotificationSettings'
 
 const HIDDEN_CLIENT_SECTIONS = new Set(['brand-assets', 'social', 'google-business', 'posting-preferences', 'smart-festival-plan', 'setup'])
 
@@ -852,6 +853,7 @@ export default function Settings() {
     ].filter(([id]) => !HIDDEN_CLIENT_SECTIONS.has(id)) : []),
     ...(!['admin', 'designer'].includes(user?.role) ? [['verification', 'shield', 'Verification']] : []),
     ['security', 'lock', 'Password & security'],
+    ['notifications', 'bell', 'Notifications'],
   ]
 
   return (
@@ -888,6 +890,7 @@ export default function Settings() {
       </div>
 
       {/* Profile & Account */}
+      {section === 'notifications' && <NotificationSettings />}
       {section === 'profile' && (
         <div className="flex flex-col gap-6">
           {/* Avatar */}

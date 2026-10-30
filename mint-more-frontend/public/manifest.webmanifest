@@ -1,0 +1,13 @@
+{
+  "id": "/",
+  "name": "Creatyv",
+  "short_name": "Creatyv",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#ff6a2b",
+  "background_color": "#ffffff",
+  "icons": [
+    { "src": "/logo-dark.png", "sizes": "1254x1254", "type": "image/png", "purpose": "any" }
+  ]
+}

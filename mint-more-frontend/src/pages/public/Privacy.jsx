@@ -65,6 +65,13 @@ export default function Privacy() {
           ],
         },
         {
+          title: 'Notifications and your choices',
+          paragraphs: [
+            'When enabled, Creatyv uses browser push, email and WhatsApp to send order, delivery, payment and other account updates. We store device push subscriptions and their encryption keys, your channel preferences, your opted-in WhatsApp number, and delivery status records to provide these updates.',
+            'Delivery uses browser push services, our email delivery provider and Meta for WhatsApp. Browser notifications require your browser permission. WhatsApp updates require your explicit opt-in. You can change channels and quiet hours in Settings → Notifications, disable a device in your browser settings, or unsubscribe from notification emails using their unsubscribe link.',
+          ],
+        },
+        {
           title: 'Security',
           paragraphs: [
             'Creatyv uses reasonable technical and organisational safeguards designed to protect information. These may include encryption during transmission, protected storage for tokens and sensitive records, password hashing, role-based access, restricted administrative access, authentication controls, system monitoring, logging, backups, vulnerability management, token revocation procedures and staff confidentiality obligations.',

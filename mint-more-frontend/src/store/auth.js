@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { disconnectPushDevice } from '../utils/pushDeviceSession'
 
 const STORAGE_KEY = 'mm_auth'
 
@@ -66,6 +67,8 @@ export const useAuthStore = create((set) => ({
 	},
 
 	logout: () => {
+		const token = useAuthStore.getState().accessToken
+		if (token) disconnectPushDevice(token).catch(() => {})
 		sessionStorage.removeItem(STORAGE_KEY)
 		sessionStorage.removeItem('mm_admin_auth') // Clean up just in case
 		set({ user: null, accessToken: null, refreshToken: null, isGuest: false, isAuthed: false })

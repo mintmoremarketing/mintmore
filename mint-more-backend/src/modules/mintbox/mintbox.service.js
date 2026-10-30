@@ -978,6 +978,7 @@ const reviewFirstDraft = async (draftId, adminId, { action, note } = {}) => {
   const client = await getClient();
   let file = null;
   let jobId;
+  let draftFreelancerId;
   try {
     await client.query('BEGIN');
     const result = await client.query(
@@ -995,6 +996,7 @@ const reviewFirstDraft = async (draftId, adminId, { action, note } = {}) => {
     if (!row) throw new AppError('Draft not found', 404);
     if (row.draft_status !== 'pending') throw new AppError('This draft has already been reviewed', 409);
     jobId = row.job_id;
+    draftFreelancerId = row.uploaded_by;
     if (action === 'approve') {
       const inserted = await client.query(
         `INSERT INTO mintbox_files
@@ -1022,6 +1024,26 @@ const reviewFirstDraft = async (draftId, adminId, { action, note } = {}) => {
     client.release();
   }
   if (file) await postFileMessage({ jobId, senderId: file.uploaded_by, senderRole: 'freelancer', file, caption: file.freelancer_note || 'First draft approved by CREATYV.' });
+  try {
+    await notificationService.createNotification({
+      userId: draftFreelancerId, type: 'system',
+      title: action === 'approve' ? 'Your first draft passed review' : 'Your first draft needs changes',
+      body: action === 'approve' ? 'Your client can now see your first draft in the order chat.' : 'Open your order to read the review feedback and upload an updated draft.',
+      entityType: 'job', entityId: jobId,
+      data: { job_id: jobId, actor_id: adminId, notification_event: action === 'approve' ? 'draft_approved' : 'draft_changes' },
+      dedupeKey: `draft-review:${draftId}`,
+    });
+    if (file) {
+      const recipient = await query('SELECT client_id FROM jobs WHERE id=$1', [jobId]);
+      if (recipient.rows[0]) await notificationService.createNotification({
+        userId: recipient.rows[0].client_id, type: 'work_delivered', title: 'Your first draft is ready',
+        body: 'Your creator’s draft passed Creatyv review. Open your order chat to watch it.',
+        entityType: 'job', entityId: jobId, data: { job_id: jobId, actor_id: adminId }, dedupeKey: `draft-client-ready:${draftId}`,
+      });
+    }
+  } catch (error) {
+    logger.warn('Draft review notification could not be queued', { draftId, error: error.message });
+  }
   return { id: draftId, status: action === 'approve' ? 'approved' : 'changes_requested', file_id: file?.id || null };
 };
 

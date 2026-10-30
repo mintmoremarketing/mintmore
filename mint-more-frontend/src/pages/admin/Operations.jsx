@@ -14,6 +14,7 @@ import StatusSelect from '../../components/ui/StatusSelect'
 import AdminRejectModal from '../../components/admin/AdminRejectModal'
 import AdminDirectUploadModal from '../../components/admin/AdminDirectUploadModal'
 import { mintboxApi } from '../../api/mintbox'
+import { NotificationDeliveryLog } from '../../components/settings/NotificationSettings'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const monthKey = (date = today()) => String(date || today()).slice(0, 7)
@@ -69,7 +70,7 @@ export default function AdminOperations() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const rawTab = searchParams.get('tab')
-  const validTabs = ['first-drafts', 'review', 'clients', 'tasks', 'requests', 'calendar', 'selections']
+  const validTabs = ['first-drafts', 'review', 'clients', 'tasks', 'requests', 'calendar', 'selections', 'notifications']
   const tab = validTabs.includes(rawTab) ? rawTab : 'review'
 
   const handleTabChange = (newTab) => {
@@ -525,10 +526,12 @@ export default function AdminOperations() {
           { value: 'requests', label: 'Custom requests', count: requests.length },
           { value: 'calendar', label: 'Calendar', count: events.length },
           { value: 'selections', label: 'Selections', count: selections.length },
+          { value: 'notifications', label: 'Notifications' },
         ]}
       />
 
       <div className="mt-4">
+        {tab === 'notifications' && <NotificationDeliveryLog />}
         {tab === 'first-drafts' && (
           <div className="grid gap-5">
             {firstDrafts.length === 0 ? <div className="rounded-3xl border border-ink-200 bg-white p-12 text-center text-ink-500">No first drafts are waiting for review.</div> : firstDrafts.map(draft => (

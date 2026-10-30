@@ -24,6 +24,7 @@ import { useIsMobile } from '../../hooks/useIsMobile'
 import { useEntitlements } from '../../hooks/useEntitlements'
 import { LAUNCH_FLAG_OVERRIDES } from '../../config/launch'
 import Icon from '../ui/Icon'
+import PushNotificationPrompt from '../shared/PushNotificationPrompt'
 
 const DEFAULT_FLAGS = { wallet_ui: false, marketplace: false, freelancer_portal: false, freelancer_matching: false, negotiation: false }
 
@@ -136,7 +137,7 @@ export default function AppShell() {
   const location = useLocation()
   const isOnboarding = location.pathname.startsWith('/onboarding')
 
-  if (!isAuthed && !isGuest) return <Navigate to="/login" replace />
+  if (!isAuthed && !isGuest) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />
 
   if (isOnboarding) {
     return (
@@ -161,6 +162,7 @@ export default function AppShell() {
         <main className={`flex min-w-0 flex-1 flex-col pt-16 transition-all duration-200 ease-out ${!isMobile ? (sidebarCollapsed ? 'ml-16' : 'ml-56') : 'pb-16'}`}>
           <AdminImpersonationBanner />
           <GuestBanner />
+          {!isGuest && <PushNotificationPrompt />}
           <div className="relative flex h-full w-full flex-1 flex-col">
             <Outlet />
           </div>
@@ -212,6 +214,7 @@ export default function AppShell() {
 
         <AdminImpersonationBanner />
         <GuestBanner />
+        {!isGuest && <PushNotificationPrompt />}
 
         <div className="flex-1 flex flex-col w-full h-full relative">
           <Outlet />
