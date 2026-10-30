@@ -127,6 +127,8 @@ const getMyRooms = async (userId, role) => {
        sb.id AS booking_id, sb.brief,
        u_c.full_name AS client_name,
        CASE WHEN $2 = 'client' THEN NULL ELSE u_f.full_name END AS freelancer_name,
+       -- The other person's photo: the freelancer's for a client, the client's for everyone else.
+       CASE WHEN $2 = 'client' THEN u_f.avatar_url ELSE u_c.avatar_url END AS counterpart_avatar,
        wn.display_name AS mm_channel_name,
        -- Unread count for this user
        (SELECT COUNT(*) FROM messages m
@@ -492,6 +494,35 @@ const appendSystemMessagesByJob = async (jobId, contents = []) => {
 };
 
 /**
+ * Posts text in the client's own name, one bubble each, as if they typed it: used for the brief
+ * they wrote at checkout, which was already checked for contact details when they saved it.
+ */
+const postClientMessagesByJob = async (jobId, clientId, contents = []) => {
+  const messages = contents.map((content) => String(content || '').trim()).filter(Boolean);
+  if (!messages.length) return [];
+  const roomResult = await query('SELECT id FROM chat_rooms WHERE job_id = $1 AND is_active = true LIMIT 1', [jobId]);
+  const roomId = roomResult.rows[0]?.id;
+  if (!roomId) return [];
+  const inserted = [];
+  for (const content of messages) {
+    const result = await query(
+      `INSERT INTO messages
+         (room_id, sender_id, sender_role, content, channel, read_by_client, read_by_freelancer, delivered_at_client)
+       VALUES ($1, $2, 'client', $3, 'web', true, false, NOW())
+       RETURNING *`,
+      [roomId, clientId, content]
+    );
+    inserted.push(result.rows[0]);
+    await publishMessageToRoom(roomId, result.rows[0], 'client');
+  }
+  await query(
+    'UPDATE chat_rooms SET last_message_at = NOW(), last_message_preview = $1 WHERE id = $2',
+    [messages[messages.length - 1].slice(0, 100), roomId]
+  );
+  return inserted;
+};
+
+/**
  * Receive a message FROM WhatsApp (incoming webhook payload).
  * Routes to the correct room based on sender's WA number + MM number used.
  * Persists the message and pushes to web via Redis pub/sub.
@@ -786,6 +817,7 @@ module.exports = {
   editMessage,
   appendSystemMessageByJob,
   appendSystemMessagesByJob,
+  postClientMessagesByJob,
   receiveWhatsAppMessage,
   setOnline,
   setOffline,
