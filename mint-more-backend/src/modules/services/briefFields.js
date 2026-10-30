@@ -180,4 +180,8 @@ const briefTitle = (brief, maxLength = 60) => {
   return line.length > maxLength ? `${line.slice(0, maxLength - 1).trimEnd()}…` : line;
 };
 
-module.exports = { FIELD_TYPES, defaultBriefFields, resolveBriefFields, normalizeBriefFields, validateBriefAnswers, formatBrief, briefTitle };
+/** Video orders take a video first draft; every other order (design and the rest) takes an image. */
+const VIDEO_CATEGORIES = new Set(['video-editing', 'ugc-creation']);
+const firstDraftFormat = (categorySlug) => (VIDEO_CATEGORIES.has(categorySlug) ? 'video' : 'image');
+
+module.exports = { FIELD_TYPES, defaultBriefFields, resolveBriefFields, normalizeBriefFields, validateBriefAnswers, formatBrief, briefTitle, firstDraftFormat };

@@ -11,7 +11,22 @@ const reviewService = require('../reviews/review.service');
 const { getSetting } = require('../commerce/settings.service');
 const { appendSystemMessageByJob, postFileMessage } = require('../chat/chat.service');
 const { assertNoContactInfo } = require('../../utils/contactGuard');
-const { briefTitle } = require('../services/briefFields');
+const { briefTitle, firstDraftFormat } = require('../services/briefFields');
+
+// What a first draft may be, by the order's format.
+const FIRST_DRAFT_FORMATS = {
+  video: { types: ['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm'], extensions: ['.mp4', '.mov', '.m4v', '.webm'], label: 'an MP4, MOV, M4V or WebM video' },
+  image: { types: ['image/jpeg', 'image/png'], extensions: ['.jpg', '.jpeg', '.png'], label: 'a JPG or PNG image' },
+};
+
+/** Checks the first bytes really are a video or image, whatever the name says. */
+const draftHeaderMatches = (header, mimeType) => {
+  if (String(mimeType).startsWith('image/')) {
+    return (header.length >= 4 && header.readUInt32BE(0) === 0x89504e47) || (header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff);
+  }
+  if (header.length >= 4 && header.readUInt32BE(0) === 0x1a45dfa3) return true; // WebM
+  return header.length >= 8 && ['ftyp', 'moov', 'wide', 'mdat', 'free'].includes(header.toString('ascii', 4, 8));
+};
 
 const BUCKET = storage.getBucket();
 const CLIENT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;
@@ -679,9 +694,6 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
   if (!['client', 'freelancer', 'designer'].includes(role)) throw new AppError('Only project participants can upload files', 403);
   const isFirstDraft = role === 'freelancer' && purpose === 'first_draft';
   if (purpose === 'first_draft' && !isFirstDraft) throw new AppError('Only freelancers can submit a first draft', 403);
-  if (isFirstDraft && (String(type).toLowerCase() !== 'video/mp4' || path.extname(String(name || '')).toLowerCase() !== '.mp4')) {
-    throw new AppError('First drafts must be MP4 video files', 422);
-  }
   const uploadPurpose = role === 'client' ? 'brief' : isFirstDraft ? 'first_draft' : 'delivery';
   validateMintboxFile({ name, size, type });
   if (note) assertNoContactInfo(note, { userId: uploaderId, role, where: 'file_caption' });
@@ -692,6 +704,16 @@ const prepareUpload = async (jobId, uploaderId, role, { name, size, type, note, 
   try {
     await dbClient.query('BEGIN');
     const job = await getJobForAccess(jobId, uploaderId, role, dbClient);
+    if (isFirstDraft) {
+      const category = await dbClient.query(
+        'SELECT c.slug FROM jobs j LEFT JOIN categories c ON c.id = j.category_id WHERE j.id = $1',
+        [job.id]
+      );
+      const format = FIRST_DRAFT_FORMATS[firstDraftFormat(category.rows[0]?.slug)];
+      if (!format.types.includes(String(type).toLowerCase()) || !format.extensions.includes(path.extname(String(name || '')).toLowerCase())) {
+        throw new AppError(`The first draft for this order must be ${format.label}`, 422);
+      }
+    }
     if (role === 'freelancer' && !isFirstDraft && String(type || '').toLowerCase().startsWith('video/')) {
       throw new AppError('Use Send first draft to submit video work for review', 403);
     }
@@ -844,8 +866,8 @@ const completeUpload = async (uploadId, uploaderId, role) => {
       const signedUrl = await storage.createDownloadUrl(session.storage_path, 60);
       const preview = await fetch(signedUrl, { headers: { Range: 'bytes=0-15' } });
       const header = preview.ok ? Buffer.from(await preview.arrayBuffer()) : Buffer.alloc(0);
-      if (header.length < 8 || header.toString('ascii', 4, 8) !== 'ftyp') {
-        throw new AppError('The uploaded file is not a valid MP4 video', 422);
+      if (!draftHeaderMatches(header, session.mime_type)) {
+        throw new AppError('The uploaded file does not match its format', 422);
       }
       await dbClient.query(
         `INSERT INTO service_draft_submissions (upload_id, job_id, freelancer_id)
@@ -1034,10 +1056,10 @@ const reviewFirstDraft = async (draftId, adminId, { action, note } = {}) => {
         `INSERT INTO mintbox_files
            (folder_id, job_id, uploaded_by, original_name, storage_bucket, storage_path,
             public_url, mime_type, size_bytes, freelancer_note, file_category, purpose)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'video','delivery') RETURNING *`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'delivery') RETURNING *`,
         [row.folder_id, row.job_id, row.uploaded_by, row.original_name, row.storage_bucket,
           row.storage_path, `internal://mintbox/${row.storage_path}`, row.mime_type,
-          row.size_bytes, row.freelancer_note]
+          row.size_bytes, row.freelancer_note, String(row.mime_type).startsWith('image/') ? 'photos' : 'video']
       );
       file = inserted.rows[0];
       await client.query('UPDATE mintbox_folders SET storage_used = storage_used + $1 WHERE id = $2', [row.size_bytes, row.folder_id]);

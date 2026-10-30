@@ -102,6 +102,12 @@ const DELIVERY_STATUS = {
 	revision_requested: { label: 'Revision requested', cls: 'bg-violet-50 text-violet-700' },
 }
 
+// What a first draft may be: video orders send a video, every other order an image.
+const FIRST_DRAFT_FORMATS = {
+	video: { names: 'MP4, MOV, M4V, WebM', noun: 'video', accept: 'video/mp4,video/quicktime,video/x-m4v,video/webm,.mp4,.mov,.m4v,.webm', typeFor: { '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.m4v': 'video/x-m4v', '.webm': 'video/webm' } },
+	image: { names: 'JPG, PNG', noun: 'JPG or PNG image', accept: 'image/jpeg,image/png,.jpg,.jpeg,.png', typeFor: { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png' } },
+}
+
 const EDIT_WINDOW_MS = 2 * 60 * 60 * 1000
 
 /** True while the sender may still edit this message: own text or caption, within 2 hours. */
@@ -376,19 +382,23 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 		refreshAll()
 	}
 
+	const draftFormat = FIRST_DRAFT_FORMATS[booking.first_draft_format] || FIRST_DRAFT_FORMATS.video
 	const sendFirstDraft = async (files) => {
 		const file = files[0]
 		if (!file) return
-		if (files.length !== 1 || file.type !== 'video/mp4' || !file.name.toLowerCase().endsWith('.mp4')) {
-			pushToast({ title: 'MP4 required', body: 'Send one MP4 video as your first draft.', tone: 'amber', icon: 'x' })
+		const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')).toLowerCase() : ''
+		// Some browsers leave the type blank for MOV or M4V; the extension decides then.
+		const type = file.type || draftFormat.typeFor[extension]
+		if (files.length !== 1 || !draftFormat.typeFor[extension] || !Object.values(draftFormat.typeFor).includes(type)) {
+			pushToast({ title: `${draftFormat.names} only`, body: `Send one ${draftFormat.noun} as your first draft.`, tone: 'amber', icon: 'x' })
 			return
 		}
-		const pendingItem = { id: `first-draft-${Date.now()}`, file, kind: 'video', url: URL.createObjectURL(file), progress: 0, status: 'uploading' }
+		const pendingItem = { id: `first-draft-${Date.now()}`, file, kind: booking.first_draft_format === 'image' ? 'image' : 'video', url: URL.createObjectURL(file), progress: 0, status: 'uploading' }
 		setPending(list => [...list, pendingItem])
 		try {
-			const prepared = await mintboxApi.prepareUpload(jobId, { name: file.name, size: file.size, type: file.type, purpose: 'first_draft' })
+			const prepared = await mintboxApi.prepareUpload(jobId, { name: file.name, size: file.size, type, purpose: 'first_draft' })
 			const config = prepared.data?.data?.upload
-			await uploadMintboxFile({ file, config, fileType: file.type, onProgress: (done, total) => setPending(list => list.map(item => item.id === pendingItem.id ? { ...item, progress: Math.round((done / total) * 100) } : item)) })
+			await uploadMintboxFile({ file, config, fileType: type, onProgress: (done, total) => setPending(list => list.map(item => item.id === pendingItem.id ? { ...item, progress: Math.round((done / total) * 100) } : item)) })
 			await mintboxApi.completeUpload(config.upload_id)
 			setPending(list => list.filter(item => item.id !== pendingItem.id))
 			URL.revokeObjectURL(pendingItem.url)
@@ -635,8 +645,9 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 				placeholder={isClient ? 'Message your freelancer' : `Message ${counterpartName || 'the client'}`}
 				canAttach={canAttach}
 				firstDraftMode={firstDraftMode}
+				firstDraftFormat={draftFormat}
 				onSendFirstDraft={sendFirstDraft}
-				attachDisabledReason={completed ? 'This order is complete' : 'Freelancers can submit MP4 first drafts for review'}
+				attachDisabledReason={completed ? 'This order is complete' : `Freelancers can submit ${draftFormat.names} first drafts for review`}
 				attachHint={attachHint}
 				sendLabel="Send"
 				sending={sendText.isPending}

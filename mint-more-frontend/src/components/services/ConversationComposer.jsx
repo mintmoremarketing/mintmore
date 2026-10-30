@@ -115,7 +115,7 @@ function SendSheet({ items, setItems, onSend, onCancel, onAddMore, hint, sendLab
  * Message box for an order conversation: text, plus files that open a preview
  * sheet with captions before they are sent. Files can also be dropped or pasted.
  */
-export default function ConversationComposer({ placeholder, canAttach, firstDraftMode = false, onSendFirstDraft, attachDisabledReason, attachHint, sendLabel = 'Send', onSendText, onSendFiles, sending, dropTarget, editing = null, onSaveEdit, onCancelEdit }) {
+export default function ConversationComposer({ placeholder, canAttach, firstDraftMode = false, firstDraftFormat, onSendFirstDraft, attachDisabledReason, attachHint, sendLabel = 'Send', onSendText, onSendFiles, sending, dropTarget, editing = null, onSaveEdit, onCancelEdit }) {
 	const inputRef = useRef(null)
 	const draftInputRef = useRef(null)
 	const plusButtonRef = useRef(null)
@@ -255,7 +255,7 @@ export default function ConversationComposer({ placeholder, canAttach, firstDraf
 								className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-500 active:scale-[0.97]"
 							>
 								<span className="min-w-0 flex-1">
-									<span className="flex items-center gap-2 text-sm font-semibold text-ink-950">Send first draft <span className="rounded-md bg-ink-100 px-1.5 py-0.5 text-[11px] font-medium text-ink-700">MP4</span></span>
+									<span className="flex items-center gap-2 text-sm font-semibold text-ink-950">Send first draft <span className="rounded-md bg-ink-100 px-1.5 py-0.5 text-[11px] font-medium text-ink-700">{firstDraftFormat?.names || 'MP4'}</span></span>
 									<span className="mt-0.5 block text-xs leading-4 text-ink-600">CREATYV reviews it before the client can see it.</span>
 								</span>
 							</button>
@@ -275,7 +275,7 @@ export default function ConversationComposer({ placeholder, canAttach, firstDraf
 							)}
 						</div>
 					)}
-					{firstDraftMode && <input ref={draftInputRef} type="file" accept="video/mp4,.mp4" className="hidden" onChange={e => { onSendFirstDraft?.(Array.from(e.target.files || [])); e.target.value = '' }} />}
+					{firstDraftMode && <input ref={draftInputRef} type="file" accept={firstDraftFormat?.accept || 'video/mp4,.mp4'} className="hidden" onChange={e => { onSendFirstDraft?.(Array.from(e.target.files || [])); e.target.value = '' }} />}
 					<input ref={inputRef} type="file" multiple className="hidden" onChange={e => addFiles(e.target.files)} />
 					</div>
 					<textarea
