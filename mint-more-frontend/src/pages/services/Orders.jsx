@@ -5,7 +5,7 @@ import Icon from '../../components/ui/Icon'
 import StageBadge from '../../components/services/StageBadge'
 import OrderOffers from '../../components/services/OrderOffers'
 import { StoreCard } from '../../components/storefront/storefront'
-import { clientNextAction, dueText, formatDate, freelancerNextAction, inr, itemChatLink, itemStageText, variantLabel } from '../../components/services/serviceUtils'
+import { clientNextAction, dueText, formatDate, freelancerNextAction, inr, itemChatLink, itemStageText, STAGE_META, variantLabel } from '../../components/services/serviceUtils'
 
 const CLIENT_TABS = [
 	{ value: 'all', label: 'All' },
@@ -64,6 +64,46 @@ function WorkRow({ row, showStage }) {
 					{open ? <>{freelancerNextAction(row.stage)} <Icon name="arrowRight" size={14} className="transition-transform duration-150 group-hover:translate-x-0.5" /></> : null}
 				</span>
 				<Icon name="chevronRight" size={16} className="shrink-0 text-ink-300 transition-colors group-hover:text-ink-600 lg:hidden" />
+			</Link>
+		</li>
+	)
+}
+
+// The client must act on these; everything else is waiting on someone else.
+const CLIENT_ACTS = ['delivered', 'approved']
+
+/** One client order as a row: what it is, where it stands, when it's due, what it cost. */
+function ClientRow({ row }) {
+	const meta = STAGE_META[row.stage] || { label: row.stage, tone: '' }
+	const statusTone = (meta.tone.match(/text-[a-z]+-\d+/) || ['text-ink-700'])[0]
+	const acts = CLIENT_ACTS.includes(row.stage)
+	const when = row.stage === 'completed' ? `Completed ${formatDate(row.completed_at)}` : dueText(row.due_at)
+	return (
+		<li>
+			<Link
+				to={row.room_id ? `/chat?room=${row.room_id}` : `/chat?job=${row.job_id}`}
+				className="group flex items-center gap-4 px-4 py-4 transition-colors duration-150 hover:bg-ink-50/70 focus-visible:bg-ink-50/70 focus-visible:outline-none md:gap-6 md:px-5"
+			>
+				<div className="min-w-0 flex-1">
+					<span className="block truncate text-[17px] font-medium text-ink-900">{row.snapshot?.title}</span>
+					<div className="mt-0.5 truncate text-sm text-ink-500">
+						{[row.booking_number, `${variantLabel(row.snapshot || {}, row.snapshot?.option_group_label)}${Number(row.quantity) > 1 ? ` × ${row.quantity}` : ''}`, row.freelancer_name].filter(Boolean).join(' · ')}
+					</div>
+					<div className="mt-1 text-sm md:hidden">
+						<span className={`font-medium ${statusTone}`}>{meta.label}</span> <span className="text-ink-300">·</span> <span className="tabular-nums text-ink-700">{inr(row.subtotal)}</span>
+					</div>
+				</div>
+				<div className="hidden w-60 shrink-0 md:block">
+					<div className={`text-[15px] font-medium ${statusTone}`}>{meta.label}</div>
+					<div className="mt-0.5 text-sm text-ink-500">{when}</div>
+				</div>
+				<div className="hidden w-20 shrink-0 text-right text-[15px] font-medium tabular-nums text-ink-900 md:block">{inr(row.subtotal)}</div>
+				{acts && (
+					<span className="hidden w-36 shrink-0 items-center justify-end gap-1 text-sm font-medium text-ink-900 lg:inline-flex">
+						{clientNextAction(row.stage)} <Icon name="arrowRight" size={14} className="transition-transform duration-150 group-hover:translate-x-0.5" />
+					</span>
+				)}
+				<Icon name="chevronRight" size={16} className={`shrink-0 text-ink-300 transition-colors group-hover:text-ink-600 ${acts ? 'lg:hidden' : ''}`} />
 			</Link>
 		</li>
 	)
@@ -138,7 +178,6 @@ export default function Orders({ audience = 'client' }) {
 		...item,
 		count: item.value === 'all' ? rows.length : item.value === 'items' ? purchasedCount : rows.filter(row => groups[item.value]?.includes(row.stage)).length,
 	})).filter(item => item.value !== 'items' || purchasedCount > 0 || tab === 'items')
-	const base = isClient ? '/orders' : '/work'
 
 	// Empty account: suggest a few services instead of a bare box (same query/cache as the storefront).
 	const showSuggestions = isClient && !isLoading && !isError && rows.length === 0
@@ -240,37 +279,11 @@ export default function Orders({ audience = 'client' }) {
 					<ul className="divide-y divide-ink-100 overflow-hidden rounded-2xl border border-ink-200 bg-white">
 						{visible.map(row => <WorkRow key={row.id} row={row} showStage={tab === 'all'} />)}
 					</ul>
-				) : visible.map(row => (
-					<Link
-						key={row.id}
-						to={isClient ? (row.room_id ? `/chat?room=${row.room_id}` : `/chat?job=${row.job_id}`) : `${base}/${row.id}`}
-						className="flex flex-col gap-3 rounded-2xl border border-ink-200 bg-white p-4 transition-[border-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-ink-300 active:scale-[0.99] sm:flex-row sm:items-center sm:p-5"
-					>
-						<div className="min-w-0 flex-1">
-							<div className="flex flex-wrap items-center gap-2">
-								<span className="text-xs tabular-nums text-ink-500">{row.booking_number}</span>
-								<StageBadge stage={row.stage} />
-							</div>
-							<div className="mt-1.5 truncate text-[17px] font-medium text-ink-900">{row.snapshot?.title}</div>
-							<div className="mt-0.5 text-sm text-ink-500">
-								{variantLabel(row.snapshot || {}, row.snapshot?.option_group_label)}
-								{Number(row.quantity) > 1 ? ` × ${row.quantity}` : ''}
-								{isClient
-									? (row.freelancer_name ? ` · ${row.freelancer_name}` : '')
-									: (row.client_name ? ` · ${row.client_name}` : '')}
-							</div>
-						</div>
-						<div className="flex items-center gap-4 border-t border-ink-100 pt-3 sm:border-0 sm:pt-0 sm:text-right">
-							<div className="text-sm text-ink-500">
-								{row.stage === 'completed' ? `Completed ${formatDate(row.completed_at)}` : dueText(row.due_at)}
-							</div>
-							<div className="text-[17px] font-semibold tabular-nums text-ink-900">{inr(isClient ? row.subtotal : row.freelancer_payout)}</div>
-							<span className="ml-auto inline-flex items-center gap-1 whitespace-nowrap text-sm font-medium text-mint-600 sm:ml-0">
-								{isClient ? clientNextAction(row.stage) : freelancerNextAction(row.stage)} <Icon name="arrowRight" size={14} />
-							</span>
-						</div>
-					</Link>
-				))}
+				) : (
+					<ul className="divide-y divide-ink-100 overflow-hidden rounded-2xl border border-ink-200 bg-white">
+						{visible.map(row => <ClientRow key={row.id} row={row} />)}
+					</ul>
+				)}
 			</div>
 			)}
 

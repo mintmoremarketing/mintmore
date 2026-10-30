@@ -1,4 +1,8 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../../api/client'
+import { mintboxApi } from '../../api/mintbox'
+import { linkify } from '../ui/linkify'
 import Icon from '../ui/Icon'
 import Avatar from '../ui/Avatar'
 import { deliveryText, formatDate, inr, STAGE_META, variantLabel } from './serviceUtils'
@@ -101,6 +105,59 @@ function Row({ label, value, strong }) {
 	)
 }
 
+const fileUrl = (file) => (file?.share_token && !file.share_revoked_at ? `${api.defaults.baseURL}/mintbox/public/files/${file.share_token}/content` : null)
+const extensionOf = (name = '') => (name.includes('.') ? name.split('.').pop().toUpperCase().slice(0, 4) : 'FILE')
+
+/** One brief file as a tile: a thumbnail for images and videos, its type for anything else. Opens in a new tab. */
+function BriefFileTile({ name, file }) {
+	const [broken, setBroken] = useState(false)
+	const url = fileUrl(file)
+	const mime = file?.mime_type || ''
+	const kind = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'file'
+	const preview = (
+		<span className="relative block aspect-square overflow-hidden rounded-xl bg-ink-100">
+			{url && kind === 'image' && !broken ? (
+				<img src={url} alt="" loading="lazy" onError={() => setBroken(true)} className="h-full w-full object-cover transition-transform duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-[1.04]" />
+			) : url && kind === 'video' && !broken ? (
+				<>
+					<video src={`${url}#t=0.5`} muted playsInline preload="metadata" onError={() => setBroken(true)} className="h-full w-full object-cover" />
+					<span className="absolute bottom-1.5 left-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white"><Icon name="video" size={11} /></span>
+				</>
+			) : (
+				<span className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-ink-500">
+					<Icon name={kind === 'video' ? 'video' : kind === 'image' ? 'image' : 'file'} size={22} />
+					<span className="text-[11px] font-semibold tracking-[0.02em] text-ink-700">{extensionOf(name)}</span>
+				</span>
+			)}
+		</span>
+	)
+	const label = <span className="mt-1.5 block truncate text-[12px] text-ink-700" title={name}>{name}</span>
+	if (!url) return <li className="min-w-0">{preview}{label}</li>
+	return (
+		<li className="min-w-0">
+			<a href={url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${name}`} className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-900 focus-visible:ring-offset-2">
+				{preview}{label}
+			</a>
+		</li>
+	)
+}
+
+/** The files a brief lists, matched to what was actually uploaded with it. */
+function BriefFiles({ names, jobId }) {
+	const { data } = useQuery({
+		queryKey: ['mintbox-job', jobId],
+		queryFn: () => mintboxApi.getJobFolder(jobId).then(res => res.data.data),
+		enabled: Boolean(jobId),
+		staleTime: 60_000,
+	})
+	const uploaded = (data?.files || []).filter(file => file.purpose === 'brief')
+	return (
+		<ul className="mt-1.5 grid grid-cols-3 gap-2.5">
+			{names.map((name, index) => <BriefFileTile key={`${name}-${index}`} name={name} file={uploaded.find(file => file.original_name === name)} />)}
+		</ul>
+	)
+}
+
 /**
  * The "Order details" side of an order: what was bought, where it stands, the
  * brief, scope and money. Full-bleed bands on phones, one panel beside the chat on desktop.
@@ -187,7 +244,7 @@ export default function OrderDetailsPane({ booking, snapshot, isClient, counterp
 			</Section>
 
 			<Section title="Brief">
-				{Array.isArray(booking.brief) && booking.brief.some(answer => String(answer.value || '').trim()) && <dl className="space-y-3.5">{booking.brief.filter(answer => String(answer.value || '').trim()).map(answer => <div key={answer.key}><dt className="text-[13px] text-ink-500">{answer.label || answer.key}</dt><dd className="mt-0.5 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-900 [overflow-wrap:anywhere]">{Array.isArray(answer.value) ? answer.value.join(', ') : String(answer.value)}</dd></div>)}</dl>}
+				{Array.isArray(booking.brief) && booking.brief.some(answer => String(answer.value || '').trim()) && <dl className="space-y-3.5">{booking.brief.filter(answer => String(answer.value || '').trim()).map(answer => <div key={answer.key}><dt className="text-[13px] text-ink-500">{answer.label || answer.key}</dt>{Array.isArray(answer.value) ? <dd><BriefFiles names={answer.value} jobId={booking.job_id} /></dd> : <dd className="mt-0.5 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-900 [overflow-wrap:anywhere]">{linkify(String(answer.value))}</dd>}</div>)}</dl>}
 				{booking.instructions ? <p className="mt-3 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-700">{booking.instructions}</p> : !booking.brief?.length && <p className="text-[14px] leading-relaxed text-ink-700">No written brief. Files and notes shared in the conversation count as the brief.</p>}
 				{snapshot.requirements_hint && (
 					<p className="mt-3 flex gap-2 text-[13px] text-ink-500"><Icon name="file" size={14} className="mt-0.5 shrink-0" />{snapshot.requirements_hint}</p>
