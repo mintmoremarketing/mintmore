@@ -699,9 +699,18 @@ const toggleCategory = async (categoryId) => {
 
 // ── Dashboard Stats ───────────────────────────────────────────────────────────
 
+/**
+ * One dashboard figure's query. A failing query is logged by name and gives empty rows, so one
+ * missing table or column can't blank every other figure on the admin dashboard.
+ */
+const dashboardQuery = (name, sql) => query(sql).catch((err) => {
+  logger.error('Admin dashboard figure failed', { figure: name, error: err.message });
+  return { rows: [{}], failed: name };
+});
+
 const getDashboardStats = async () => {
-  const [users, jobs, kyc, proposals, operations, escrow, stalled, reconciliation, outbox] = await Promise.all([
-    query(`
+  const results = await Promise.all([
+    dashboardQuery('users', `
       SELECT
         COUNT(*) FILTER (WHERE role = 'client')     AS total_clients,
         COUNT(*) FILTER (WHERE role = 'freelancer') AS total_freelancers,
@@ -710,7 +719,7 @@ const getDashboardStats = async () => {
         COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') AS new_this_week
       FROM users
     `),
-    query(`
+    dashboardQuery('jobs', `
       SELECT
         COUNT(*) FILTER (WHERE status = 'open')        AS open_jobs,
         COUNT(*) FILTER (WHERE status = 'matching')    AS matching_jobs,
@@ -719,25 +728,25 @@ const getDashboardStats = async () => {
         COUNT(*) FILTER (WHERE status = 'completed')   AS completed_jobs
       FROM jobs
     `),
-    query(`
+    dashboardQuery('kyc', `
       SELECT COUNT(*) AS pending_kyc
       FROM kyc_submissions WHERE status = 'pending'
     `),
-    query(`
+    dashboardQuery('proposals', `
       SELECT COUNT(*) AS pending_proposals
       FROM proposals WHERE status = 'pending'
     `),
-    query(`
+    dashboardQuery('operations', `
       SELECT
         (SELECT COUNT(*) FROM jobs WHERE status='pending_admin_approval') AS pending_deals,
         (SELECT COUNT(*) FROM withdrawals WHERE status='pending') AS pending_withdrawals,
         (SELECT COUNT(*) FROM disputes WHERE status IN ('open','under_review')) AS open_disputes
     `),
-    query(`
+    dashboardQuery('escrow', `
       SELECT COALESCE(SUM(amount),0) AS total_escrow
       FROM escrow_records WHERE status IN ('held','disputed')
     `),
-    query(`
+    dashboardQuery('stalled', `
       SELECT COUNT(DISTINCT j.id) AS stalled_deliveries
       FROM jobs j
       JOIN mintbox_files file ON file.job_id=j.id AND file.purpose='delivery'
@@ -751,7 +760,7 @@ const getDashboardStats = async () => {
             AND newer.created_at > file.created_at
         )
     `),
-    query(`
+    dashboardQuery('reconciliation', `
       WITH latest_transactions AS (
         SELECT DISTINCT ON (wallet_id)
           wallet_id, balance_after, escrow_after
@@ -776,7 +785,7 @@ const getDashboardStats = async () => {
         ))
         OR wallet.escrow_balance <> COALESCE(held.amount, 0)
     `),
-    query(`
+    dashboardQuery('outbox', `
       SELECT
         COUNT(*) FILTER (WHERE status = 'failed') AS failed_events,
         COUNT(*) FILTER (
@@ -786,18 +795,19 @@ const getDashboardStats = async () => {
       FROM event_outbox
     `),
   ]);
+  const [users, jobs, kyc, proposals, operations, escrow, stalled, reconciliation, outbox] = results;
 
   const operationStats = operations.rows[0];
   const pendingActions =
-    Number(kyc.rows[0].pending_kyc) +
-    Number(proposals.rows[0].pending_proposals) +
-    Number(operationStats.pending_deals) +
-    Number(operationStats.pending_withdrawals) +
-    Number(operationStats.open_disputes) +
-    Number(stalled.rows[0].stalled_deliveries) +
-    Number(reconciliation.rows[0].reconciliation_issues) +
-    Number(outbox.rows[0].failed_events) +
-    Number(outbox.rows[0].delayed_events);
+    Number(kyc.rows[0].pending_kyc || 0) +
+    Number(proposals.rows[0].pending_proposals || 0) +
+    Number(operationStats.pending_deals || 0) +
+    Number(operationStats.pending_withdrawals || 0) +
+    Number(operationStats.open_disputes || 0) +
+    Number(stalled.rows[0].stalled_deliveries || 0) +
+    Number(reconciliation.rows[0].reconciliation_issues || 0) +
+    Number(outbox.rows[0].failed_events || 0) +
+    Number(outbox.rows[0].delayed_events || 0);
   return {
     users:     users.rows[0],
     jobs:      jobs.rows[0],
@@ -811,7 +821,9 @@ const getDashboardStats = async () => {
       delayed_events: outbox.rows[0].delayed_events,
       pending_actions: pendingActions,
     },
-    total_escrow: Number(escrow.rows[0].total_escrow),
+    total_escrow: escrow.failed ? null : Number(escrow.rows[0].total_escrow),
+    // Figures that couldn't be loaded, so the dashboard can show a dash instead of a zero.
+    unavailable: results.filter((result) => result.failed).map((result) => result.failed),
   };
 };
 

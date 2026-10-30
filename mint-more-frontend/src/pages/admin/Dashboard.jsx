@@ -61,7 +61,7 @@ export default function AdminDashboard() {
   const user = useAuthStore(s => s.user)
   const [selectedKyc, setSelectedKyc] = useState(null)
 
-  const { data: stats = {}, isLoading: statsLoading } = useQuery({
+  const { data: stats = {}, isLoading: statsLoading, isError: statsFailed } = useQuery({
     queryKey: ['admin-dashboard'],
     queryFn: () => api.get('/admin/dashboard').then(res => res.data?.data?.stats || res.data?.data || {}),
   })
@@ -108,6 +108,9 @@ export default function AdminDashboard() {
 
   const withdrawalTotal = withdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0)
   const users = stats.users || {}
+  // A figure the server couldn't load shows a dash, never a made-up zero.
+  const missing = (figure) => statsFailed || (stats.unavailable || []).includes(figure)
+  const count = (figure, value) => (statsLoading ? '…' : missing(figure) ? '—' : Number(value || 0))
 
   const queue = [
     { icon: 'video', label: 'First drafts to review', detail: 'Watch and approve before the client can see them.', count: firstDrafts.length, to: '/admin/operations?tab=first-drafts', urgent: true },
@@ -177,7 +180,7 @@ export default function AdminDashboard() {
         <div className="flex flex-col gap-6">
           <Panel title="Money">
             <dl className="divide-y divide-ink-100">
-              <Figure label="Held in escrow" hint="Released when clients complete" value={statsLoading ? '…' : inr(stats.total_escrow ?? stats.escrow ?? 0)} />
+              <Figure label="Held in escrow" hint="Released when clients complete" value={statsLoading ? '…' : missing('escrow') ? '—' : inr(stats.total_escrow ?? 0)} />
               <Figure label="Open order value" hint={`${orders.open.length} open order${orders.open.length === 1 ? '' : 's'}, before GST`} value={inr(orders.openValue)} />
               <Figure label="Withdrawals pending" value={inr(withdrawalTotal)} />
             </dl>
@@ -185,9 +188,9 @@ export default function AdminDashboard() {
 
           <Panel title="People" actions={<Link to="/admin/users" className="text-sm font-medium text-mint-600 hover:text-mint-700">Users</Link>}>
             <dl className="divide-y divide-ink-100">
-              <Figure label="Clients" value={Number(users.total_clients || 0)} />
-              <Figure label="Freelancers" value={Number(users.total_freelancers || 0)} />
-              <Figure label="Joined this week" value={Number(users.new_this_week || 0)} />
+              <Figure label="Clients" value={count('users', users.total_clients)} />
+              <Figure label="Freelancers" value={count('users', users.total_freelancers)} />
+              <Figure label="Joined this week" value={count('users', users.new_this_week)} />
             </dl>
           </Panel>
 
