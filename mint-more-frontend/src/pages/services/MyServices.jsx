@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { servicesApi } from '../../api/services'
 import { useUIStore } from '../../store/ui'
@@ -22,9 +23,8 @@ function OfferSwitch({ on, busy, onToggle, label }) {
 			aria-label={`${on ? 'Stop offering' : 'Offer'} ${label}`}
 			disabled={busy}
 			onClick={onToggle}
-			className="group inline-flex shrink-0 items-center gap-2.5 rounded-full py-1 pl-1 pr-1 text-[14px] font-medium text-ink-700 focus-visible:outline-none disabled:cursor-wait disabled:opacity-60"
+			className="group inline-flex shrink-0 items-center rounded-full p-1 focus-visible:outline-none disabled:cursor-wait disabled:opacity-60"
 		>
-			<span className="w-[52px] text-right tabular-nums">{on ? 'On' : 'Off'}</span>
 			<span className={`relative h-6 w-11 rounded-full transition-colors duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-focus-visible:ring-2 group-focus-visible:ring-ink-900 group-focus-visible:ring-offset-2 ${on ? 'bg-mint-500' : 'bg-ink-200 group-hover:bg-ink-300'}`}>
 				<span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-active:scale-90 ${on ? 'translate-x-5' : 'translate-x-0'}`} />
 			</span>
@@ -36,38 +36,40 @@ function ServiceRow({ t, busy, onToggle }) {
 	const days = [...new Set((t.variants || []).map(v => Number(v.delivery_days)))].sort((a, b) => a - b)
 	const turnaround = days.length > 1 ? `${days[0]}–${deliveryText(days[days.length - 1])}` : days.length ? deliveryText(days[0]) : null
 	return (
-		<li className="px-4 py-4 md:px-5">
-			<div className="flex items-start gap-4">
-				<div className="min-w-0 flex-1">
-					<p className={`text-[15px] font-medium ${t.opted_in ? 'text-ink-900' : 'text-ink-700'}`}>{t.title}</p>
-					{t.summary && <p className="mt-0.5 text-[13px] text-ink-500">{t.summary}</p>}
-					<p className="mt-1.5 text-[13px] text-ink-500">
-						{[turnaround, `${t.revisions} revision${Number(t.revisions) === 1 ? '' : 's'}`, `${t.freelancer_count} freelancer${t.freelancer_count === 1 ? '' : 's'} offer${t.freelancer_count === 1 ? 's' : ''} it`].filter(Boolean).join(' · ')}
-					</p>
-					{/* Every option is one tap away; the range above is enough to decide. */}
-					<details className="group mt-2">
-						<summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded text-[13px] font-medium text-ink-700 hover:text-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-900 [&::-webkit-details-marker]:hidden">
-							{t.variants.length} option{t.variants.length === 1 ? '' : 's'}
-							<Icon name="chevronDown" size={14} className="transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-open:rotate-180" />
-						</summary>
-						<ul className="mt-2 max-w-xl rounded-xl bg-ink-50 px-3 py-1 text-[13px]">
-							{t.variants.map(v => (
-								<li key={v.id} className="flex items-center gap-3 py-1.5">
-									<span className="min-w-0 flex-1 text-ink-700">{variantLabel(v)}</span>
-									<span className="text-ink-500">{deliveryText(v.delivery_days)}</span>
-									<span className="w-20 text-right font-medium tabular-nums text-ink-900">{inr(v.freelancer_payout)}</span>
-								</li>
-							))}
-						</ul>
-					</details>
+		<li>
+			<details className="group/row">
+				<summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-ink-50/70 md:gap-4 md:px-5 [&::-webkit-details-marker]:hidden">
+					<div className="min-w-0 flex-1">
+						<p className={`truncate text-[15px] font-medium ${t.opted_in ? 'text-ink-900' : 'text-ink-700'}`}>{t.title}</p>
+						<p className="hidden truncate text-[13px] text-ink-500 sm:block">
+							{[turnaround, `${t.revisions} revision${Number(t.revisions) === 1 ? '' : 's'}`, `${t.variants.length} option${t.variants.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}
+						</p>
+						{/* Phones: what you earn comes first, then the turnaround. */}
+						<p className="truncate text-[13px] text-ink-500 sm:hidden">
+							<span className="font-medium tabular-nums text-ink-900">{payoutRange(t.variants)}</span>{turnaround ? ` · ${turnaround}` : ''}
+						</p>
+					</div>
+					<span className="hidden w-36 shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink-900 sm:block">{payoutRange(t.variants)}</span>
+					<Icon name="chevronDown" size={16} className="shrink-0 text-ink-400 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-open/row:rotate-180" />
+					{/* The switch sits inside the summary; stop it from also opening the row. */}
+					<span onClick={event => event.preventDefault()} className="shrink-0">
+						<OfferSwitch on={t.opted_in} busy={busy} onToggle={onToggle} label={t.title} />
+					</span>
+				</summary>
+				<div className="px-4 pb-4 md:px-5">
+					{t.summary && <p className="text-[13px] text-ink-600">{t.summary}</p>}
+					<ul className="mt-2 max-w-xl rounded-xl bg-ink-50 px-3 py-1 text-[13px]">
+						{t.variants.map(v => (
+							<li key={v.id} className="flex items-center gap-3 py-1.5">
+								<span className="min-w-0 flex-1 text-ink-700">{variantLabel(v)}</span>
+								<span className="text-ink-500">{deliveryText(v.delivery_days)}</span>
+								<span className="w-20 text-right font-medium tabular-nums text-ink-900">{inr(v.freelancer_payout)}</span>
+							</li>
+						))}
+					</ul>
+					<p className="mt-2 text-[12px] text-ink-500">{t.freelancer_count} freelancer{t.freelancer_count === 1 ? '' : 's'} offer{t.freelancer_count === 1 ? 's' : ''} this</p>
 				</div>
-				<div className="hidden w-40 shrink-0 text-right sm:block">
-					<p className="text-[12px] text-ink-500">You earn</p>
-					<p className="mt-0.5 text-[15px] font-semibold tabular-nums text-ink-900">{payoutRange(t.variants)}</p>
-				</div>
-				<OfferSwitch on={t.opted_in} busy={busy} onToggle={onToggle} label={t.title} />
-			</div>
-			<p className="mt-2 text-[13px] text-ink-600 sm:hidden">You earn <span className="font-semibold tabular-nums text-ink-900">{payoutRange(t.variants)}</span></p>
+			</details>
 		</li>
 	)
 }
@@ -75,6 +77,7 @@ function ServiceRow({ t, busy, onToggle }) {
 export default function MyServices() {
 	const queryClient = useQueryClient()
 	const pushToast = useUIStore(s => s.pushToast)
+	const [params, setParams] = useSearchParams()
 	const { data, isLoading } = useQuery({
 		queryKey: ['freelancer-templates'],
 		queryFn: () => servicesApi.templates().then(res => res.data.data),
@@ -110,6 +113,10 @@ export default function MyServices() {
 		(acc[t.category_name || 'Other'] ||= []).push(t)
 		return acc
 	}, {})
+	// One category at a time, so the page never needs a long scroll.
+	const categories = Object.keys(byCategory)
+	const active = categories.includes(params.get('category')) ? params.get('category') : categories[0]
+	const list = byCategory[active] || []
 
 	return (
 		<div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-7 font-store md:px-8 md:pt-9">
@@ -126,14 +133,28 @@ export default function MyServices() {
 			)}
 
 			{isLoading ? (
-				<div className="mt-7 space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-ink-100" />)}</div>
-			) : Object.entries(byCategory).map(([category, list]) => (
-				<section key={category} className="mt-8">
-					<div className="mb-3 flex items-baseline justify-between gap-3">
-						<h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ink-900">{category}</h2>
-						<span className="text-[13px] tabular-nums text-ink-500">{list.filter(t => t.opted_in).length} of {list.length} on</span>
+				<div className="mt-7 space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-ink-100" />)}</div>
+			) : (
+				<>
+					<div role="tablist" aria-label="Service categories" className="mt-6 flex gap-1 overflow-x-auto rounded-xl bg-ink-100 p-1 [scrollbar-width:none]">
+						{categories.map(category => {
+							const on = byCategory[category].filter(t => t.opted_in).length
+							const selected = category === active
+							return (
+								<button
+									key={category}
+									type="button"
+									role="tab"
+									aria-selected={selected}
+									onClick={() => setParams({ category }, { replace: true })}
+									className={`shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-[14px] font-medium transition-colors duration-150 ${selected ? 'bg-white text-ink-900 shadow-[0_1px_2px_rgba(0,0,0,0.08)]' : 'text-ink-600 hover:text-ink-900'}`}
+								>
+									{category} <span className={`ml-1 tabular-nums ${on ? 'text-mint-600' : 'text-ink-400'}`}>{on}/{byCategory[category].length}</span>
+								</button>
+							)
+						})}
 					</div>
-					<ul className="divide-y divide-ink-100 rounded-2xl border border-ink-200 bg-white">
+					<ul role="tabpanel" aria-label={active} className="mt-4 divide-y divide-ink-100 rounded-2xl border border-ink-200 bg-white">
 						{list.map(t => (
 							<ServiceRow
 								key={t.id}
@@ -143,8 +164,8 @@ export default function MyServices() {
 							/>
 						))}
 					</ul>
-				</section>
-			))}
+				</>
+			)}
 		</div>
 	)
 }
