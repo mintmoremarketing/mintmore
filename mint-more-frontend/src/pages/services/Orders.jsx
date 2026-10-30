@@ -5,13 +5,14 @@ import Icon from '../../components/ui/Icon'
 import StageBadge from '../../components/services/StageBadge'
 import OrderOffers from '../../components/services/OrderOffers'
 import { StoreCard } from '../../components/storefront/storefront'
-import { clientNextAction, dueText, formatDate, freelancerNextAction, inr, variantLabel } from '../../components/services/serviceUtils'
+import { clientNextAction, dueText, formatDate, freelancerNextAction, inr, itemChatLink, itemStageText, variantLabel } from '../../components/services/serviceUtils'
 
 const CLIENT_TABS = [
 	{ value: 'all', label: 'All' },
 	{ value: 'active', label: 'Active' },
 	{ value: 'delivered', label: 'Needs review' },
 	{ value: 'completed', label: 'Completed' },
+	{ value: 'items', label: 'Purchased orders' },
 ]
 const FREELANCER_TABS = [
 	{ value: 'active', label: 'In progress' },
@@ -68,6 +69,38 @@ function WorkRow({ row, showStage }) {
 	)
 }
 
+/** One multi-item purchase in the Purchased items tab: each item and what to do next with it. */
+function PurchaseGroup({ group }) {
+	const snapshot = group.snapshot || {}
+	const open = group.items.filter(item => item.stage === 'needs_brief').length
+	return (
+		<section className="overflow-hidden rounded-2xl border border-ink-200 bg-white">
+			<Link to={`/purchases/${group.id}`} className="group flex items-start justify-between gap-4 px-4 py-4 transition-colors hover:bg-ink-50/70 md:px-5">
+				<div className="min-w-0">
+					<h2 className="truncate text-[17px] font-medium text-ink-900">{snapshot.title || group.template_title}</h2>
+					<p className="mt-0.5 text-sm text-ink-500">{group.item_count} orders · {variantLabel(snapshot, snapshot.option_group_label)}{Number(snapshot.pack_size) > 1 && group.item_count > Number(snapshot.pack_size) ? ` × ${group.item_count / Number(snapshot.pack_size)}` : ''} · paid {formatDate(group.paid_at)}</p>
+				</div>
+				<span className={`inline-flex shrink-0 items-center gap-1 text-sm font-medium ${open ? 'text-amber-700' : 'text-ink-600'}`}>
+					{open ? `${open} need${open === 1 ? 's' : ''} a brief` : 'All briefed'} <Icon name="chevronRight" size={16} className="transition-transform group-hover:translate-x-0.5" />
+				</span>
+			</Link>
+			<ul className="divide-y divide-ink-100 border-t border-ink-100">
+				{group.items.map(item => (
+					<li key={item.id} className="flex items-center gap-3 px-4 py-2.5 text-[15px] md:px-5">
+						<span className="w-20 shrink-0 font-medium text-ink-900">Order {item.item_index}</span>
+						<span className={`min-w-0 flex-1 truncate ${item.stage === 'needs_brief' && !item.has_draft ? 'text-ink-500' : 'text-ink-700'}`}>{itemStageText(item)}</span>
+						{item.stage === 'needs_brief' ? (
+							<Link to={`/purchases/${group.id}?item=${item.id}`} className="shrink-0 text-sm font-medium text-ink-900 underline-offset-4 hover:underline">{item.has_draft ? 'Continue brief' : 'Write brief'}</Link>
+						) : item.job_id && item.stage !== 'matching' && item.stage !== 'refunded' ? (
+							<Link to={itemChatLink(item)} className="shrink-0 text-sm font-medium text-ink-900 underline-offset-4 hover:underline">Open chat</Link>
+						) : null}
+					</li>
+				))}
+			</ul>
+		</section>
+	)
+}
+
 export default function Orders({ audience = 'client' }) {
 	const isClient = audience === 'client'
 	const location = useLocation()
@@ -79,6 +112,13 @@ export default function Orders({ audience = 'client' }) {
 		queryFn: () => (isClient ? servicesApi.bookings() : servicesApi.work()).then(res => res.data.data),
 		refetchInterval: 30_000,
 	})
+
+	const { data: purchases = [], isLoading: purchasesLoading, isError: purchasesError, refetch: refetchPurchases } = useQuery({
+		queryKey: ['service-purchases'],
+		queryFn: () => servicesApi.purchases().then(res => res.data.data),
+		enabled: isClient,
+	})
+	const purchasedCount = purchases.reduce((sum, group) => sum + group.items.length, 0)
 
 	const groups = {
 		active: ['finding_freelancer', 'in_progress', 'revision_requested'],
@@ -96,8 +136,8 @@ export default function Orders({ audience = 'client' }) {
 	const dueToday = isClient ? 0 : rows.filter(row => OPEN_STAGES.includes(row.stage) && hoursLeft(row.due_at) >= 0 && hoursLeft(row.due_at) < 24).length
 	const tabs = (isClient ? CLIENT_TABS : FREELANCER_TABS).map(item => ({
 		...item,
-		count: item.value === 'all' ? rows.length : rows.filter(row => groups[item.value]?.includes(row.stage)).length,
-	}))
+		count: item.value === 'all' ? rows.length : item.value === 'items' ? purchasedCount : rows.filter(row => groups[item.value]?.includes(row.stage)).length,
+	})).filter(item => item.value !== 'items' || purchasedCount > 0 || tab === 'items')
 	const base = isClient ? '/orders' : '/work'
 
 	// Empty account: suggest a few services instead of a bare box (same query/cache as the storefront).
@@ -161,6 +201,22 @@ export default function Orders({ audience = 'client' }) {
 				})}
 			</div>
 
+			{tab === 'items' ? (
+				<div className="mt-5 space-y-4">
+					{purchasesLoading ? (
+						<div className="h-40 animate-pulse rounded-2xl bg-ink-100" />
+					) : purchasesError ? (
+						<div className="rounded-2xl border border-ink-200 bg-white p-8 text-center text-ink-600">
+							Couldn't load purchased orders. <button className="ml-2 font-medium text-ink-900 underline underline-offset-4" onClick={() => refetchPurchases()}>Retry</button>
+						</div>
+					) : purchases.length === 0 ? (
+						<div className="py-10 text-center">
+							<h2 className="text-xl font-medium text-ink-900">No purchased orders</h2>
+							<p className="mt-1 text-ink-600">When you buy more than one of a service, each order waits here for its brief.</p>
+						</div>
+					) : purchases.map(group => <PurchaseGroup key={group.id} group={group} />)}
+				</div>
+			) : (
 			<div className="mt-5 space-y-3">
 				{isLoading ? (
 					Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-2xl bg-ink-100" />)
@@ -216,6 +272,7 @@ export default function Orders({ audience = 'client' }) {
 					</Link>
 				))}
 			</div>
+			)}
 
 			{showSuggestions && suggestions.length > 0 && (
 				<section className="mt-6">

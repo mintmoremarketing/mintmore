@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { servicesApi } from '../../api/services'
 import { aiEditsApi } from '../../api/aiEdits'
-import { useCartStore } from '../../store/cart'
+import { MAX_ITEMS_PER_SELECTION, useCartStore } from '../../store/cart'
+import { perItemDeliveryText } from '../../components/services/serviceUtils'
 import { useUIStore } from '../../store/ui'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../../components/ui/Icon'
@@ -36,6 +37,7 @@ export default function ServiceDetail() {
 	const navigate = useNavigate()
 	const role = useAuthStore(s => s.user?.role)
 	const addItem = useCartStore(s => s.addItem)
+	const cartItems = useCartStore(s => s.items)
 	const pushToast = useUIStore(s => s.pushToast)
 	const [choice, setChoice] = useState({ option: null, pack: 1 })
 	const [quantity, setQuantity] = useState(1)
@@ -67,6 +69,9 @@ export default function ServiceDetail() {
 	}
 
 	const canBuy = !role || role === 'client'
+	const items = variant ? Number(variant.pack_size) * quantity : quantity
+	// LAUNCH-HIDDEN: Hire a Pro (managed bigger orders) isn't built yet; above the limit it only shows as coming soon.
+	const overLimit = items > MAX_ITEMS_PER_SELECTION
 	const highlights = service.highlights?.length ? service.highlights : (service.summary ? [service.summary] : [])
 	const reviews = service.reviews || []
 	const cover = service.cover_url || referenceCover(service.slug)
@@ -83,6 +88,13 @@ export default function ServiceDetail() {
 	}
 
 	const addToCart = (goToCart, { brief, instructions }) => {
+		const inCart = cartItems.find(entry => entry.variant_id === variant.id)
+		const inCartItems = inCart ? Number(inCart.pack_size) * Number(inCart.quantity) : 0
+		if (inCartItems + items > MAX_ITEMS_PER_SELECTION) {
+			pushToast({ title: `Up to ${MAX_ITEMS_PER_SELECTION} orders per option`, body: `Your cart already has ${inCartItems} of this option.`, tone: 'amber', icon: 'shoppingBag' })
+			if (goToCart) navigate('/cart')
+			return
+		}
 		addItem({
 			variant_id: variant.id,
 			template_id: service.id,
@@ -300,8 +312,17 @@ export default function ServiceDetail() {
 										<p className="mt-2 text-center text-sm text-ink-600">₹{aiPrice.toLocaleString('en-IN')} + GST · usually ready within an hour, on your computer</p>
 									</div>
 								)}
-								<button className="rounded-2xl bg-black py-4 text-xl font-medium text-white transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-800 active:scale-[0.97]" onClick={() => toCart(true)}>Hire freelancer</button>
-								<button className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-white py-4 text-xl font-medium text-ink-900 hover:bg-ink-50" onClick={() => toCart(false)}><Icon name="shoppingBag" size={20} /> Add to cart</button>
+								{overLimit ? (
+									<div>
+										<button type="button" disabled className="w-full cursor-not-allowed rounded-2xl bg-ink-200 py-4 text-xl font-medium text-ink-600">Hire a Pro — coming soon</button>
+										<p className="mt-2 text-center text-sm text-ink-600">Freelancers take up to {MAX_ITEMS_PER_SELECTION} orders of one option at a time. You picked {items}.</p>
+									</div>
+								) : (
+									<>
+										<button className="rounded-2xl bg-black py-4 text-xl font-medium text-white transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-800 active:scale-[0.97]" onClick={() => toCart(true)}>Hire freelancer</button>
+										<button className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-white py-4 text-xl font-medium text-ink-900 hover:bg-ink-50" onClick={() => toCart(false)}><Icon name="shoppingBag" size={20} /> Add to cart</button>
+									</>
+								)}
 							</div>
 						) : (
 							<div className="rounded-2xl bg-white p-4 text-[15px] text-ink-600">Sign in with a client account to book services.</div>
@@ -311,9 +332,10 @@ export default function ServiceDetail() {
 					{variant && (
 						<div className="mt-5 flex items-center justify-between rounded-2xl bg-ink-50 px-7 py-5 text-[17px] text-ink-900">
 							<span className="inline-flex items-center gap-2"><Icon name="clock" size={20} /> {deliveryLabel(variant.delivery_days)} Delivery</span>
-							<span className="inline-flex items-center gap-2"><Icon name="refresh" size={20} /> {service.revisions} Revisions</span>
+							<span className="inline-flex items-center gap-2"><Icon name="refresh" size={20} /> {service.revisions} Revisions{items > 1 ? ' each' : ''}</span>
 						</div>
 					)}
+					{variant && items > 1 && !overLimit && <p className="mt-3 px-2 text-[15px] text-ink-600">{perItemDeliveryText(variant.delivery_days)}</p>}
 				</aside>
 			</div>
 
@@ -325,10 +347,14 @@ export default function ServiceDetail() {
 						<button className="ai-make-btn flex-1 whitespace-nowrap rounded-xl py-3 text-base font-medium text-ink-950 active:scale-[0.97] disabled:opacity-60" disabled={startingAi} onClick={makeWithAi}>
 							{startingAi ? 'Starting…' : 'Make with AI'}
 						</button>
-					) : (
+					) : !overLimit && (
 						<button className="flex-1 rounded-xl border border-[#0b7a41] py-3 text-lg font-medium text-[#0b7a41]" onClick={() => toCart(false)}>Add to Cart</button>
 					)}
-					<button className="flex-1 whitespace-nowrap rounded-xl bg-[#0b7a41] py-3 text-base font-medium text-white transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]" onClick={() => toCart(true)}>Hire freelancer</button>
+					{overLimit ? (
+						<button type="button" disabled className="flex-1 cursor-not-allowed whitespace-nowrap rounded-xl bg-ink-200 py-3 text-base font-medium text-ink-600">Hire a Pro — soon</button>
+					) : (
+						<button className="flex-1 whitespace-nowrap rounded-xl bg-[#0b7a41] py-3 text-base font-medium text-white transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]" onClick={() => toCart(true)}>Hire freelancer</button>
+					)}
 				</div>
 			)}
 		</div>

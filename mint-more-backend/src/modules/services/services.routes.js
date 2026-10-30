@@ -22,6 +22,11 @@ router.get('/bookings', authorize('client'), controller.listMyBookings);
 router.get('/bookings/:id', authorize('client'), controller.getMyBooking);
 router.patch('/bookings/:id/brief', authorize('client'), controller.updateMyBookingBrief);
 router.get('/past-freelancers', authorize('client'), controller.listPastFreelancers);
+router.get('/purchases', authorize('client'), controller.listMyPurchases);
+router.get('/purchases/:id', authorize('client'), controller.getMyPurchase);
+router.patch('/purchase-items/:id/draft', authorize('client'), controller.saveItemDraft);
+router.post('/purchase-items/:id/submit', authorize('client'), controller.submitItemBrief);
+router.post('/purchase-items/:id/start-matching', authorize('client'), controller.startItemMatching);
 
 // ── Freelancer ────────────────────────────────────────────────────────────────
 router.get('/templates', authorize('freelancer'), controller.listTemplatesForFreelancer);
@@ -40,6 +45,8 @@ router.post('/admin/templates', authorize('admin'), requirePermission('ops.manag
 router.put('/admin/templates/:id', authorize('admin'), requirePermission('ops.manage'), controller.adminUpdateTemplate);
 router.get('/admin/bookings', authorize('admin'), requirePermission('ops.manage'), controller.adminListBookings);
 router.get('/admin/bookings/:id/freelancers', authorize('admin'), requirePermission('ops.manage'), controller.adminEligibleFreelancers);
+router.get('/admin/purchase-items', authorize('admin'), requirePermission('ops.manage'), controller.adminListUnusedItems);
+router.post('/admin/purchase-items/:id/refund', authorize('admin'), requirePermission('payments.manage'), controller.adminRefundItem);
 router.post('/admin/bookings/:id/assign', authorize('admin'), requirePermission('ops.manage'), controller.adminAssign);
 
 module.exports = router;

@@ -15,6 +15,8 @@ export default function PostPaymentBrief() {
 	const [params] = useSearchParams()
 	const pushToast = useUIStore(s => s.pushToast)
 	const bookingIds = params.getAll('booking').filter(Boolean)
+	// Set when the same checkout also bought multi-item lines: their items come next.
+	const next = /^\/(?!\/)/.test(params.get('next') || '') ? params.get('next') : null
 	const [index, setIndex] = useState(0)
 	const [saving, setSaving] = useState(false)
 	const [saveError, setSaveError] = useState('')
@@ -82,7 +84,7 @@ export default function PostPaymentBrief() {
 				pushToast({ title: `${failedUploads} file${failedUploads === 1 ? '' : 's'} didn't upload`, body: 'You can attach them in the order chat.', tone: 'amber', icon: 'paperclip' })
 			}
 			if (index < orders.length - 1) setIndex(value => value + 1)
-			else navigate(`/chat?job=${encodeURIComponent(orders[0].booking.job_id)}`, { replace: true })
+			else navigate(next || `/chat?job=${encodeURIComponent(orders[0].booking.job_id)}`, { replace: true })
 		} catch (error) {
 			setSaveError(error.response?.data?.errors?.join(' ') || error.response?.data?.message || 'Could not save your brief. Please try again.')
 		} finally {
@@ -134,7 +136,7 @@ export default function PostPaymentBrief() {
 				presentation="page"
 				submitting={saving}
 				onDraftChange={queueDraft}
-				submitLabel={saving ? 'Saving brief…' : isLast ? 'Save brief & open chat' : 'Save brief & continue'}
+				submitLabel={saving ? 'Saving brief…' : isLast && !next ? 'Save brief & open chat' : 'Save brief & continue'}
 				onSubmit={saveBrief}
 			/>
 		</div>

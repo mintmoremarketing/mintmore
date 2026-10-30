@@ -7,7 +7,8 @@ const STORAGE_KEY = 'creatyv_cart'
 const readCart = () => {
 	try {
 		const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-		return Array.isArray(parsed) ? parsed : []
+		// Carts saved before the item limit may hold more than it allows.
+		return Array.isArray(parsed) ? parsed.map(item => ({ ...item, quantity: Math.min(maxQuantity(item.pack_size), Number(item.quantity) || 1) })) : []
 	} catch {
 		return []
 	}
@@ -18,6 +19,12 @@ const writeCart = (items) => {
 	return items
 }
 
+// Items one service option can buy from freelancers: two packs of three count as six.
+// The backend enforces the same limit. Above it, the service page shows Hire a Pro instead.
+export const MAX_ITEMS_PER_SELECTION = 10
+export const itemCount = (item) => Number(item.pack_size || 1) * Number(item.quantity || 1)
+export const maxQuantity = (packSize) => Math.max(1, Math.floor(MAX_ITEMS_PER_SELECTION / Number(packSize || 1)))
+
 export const useCartStore = create((set, get) => ({
 	items: readCart(),
 
@@ -27,11 +34,11 @@ export const useCartStore = create((set, get) => ({
 		const items = [...get().items]
 		const existing = items.find((entry) => entry.variant_id === item.variant_id)
 		if (existing) {
-			existing.quantity = Math.min(20, existing.quantity + (item.quantity || 1))
+			existing.quantity = Math.min(maxQuantity(existing.pack_size), existing.quantity + (item.quantity || 1))
 			if (item.brief) Object.assign(existing, { brief: item.brief, brief_fields: item.brief_fields, instructions: item.instructions ?? existing.instructions })
 			else if (item.instructions?.trim()) existing.instructions = item.instructions.trim()
 		}
-		else items.push({ instructions: '', ...item, quantity: item.quantity || 1 })
+		else items.push({ instructions: '', ...item, quantity: Math.min(maxQuantity(item.pack_size), item.quantity || 1) })
 		return { items: writeCart(items) }
 	}),
 	updateItem: (variantId, patch) => set(() => ({

@@ -1,4 +1,5 @@
 const service = require('./services.service');
+const purchases = require('./purchases.service');
 const { sendSuccess } = require('../../utils/apiResponse');
 
 const handle = (fn) => async (req, res, next) => {
@@ -28,6 +29,11 @@ const listMyBookings = handle(async (req) => ({ data: await service.listClientBo
 const getMyBooking = handle(async (req) => ({ data: await service.getClientBooking(req.user.sub, req.params.id) }));
 const updateMyBookingBrief = handle(async (req) => ({ data: await service.updateClientBookingBrief(req.user.sub, req.params.id, req.body || {}), message: 'Brief saved' }));
 const listPastFreelancers = handle(async (req) => ({ data: await service.listPastFreelancers(req.user.sub, req.query) }));
+const listMyPurchases = handle(async (req) => ({ data: await purchases.listClientPurchases(req.user.sub) }));
+const getMyPurchase = handle(async (req) => ({ data: await purchases.getClientPurchase(req.user.sub, req.params.id) }));
+const saveItemDraft = handle(async (req) => ({ data: await purchases.saveItemDraft(req.user.sub, req.params.id, req.body || {}), message: 'Draft saved' }));
+const submitItemBrief = handle(async (req) => ({ data: await purchases.submitItemBrief(req.user.sub, req.params.id, req.body || {}), message: 'Brief submitted' }));
+const startItemMatching = handle(async (req) => ({ data: await purchases.startItemMatching(req.user.sub, req.params.id) }));
 
 // ── Freelancer ────────────────────────────────────────────────────────────────
 const listTemplatesForFreelancer = handle(async (req) => ({ data: await service.listTemplatesForFreelancer(req.user.sub) }));
@@ -53,6 +59,8 @@ const adminUpdateTemplate = handle(async (req) => ({
 }));
 const adminListBookings = handle(async (req) => ({ data: await service.adminListBookings(req.query) }));
 const adminEligibleFreelancers = handle(async (req) => ({ data: await service.adminEligibleFreelancers(req.params.id) }));
+const adminListUnusedItems = handle(async () => ({ data: await purchases.adminListUnusedItems() }));
+const adminRefundItem = handle(async (req) => ({ data: await purchases.adminRefundItem(req.user.sub, req.params.id, req.body || {}), message: 'Item refunded' }));
 const adminAssign = handle(async (req) => ({
   data: await service.assignBooking(req.params.id, {
     freelancerId: req.body?.freelancer_id || null,
@@ -73,6 +81,11 @@ module.exports = {
   getMyBooking,
   updateMyBookingBrief,
   listPastFreelancers,
+  listMyPurchases,
+  getMyPurchase,
+  saveItemDraft,
+  submitItemBrief,
+  startItemMatching,
   listTemplatesForFreelancer,
   optIn,
   optOut,
@@ -88,4 +101,6 @@ module.exports = {
   adminListBookings,
   adminEligibleFreelancers,
   adminAssign,
+  adminListUnusedItems,
+  adminRefundItem,
 };

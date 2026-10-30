@@ -133,6 +133,7 @@ export default function OrderDetailsPane({ booking, snapshot, isClient, counterp
 					<h1 className="text-[17px] font-semibold leading-snug tracking-[-0.01em] text-ink-900 [text-wrap:balance]">{snapshot.title || booking.template_title}</h1>
 					<p className="mt-0.5 text-[13px] text-ink-500">
 						{variantLabel(snapshot, snapshot.option_group_label)}{Number(booking.quantity) > 1 ? ` × ${booking.quantity}` : ''}
+						{snapshot.purchase_item ? ` · Order ${snapshot.purchase_item.index} of ${snapshot.purchase_item.count}` : ''}
 						{booking.category_name ? ` · ${booking.category_name}` : ''}
 					</p>
 					<div className="mt-2 flex flex-wrap items-center gap-2">
@@ -155,6 +156,7 @@ export default function OrderDetailsPane({ booking, snapshot, isClient, counterp
 				<div className="px-3">
 					<dt className="text-xs text-ink-500">Turnaround</dt>
 					<dd className="mt-0.5 text-[14px] font-semibold text-ink-900">{deliveryText(snapshot.delivery_days)}</dd>
+					{snapshot.purchase_item && <dd className="mt-0.5 text-xs text-ink-500">From acceptance</dd>}
 				</div>
 				<div className="px-3">
 					<dt className="text-xs text-ink-500">Revisions</dt>

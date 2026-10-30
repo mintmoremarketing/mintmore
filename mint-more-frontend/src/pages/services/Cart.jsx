@@ -2,13 +2,13 @@ import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { servicesApi } from '../../api/services'
-import { cartTotals, GST_RATE, useCartStore } from '../../store/cart'
+import { cartTotals, GST_RATE, itemCount, maxQuantity, useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
 import { useUIStore } from '../../store/ui'
 import { openRazorpayCheckout } from '../../utils/razorpay'
 import { ServiceCover } from '../../components/services/ServiceCard'
 import Icon from '../../components/ui/Icon'
-import { deliveryText, inr, variantLabel } from '../../components/services/serviceUtils'
+import { deliveryText, inr, perItemDeliveryText, variantLabel } from '../../components/services/serviceUtils'
 import { briefFiles } from '../../store/briefFiles'
 import { mintboxApi } from '../../api/mintbox'
 import { uploadMintboxFile } from '../../utils/mintboxUpload'
@@ -18,13 +18,16 @@ function BriefSummary({ item, onChange }) {
 		const v = item.brief?.[f.key]
 		return Array.isArray(v) ? v.length : String(v ?? '').trim()
 	})
-	const question = item.category_slug === 'video-editing' ? 'What is this video for?' : 'What is this service for?'
+	const multiple = itemCount(item) > 1
+	const question = multiple ? 'Note for every order' : item.category_slug === 'video-editing' ? 'What is this video for?' : 'What is this service for?'
 	return (
 			<div className="mt-4 rounded-xl border border-ink-200 px-3.5 py-3">
 				<label htmlFor={`quick-brief-${item.variant_id}`} className="flex items-center gap-2 text-[15px] font-medium text-ink-900">{question}<span className="text-sm font-normal text-ink-400">Optional</span></label>
-				<p className="mt-1 text-sm text-ink-500">A short note is enough to check out. You can send your full brief and files after payment.</p>
+				<p className="mt-1 text-sm text-ink-500">{multiple
+					? `Every order's freelancer sees this. After payment you write a brief for each of the ${itemCount(item)} orders, now or later.`
+					: 'A short note is enough to check out. You can send your full brief and files after payment.'}</p>
 				<textarea id={`quick-brief-${item.variant_id}`} rows={2} value={item.instructions || ''} onChange={event => onChange(event.target.value)} placeholder="What should your freelancer know?" className="mt-2 w-full resize-y rounded-xl border border-ink-200 bg-white px-3.5 py-2.5 text-[15px] text-ink-900 placeholder:text-ink-400 focus:border-ink-500 focus:outline-none" />
-				{answered.length > 0 && <p className="mt-1.5 text-sm text-ink-500">{answered.length} brief detail{answered.length === 1 ? '' : 's'} already saved and will be shared after checkout.</p>}
+				{answered.length > 0 && <p className="mt-1.5 text-sm text-ink-500">{answered.length} brief detail{answered.length === 1 ? '' : 's'} already saved{multiple ? ' and will start the first order\'s brief.' : ' and will be shared after checkout.'}</p>}
 		</div>
 	)
 }
@@ -124,21 +127,34 @@ export default function Cart() {
 			}
 			const verified = await servicesApi.verifyCheckout(order.checkout_id, verifyPayload)
 			const bookingIds = verified.data.data.booking_ids || []
+			const groups = verified.data.data.purchase_groups || []
+			// Files picked in the cart for a multi-item line go with its first item's brief.
+			const groupFiles = groups.map(group => [group.first_item_id, briefFiles.get(group.variant_id)])
 			const failedUploads = await uploadBriefFiles(verified.data.data.bookings || [])
 			setUploading(null)
 			clear()
+			groupFiles.forEach(([itemId, files]) => { if (Object.keys(files).length) briefFiles.set(`item:${itemId}`, files) })
 			idempotencyRef.current = null
 			queryClient.invalidateQueries({ queryKey: ['service-bookings'] })
+			const nextStep = groups.length
+				? 'Write a brief for each order to start finding its freelancer.'
+				: 'Complete your full brief to open the order chat.'
 			pushToast({
 				title: 'Payment successful',
-				body: order.checkout_mode === 'mock' ? 'Test checkout: no money was charged. Complete your full brief to open the order chat.' : 'Complete your full brief to open the order chat.',
+				body: order.checkout_mode === 'mock' ? `Test checkout: no money was charged. ${nextStep}` : nextStep,
 				icon: 'check',
 			})
 			if (failedUploads) {
 				pushToast({ title: `${failedUploads} file${failedUploads === 1 ? '' : 's'} didn't upload`, body: 'Send them in the order chat instead.', tone: 'amber', icon: 'paperclip' })
 			}
+			const purchasedItems = groups.length === 1 ? `/purchases/${groups[0].id}` : '/orders?tab=items'
+			if (!bookingIds.length) {
+				navigate(purchasedItems, { replace: true })
+				return
+			}
 			const briefParams = new URLSearchParams()
 			bookingIds.forEach(id => briefParams.append('booking', id))
+			if (groups.length) briefParams.set('next', purchasedItems)
 			navigate(`/order-brief?${briefParams.toString()}`, { replace: true })
 		} catch (err) {
 			if (err?.dismissed) setError('Payment was cancelled. Your cart is saved, so you can try again.')
@@ -182,7 +198,8 @@ export default function Cart() {
 									<div className="flex items-start justify-between gap-3">
 										<div className="min-w-0">
 											<Link to={`/services/${item.slug}`} className="line-clamp-1 text-[17px] font-medium text-ink-900 hover:underline">{item.title}</Link>
-											<div className="mt-0.5 text-sm text-ink-500">{variantLabel(item, item.option_group_label)} · {deliveryText(item.delivery_days)} · {item.revisions} revisions</div>
+											<div className="mt-0.5 text-sm text-ink-500">{variantLabel(item, item.option_group_label)} · {deliveryText(item.delivery_days)} · {item.revisions} revisions{itemCount(item) > 1 ? ' each' : ''}</div>
+											{itemCount(item) > 1 && <p className="mt-1 text-sm text-ink-600">{itemCount(item)} orders. {perItemDeliveryText(item.delivery_days)}</p>}
 										</div>
 										<button className="icon-btn shrink-0 text-ink-500 hover:text-rose-600" onClick={() => removeItem(item.variant_id)} aria-label={`Remove ${item.title}`}>
 											<Icon name="trash" size={16} />
@@ -192,7 +209,7 @@ export default function Cart() {
 										<div className="flex items-center rounded-xl border border-ink-200">
 											<button className="px-3 py-1.5 text-lg leading-none text-ink-700 disabled:opacity-30" disabled={item.quantity <= 1} onClick={() => updateItem(item.variant_id, { quantity: item.quantity - 1 })} aria-label="Decrease quantity">−</button>
 											<span className="w-8 text-center text-[15px] font-medium tabular-nums">{item.quantity}</span>
-											<button className="px-3 py-1.5 text-lg leading-none text-ink-700 disabled:opacity-30" disabled={item.quantity >= 20} onClick={() => updateItem(item.variant_id, { quantity: item.quantity + 1 })} aria-label="Increase quantity">+</button>
+											<button className="px-3 py-1.5 text-lg leading-none text-ink-700 disabled:opacity-30" disabled={item.quantity >= maxQuantity(item.pack_size)} onClick={() => updateItem(item.variant_id, { quantity: item.quantity + 1 })} aria-label="Increase quantity">+</button>
 										</div>
 										<div className="text-right">
 											<div className="text-[17px] font-semibold tabular-nums text-ink-900">{inr(item.unit_price * item.quantity)}</div>

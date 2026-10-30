@@ -13,12 +13,16 @@ const { rankFreelancers } = require('./fairMatch');
 const { assertNoContactInfo, findContactInfo, CONTACT_BLOCKED_MESSAGE } = require('../../utils/contactGuard');
 const { getAiEditSettings, aiPrice } = require('../aiEdits/aiEdits.pricing');
 const { defaultBriefFields, resolveBriefFields, normalizeBriefFields, validateBriefAnswers, formatBrief } = require('./briefFields');
+const { allocateItems } = require('./allocate');
 
 const razorpay = env.payments.mockCheckout
   ? null
   : new Razorpay({ key_id: env.razorpay.keyId, key_secret: env.razorpay.keySecret });
 
 const DEFAULT_SERVICE_SETTINGS = { gst_rate: 18, max_quantity: 20 };
+// Items one service selection (a variant, so an option and pack) can buy from freelancers.
+// Two packs of three count as six. Above this, the storefront shows Hire a Pro instead.
+const MAX_ITEMS_PER_SELECTION = 10;
 const money = (value) => Math.round(Number(value) * 100) / 100;
 
 const callRazorpay = async (operation, request) => {
@@ -258,6 +262,73 @@ const assertBriefIsClean = (clientId, briefs, items) => {
   items.forEach((item) => { if (item?.instructions) assertNoContactInfo(String(item.instructions), { ...guard, where: 'instructions' }); });
 };
 
+/**
+ * A multi-item line becomes a purchase group with one item per deliverable. The line's
+ * note is shared context for every item; any brief given in the cart becomes item 1's draft.
+ */
+const insertPurchaseGroup = async (dbClient, { checkoutId, clientId, line, snapshot }) => {
+  const { item, variant } = line;
+  const group = await dbClient.query(
+    `INSERT INTO service_purchase_groups
+       (checkout_id, client_id, template_id, variant_id, quantity, item_count, snapshot, instructions,
+        preferred_freelancer_id, subtotal, gst_amount, freelancer_payout, platform_fee)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     RETURNING id`,
+    [checkoutId, clientId, variant.template_id, variant.id, line.quantity, line.itemCount, JSON.stringify(snapshot),
+      item.instructions ? String(item.instructions).trim() : null, item.preferred_freelancer_id || null,
+      line.subtotal, line.gst, line.payout, line.platformFee]
+  );
+  const shares = allocateItems({ subtotal: line.subtotal, gst: line.gst, payout: line.payout }, line.itemCount);
+  for (const [index, share] of shares.entries()) {
+    await dbClient.query(
+      `INSERT INTO service_purchase_items
+         (group_id, client_id, item_index, subtotal, gst_amount, freelancer_payout, platform_fee, brief)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [group.rows[0].id, clientId, index + 1, share.subtotal, share.gst_amount, share.freelancer_payout,
+        share.platform_fee, JSON.stringify(index === 0 ? line.brief : [])]
+    );
+  }
+};
+
+/** The jobs row behind a paid booking. Shared by checkout and by purchase items when their brief is submitted. */
+const insertBookingJob = async (dbClient, booking) => {
+  const snapshot = booking.snapshot || {};
+  const optionText = snapshot.option_label && snapshot.option_label !== 'Standard' ? ` · ${snapshot.option_label}` : '';
+  const packText = Number(snapshot.pack_size) > 1 ? ` · Pack of ${snapshot.pack_size}` : '';
+  const qtyText = Number(booking.quantity) > 1 ? ` × ${booking.quantity}` : '';
+  const itemText = snapshot.purchase_item ? ` · Order ${snapshot.purchase_item.index} of ${snapshot.purchase_item.count}` : '';
+  const marginPercent = Number(booking.subtotal) > 0
+    ? money((Number(booking.platform_fee) / Number(booking.subtotal)) * 100)
+    : 0;
+  const job = await dbClient.query(
+    `INSERT INTO jobs
+       (client_id, category_id, title, description, requirements, budget_type, budget_amount,
+        currency, status, metadata, freelancer_payout, client_total, platform_margin_percent, brief_locked_at)
+     VALUES ($1,$2,$3,$4,$5,'fixed',$6,'INR','matching',$7,$8,$9,$10,NOW())
+     RETURNING id`,
+    [
+      booking.client_id,
+      snapshot.category_id || null,
+      `${snapshot.title}${optionText}${packText}${qtyText}${itemText}`.slice(0, 255),
+      [formatBrief(booking.brief), booking.instructions].filter(Boolean).join('\n\n') || `Fixed-price service: ${snapshot.title}`,
+      booking.instructions || null,
+      booking.subtotal,
+      JSON.stringify({
+        source: 'service_booking',
+        booking_id: booking.id,
+        booking_number: booking.booking_number,
+        template_id: booking.template_id,
+        included_revisions: Number(snapshot.revisions ?? 0),
+        ...(booking.purchase_item_id ? { purchase_item_id: booking.purchase_item_id } : {}),
+      }),
+      booking.freelancer_payout,
+      money(Number(booking.subtotal) + Number(booking.gst_amount)),
+      marginPercent,
+    ]
+  );
+  return job.rows[0].id;
+};
+
 const createCheckout = async (clientId, { items, gstin, idempotency_key: idempotencyKey } = {}) => {
   const settings = await getServiceSettings();
   validateCheckoutInput({ items, gstin }, settings);
@@ -293,6 +364,19 @@ const createCheckout = async (clientId, { items, gstin, idempotency_key: idempot
   const missing = variantIds.filter((id) => !variants.has(id));
   if (missing.length) throw new AppError('One or more services in your cart are no longer available', 409);
 
+  // Counted per variant across lines, so splitting a selection over several lines doesn't get past it.
+  const itemsByVariant = new Map();
+  items.forEach((item) => {
+    const count = Number(item.quantity ?? 1) * Number(variants.get(item.variant_id).pack_size);
+    itemsByVariant.set(item.variant_id, (itemsByVariant.get(item.variant_id) || 0) + count);
+  });
+  const overLimit = [...itemsByVariant.entries()].filter(([, count]) => count > MAX_ITEMS_PER_SELECTION);
+  if (overLimit.length) {
+    const err = new AppError(`You can place up to ${MAX_ITEMS_PER_SELECTION} orders of one service option at a time`, 422, 'ITEM_LIMIT');
+    err.errors = overLimit.map(([id, count]) => `${variants.get(id).title}: ${count} orders. The limit is ${MAX_ITEMS_PER_SELECTION}.`);
+    throw err;
+  }
+
   // Checkout stays low-friction: accept blank or partial answers and let the client
   // send the full brief in the order chat after payment. Validate provided answers.
   const briefErrors = [];
@@ -319,6 +403,7 @@ const createCheckout = async (clientId, { items, gstin, idempotency_key: idempot
       item,
       variant,
       quantity,
+      itemCount: quantity * Number(variant.pack_size),
       subtotal,
       payout,
       platformFee: money(subtotal - payout),
@@ -363,6 +448,10 @@ const createCheckout = async (clientId, { items, gstin, idempotency_key: idempot
         category_id: variant.category_id,
         requirements_hint: variant.requirements_hint,
       };
+      if (line.itemCount > 1) {
+        await insertPurchaseGroup(dbClient, { checkoutId: checkout.id, clientId, line, snapshot });
+        continue;
+      }
       await dbClient.query(
         `INSERT INTO service_bookings
            (checkout_id, client_id, template_id, variant_id, quantity, snapshot, instructions,
@@ -418,6 +507,7 @@ const finalizeCheckout = async (checkoutId, paymentId = null) => {
   let bookings = [];
   let checkout;
   let alreadyPaid = false;
+  let purchaseItemCount = 0;
   try {
     await dbClient.query('BEGIN');
     const checkoutResult = await dbClient.query(
@@ -445,40 +535,7 @@ const finalizeCheckout = async (checkoutId, paymentId = null) => {
       const wallet = await getWalletByUserId(checkout.client_id, dbClient, true);
 
       for (const booking of bookingResult.rows) {
-        const snapshot = booking.snapshot || {};
-        const optionText = snapshot.option_label && snapshot.option_label !== 'Standard' ? ` · ${snapshot.option_label}` : '';
-        const packText = Number(snapshot.pack_size) > 1 ? ` · Pack of ${snapshot.pack_size}` : '';
-        const qtyText = Number(booking.quantity) > 1 ? ` × ${booking.quantity}` : '';
-        const marginPercent = Number(booking.subtotal) > 0
-          ? money((Number(booking.platform_fee) / Number(booking.subtotal)) * 100)
-          : 0;
-
-        const job = await dbClient.query(
-          `INSERT INTO jobs
-             (client_id, category_id, title, description, requirements, budget_type, budget_amount,
-              currency, status, metadata, freelancer_payout, client_total, platform_margin_percent, brief_locked_at)
-           VALUES ($1,$2,$3,$4,$5,'fixed',$6,'INR','matching',$7,$8,$9,$10,NOW())
-           RETURNING id`,
-          [
-            booking.client_id,
-            snapshot.category_id || null,
-            `${snapshot.title}${optionText}${packText}${qtyText}`.slice(0, 255),
-            [formatBrief(booking.brief), booking.instructions].filter(Boolean).join('\n\n') || `Fixed-price service: ${snapshot.title}`,
-            booking.instructions || null,
-            booking.subtotal,
-            JSON.stringify({
-              source: 'service_booking',
-              booking_id: booking.id,
-              booking_number: booking.booking_number,
-              template_id: booking.template_id,
-              included_revisions: Number(snapshot.revisions ?? 0),
-            }),
-            booking.freelancer_payout,
-            money(Number(booking.subtotal) + Number(booking.gst_amount)),
-            marginPercent,
-          ]
-        );
-        const jobId = job.rows[0].id;
+        const jobId = await insertBookingJob(dbClient, booking);
 
         // Payment lands in the client's wallet and is moved to escrow on assignment.
         await recordTransaction(dbClient, {
@@ -503,6 +560,20 @@ const finalizeCheckout = async (checkoutId, paymentId = null) => {
         bookings.push(updated.rows[0]);
       }
 
+      // Multi-item lines: each item waits for its brief. Its money stays on the item until assignment.
+      const groupResult = await dbClient.query(
+        'UPDATE service_purchase_groups SET paid_at = NOW() WHERE checkout_id = $1 RETURNING id, item_count',
+        [checkoutId]
+      );
+      purchaseItemCount = groupResult.rows.reduce((sum, row) => sum + Number(row.item_count), 0);
+      if (groupResult.rows.length) {
+        await dbClient.query(
+          `UPDATE service_purchase_items SET status = 'ready'
+           WHERE group_id = ANY($1::uuid[]) AND status = 'pending_payment'`,
+          [groupResult.rows.map((row) => row.id)]
+        );
+      }
+
       if (Number(checkout.gst_amount) > 0) {
         await dbClient.query(
           `INSERT INTO platform_financial_ledger
@@ -523,12 +594,15 @@ const finalizeCheckout = async (checkoutId, paymentId = null) => {
   }
 
   if (!alreadyPaid) {
-    logger.info('Service checkout paid', { checkoutId, bookings: bookings.length });
+    logger.info('Service checkout paid', { checkoutId, bookings: bookings.length, purchaseItems: purchaseItemCount });
+    const placed = bookings.length + purchaseItemCount;
     notificationService.createNotification({
       userId: checkout.client_id,
       type: 'service_booked',
-      title: bookings.length > 1 ? `${bookings.length} orders placed` : 'Order placed',
-      body: 'Payment received. We are assigning a freelancer now.',
+      title: placed > 1 ? `${placed} orders placed` : 'Order placed',
+      body: purchaseItemCount
+        ? 'Payment received. Write a brief for each order and we start matching a freelancer for it.'
+        : 'Payment received. We are assigning a freelancer now.',
       entityType: 'service_booking',
       entityId: bookings[0]?.id || null,
       data: { checkout_id: checkoutId, booking_ids: bookings.map((b) => b.id) },
@@ -543,13 +617,26 @@ const finalizeCheckout = async (checkoutId, paymentId = null) => {
     }
   }
 
-  const bookingRows = await query('SELECT id, job_id, variant_id FROM service_bookings WHERE checkout_id = $1 ORDER BY created_at', [checkoutId]);
+  const [bookingRows, groupRows] = await Promise.all([
+    query(
+      'SELECT id, job_id, variant_id FROM service_bookings WHERE checkout_id = $1 AND purchase_item_id IS NULL ORDER BY created_at',
+      [checkoutId]
+    ),
+    query(
+      `SELECT g.id, g.variant_id, g.item_count,
+              (SELECT i.id FROM service_purchase_items i WHERE i.group_id = g.id AND i.item_index = 1) AS first_item_id
+       FROM service_purchase_groups g WHERE g.checkout_id = $1 ORDER BY g.created_at`,
+      [checkoutId]
+    ),
+  ]);
   return {
     checkout_id: checkoutId,
     status: 'paid',
     booking_ids: bookingRows.rows.map((row) => row.id),
     // Lets the browser upload the brief files it is holding into each order.
     bookings: bookingRows.rows,
+    // Multi-item lines: the browser keeps their cart files for item 1's brief.
+    purchase_groups: groupRows.rows,
   };
 };
 
@@ -631,6 +718,7 @@ const LAST_ASSIGNED_JOIN_SQL = `
   ) la ON true`;
 
 const OFFER_MINUTES = 30;
+const MATCHING_HOLD_MINUTES = 15;
 
 // Freelancers who already turned this order down (or let the offer lapse) aren't asked again.
 const pickFreelancer = async (dbClient, booking, matching) => {
@@ -693,6 +781,21 @@ const closeOffer = async (dbClient, booking, note) => {
  */
 const commitAssignment = async (dbClient, booking, freelancerId, { assignedBy, method }) => {
   const deliveryDays = Number(booking.snapshot?.delivery_days || 1);
+  // A purchase item's money was kept off the wallet until now, so nothing else could spend it.
+  if (booking.purchase_item_id) {
+    const wallet = await getWalletByUserId(booking.client_id, dbClient, true);
+    await recordTransaction(dbClient, {
+      walletId: wallet.id,
+      userId: booking.client_id,
+      type: 'topup',
+      amount: Number(booking.subtotal),
+      referenceId: booking.id,
+      referenceType: 'service_booking',
+      idempotencyKey: `service-topup:${booking.id}`,
+      description: `Payment for ${booking.booking_number}`,
+      metadata: { checkout_id: booking.checkout_id, booking_id: booking.id, purchase_item_id: booking.purchase_item_id },
+    });
+  }
   await holdEscrow({
     jobId: booking.job_id,
     clientId: booking.client_id,
@@ -755,6 +858,7 @@ const startOrder = async (booking, freelancerId) => {
     `Order ${booking.booking_number} started: ${snapshot.title}${snapshot.option_label ? ` (${snapshot.option_label})` : ''}`,
     Number(snapshot.pack_size) > 1 ? `Pack of ${snapshot.pack_size}` : null,
     Number(booking.quantity) > 1 ? `Quantity: ${booking.quantity}` : null,
+    snapshot.purchase_item ? `Order ${snapshot.purchase_item.index} of ${snapshot.purchase_item.count} from one purchase` : null,
     `Delivery in ${snapshot.delivery_days} day${Number(snapshot.delivery_days) === 1 ? '' : 's'} · ${snapshot.revisions} revision${Number(snapshot.revisions) === 1 ? '' : 's'} included`,
   ].filter(Boolean).join('\n');
   const answers = Array.isArray(booking.brief) ? booking.brief : [];
@@ -823,6 +927,11 @@ const assignBooking = async (bookingId, { freelancerId = null, actorId = null } 
     }
     if (booking.assignment_status !== 'unassigned' || !booking.job_id) {
       throw new AppError('Only paid, unassigned bookings can be assigned', 409);
+    }
+    // Brief files are still uploading. An admin can still assign by hand.
+    if (booking.matching_held_at && !freelancerId) {
+      await dbClient.query('COMMIT');
+      return { assigned: false, held: true };
     }
 
     const matching = await getSetting('matching', { max_active_jobs: 5 }, dbClient);
@@ -1013,9 +1122,16 @@ const expireOffers = async () => {
 
 /** Paid orders that found nobody earlier get another try, e.g. after someone switches booking on. */
 const retryUnassigned = async () => {
+  // A client who left mid-upload can still send files in the chat; don't hold their order back.
+  await query(
+    `UPDATE service_bookings SET matching_held_at = NULL
+     WHERE matching_held_at < NOW() - ($1 || ' minutes')::interval AND assignment_status = 'unassigned'`,
+    [String(MATCHING_HOLD_MINUTES)]
+  );
   const waiting = await query(
     `SELECT id FROM service_bookings
      WHERE assignment_status = 'unassigned' AND job_id IS NOT NULL AND offered_freelancer_id IS NULL
+       AND matching_held_at IS NULL
      ORDER BY paid_at LIMIT 25`
   );
   for (const row of waiting.rows) {
@@ -1479,6 +1595,13 @@ module.exports = {
   callRazorpay,
   signaturesMatch,
   getRazorpay: () => razorpay,
+  // Shared with purchase items, which turn into bookings when their brief is submitted.
+  MAX_ITEMS_PER_SELECTION,
+  BOOKING_SELECT,
+  shapeBooking,
+  assertBriefIsClean,
+  insertBookingJob,
+  UUID_PATTERN,
   adminBriefDefaults,
   listCategories,
   listCatalog,
