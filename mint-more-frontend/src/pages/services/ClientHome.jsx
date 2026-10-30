@@ -8,6 +8,7 @@ import { StoreRow } from '../../components/storefront/storefront'
 import { referenceCover } from '../../components/storefront/referencePhotos'
 import { inr, variantLabel } from '../../components/services/serviceUtils'
 import AiEditsPanel from '../../components/services/AiEditsPanel'
+import ProComingSoon from '../../components/services/ProComingSoon'
 
 const greeting = () => {
 	const hour = new Date().getHours()
@@ -197,7 +198,7 @@ const TUCKED_SIDE = 'M0 0H44V56H0Z'
 const CLIENT_HOME_AREAS = [
 	{ id: 'ai', label: 'Edit with AI' },
 	{ id: 'hire', label: 'Hire a creator' },
-	{ id: 'pro', label: 'Creatyv Pro' },
+	{ id: 'pro', label: 'Creatyv Pro', badge: 'Soon' },
 ]
 
 /** First-run screen: no orders yet. Keeps the title, then shows how it works and where to start. */
@@ -340,6 +341,7 @@ export default function ClientHome() {
 							{/* The label spans the body and the top of both curves, clear of any side a neighbour covers. */}
 							<span className={`pointer-events-none absolute inset-y-0 flex items-center justify-center ${coveredLeft ? 'left-6 sm:left-9 md:left-11' : 'left-3 sm:left-5 md:left-6'} ${coveredRight ? 'right-6 sm:right-9 md:right-11' : 'right-3 sm:right-5 md:right-6'}`}>
 								<span className={`truncate text-[13px] font-medium sm:text-[15px] ${selected ? 'text-ink-950' : 'text-ink-600 group-hover:text-ink-900'}`}>{area.label}</span>
+									{area.badge && <span className="ml-1.5 hidden shrink-0 rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-800 min-[420px]:inline-block sm:ml-2 sm:text-[11px]">{area.badge}</span>}
 							</span>
 						</button>
 					)
@@ -371,6 +373,7 @@ export default function ClientHome() {
 							className="min-h-[40vh] focus-visible:outline-none"
 						>
 					{area.id === 'ai' && <AiEditsPanel />}
+					{area.id === 'pro' && activeArea === 'pro' && <ProComingSoon onTryAi={() => { setActiveArea('ai'); areaTabs.current[0]?.focus() }} />}
 					{area.id === 'hire' && <>
 					{firstRun ? (
 						<GettingStarted categories={storefront?.categories || []} popular={popular} />

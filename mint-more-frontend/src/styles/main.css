@@ -10785,3 +10785,8 @@ p { text-wrap: pretty; }
 @media (hover: hover) and (pointer: fine) {
   .ai-make-btn:hover:not(:disabled) { background: #ff7c42; }
 }
+
+/* Creatyv Pro preview: the week fills in once, day by day. */
+.pro-preview-post { animation: pro-post-in 420ms cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: var(--delay, 0ms); }
+@keyframes pro-post-in { from { opacity: 0; transform: translateY(6px) scale(0.97); filter: blur(2px); } }
+@media (prefers-reduced-motion: reduce) { .pro-preview-post { animation: none; } }
