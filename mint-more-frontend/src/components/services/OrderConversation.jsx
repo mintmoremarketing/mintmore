@@ -435,11 +435,12 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 	const readyToComplete = isClient && !completed && latestDelivery?.file_status === 'approved'
 	const payoutWaitingOnClient = !isClient && booking.stage === 'approved' && latestDelivery?.file_status === 'approved'
 	const revisionOpen = !isClient && !completed && latestDelivery?.file_status === 'revision_requested'
-	const canAttach = !completed
+	// Freelancers send work only as a first draft, which CREATYV reviews before the client sees it.
+	const canAttach = !completed && role !== 'freelancer'
 	const firstDraftMode = !completed && role === 'freelancer'
 	const attachHint = isClient
 		? 'Files you send here are shared with your freelancer as references.'
-		: `Each file is sent as a delivery the client can approve or send back. Videos go through Send first draft. ${revisionsLeft} of ${booking.revisions_included} revisions left.`
+		: `Send your work with Send first draft. CREATYV reviews it before the client sees it. ${revisionsLeft} of ${booking.revisions_included} revisions left.`
 
 	// Timeline rows with day separators.
 	const rows = []
