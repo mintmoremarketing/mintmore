@@ -242,6 +242,28 @@ export default function AssessmentAttempt() {
 				<div className="flex min-w-0 flex-col gap-6">
 					{open && (
 						<>
+							<Block title="Task brief">
+								<p className="max-w-[70ch] whitespace-pre-line text-[15px] leading-relaxed text-ink-700">{a.task_brief || a.summary}</p>
+								{a.deliverables?.length > 0 && (
+									<div className="mt-5">
+										<div className="mb-2 text-[15px] font-medium text-ink-900">Deliverables</div>
+										<Checklist items={a.deliverables} />
+									</div>
+								)}
+								{a.task_guide?.length > 0 && (
+									<div className="mt-5">
+										<div className="mb-2 text-[15px] font-medium text-ink-900">How to approach it</div>
+										<ol className="space-y-2.5">
+											{a.task_guide.map((step, i) => (
+												<li key={step} className="flex gap-3 text-[15px] text-ink-700">
+													<span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white text-[13px] font-semibold tabular-nums text-ink-900">{i + 1}</span>
+													<span>{step}</span>
+												</li>
+											))}
+										</ol>
+									</div>
+								)}
+							</Block>
 							<Block title="Task files">
 								<p className="-mt-2 mb-4 text-sm text-ink-500">Everything you need for the task. Downloads stay available until review is done.</p>
 								<Assets assets={a.assets} />
@@ -333,11 +355,12 @@ export default function AssessmentAttempt() {
 						</Block>
 					)}
 
-					<Block title="Requirements">
-						{a.required_items?.length > 0 && <Checklist items={a.required_items} />}
-						{a.expected_outcome && <p className="mt-4 text-sm leading-relaxed text-ink-600">{a.expected_outcome}</p>}
-						<Link to={`/assessments/${a.slug}`} className="mt-4 inline-block text-sm font-medium text-ink-900 underline underline-offset-2">Read the full brief</Link>
-					</Block>
+					{(a.required_items?.length > 0 || a.expected_outcome) && (
+						<Block title="Requirements">
+							{a.required_items?.length > 0 && <Checklist items={a.required_items} />}
+							{a.expected_outcome && <p className="mt-4 text-sm leading-relaxed text-ink-600">{a.expected_outcome}</p>}
+						</Block>
+					)}
 				</aside>
 			</div>
 

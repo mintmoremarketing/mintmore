@@ -117,7 +117,17 @@ export default function AssessmentDetail() {
 
 					<div className="mt-8 space-y-8 border-t border-ink-100 pt-8">
 						<Section title="Task brief">
-							<p className="max-w-[70ch] whitespace-pre-line text-[15px] leading-relaxed text-ink-600 md:text-base">{a.task_brief || a.summary}</p>
+							{a.task_locked ? (
+								<>
+									{a.summary && <p className="max-w-[70ch] text-[15px] leading-relaxed text-ink-600 md:text-base">{a.summary}</p>}
+									<p className="mt-3 flex max-w-[70ch] gap-2.5 rounded-xl bg-ink-50 p-4 text-[15px] leading-relaxed text-ink-700">
+										<Icon name="lock" size={16} className="mt-1 shrink-0 text-ink-500" />
+										<span>The full brief, files and guide open when you start, and the timer starts at the same moment, so everyone gets the same {durationLabel(a.duration_minutes).toLowerCase()} with the task.</span>
+									</p>
+								</>
+							) : (
+								<p className="max-w-[70ch] whitespace-pre-line text-[15px] leading-relaxed text-ink-600 md:text-base">{a.task_brief || a.summary}</p>
+							)}
 						</Section>
 						{a.deliverables?.length > 0 && (
 							<Section title="Deliverables">
@@ -193,7 +203,7 @@ export default function AssessmentDetail() {
 						<button type="button" className="btn primary" onClick={() => start.mutate()} disabled={start.isPending}>{start.isPending ? 'Starting…' : 'Start now'}</button>
 					</>}
 				>
-					<p className="text-sm text-ink-600">The timer starts as soon as you continue and keeps running if you leave the page.</p>
+					<p className="text-sm text-ink-600">The brief and files open now, and the timer starts at the same moment. It keeps running if you leave the page.</p>
 					<div className="mt-4 rounded-xl bg-ink-50 p-4 text-center">
 						<div className="text-xs text-ink-500">Time to submit</div>
 						<div className="mt-1 text-2xl font-semibold tabular-nums text-ink-900">{durationLabel(a.duration_minutes)}</div>
