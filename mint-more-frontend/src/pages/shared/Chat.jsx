@@ -96,9 +96,9 @@ function RoomOrderConversation({ bookingId, role, title, onBack }) {
 					<button type="button" className="icon-btn md:hidden" aria-label="Back to conversations" onClick={onBack}>
 						<Icon name="chevronLeft" size={18} />
 					</button>
-					<Avatar name={counterpart.name || title} src={counterpart.avatar} />
+					<Avatar name={title || counterpart.name} />
 					<div className="min-w-0 flex-1">
-						<div className="truncate text-[17px] font-medium text-ink-900">{counterpart.name || title}</div>
+						<div className="truncate text-[17px] font-medium text-ink-900">{title || counterpart.name}</div>
 						<div className="truncate text-sm text-ink-500">{booking.booking_number} · {booking.snapshot?.title}</div>
 					</div>
 					<button type="button" onClick={() => setIssueOpen(true)} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-ink-600 transition-[background-color,color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-100 hover:text-ink-900 active:scale-[0.97]" title="Raise an issue with support">
@@ -220,12 +220,13 @@ export default function Chat() {
 		return rooms.filter(item => {
 			const done = DONE_STATUSES.includes(item.job_status)
 			if ((filter === 'active' && done) || (filter === 'completed' && !done)) return false
-			return !needle || [item.job_title, item.client_name, item.freelancer_name, item.last_message_preview].some(value => String(value || '').toLowerCase().includes(needle)) || searchedRoomIds.has(item.id)
+			return !needle || [item.brief_title, item.job_title, item.client_name, item.freelancer_name, item.last_message_preview].some(value => String(value || '').toLowerCase().includes(needle)) || searchedRoomIds.has(item.id)
 		})
 	}, [rooms, search, filter, searchedRoomIds])
 
-	// Clients see every room as the same anonymous channel, so lead with the service instead.
-	const roomTitle = item => (role === 'client' ? item.job_title || roomLabel(item) : roomLabel(item))
+	// Rooms lead with what the client asked for in the brief, or the service until there is one.
+	// Admins see who is talking to whom.
+	const roomTitle = item => (role === 'admin' ? roomLabel(item) : item.brief_title || item.job_title || roomLabel(item))
 	const roomSubtitle = item => (role === 'client' ? roomLabel(item) : item.job_title)
 	const roomLabel = item => role === 'admin'
 		? `${item.client_name} / ${item.freelancer_name}`
@@ -348,7 +349,7 @@ export default function Chat() {
 							<Avatar name={roomTitle(selectedRoom || {})} />
 							<div className="min-w-0 flex-1">
 								<div className="truncate text-[17px] font-medium text-ink-900">{roomTitle(selectedRoom || {})}</div>
-								<div className="truncate text-sm text-ink-500">{role === 'client' ? roomLabel(selectedRoom || {}) : room?.job_title || selectedRoom?.job_title}</div>
+								<div className="truncate text-sm text-ink-500">{role === 'client' && !selectedRoom?.brief_title ? roomLabel(selectedRoom || {}) : room?.job_title || selectedRoom?.job_title}</div>
 							</div>
 							{room?.client_wa_number && <span className="hidden rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 sm:inline">WhatsApp connected</span>}
 							{role === 'admin' && <span className="rounded-md bg-ink-100 px-2 py-1 text-xs font-medium text-ink-600">Read only</span>}

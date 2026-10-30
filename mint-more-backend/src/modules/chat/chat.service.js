@@ -4,6 +4,7 @@ const { sendTextMessage, sendMediaMessage, markAsRead } = require('./whatsapp.se
 const AppError = require('../../utils/AppError');
 const logger   = require('../../utils/logger');
 const { assertNoContactInfo } = require('../../utils/contactGuard');
+const { briefTitle } = require('../services/briefFields');
 
 /** The sender's own messages in a room from the last hour, oldest first. */
 const recentOwnMessages = async (roomId, senderId, { before = null } = {}) => {
@@ -123,7 +124,7 @@ const getMyRooms = async (userId, role) => {
        cr.id, cr.job_id, cr.is_active,
        cr.last_message_at, cr.last_message_preview,
        j.title AS job_title, j.status AS job_status,
-       (SELECT sb.id FROM service_bookings sb WHERE sb.job_id = cr.job_id LIMIT 1) AS booking_id,
+       sb.id AS booking_id, sb.brief,
        u_c.full_name AS client_name,
        CASE WHEN $2 = 'client' THEN NULL ELSE u_f.full_name END AS freelancer_name,
        wn.display_name AS mm_channel_name,
@@ -142,12 +143,16 @@ const getMyRooms = async (userId, role) => {
      JOIN users u_c ON u_c.id = cr.client_id
      JOIN users u_f ON u_f.id = cr.freelancer_id
      LEFT JOIN whatsapp_numbers wn ON wn.waba_phone_id = cr.mm_wa_number_id
+     LEFT JOIN LATERAL (
+       SELECT b.id, b.brief FROM service_bookings b WHERE b.job_id = cr.job_id LIMIT 1
+     ) sb ON true
      WHERE ${accessClause}
      ORDER BY cr.last_message_at DESC NULLS LAST`,
     [userId, role]
   );
 
-  return result.rows;
+  // Rooms are named after what the client asked for, not the service or the person.
+  return result.rows.map(({ brief, ...row }) => ({ ...row, brief_title: briefTitle(brief) }));
 };
 
 const searchMessages = async (userId, role, term, roomId = null) => {
