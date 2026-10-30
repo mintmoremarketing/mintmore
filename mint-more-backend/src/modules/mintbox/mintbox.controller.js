@@ -1,5 +1,6 @@
 const mintboxService = require('./mintbox.service');
 const { sendSuccess } = require('../../utils/apiResponse');
+const AppError = require('../../utils/AppError');
 
 const getProjectFolder = async (req, res, next) => {
   try {
@@ -134,6 +135,7 @@ const getPublicSharedCategory = async (req, res, next) => {
 const getPublicFile = async (req, res, next) => {
   try {
     const file = await mintboxService.getPublicFile(req.params.token);
+    if (mintboxService.isLockedDelivery(file)) throw new AppError('This delivery can be opened once the client approves it', 403);
     return sendSuccess(res, {
       data: {
         file: {
@@ -151,7 +153,7 @@ const getPublicFile = async (req, res, next) => {
 
 const streamPublicFile = async (req, res, next) => {
   try {
-    const { signedUrl } = await mintboxService.getPublicFileStream(req.params.token);
+    const { signedUrl } = await mintboxService.getPublicFileStream(req.params.token, { download: req.query.download === '1' });
     // Let object storage serve range requests and video bytes directly rather than
     // routing every playback/download byte through the API process.
     res.setHeader('Cache-Control', 'private, no-store');

@@ -84,8 +84,21 @@ function FileBody({ kind, src, name, size, poster, preview = false }) {
 		)
 	}
 	if (kind === 'video' && src) return <video src={src} poster={poster} controls preload="metadata" className="max-h-80 w-full rounded-md bg-black" />
-	if (kind === 'audio' && src) return <audio src={src} controls className="w-64 max-w-full" />
+	if (preview && kind === 'audio' && src) return <audio src={src} controls controlsList="nodownload" onContextMenu={blockMenu} className="w-64 max-w-full" />
 	const ext = String(name || '').split('.').pop()
+	// Anything that isn't a photo, video or audio can't be previewed, only downloaded, so it waits.
+	if (preview) {
+		return (
+			<span className="block">
+				<span className="flex items-center gap-2 rounded-md bg-[rgba(118,118,128,0.12)] px-2 py-1.5">
+					<span className="grid h-[27px] w-[22px] shrink-0 place-items-center rounded-[2px] bg-white text-ink-400 shadow-[0_0_0_0.4px_#d1d1d6]"><Icon name="lock" size={12} /></span>
+					<span className="min-w-0 truncate text-[16px] text-black/70">{name}</span>
+				</span>
+				<span className="mt-1 block px-1 text-[11px] text-black/45">{size ? `${formatSize(size)} · ` : ''}Download it once you approve</span>
+			</span>
+		)
+	}
+	if (kind === 'audio' && src) return <audio src={src} controls className="w-64 max-w-full" />
 	return (
 		<a href={src || undefined} target="_blank" rel="noreferrer" className="block">
 			<span className="flex items-center gap-2 rounded-md bg-[rgba(118,118,128,0.12)] px-2 py-1.5 transition-colors hover:bg-[rgba(118,118,128,0.18)]">
@@ -251,6 +264,34 @@ function MessageMenu({ menu, onCopy, onEdit, onClose }) {
  * The order as one conversation: messages, client references and freelancer
  * deliveries in a single timeline, with review actions on the deliveries.
  */
+/** Search this chat: an icon until used, then a field; Esc or × clears it and closes it. */
+export function ChatSearch({ value, onChange }) {
+	const [open, setOpen] = useState(Boolean(value))
+	const inputRef = useRef(null)
+	useEffect(() => { if (open) inputRef.current?.focus() }, [open])
+	const close = () => { onChange(''); setOpen(false) }
+	if (!open) {
+		return (
+			<button type="button" onClick={() => setOpen(true)} aria-label="Search this chat" title="Search this chat"
+				className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-ink-600 transition-[background-color,color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-100 hover:text-ink-900 active:scale-[0.97]">
+				<Icon name="search" size={16} />
+			</button>
+		)
+	}
+	// Open, it covers the whole header row, so the field is wide and the title isn't squeezed.
+	return (
+		<div className="chat-search-open absolute inset-0 z-10 flex items-center gap-2 bg-white px-3 md:px-4">
+			<div className="relative min-w-0 flex-1">
+				<Icon name="search" size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+				<input ref={inputRef} value={value} onChange={event => onChange(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') close() }}
+					placeholder="Search this chat" aria-label="Search this chat"
+					className="h-10 w-full rounded-full border border-ink-200 bg-white pl-9 pr-3 text-[15px] outline-none transition-colors focus:border-ink-400" />
+			</div>
+			<button type="button" onClick={close} className="h-10 shrink-0 rounded-xl px-3 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-100 hover:text-ink-900">Done</button>
+		</div>
+	)
+}
+
 export default function OrderConversation({ booking, role, counterpartName, counterpartAvatar, onChanged, header = null, briefNotice = null, className = '' }) {
 	const queryClient = useQueryClient()
 	const pushToast = useUIStore(s => s.pushToast)
@@ -553,23 +594,23 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 		)
 	}
 
+	// Lives in the header: a search button that opens into a field, so it takes no row of its own.
+	const searchField = (
+		<ChatSearch value={chatSearch} onChange={setChatSearch} />
+	)
+
 	return (
 		<div ref={shellRef} className={`conversation relative flex min-h-0 flex-col overflow-hidden bg-white ${className}`}>
-			{header ?? (
-				<div className="flex items-center gap-3 border-b border-ink-200 px-4 py-3">
+			{typeof header === 'function' ? header(searchField) : header ?? (
+				<div className="relative flex items-center gap-3 border-b border-ink-200 px-4 py-3">
 					<Avatar name={counterpartName} src={counterpartAvatar} size="sm" />
-					<div className="min-w-0">
+					<div className="min-w-0 flex-1">
 						<div className="truncate font-medium text-ink-900">{counterpartName || 'Your freelancer'}</div>
 						<div className="truncate text-xs text-ink-500">{booking.booking_number} · {booking.snapshot?.title}</div>
 					</div>
+					{searchField}
 				</div>
 			)}
-			<div className="border-b border-ink-100 px-3 py-2 md:px-4">
-				<div className="relative max-w-sm">
-					<Icon name="search" size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-					<input value={chatSearch} onChange={event => setChatSearch(event.target.value)} placeholder="Search this chat" aria-label="Search this chat" className="h-9 w-full rounded-full border border-ink-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-ink-400" />
-				</div>
-			</div>
 
 			{readyToComplete ? (
 				<section className="flex flex-col gap-4 border-b border-emerald-200 bg-emerald-50 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
@@ -641,7 +682,9 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 				))}
 			</div>
 
-			<ConversationComposer
+			{booking.chat_closed_at ? (
+				<p className="border-t border-ink-200 bg-white px-4 py-4 text-center text-[14px] text-ink-600">CREATYV support closed this chat. Raise an issue if you need help with the order.</p>
+			) : <ConversationComposer
 				dropTarget={shellRef}
 				placeholder={isClient ? 'Message your freelancer' : `Message ${counterpartName || 'the client'}`}
 				canAttach={canAttach}
@@ -657,7 +700,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 				editing={editing}
 				onSaveEdit={content => editText.mutate({ id: editing.id, content })}
 				onCancelEdit={() => setEditing(null)}
-			/>
+			/>}
 
 			{menu && (
 				<MessageMenu

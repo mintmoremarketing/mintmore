@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Icon from '../ui/Icon'
+import MediaViewer from '../ui/MediaViewer'
 import { api } from '../../api/client'
 
 const mediaUrl = (message) => message.file_token ? `${api.defaults.baseURL}/mintbox/public/files/${message.file_token}/content` : ''
@@ -30,17 +31,20 @@ export default function MessageMediaGallery({ messages, mine, time, receipt, tai
 				</div>
 			</div>
 			{active !== null && (
-				<div className="fixed inset-0 z-[80] flex flex-col bg-black/95 p-4 text-white" role="dialog" aria-modal="true" aria-label="Shared media gallery">
-					<div className="flex items-center justify-between"><span className="text-sm">{active + 1} / {files.length}</span><button type="button" onClick={close} aria-label="Close gallery" className="grid h-10 w-10 place-items-center rounded-full hover:bg-white/15"><Icon name="x" size={22} /></button></div>
-					<div className="flex min-h-0 flex-1 items-center justify-center py-4">
-						{files[active].file_mime?.startsWith('video/')
-							? <video src={files[active].src} controls autoPlay className="max-h-full max-w-full" />
-							: <img src={files[active].src} alt={files[active].file_name || 'Shared image'} className="max-h-full max-w-full object-contain" />}
-					</div>
-					<div className="flex gap-2 overflow-x-auto py-2">{files.map((file, index) => <button key={file.id} type="button" onClick={() => setActive(index)} className={`h-16 w-16 shrink-0 overflow-hidden rounded-lg ring-2 ${active === index ? 'ring-white' : 'ring-transparent'}`}>
-						{file.file_mime?.startsWith('video/') ? <video src={file.src} muted preload="metadata" className="h-full w-full object-cover" /> : <img src={file.src} alt="" className="h-full w-full object-cover" />}
-					</button>)}</div>
-				</div>
+				<MediaViewer
+					items={files.map(file => ({
+						id: file.id,
+						src: file.src,
+						kind: file.file_mime?.startsWith('video/') ? 'video' : 'image',
+						name: file.file_name || 'Shared image',
+						meta: file.content || undefined,
+					}))}
+					index={active}
+					onIndex={setActive}
+					onClose={close}
+					thumbnails
+					label="Shared media"
+				/>
 			)}
 		</>
 	)

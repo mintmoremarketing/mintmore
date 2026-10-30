@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { mintboxApi } from '../../api/mintbox'
 import Icon from '../../components/ui/Icon'
+import MediaViewer from '../../components/ui/MediaViewer'
 
 const contentUrl = (token) => (token ? `${api.defaults.baseURL}/mintbox/public/files/${token}/content` : '')
 const kindOf = (file) => (file.mime_type?.startsWith('image/') ? 'image' : file.mime_type?.startsWith('video/') ? 'video' : 'file')
@@ -55,63 +56,41 @@ function Tile({ file, index, onOpen }) {
 	)
 }
 
-/** Full-screen viewer: arrows or ←/→ to move through everything in view, Esc to close. */
+/** The shared full-screen viewer, with this page's actions: open the order's chat, download. */
 function Viewer({ files, index, onIndex, onClose }) {
-	const file = files[index]
-	const kind = kindOf(file)
-	const src = contentUrl(file.file_token)
-	const step = useCallback((delta) => onIndex((index + delta + files.length) % files.length), [files.length, index, onIndex])
-	useEffect(() => {
-		const onKey = (event) => {
-			if (event.key === 'Escape') onClose()
-			if (event.key === 'ArrowRight') step(1)
-			if (event.key === 'ArrowLeft') step(-1)
-		}
-		document.addEventListener('keydown', onKey)
-		const overflow = document.body.style.overflow
-		document.body.style.overflow = 'hidden'
-		return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = overflow }
-	}, [onClose, step])
-
+	const items = files.map(file => ({
+		id: file.id,
+		src: contentUrl(file.file_token),
+		kind: kindOf(file),
+		name: file.original_name,
+		title: file.order_title,
+		meta: `${file.original_name} · ${sizeLabel(Number(file.size_bytes || 0))} · ${dayLabel(file.created_at)}`,
+		file,
+		locked: !file.downloadable,
+	}))
 	return (
-		<div className="files-viewer fixed inset-0 z-[90] flex flex-col bg-black/95 font-store text-white" role="dialog" aria-modal="true" aria-label={file.original_name}>
-			<div className="flex items-center gap-3 px-4 py-3 md:px-6">
-				<div className="min-w-0 flex-1">
-					<p className="truncate text-[15px] font-medium">{file.order_title}</p>
-					<p className="truncate text-[13px] text-white/60">{file.original_name} · {sizeLabel(Number(file.size_bytes || 0))} · {dayLabel(file.created_at)}</p>
-				</div>
-				<span className="hidden text-[13px] tabular-nums text-white/60 sm:inline">{index + 1} / {files.length}</span>
-				{file.room_id && (
-					<Link to={`/chat?room=${file.room_id}`} className="hidden h-9 items-center gap-1.5 rounded-full bg-white/10 px-3.5 text-[13px] font-medium transition-colors hover:bg-white/20 sm:inline-flex">
-						<Icon name="chat" size={14} /> Open chat
-					</Link>
-				)}
-				{file.downloadable && src && (
-					<a href={src} download={file.original_name} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-3.5 text-[13px] font-medium text-ink-900 transition-transform active:scale-[0.97]">
-						<Icon name="download" size={14} /> Download
-					</a>
-				)}
-				<button type="button" onClick={onClose} aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full transition-colors hover:bg-white/15"><Icon name="x" size={20} /></button>
-			</div>
-			<div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pb-4 md:px-16">
-				{kind === 'image' && src ? <img key={file.id} src={src} alt={file.original_name} className="files-viewer-media max-h-full max-w-full object-contain" />
-					: kind === 'video' && src ? <video key={file.id} src={src} controls autoPlay playsInline className="files-viewer-media max-h-full max-w-full" />
-						: (
-							<div className="files-viewer-media text-center">
-								<Icon name="file" size={40} className="mx-auto text-white/70" />
-								<p className="mt-3 text-[15px]">{file.original_name}</p>
-								<p className="mt-1 text-[13px] text-white/60">{file.downloadable ? 'Download it to open.' : 'You can download it once you approve this delivery in the order chat.'}</p>
-							</div>
-						)}
-				{files.length > 1 && (
-					<>
-						<button type="button" onClick={() => step(-1)} aria-label="Previous" className="absolute left-2 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/20 md:left-4"><Icon name="chevronLeft" size={20} /></button>
-						<button type="button" onClick={() => step(1)} aria-label="Next" className="absolute right-2 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/20 md:right-4"><Icon name="chevronRight" size={20} /></button>
-					</>
-				)}
-			</div>
-			{!file.downloadable && kind !== 'file' && <p className="pb-4 text-center text-[13px] text-white/60">Approve this delivery in the order chat to download it.</p>}
-		</div>
+		<MediaViewer
+			items={items}
+			index={index}
+			onIndex={onIndex}
+			onClose={onClose}
+			label="Delivered files"
+			actions={({ file, src }) => (
+				<>
+					{file.room_id && (
+						<Link to={`/chat?room=${file.room_id}`} className="hidden h-9 items-center gap-1.5 rounded-full bg-white/10 px-3.5 text-[13px] font-medium transition-colors hover:bg-white/20 sm:inline-flex">
+							<Icon name="chat" size={14} /> Open chat
+						</Link>
+					)}
+					{file.downloadable && src && (
+						<a href={`${src}?download=1`} download={file.original_name} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-3.5 text-[13px] font-medium text-ink-900 transition-transform active:scale-[0.97]">
+							<Icon name="download" size={14} /> <span className="hidden sm:inline">Download</span>
+						</a>
+					)}
+				</>
+			)}
+			note={({ file }) => (file.downloadable ? null : 'Approve this delivery in the order chat to download it.')}
+		/>
 	)
 }
 

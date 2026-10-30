@@ -8,11 +8,13 @@ import Avatar from '../../components/ui/Avatar'
 import Icon from '../../components/ui/Icon'
 import { timeAgo } from '../../utils/format'
 import { servicesApi } from '../../api/services'
-import OrderConversation from '../../components/services/OrderConversation'
+import OrderConversation, { ChatSearch } from '../../components/services/OrderConversation'
 import OrderDetailsPane from '../../components/services/OrderDetailsPane'
 import InlineBriefEditor from '../../components/services/InlineBriefEditor'
 import { linkify } from '../../components/ui/linkify'
 import RaiseIssueSheet from '../../components/support/RaiseIssueSheet'
+import Modal from '../../components/ui/Modal'
+import { api } from '../../api/client'
 
 const fileNameFromUrl = (url = '') => {
 	try {
@@ -29,6 +31,112 @@ const FILTERS = [
 	{ key: 'active', label: 'Active' },
 	{ key: 'completed', label: 'Completed' },
 ]
+// Admins also see the chats they flagged and the ones they closed.
+const ADMIN_FILTERS = [...FILTERS, { key: 'flagged', label: 'Flagged' }, { key: 'closed', label: 'Closed' }]
+const GROUPINGS = [
+	{ key: 'client', label: 'By client' },
+	{ key: 'freelancer', label: 'By freelancer' },
+]
+const GROUP_KEY = 'creatyv_admin_chat_group'
+const readGrouping = () => { try { return localStorage.getItem(GROUP_KEY) === 'freelancer' ? 'freelancer' : 'client' } catch { return 'client' } }
+const fileContentUrl = (token) => `${api.defaults.baseURL}/mintbox/public/files/${token}/content`
+
+// What each moderation step asks for and says when it's done.
+const MODERATION = {
+	flag: { title: 'Flag this chat', subtitle: 'Only admins see the flag. Say what to follow up on.', label: 'Reason', button: 'Flag chat' },
+	warn: { title: 'Send a warning', subtitle: 'It appears in the chat as a CREATYV support notice and is sent to them as a notification.', label: 'Warning', button: 'Send warning' },
+	close: { title: 'Close this chat', subtitle: 'Neither side can send messages until you reopen it. Both are told why.', label: 'Reason', button: 'Close chat' },
+}
+
+/** Admin controls for one chat: flag for follow-up, warn either side, close or reopen. */
+function ModerationBar({ room, onDone }) {
+	const pushToast = useUIStore(s => s.pushToast)
+	const [step, setStep] = useState(null)
+	const [target, setTarget] = useState('freelancer')
+	const [note, setNote] = useState('')
+	const { data: history = [] } = useQuery({
+		queryKey: ['chat-moderation', room.id],
+		queryFn: () => chatApi.moderationHistory(room.id).then(res => res.data?.data?.history || []),
+	})
+	const act = useMutation({
+		mutationFn: body => chatApi.moderate(room.id, body),
+		onSuccess: res => {
+			pushToast({ title: res.data.message, icon: 'check' })
+			setStep(null)
+			setNote('')
+			onDone()
+		},
+		onError: err => pushToast({ title: 'Could not update the chat', body: err.response?.data?.message || 'Try again', tone: 'amber', icon: 'x' }),
+	})
+	const open = key => { setNote(''); setStep(key) }
+	const flagged = Boolean(room.flagged_at)
+	const closed = Boolean(room.closed_at)
+	const button = 'inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium transition-[background-color,color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] disabled:opacity-50'
+	const config = step && MODERATION[step]
+	const lastWarning = history.find(entry => entry.action === 'warn')
+
+	return (
+		<>
+			<div className="flex shrink-0 items-center gap-1">
+				<button type="button" disabled={act.isPending} onClick={() => (flagged ? act.mutate({ action: 'unflag' }) : open('flag'))} aria-pressed={flagged}
+					className={`${button} ${flagged ? 'bg-amber-50 text-amber-800 hover:bg-amber-100' : 'text-ink-700 hover:bg-ink-100 hover:text-ink-900'}`}
+					title={flagged ? `Flagged: ${room.flag_reason || ''}. Click to remove the flag.` : 'Flag for follow-up'}>
+					<Icon name="flag" size={15} /> <span className="hidden lg:inline">{flagged ? 'Flagged' : 'Flag'}</span>
+				</button>
+				<button type="button" disabled={act.isPending || closed} onClick={() => open('warn')} className={`${button} text-ink-700 hover:bg-ink-100 hover:text-ink-900`}
+					title={lastWarning ? `Last warning to the ${lastWarning.target}: ${lastWarning.note}` : 'Warn the client or freelancer'}>
+					<Icon name="alert" size={15} /> <span className="hidden lg:inline">Warn</span>
+				</button>
+				<button type="button" disabled={act.isPending} onClick={() => (closed ? act.mutate({ action: 'reopen' }) : open('close'))}
+					className={`${button} ${closed ? 'bg-ink-900 text-white hover:bg-ink-700' : 'text-rose-700 hover:bg-rose-50'}`}>
+					<Icon name={closed ? 'unlock' : 'lock'} size={15} /> <span className="hidden lg:inline">{closed ? 'Reopen' : 'Close chat'}</span>
+				</button>
+			</div>
+			{config && (
+				<Modal title={config.title} subtitle={config.subtitle} onClose={() => setStep(null)} maxWidth={460}
+					footer={(
+						<>
+							<button type="button" onClick={() => setStep(null)} className="h-10 rounded-xl px-4 text-sm font-medium text-ink-700 hover:bg-ink-100">Cancel</button>
+							<button type="button" disabled={act.isPending || !note.trim()} onClick={() => act.mutate({ action: step, note, target: step === 'warn' ? target : undefined })}
+								className={`h-10 rounded-xl px-4 text-sm font-medium text-white transition-transform active:scale-[0.97] disabled:opacity-50 ${step === 'close' ? 'bg-rose-700 hover:bg-rose-800' : 'bg-ink-900 hover:bg-ink-700'}`}>
+								{act.isPending ? 'Saving…' : config.button}
+							</button>
+						</>
+					)}>
+					{step === 'warn' && (
+						<div className="mb-4">
+							<span className="mb-1.5 block text-sm font-medium text-ink-800">Who gets the warning</span>
+							<div role="radiogroup" aria-label="Who gets the warning" className="flex gap-1 rounded-xl bg-ink-100 p-1">
+								{[['client', room.client_name || 'Client'], ['freelancer', room.freelancer_name || 'Freelancer']].map(([key, name]) => (
+									<button key={key} type="button" role="radio" aria-checked={target === key} onClick={() => setTarget(key)}
+										className={`min-w-0 flex-1 truncate rounded-lg px-3 py-2 text-sm font-medium transition-colors ${target === key ? 'bg-white text-ink-900 shadow-[0_1px_2px_rgba(0,0,0,0.08)]' : 'text-ink-600 hover:text-ink-900'}`}>
+										{name} <span className="font-normal text-ink-500">· {key}</span>
+									</button>
+								))}
+							</div>
+						</div>
+					)}
+					<label className="block">
+						<span className="mb-1.5 block text-sm font-medium text-ink-800">{config.label}</span>
+						<textarea rows={3} autoFocus value={note} onChange={e => setNote(e.target.value)} maxLength={1000}
+							className="w-full rounded-xl border border-ink-200 px-3 py-2.5 text-[15px] text-ink-900 focus:border-ink-900 focus:outline-none"
+							placeholder={step === 'warn' ? 'e.g. Sharing phone numbers breaks the platform rules.' : step === 'close' ? 'e.g. Repeated abuse after a warning.' : 'e.g. Client asked to pay outside Creatyv.'} />
+					</label>
+					{history.length > 0 && (
+						<div className="mt-4 border-t border-ink-100 pt-3">
+							<span className="text-sm font-medium text-ink-800">Earlier on this chat</span>
+							<ul className="mt-1.5 max-h-32 space-y-1 overflow-y-auto text-[13px] text-ink-600">
+								{history.slice(0, 6).map((entry, i) => (
+									<li key={i}><span className="text-ink-900">{entry.action === 'warn' ? `Warned the ${entry.target}` : { flag: 'Flagged', unflag: 'Unflagged', close: 'Closed', reopen: 'Reopened' }[entry.action] || entry.action}</span>{entry.note ? `: ${entry.note}` : ''} · {entry.admin_name || 'Admin'}, {timeAgo(entry.created_at)}</li>
+								))}
+							</ul>
+						</div>
+					)}
+				</Modal>
+			)}
+		</>
+	)
+}
 
 const deliveryAction = (message) => {
 	if (!message.attachment_url) return null
@@ -92,8 +200,8 @@ function RoomOrderConversation({ bookingId, role, title, onBack }) {
 					<button type="button" onClick={() => setEditingBrief(true)} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-ink-900 px-3.5 text-sm font-medium text-white transition-transform hover:bg-ink-700 active:scale-[0.97]">Continue brief <Icon name="arrowRight" size={14} /></button>
 				</div>
 			) : null}
-			header={(
-				<header className="flex items-center gap-3 border-b border-ink-200 px-3 py-3 md:px-5">
+			header={searchField => (
+				<header className="relative flex items-center gap-3 border-b border-ink-200 px-3 py-3 md:px-5">
 					<button type="button" className="icon-btn md:hidden" aria-label="Back to conversations" onClick={onBack}>
 						<Icon name="chevronLeft" size={18} />
 					</button>
@@ -102,6 +210,7 @@ function RoomOrderConversation({ bookingId, role, title, onBack }) {
 						<div className="truncate text-[17px] font-medium text-ink-900">{title || counterpart.name}</div>
 						<div className="truncate text-sm text-ink-500">{booking.booking_number} · {booking.snapshot?.title}</div>
 					</div>
+	{searchField}
 					<button type="button" onClick={() => setIssueOpen(true)} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-ink-600 transition-[background-color,color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-100 hover:text-ink-900 active:scale-[0.97]" title="Raise an issue with support">
 						<Icon name="shield" size={15} /> <span className="hidden sm:inline">Raise an issue</span>
 					</button>
@@ -148,6 +257,7 @@ export default function Chat() {
 	const [search, setSearch] = useState('')
 	const [chatSearch, setChatSearch] = useState('')
 	const [filter, setFilter] = useState('all')
+	const [grouping, setGrouping] = useState(readGrouping)
 	const [editingPendingBrief, setEditingPendingBrief] = useState(false)
 	const navigate = useNavigate()
 
@@ -221,6 +331,7 @@ export default function Chat() {
 		return rooms.filter(item => {
 			const done = DONE_STATUSES.includes(item.job_status)
 			if ((filter === 'active' && done) || (filter === 'completed' && !done)) return false
+			if ((filter === 'flagged' && !item.flagged_at) || (filter === 'closed' && !item.closed_at)) return false
 			return !needle || [item.brief_title, item.job_title, item.client_name, item.freelancer_name, item.last_message_preview].some(value => String(value || '').toLowerCase().includes(needle)) || searchedRoomIds.has(item.id)
 		})
 	}, [rooms, search, filter, searchedRoomIds])
@@ -234,6 +345,58 @@ export default function Chat() {
 		: role === 'client'
 			? item.freelancer_name || item.mm_channel_name || 'Your freelancer'
 			: item.client_name || 'Client'
+
+	// Admins read many chats at once, so they're grouped under each client or freelancer.
+	const grouped = role === 'admin'
+	const groups = useMemo(() => {
+		if (!grouped) return []
+		const byPerson = new Map()
+		for (const item of filteredRooms) {
+			const id = grouping === 'client' ? item.client_id : item.freelancer_id
+			const name = (grouping === 'client' ? item.client_name : item.freelancer_name) || 'Unknown'
+			if (!byPerson.has(id)) byPerson.set(id, { id, name, rooms: [] })
+			byPerson.get(id).rooms.push(item)
+		}
+		return [...byPerson.values()]
+	}, [grouped, grouping, filteredRooms])
+	const chooseGrouping = key => {
+		setGrouping(key)
+		try { localStorage.setItem(GROUP_KEY, key) } catch { /* private mode */ }
+	}
+
+	const renderRoom = (item, inGroup = false) => {
+		const active = selectedId === item.id
+		const unread = Number(item.unread_count) > 0
+		// Inside a group the person is already named above, so the row names the other side and the brief.
+		const other = grouping === 'client' ? item.freelancer_name : item.client_name
+		const title = inGroup ? (other || 'Unassigned') : roomTitle(item)
+		const subtitle = inGroup ? (item.brief_title || item.job_title) : (item.last_message_preview || roomSubtitle(item) || 'No messages yet')
+		const state = item.closed_at ? { word: 'Closed', tone: 'text-ink-500' } : item.flagged_at ? { word: 'Flagged', tone: 'text-amber-700' } : null
+		return (
+			<button
+				key={item.id}
+				type="button"
+				onClick={() => setParams({ room: item.id })}
+				aria-current={active ? 'true' : undefined}
+				className={`flex w-full items-center gap-3 rounded-xl px-3 ${inGroup ? 'py-2.5' : 'py-3'} text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99] ${active ? 'bg-ink-100' : 'hover:bg-ink-50'}`}
+			>
+				{!inGroup && <Avatar name={title} src={item.counterpart_avatar} />}
+				<span className="min-w-0 flex-1">
+					<span className="flex items-center justify-between gap-2">
+						<span className={`truncate text-[15px] ${unread ? 'font-semibold' : 'font-medium'} text-ink-900`}>{title}</span>
+						{state && <span className={`shrink-0 text-[12px] font-medium ${state.tone}`}>{state.word}</span>}
+						{unread && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-mint-600 px-1.5 text-[11px] font-semibold tabular-nums text-white">{item.unread_count}</span>}
+					</span>
+					<span className={`mt-0.5 block truncate text-sm ${unread ? 'text-ink-900' : 'text-ink-500'}`}>{subtitle}</span>
+				</span>
+			</button>
+		)
+	}
+	const refreshModeration = () => {
+		queryClient.invalidateQueries({ queryKey: ['chat-rooms'] })
+		queryClient.invalidateQueries({ queryKey: ['chat', selectedId] })
+		queryClient.invalidateQueries({ queryKey: ['chat-moderation', selectedId] })
+	}
 
 	const send = () => {
 		if ((draft.trim() || attachmentUrl.trim()) && !sendMutation.isPending) sendMutation.mutate()
@@ -262,10 +425,20 @@ export default function Chat() {
 							aria-label="Search conversations"
 						/>
 					</div>
-					<div className="mt-3 flex gap-2" role="tablist" aria-label="Filter conversations">
-						{FILTERS.map(f => (
+					{grouped && (
+						<div role="radiogroup" aria-label="Group chats" className="mt-3 flex gap-1 rounded-xl bg-ink-100 p-1">
+							{GROUPINGS.map(g => (
+								<button key={g.key} type="button" role="radio" aria-checked={grouping === g.key} onClick={() => chooseGrouping(g.key)}
+									className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${grouping === g.key ? 'bg-white text-ink-900 shadow-[0_1px_2px_rgba(0,0,0,0.08)]' : 'text-ink-600 hover:text-ink-900'}`}>
+									{g.label}
+								</button>
+							))}
+						</div>
+					)}
+					<div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="Filter conversations">
+						{(grouped ? ADMIN_FILTERS : FILTERS).map(f => (
 							<button key={f.key} type="button" role="tab" aria-selected={filter === f.key} onClick={() => setFilter(f.key)}
-								className={`h-8 rounded-full px-3.5 text-sm font-medium transition-colors ${filter === f.key ? 'bg-ink-900 text-white' : 'bg-ink-100 text-ink-700 hover:bg-ink-200'}`}>
+								className={`h-8 shrink-0 rounded-full px-3.5 text-sm font-medium transition-colors ${filter === f.key ? 'bg-ink-900 text-white' : 'bg-ink-100 text-ink-700 hover:bg-ink-200'}`}>
 								{f.label}
 							</button>
 						))}
@@ -280,28 +453,17 @@ export default function Chat() {
 							<div className="mt-3 font-medium text-ink-900">{search || filter !== 'all' ? 'No matches' : 'No conversations yet'}</div>
 							<p className="mt-1 text-sm text-ink-500">{search || filter !== 'all' ? 'Try another name, service or filter.' : "You don't have any messages yet."}</p>
 						</div>
-					) : filteredRooms.map(item => {
-						const active = selectedId === item.id
-						const unread = Number(item.unread_count) > 0
-						return (
-							<button
-								key={item.id}
-								type="button"
-								onClick={() => setParams({ room: item.id })}
-								aria-current={active ? 'true' : undefined}
-								className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99] ${active ? 'bg-ink-100' : 'hover:bg-ink-50'}`}
-							>
-								<Avatar name={roomTitle(item)} src={item.counterpart_avatar} />
-								<span className="min-w-0 flex-1">
-									<span className="flex items-center justify-between gap-2">
-										<span className={`truncate text-[15px] ${unread ? 'font-semibold' : 'font-medium'} text-ink-900`}>{roomTitle(item)}</span>
-										{unread && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-mint-600 px-1.5 text-[11px] font-semibold tabular-nums text-white">{item.unread_count}</span>}
-									</span>
-									<span className={`mt-0.5 block truncate text-sm ${unread ? 'text-ink-900' : 'text-ink-500'}`}>{item.last_message_preview || roomSubtitle(item) || 'No messages yet'}</span>
-								</span>
-							</button>
-						)
-					})}
+					) : grouped ? groups.map(group => (
+						<details key={group.id} open className="group/person mt-1">
+							<summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-ink-50 [&::-webkit-details-marker]:hidden">
+								<Avatar name={group.name} />
+								<span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink-900">{group.name}</span>
+								<span className="text-[13px] tabular-nums text-ink-500">{group.rooms.length} chat{group.rooms.length === 1 ? '' : 's'}</span>
+								<Icon name="chevronDown" size={15} className="text-ink-400 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-open/person:rotate-180" />
+							</summary>
+							<div className="ml-[30px] border-l border-ink-100 pl-2">{group.rooms.map(item => renderRoom(item, true))}</div>
+						</details>
+					)) : filteredRooms.map(item => renderRoom(item))}
 				</div>
 			</aside>
 
@@ -343,21 +505,21 @@ export default function Chat() {
 					</div>
 				) : (
 					<>
-						<header className="flex items-center gap-3 border-b border-ink-200 px-3 py-3 md:px-5">
+						<header className="relative flex items-center gap-3 border-b border-ink-200 px-3 py-3 md:px-5">
 							<button type="button" className="icon-btn md:hidden" aria-label="Back to conversations" onClick={() => setParams({})}>
 								<Icon name="chevronLeft" size={18} />
 							</button>
 							<Avatar name={roomTitle(selectedRoom || {})} src={selectedRoom?.counterpart_avatar} />
 							<div className="min-w-0 flex-1">
 								<div className="truncate text-[17px] font-medium text-ink-900">{roomTitle(selectedRoom || {})}</div>
-								<div className="truncate text-sm text-ink-500">{role === 'client' && !selectedRoom?.brief_title ? roomLabel(selectedRoom || {}) : room?.job_title || selectedRoom?.job_title}</div>
+<div className="truncate text-sm text-ink-500">{role === 'client' && !selectedRoom?.brief_title ? roomLabel(selectedRoom || {}) : room?.job_title || selectedRoom?.job_title}{role === 'admin' && selectedRoom?.closed_at ? <span className="text-ink-900"> · Closed</span> : role === 'admin' && selectedRoom?.flagged_at ? <span className="text-amber-700"> · Flagged: {selectedRoom.flag_reason}</span> : null}</div>
 							</div>
 							{room?.client_wa_number && <span className="hidden rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 sm:inline">WhatsApp connected</span>}
-							{role === 'admin' && <span className="rounded-md bg-ink-100 px-2 py-1 text-xs font-medium text-ink-600">Read only</span>}
+<ChatSearch value={chatSearch} onChange={setChatSearch} />
+								{role === 'admin' && selectedRoom && <ModerationBar room={selectedRoom} onDone={refreshModeration} />}
 						</header>
-						<div className="border-b border-ink-100 px-3 py-2 md:px-5"><div className="relative max-w-sm"><Icon name="search" size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" /><input value={chatSearch} onChange={event => setChatSearch(event.target.value)} placeholder="Search this chat" aria-label="Search this chat" className="h-9 w-full rounded-full border border-ink-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-ink-400" /></div></div>
 
-						<div ref={streamRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-ink-50/50 px-3 py-5 md:px-6">
+						<div ref={streamRef} className="conversation-stream min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-5 md:px-6">
 							{chatSearch.trim().length >= 2 ? chatSearchResults.length ? chatSearchResults.map(result => <div key={result.id} className="mx-auto max-w-xl rounded-xl border border-ink-200 bg-white px-3 py-2.5"><div className="mb-1 text-xs text-ink-500">{result.sender_role} · {timeAgo(result.created_at)}</div><p className="whitespace-pre-wrap text-sm text-ink-900">{result.content}</p></div>) : <div className="py-12 text-center text-sm text-ink-500">No messages found.</div> : messagesLoading ? (
 								<div className="text-sm text-ink-500">Loading messages…</div>
 							) : messages.length === 0 ? (
@@ -373,7 +535,7 @@ export default function Chat() {
 								const meta = `${message.channel === 'whatsapp' ? 'WhatsApp · ' : ''}${timeAgo(message.created_at)}${mine ? ` · ${read ? 'Seen' : 'Sent'}` : ''}`
 								if (system) {
 									return (
-										<div key={message.id} className="mx-auto max-w-md py-1 text-center text-[13px] text-ink-500">
+										<div key={message.id} className="mx-auto w-fit max-w-md rounded-lg bg-[#fff5c4] px-3 py-1.5 text-center text-[13px] text-[#54656f] shadow-[0_1px_0.5px_rgba(0,0,0,0.13)]">
 											<span className="whitespace-pre-wrap">{linkify(message.content)}</span>
 											<span className="ml-1.5">· {timeAgo(message.created_at)}</span>
 										</div>
@@ -384,10 +546,15 @@ export default function Chat() {
 										<div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
 											<div className="w-[min(520px,88%)] rounded-2xl border border-ink-200 bg-white p-4">
 												<div className="text-sm text-ink-500"><span className="font-medium text-ink-900">{mine ? 'You' : message.sender_name}</span> {fileAction}</div>
-												<a href={message.attachment_url} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-3 rounded-xl bg-ink-50 p-3 transition-colors hover:bg-ink-100">
-													<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-ink-700"><Icon name="file" size={18} /></span>
-													<span className="min-w-0">
-														<span className="block truncate font-medium text-ink-900">{fileNameFromUrl(message.attachment_url)}</span>
+{message.file_token && message.file_mime?.startsWith('image/') && (
+	<a href={fileContentUrl(message.file_token)} target="_blank" rel="noopener noreferrer" className="mt-3 block overflow-hidden rounded-xl bg-ink-100">
+		<img src={fileContentUrl(message.file_token)} alt={message.file_name || ''} loading="lazy" className="max-h-72 w-full object-cover" />
+	</a>
+)}
+<a href={message.file_token ? fileContentUrl(message.file_token) : message.attachment_url} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center gap-3 rounded-xl bg-ink-50 p-3 transition-colors hover:bg-ink-100">
+	<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-ink-700"><Icon name={message.file_mime?.startsWith('video/') ? 'video' : message.file_mime?.startsWith('image/') ? 'image' : 'file'} size={18} /></span>
+	<span className="min-w-0">
+		<span className="block truncate font-medium text-ink-900">{message.file_name || fileNameFromUrl(message.attachment_url)}</span>
 														<span className="text-sm text-ink-500">Open file</span>
 													</span>
 												</a>
@@ -401,7 +568,7 @@ export default function Chat() {
 									<div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
 										<div className={`max-w-[78%] rounded-2xl px-4 py-2.5 ${mine ? 'rounded-br-md bg-ink-900 text-white' : 'rounded-bl-md border border-ink-200 bg-white text-ink-900'}`}>
 											{!mine && <div className="mb-0.5 text-[13px] font-medium text-ink-500">{message.sender_name}</div>}
-											<div className="whitespace-pre-wrap text-[15px] [overflow-wrap:anywhere]">{linkify(message.content)}</div>
+											<div className="whitespace-pre-wrap text-[15px] [overflow-wrap:anywhere]">{linkify(message.content, mine ? 'text-white decoration-white/50 hover:decoration-white' : undefined)}</div>
 											{message.attachment_url && (
 												<a href={message.attachment_url} target="_blank" rel="noreferrer" className={`mt-1 inline-flex items-center gap-1 text-sm underline underline-offset-2 ${mine ? 'text-white' : 'text-ink-900'}`}>
 													<Icon name="paperclip" size={12} /> Open attachment

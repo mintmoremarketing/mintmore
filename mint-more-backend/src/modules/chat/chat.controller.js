@@ -123,7 +123,24 @@ const upsertWhatsAppNumber = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const moderateRoom = async (req, res, next) => {
+  try {
+    const room = await chatService.moderateRoom(req.params.roomId, req.user.sub, req.body || {});
+    const messages = { flag: 'Chat flagged', unflag: 'Flag removed', warn: 'Warning sent', close: 'Chat closed', reopen: 'Chat reopened' };
+    return sendSuccess(res, { data: { room }, message: messages[req.body?.action] || 'Updated' });
+  } catch (err) { next(err); }
+};
+
+const getModerationHistory = async (req, res, next) => {
+  try {
+    const history = await chatService.getModerationHistory(req.params.roomId);
+    return sendSuccess(res, { data: { history } });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
+  moderateRoom,
+  getModerationHistory,
   getMyRooms,
   searchMessages,
   getRoom,

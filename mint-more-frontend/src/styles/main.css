@@ -11061,3 +11061,4 @@ p { text-wrap: pretty; }
 @media (prefers-reduced-motion: reduce) {
   .files-viewer-media { animation: dash-fade 150ms ease-out both; }
 }
+.chat-search-open { animation: dash-fade 150ms ease-out both; }

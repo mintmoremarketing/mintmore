@@ -123,6 +123,12 @@ const getMyRooms = async (userId, role) => {
     `SELECT
        cr.id, cr.job_id, cr.is_active,
        cr.last_message_at, cr.last_message_preview,
+       -- Moderation (migration 070). Read through jsonb so the list still loads before it runs.
+       to_jsonb(cr)->>'closed_at' AS closed_at,
+       CASE WHEN $2 = 'admin' THEN to_jsonb(cr)->>'flagged_at' END AS flagged_at,
+       CASE WHEN $2 = 'admin' THEN to_jsonb(cr)->>'flag_reason' END AS flag_reason,
+       CASE WHEN $2 = 'admin' THEN cr.client_id END AS client_id,
+       CASE WHEN $2 = 'admin' THEN cr.freelancer_id END AS freelancer_id,
        j.title AS job_title, j.status AS job_status,
        sb.id AS booking_id, sb.brief,
        u_c.full_name AS client_name,
@@ -298,6 +304,7 @@ const sendMessage = async (roomId, senderId, senderRole, { content, attachment_u
   const room = roomResult.rows[0];
   if (!room) throw new AppError('Chat room not found', 404);
   if (!room.is_active) throw new AppError('This chat room is no longer active', 400);
+  if (room.closed_at) throw new AppError('CREATYV support closed this chat. Raise an issue if you need help with the order.', 403);
 
   // Validate participant
   if (senderRole !== 'admin') {
@@ -804,7 +811,103 @@ const upsertWhatsAppNumber = async ({ categoryId, displayName, phoneNumber, waba
   return result.rows[0];
 };
 
+// ── Admin moderation ─────────────────────────────────────────────────────────
+
+const appendSystemMessageToRoom = async (roomId, content) => {
+  const result = await query(
+    `INSERT INTO messages
+       (room_id, sender_id, sender_role, content, channel, read_by_client, read_by_freelancer)
+     VALUES ($1, NULL, 'system', $2, 'web', false, false)
+     RETURNING *`,
+    [roomId, content]
+  );
+  await query('UPDATE chat_rooms SET last_message_at = NOW(), last_message_preview = $1 WHERE id = $2', [content.slice(0, 100), roomId]);
+  await publishMessageToRoom(roomId, result.rows[0], 'system');
+  return result.rows[0];
+};
+
+const MODERATION_ACTIONS = ['flag', 'unflag', 'warn', 'close', 'reopen'];
+
+/**
+ * Flag or unflag a chat for follow-up, warn one side, or close and reopen it.
+ * Flags are private to admins; warnings, closing and reopening post a CREATYV
+ * notice in the chat and notify the people it concerns. Everything is audited.
+ */
+const moderateRoom = async (roomId, adminId, { action, note = '', target } = {}) => {
+  if (!MODERATION_ACTIONS.includes(action)) throw new AppError('Choose flag, unflag, warn, close or reopen', 400);
+  const reason = String(note || '').trim().slice(0, 1000);
+  if (['flag', 'warn', 'close'].includes(action) && !reason) throw new AppError('Add a reason', 422);
+  if (action === 'warn' && !['client', 'freelancer'].includes(target)) throw new AppError('Choose who to warn', 400);
+
+  const before = (await query('SELECT * FROM chat_rooms WHERE id = $1', [roomId])).rows[0];
+  if (!before) throw new AppError('Chat room not found', 404);
+  if (!('closed_at' in before)) throw new AppError('Chat moderation needs migration 070 to run first', 503);
+  if (action === 'close' && before.closed_at) throw new AppError('This chat is already closed', 409);
+  if (action === 'reopen' && !before.closed_at) throw new AppError('This chat is open', 409);
+
+  const updates = {
+    flag: ['flagged_at = NOW(), flagged_by = $2, flag_reason = $3', [roomId, adminId, reason]],
+    unflag: ['flagged_at = NULL, flagged_by = NULL, flag_reason = NULL', [roomId]],
+    close: ['closed_at = NOW(), closed_by = $2, close_reason = $3', [roomId, adminId, reason]],
+    reopen: ['closed_at = NULL, closed_by = NULL, close_reason = NULL', [roomId]],
+  }[action];
+  const after = updates
+    ? (await query(`UPDATE chat_rooms SET ${updates[0]} WHERE id = $1 RETURNING *`, updates[1])).rows[0]
+    : before;
+
+  const notify = require('../notifications/notification.service').createNotification;
+  const tell = (userId, title, body) => notify({
+    userId, type: 'system', title, body,
+    entityType: 'job', entityId: before.job_id,
+    data: { notification_event: 'chat_moderation', room_id: roomId, job_id: before.job_id, action },
+  });
+  if (action === 'warn') {
+    await appendSystemMessageToRoom(roomId, `CREATYV support warning to the ${target}: ${reason}`);
+    await tell(target === 'client' ? before.client_id : before.freelancer_id, 'A warning from CREATYV support', reason);
+  } else if (action === 'close') {
+    await appendSystemMessageToRoom(roomId, `CREATYV support closed this chat. ${reason}`);
+    await Promise.all([before.client_id, before.freelancer_id].map((userId) => tell(userId, 'CREATYV support closed an order chat', reason)));
+  } else if (action === 'reopen') {
+    await appendSystemMessageToRoom(roomId, 'CREATYV support reopened this chat.');
+    await Promise.all([before.client_id, before.freelancer_id].map((userId) => tell(userId, 'CREATYV support reopened an order chat', 'You can message each other again.')));
+  }
+
+  await require('../audit/audit.service').writeAudit({
+    actorId: adminId,
+    actorRole: 'admin',
+    action: `chat.${action}`,
+    entityType: 'chat_room',
+    entityId: roomId,
+    beforeState: { flagged_at: before.flagged_at, closed_at: before.closed_at },
+    afterState: { flagged_at: after.flagged_at, closed_at: after.closed_at },
+    metadata: { note: reason || null, target: target || null, job_id: before.job_id },
+  });
+  return { id: roomId, flagged_at: after.flagged_at, flag_reason: after.flag_reason, closed_at: after.closed_at, close_reason: after.close_reason };
+};
+
+/** The moderation history of one chat, newest first, from the audit log. */
+const getModerationHistory = async (roomId) => {
+  const result = await query(
+    `SELECT a.action, a.metadata, a.created_at, u.full_name AS admin_name
+     FROM audit_logs a
+     LEFT JOIN users u ON u.id = a.actor_id
+     WHERE a.entity_type = 'chat_room' AND a.entity_id = $1
+     ORDER BY a.created_at DESC
+     LIMIT 50`,
+    [roomId]
+  );
+  return result.rows.map((row) => ({
+    action: row.action.replace(/^chat\./, ''),
+    note: row.metadata?.note || null,
+    target: row.metadata?.target || null,
+    admin_name: row.admin_name,
+    created_at: row.created_at,
+  }));
+};
+
 module.exports = {
+  moderateRoom,
+  getModerationHistory,
   CHAT_REDIS_CHANNEL,
   markDelivered,
   postFileMessage,

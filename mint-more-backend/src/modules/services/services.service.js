@@ -1163,7 +1163,7 @@ const BOOKING_SELECT = `
          fu.full_name AS freelancer_name, fu.avatar_url AS freelancer_avatar,
          fu.average_rating AS freelancer_rating,
          cu.full_name AS client_name, cu.avatar_url AS client_avatar,
-         room.id AS room_id,
+         room.id AS room_id, to_jsonb(room)->>'closed_at' AS chat_closed_at,
          latest.status AS latest_delivery_status,
          latest.created_at AS latest_delivery_at,
          EXISTS (
