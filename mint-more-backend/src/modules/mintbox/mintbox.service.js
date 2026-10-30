@@ -71,6 +71,7 @@ const toSharedFile = (file) => ({
 });
 // A freelancer's delivery is a preview until the client approves it: it can be watched
 // in the chat, but not downloaded or opened from a public link.
+const DEMO_FILE_PREFIX = 'demo-files/';
 const isLockedDelivery = (file) => file?.purpose === 'delivery' && file?.status !== 'approved';
 
 const safeName = (value) => String(value || 'file').replace(/[^\w.\- ]+/g, '').trim() || 'file';
@@ -1228,6 +1229,11 @@ const getPublicFileStream = async (token, { download = false } = {}, expiresIn =
     // PDF…) can only be had as the file itself, so it waits for approval like a download.
     const previewable = /^(image|video|audio)\//.test(String(file.mime_type || ''));
     if (download || !previewable) throw new AppError('Approve this delivery to download it', 403);
+  }
+  // Demo deliveries point at images shipped with the web app (public/demo-files), not storage.
+  if (String(file.storage_path).startsWith(DEMO_FILE_PREFIX)) {
+    const name = path.basename(file.storage_path);
+    return { file, signedUrl: `${env.frontendUrl.replace(/\/$/, '')}/demo-files/${encodeURIComponent(name)}` };
   }
   const signedUrl = await storage.createDownloadUrl(file.storage_path, expiresIn);
   if (!signedUrl) throw new AppError('File is temporarily unavailable', 503);

@@ -73,6 +73,7 @@ if (isProd && process.env.PAYMENT_MOCK_CHECKOUT === 'true') {
 const env = {
   node_env: nodeEnv,
   port: parseInt(process.env.PORT, 10) || 5000,
+  frontendUrl,
   apiVersion: process.env.API_VERSION || 'v1',
 
   db: {
