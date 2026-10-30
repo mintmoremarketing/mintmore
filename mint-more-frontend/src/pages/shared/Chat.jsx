@@ -96,7 +96,7 @@ function RoomOrderConversation({ bookingId, role, title, onBack }) {
 					<button type="button" className="icon-btn md:hidden" aria-label="Back to conversations" onClick={onBack}>
 						<Icon name="chevronLeft" size={18} />
 					</button>
-					<Avatar name={title || counterpart.name} />
+					<Avatar name={title || counterpart.name} src={counterpart.avatar} />
 					<div className="min-w-0 flex-1">
 						<div className="truncate text-[17px] font-medium text-ink-900">{title || counterpart.name}</div>
 						<div className="truncate text-sm text-ink-500">{booking.booking_number} · {booking.snapshot?.title}</div>
@@ -290,7 +290,7 @@ export default function Chat() {
 								aria-current={active ? 'true' : undefined}
 								className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99] ${active ? 'bg-ink-100' : 'hover:bg-ink-50'}`}
 							>
-								<Avatar name={roomTitle(item)} />
+								<Avatar name={roomTitle(item)} src={item.counterpart_avatar} />
 								<span className="min-w-0 flex-1">
 									<span className="flex items-center justify-between gap-2">
 										<span className={`truncate text-[15px] ${unread ? 'font-semibold' : 'font-medium'} text-ink-900`}>{roomTitle(item)}</span>
@@ -346,7 +346,7 @@ export default function Chat() {
 							<button type="button" className="icon-btn md:hidden" aria-label="Back to conversations" onClick={() => setParams({})}>
 								<Icon name="chevronLeft" size={18} />
 							</button>
-							<Avatar name={roomTitle(selectedRoom || {})} />
+							<Avatar name={roomTitle(selectedRoom || {})} src={selectedRoom?.counterpart_avatar} />
 							<div className="min-w-0 flex-1">
 								<div className="truncate text-[17px] font-medium text-ink-900">{roomTitle(selectedRoom || {})}</div>
 								<div className="truncate text-sm text-ink-500">{role === 'client' && !selectedRoom?.brief_title ? roomLabel(selectedRoom || {}) : room?.job_title || selectedRoom?.job_title}</div>

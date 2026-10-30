@@ -6,7 +6,7 @@ const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { getSetting } = require('../commerce/settings.service');
 const { getWalletByUserId, recordTransaction, holdEscrow } = require('../wallet/wallet.service');
-const { createChatRoom, appendSystemMessageByJob, appendSystemMessagesByJob, postFileMessage } = require('../chat/chat.service');
+const { createChatRoom, appendSystemMessageByJob, appendSystemMessagesByJob, postClientMessagesByJob, postFileMessage } = require('../chat/chat.service');
 const notificationService = require('../notifications/notification.service');
 const { writeAudit } = require('../audit/audit.service');
 const { rankFreelancers } = require('./fairMatch');
@@ -862,13 +862,16 @@ const startOrder = async (booking, freelancerId) => {
     `Delivery in ${snapshot.delivery_days} day${Number(snapshot.delivery_days) === 1 ? '' : 's'} · ${snapshot.revisions} revision${Number(snapshot.revisions) === 1 ? '' : 's'} included`,
   ].filter(Boolean).join('\n');
   const answers = Array.isArray(booking.brief) ? booking.brief : [];
-  const briefMessages = [
-    header,
+  // The order details are from Creatyv; the brief shows as the client's own messages.
+  const clientMessages = [
     ...answers.map((answer) => formatBrief([answer])).filter(Boolean),
     booking.instructions ? `Anything else:\n${booking.instructions}` : null,
+  ];
+  await appendSystemMessagesByJob(booking.job_id, [
+    header,
     !answers.length && !booking.instructions ? 'Share your assets, references and instructions here so work can begin.' : null,
-  ].filter(Boolean);
-  await appendSystemMessagesByJob(booking.job_id, briefMessages)
+  ]).catch((err) => logger.warn('Service order message failed', { bookingId: booking.id, error: err.message }));
+  await postClientMessagesByJob(booking.job_id, booking.client_id, clientMessages)
     .catch((err) => logger.warn('Service brief message failed', { bookingId: booking.id, error: err.message }));
   // Brief files that finished uploading before the chat existed go in right after the brief.
   // Later ones are posted by Mintbox when their upload completes.
@@ -1314,11 +1317,10 @@ const updateClientBookingBrief = async (clientId, bookingId, { brief: answers, i
 
   if (booking.job_id && !draft) {
     const updateMessages = [
-      'The client completed their full brief after checkout.',
       ...cleanedBrief.map((answer) => formatBrief([answer])).filter(Boolean),
       cleanInstructions ? `Anything else:\n${cleanInstructions}` : null,
-    ].filter(Boolean);
-    await appendSystemMessagesByJob(booking.job_id, updateMessages)
+    ];
+    await postClientMessagesByJob(booking.job_id, clientId, updateMessages)
       .catch((err) => logger.warn('Updated service brief message failed', { bookingId, error: err.message }));
   }
   return getClientBooking(clientId, bookingId);
