@@ -148,6 +148,9 @@ const streamPublicFile = async (req, res, next) => {
     // Let object storage serve range requests and video bytes directly rather than
     // routing every playback/download byte through the API process.
     res.setHeader('Cache-Control', 'private, no-store');
+    // The web app is on another origin; helmet's same-origin default makes browsers refuse
+    // the redirect, so <video> and <img> in the chat fail to load.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     return res.redirect(302, signedUrl);
   } catch (err) {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');

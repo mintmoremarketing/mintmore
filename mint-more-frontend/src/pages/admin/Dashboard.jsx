@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { servicesApi } from '../../api/services'
 import { disputesApi } from '../../api/disputes'
+import { mintboxApi } from '../../api/mintbox'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../../components/ui/Icon'
 import Avatar from '../../components/ui/Avatar'
@@ -82,6 +83,13 @@ export default function AdminDashboard() {
     queryFn: () => disputesApi.list({ status: 'open' }).then(res => res.data.data),
   })
 
+  // Same query as Operations > First drafts, so approving there clears this row too.
+  const { data: firstDrafts = [] } = useQuery({
+    queryKey: ['admin-first-drafts'],
+    queryFn: () => mintboxApi.adminFirstDrafts().then(response => response.data?.data?.drafts || []),
+    refetchInterval: 30_000,
+  })
+
   const kycs = listOf(kycData, 'submissions').length ? listOf(kycData, 'submissions') : listOf(kycData, 'kycs')
   const withdrawals = listOf(wdData, 'withdrawals')
   const disputes = listOf(disputesData, 'disputes')
@@ -102,6 +110,7 @@ export default function AdminDashboard() {
   const users = stats.users || {}
 
   const queue = [
+    { icon: 'video', label: 'First drafts to review', detail: 'Watch and approve before the client can see them.', count: firstDrafts.length, to: '/admin/operations?tab=first-drafts', urgent: true },
     { icon: 'requests', label: 'Orders without a freelancer', detail: 'Auto-assign found nobody. Pick one by hand.', count: orders.unassigned.length, to: '/admin/service-orders', urgent: true },
     { icon: 'clock', label: 'Overdue orders', detail: 'Past the due date and not delivered yet.', count: orders.overdue.length, to: '/admin/service-orders?view=all', urgent: true },
     { icon: 'disputes', label: 'Open disputes', detail: 'Escrow is frozen until you decide.', count: disputes.length, to: '/disputes', urgent: true },
