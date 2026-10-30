@@ -85,6 +85,7 @@ export default function PublicOrShell() {
 	const next = encodeURIComponent(location.pathname + location.search)
 	// Service pages and the cart have their own bottom bars, so the Ask bar stays off there.
 	const showAsk = !/^\/(services\/[^/]+|cart)/.test(location.pathname)
+	const isHome = location.pathname === '/' || location.pathname === '/services'
 	return (
 		<div className="store-public min-h-screen bg-white">
 			<StoreTicker />
@@ -103,7 +104,8 @@ export default function PublicOrShell() {
 				</div>
 			</nav>
 			<div className="store-nav-spacer" aria-hidden="true" />
-			<div className="mx-auto max-w-[1400px] px-4 md:px-8"><StoreSearch className="mx-auto max-w-2xl" /></div>
+			{/* The home page keeps its hero minimal; every other public page keeps the search bar. */}
+			{!isHome && <div className="mx-auto max-w-[1400px] px-4 md:px-8"><StoreSearch className="mx-auto max-w-2xl" /></div>}
 			<main><Outlet /></main>
 			<footer ref={footerRef} className="mt-16 border-t border-ink-200 bg-ink-50 font-store">
 				<div className="mx-auto grid max-w-[1400px] gap-8 px-4 py-12 md:grid-cols-4 md:px-8">

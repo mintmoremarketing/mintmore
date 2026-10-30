@@ -7,6 +7,7 @@ import { ImageSlot, StoreRow } from '../../components/storefront/storefront'
 import { CATEGORY_STYLE } from '../../components/storefront/storefrontUtils'
 import StoreStack from '../../components/storefront/StoreStack'
 import ShopperHero from '../../components/storefront/ShopperHero'
+import SurfCards from '../../components/storefront/SurfCards'
 import { useAuthStore } from '../../store/auth'
 import { USE_REFERENCE_PHOTOS, referenceCategoryTile, referenceVideos } from '../../components/storefront/referencePhotos'
 
@@ -163,12 +164,16 @@ export default function StoreHome({ embedded = false }) {
 			{!embedded && signedIn && <div className="pt-2 md:pt-0"><ShopperHero services={data?.rows?.[0]?.services} /></div>}
 			{pitch && (
 				/* The landing's rolling headline replaces the old magenta campaign banner (PHOTO-SLOT). */
-				<section className="pb-2 pt-10 text-center md:pt-16">
-					<HeroPhrase />
-					<p className="mx-auto mt-5 max-w-xl text-lg text-ink-600">Reels, thumbnails, designs and scripts at fixed prices. Pay once, get a vetted freelancer instantly.</p>
-					<Link to="/categories/video-editing" className="landing-cta mt-7 gap-2 !min-h-12 !px-6 !text-base">
-						Explore services <Icon name="arrowRight" size={18} />
-					</Link>
+				<section className="store-surf-hero">
+					<div className="store-surf-copy relative z-10 text-center">
+						<HeroPhrase />
+						<p className="mx-auto mt-5 max-w-xl text-lg text-ink-700">Reels, thumbnails, designs and scripts at fixed prices.</p>
+						<Link to="/categories/video-editing" className="landing-cta mt-7 gap-2 !min-h-12 !px-6 !text-base">
+							Explore services <Icon name="arrowRight" size={18} />
+						</Link>
+					</div>
+					{/* The work drifts past behind the pitch: Surf mode from the Lookback archive. */}
+					<SurfCards />
 				</section>
 			)}
 

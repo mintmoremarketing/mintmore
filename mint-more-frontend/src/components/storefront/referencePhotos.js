@@ -11,6 +11,11 @@ export const USE_REFERENCE_PHOTOS = true
 
 export const referenceCover = (slug) => (USE_REFERENCE_PHOTOS ? photos.services[slug]?.cover || null : null)
 
+/** Every service that has a stand-in cover, as { slug, image }. */
+export const referenceServiceCovers = () => (USE_REFERENCE_PHOTOS
+	? Object.entries(photos.services).map(([slug, item]) => ({ slug, image: item.cover })).filter(item => item.image)
+	: [])
+
 export const referenceGallery = (slug) => (USE_REFERENCE_PHOTOS ? photos.services[slug]?.gallery || [] : [])
 
 /** Full-tile artwork ({ desktop, mobile }) for a category. */

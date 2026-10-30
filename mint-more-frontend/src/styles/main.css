@@ -10948,3 +10948,69 @@ p { text-wrap: pretty; }
   .landing-ask-widget.is-suggesting .landing-ask-collapsed-chips button,
   .landing-ask-widget.is-open .landing-ask-collapsed-chips button { translate: none; transition: opacity 150ms ease; }
 }
+
+/* Store home hero: a minimal pitch with the work drifting past underneath, Surf-mode style. */
+.store-surf-hero { position: relative; }
+.surf-cards {
+  position: relative;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-top: 12px;
+  height: clamp(280px, 40vh, 400px);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 700ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.surf-cards.is-ready { opacity: 1; }
+.surf-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #1a1714;
+  transform-origin: center;
+  backface-visibility: hidden;
+  will-change: transform;
+  visibility: hidden;
+}
+.surf-card img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; user-select: none; }
+.surf-card { background: #ece8e2; }
+@media (max-width: 760px) {
+  .surf-cards { height: clamp(240px, 36vh, 320px); margin-top: 8px; }
+}
+
+/* Hero v2: the wave is the hero's background. It covers the whole band from just under the nav,
+   and the pitch sits on a soft white haze so it stays readable where cards pass behind it. */
+.store-surf-hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: clamp(560px, 82vh, 860px);
+  padding-bottom: 8vh;
+}
+.store-surf-hero .surf-cards {
+  position: absolute;
+  z-index: 0;
+  top: -72px;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  height: auto;
+  margin: 0 0 0 -50vw;
+}
+.store-surf-hero .surf-card { border-radius: 0; }
+.store-surf-copy { isolation: isolate; padding: 24px 0; }
+.store-surf-copy::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -12% -8%;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.9) 0, rgb(255 255 255 / 0.6) 50%, rgb(255 255 255 / 0) 100%);
+  pointer-events: none;
+}
+@media (max-width: 760px) {
+  .store-surf-hero { min-height: clamp(520px, 78vh, 720px); padding-bottom: 6vh; }
+  .store-surf-hero .surf-cards { top: -40px; height: auto; margin-top: 0; }
+}
