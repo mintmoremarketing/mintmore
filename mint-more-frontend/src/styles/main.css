@@ -10736,7 +10736,7 @@ p { text-wrap: pretty; }
 @media (prefers-reduced-motion: reduce) { .detail-column { animation: none; } }
 
 /* ── Client home folder tabs ─────────────────────────────────── */
-:root { --hero-top: #ff6a2b; }
+:root { --hero-top: #ff6a2b; --hero-ink: #2b1105; --hero-ink-soft: #4a1d06; }
 /* Solid along the top edge so it meets the open tab without a seam, then warms into amber. */
 .folder-hero { background:
   radial-gradient(70% 130% at 100% 110%, rgb(255 196 64 / 0.95) 0, rgb(255 196 64 / 0) 62%),
@@ -10786,7 +10786,9 @@ p { text-wrap: pretty; }
   .ai-make-btn:hover:not(:disabled) { background: #ff7c42; }
 }
 
-/* Creatyv Pro preview: the week fills in once, day by day. */
-.pro-preview-post { animation: pro-post-in 420ms cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: var(--delay, 0ms); }
-@keyframes pro-post-in { from { opacity: 0; transform: translateY(6px) scale(0.97); filter: blur(2px); } }
-@media (prefers-reduced-motion: reduce) { .pro-preview-post { animation: none; } }
+/* Creatyv Pro: the title, line and button rise in once when the tab opens. */
+.pro-soon > * { animation: pro-soon-in 280ms cubic-bezier(0.23, 1, 0.32, 1) backwards; }
+.pro-soon > :nth-child(2) { animation-delay: 50ms; }
+.pro-soon > :nth-child(3) { animation-delay: 100ms; }
+@keyframes pro-soon-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .pro-soon > * { animation: none; } }

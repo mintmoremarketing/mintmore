@@ -339,9 +339,11 @@ export default function ClientHome() {
 								<path d={coveredRight ? TUCKED_SIDE : CURVED_SIDE} />
 							</svg>
 							{/* The label spans the body and the top of both curves, clear of any side a neighbour covers. */}
-							<span className={`pointer-events-none absolute inset-y-0 flex items-center justify-center ${coveredLeft ? 'left-6 sm:left-9 md:left-11' : 'left-3 sm:left-5 md:left-6'} ${coveredRight ? 'right-6 sm:right-9 md:right-11' : 'right-3 sm:right-5 md:right-6'}`}>
-								<span className={`truncate text-[13px] font-medium sm:text-[15px] ${selected ? 'text-ink-950' : 'text-ink-600 group-hover:text-ink-900'}`}>{area.label}</span>
-									{area.badge && <span className="ml-1.5 hidden shrink-0 rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-800 min-[420px]:inline-block sm:ml-2 sm:text-[11px]">{area.badge}</span>}
+							<span className={`pointer-events-none absolute inset-y-0 flex flex-col items-center justify-center sm:flex-row ${coveredLeft ? 'left-6 sm:left-9 md:left-11' : 'left-3 sm:left-5 md:left-6'} ${coveredRight ? 'right-6 sm:right-9 md:right-11' : 'right-3 sm:right-5 md:right-6'}`}>
+								<span className={`truncate text-[13px] font-medium sm:text-[15px] ${selected ? 'text-[var(--hero-ink)]' : 'text-ink-600 group-hover:text-ink-900'}`}>{area.label}</span>
+								{/* On a phone the word goes under the label, so all three labels keep their full width. */}
+								{area.badge && <span className={`text-[11px] font-semibold leading-none sm:hidden ${selected ? 'text-[var(--hero-ink)]' : 'text-orange-700'}`}>{area.badge}</span>}
+								{area.badge && <span className={`ml-2 hidden shrink-0 rounded-full px-1.5 text-[11px] font-medium leading-[18px] sm:inline-block ${selected ? 'bg-white/40 text-[var(--hero-ink)]' : 'bg-ink-950/[0.07] text-ink-700'}`}>{area.badge}</span>}
 							</span>
 						</button>
 					)
@@ -352,10 +354,10 @@ export default function ClientHome() {
 				{/* The bright band the open tab grows out of; the work below sits on white. */}
 				<div className="folder-hero flex flex-col gap-5 px-4 pb-8 pt-6 sm:flex-row sm:items-end sm:justify-between md:px-8 md:pb-10 md:pt-8">
 					<div className="min-w-0">
-						<h1 className="text-3xl font-medium tracking-tight text-ink-950 md:text-[44px]">
+						<h1 className="text-3xl font-medium tracking-tight text-[var(--hero-ink)] md:text-[44px]">
 							{greeting()}{name ? `, ${name.split(' ')[0]}` : ''}
 						</h1>
-						<p className="mt-2 max-w-xl text-balance text-lg text-ink-900">{summary}</p>
+						<p className="mt-2 max-w-xl text-balance text-lg text-[var(--hero-ink-soft)]">{summary}</p>
 					</div>
 					<Link to="/services" className="inline-flex h-12 shrink-0 items-center gap-1.5 self-start rounded-full bg-white px-6 text-base font-semibold text-ink-950 shadow-[0_1px_2px_rgb(120_40_0/0.12),0_10px_24px_-10px_rgb(120_40_0/0.45)] transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-orange-50 active:scale-[0.97] sm:self-auto">
 						<Icon name="plus" size={16} /> New order
