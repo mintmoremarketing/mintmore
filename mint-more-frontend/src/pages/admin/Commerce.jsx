@@ -63,13 +63,11 @@ const CONTROL_SCHEMAS = {
     ],
   },
   matching: {
-    title: 'Matching rules',
-    description: 'Control candidate capacity and ranking preferences.',
+    title: 'Who gets offered an order',
+    description: 'A paid order is offered to one opted-in, KYC-approved freelancer at a time. They have 30 minutes to accept before it goes to the next one.',
     fields: [
-      ['max_active_jobs', 'Maximum active jobs per freelancer', 'jobs'],
-      ['top_candidates', 'Candidates selected per brief', 'freelancers'],
-      ['new_freelancer_boost', 'New freelancer ranking boost', '%'],
-      ['preferred_creator_boost', 'Preferred creator ranking boost', '%'],
+      ['max_active_jobs', 'Most orders a freelancer can hold at once', 'orders', 'Freelancers at this limit are skipped until they finish one.'],
+      ['new_freelancer_boost', 'Head start for new freelancers', 'fraction%', 'Ranks freelancers with no completed orders higher, so new people get their first order.'],
     ],
   },
   revisions: {
@@ -83,11 +81,13 @@ const CONTROL_SCHEMAS = {
   },
   payouts: {
     title: 'Freelancer payouts',
-    description: 'Set scheduled and instant payout fees.',
+    description: 'Freelancers withdraw what they earned either in the weekly payout run or instantly. Fees come off the amount they withdraw.',
     fields: [
-      ['scheduled_fee', 'Scheduled payout fee', 'currency'],
+      ['scheduled_weekday', 'Weekly payout day', 'weekday', 'Shown to freelancers as their next payout date.'],
+      ['scheduled_fee', 'Weekly payout fee', 'currency', 'Usually ₹0, so the weekly run stays free.'],
+      // weekly_fee is an older name the server no longer reads; scheduled_fee is the weekly fee.
       ['weekly_fee', 'Weekly payout fee', 'currency'],
-      ['instant_fee', 'Instant payout fee', 'currency'],
+      ['instant_fee', 'Instant payout fee', 'currency', 'Flat fee for paying out straight away.'],
     ],
   },
   social_benchmarks: {
@@ -134,16 +134,23 @@ const COMMERCE_TABS = [
     keys: ['membership.monthly', 'membership.trial', 'access_passes'],
   },
   {
-    id: 'work',
-    label: 'Work pricing',
-    description: 'Managed-work margins, freelancer commission, matching, and revision rules.',
-    keys: ['managed_margins', 'freelancer_commission', 'matching', 'revisions'],
+    id: 'matching',
+    label: 'Matching',
+    description: 'How paid orders find a freelancer.',
+    keys: ['matching'],
   },
   {
     id: 'payouts',
     label: 'Payouts',
-    description: 'Freelancer payout and transfer fee controls.',
+    description: 'When and how freelancers get paid.',
     keys: ['payouts'],
+  },
+  {
+    id: 'work',
+    hidden: true, // LAUNCH-HIDDEN: margins, commission and revision pricing are for custom jobs; each service sets its own price, payout and revisions in the catalogue.
+    label: 'Work pricing',
+    description: 'Managed-work margins, freelancer commission and revision rules.',
+    keys: ['managed_margins', 'freelancer_commission', 'revisions'],
   },
   {
     id: 'ai',
@@ -161,6 +168,7 @@ const COMMERCE_TABS = [
   },
   {
     id: 'features',
+    hidden: true, // LAUNCH-HIDDEN: developer switches; turning one off can break live screens.
     label: 'Feature flags',
     description: 'Turn visible product modules on or off safely.',
     keys: ['feature_flags'],
@@ -168,7 +176,7 @@ const COMMERCE_TABS = [
   {
     id: 'danger',
     label: 'Danger zone',
-    description: 'Clean operational/demo data before a fresh launch. Admin users and platform settings are preserved.',
+    description: 'Wipes orders, chats and non-admin users, for clearing test data before launch. Admin accounts and these settings stay.',
     keys: [],
   },
 ]
@@ -176,8 +184,34 @@ const COMMERCE_TABS = [
 // Tabs shown in the console; hidden ones keep their settings untouched in the database.
 const VISIBLE_TABS = COMMERCE_TABS.filter(tab => !tab.hidden)
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
 function Field({ field, value, onChange }) {
-  const [key, label, unit] = field
+  const [key, label, unit, help] = field
+  if (unit === 'weekday') {
+    return (
+      <div className="field">
+        <label className="field-label" htmlFor={`setting-${key}`}>{label}</label>
+        <select id={`setting-${key}`} className="input" value={Number.isInteger(Number(value)) && value !== undefined ? Number(value) : 5} onChange={event => onChange(key, Number(event.target.value))}>
+          {WEEKDAYS.map((day, index) => <option key={day} value={index}>{day}</option>)}
+        </select>
+        {help && <small className="mt-1 block text-[12px] text-ink-500">{help}</small>}
+      </div>
+    )
+  }
+  // Stored as a fraction (0.1), shown and typed as a percentage (10).
+  if (unit === 'fraction%') {
+    return (
+      <div className="field">
+        <label className="field-label" htmlFor={`setting-${key}`}>{label}</label>
+        <div className="commerce-input-wrap">
+          <input id={`setting-${key}`} className="input mono" type="number" min="0" max="100" step="1" value={Math.round(Number(value ?? 0) * 100)} onChange={event => onChange(key, Number(event.target.value) / 100)} style={{ paddingRight: 92 }} />
+          <span className="commerce-suffix">%</span>
+        </div>
+        {help && <small className="mt-1 block text-[12px] text-ink-500">{help}</small>}
+      </div>
+    )
+  }
   if (unit === 'toggle') {
     return (
       <label className="commerce-toggle">
@@ -191,10 +225,11 @@ function Field({ field, value, onChange }) {
   }
   return (
     <div className="field">
-      <label className="field-label">{label}</label>
+      <label className="field-label" htmlFor={`setting-${key}`}>{label}</label>
       <div className="commerce-input-wrap">
         {unit === 'currency' && <span className="commerce-prefix">₹</span>}
         <input
+          id={`setting-${key}`}
           className="input mono"
           type="number"
           min="0"
@@ -204,6 +239,7 @@ function Field({ field, value, onChange }) {
         />
         {unit !== 'currency' && <span className="commerce-suffix">{unit}</span>}
       </div>
+      {help && <small className="mt-1 block text-[12px] text-ink-500">{help}</small>}
     </div>
   )
 }
@@ -261,7 +297,7 @@ function SettingEditor({ setting }) {
         <button className="btn ghost sm" onClick={() => save.mutate()} disabled={save.isPending}><Icon name="check" size={12} /> Save</button>
       </div>
       <div className="commerce-fields">
-        {schema.fields.filter(([key]) => Object.hasOwn(value, key) || key !== 'weekly_fee').map(field => (
+        {schema.fields.filter(([key]) => key !== 'weekly_fee').map(field => (
           <Field key={field[0]} field={field} value={value[field[0]]} onChange={(key, next) => setValue(current => ({ ...current, [key]: next }))} />
         ))}
       </div>
@@ -472,7 +508,7 @@ export default function AdminCommerce() {
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 pb-24 pt-5 md:px-8 md:pb-12 md:pt-7">
       <div>
         <h1 className="m-0 text-2xl font-semibold tracking-[-0.02em] text-ink-950 md:text-[28px] md:leading-9">Platform settings</h1>
-        <p className="m-0 mt-1 text-sm text-ink-500">Pricing, payouts and platform rules, changed here without a deploy.</p>
+        <p className="m-0 mt-1 text-sm text-ink-500">How orders are matched and how freelancers are paid. Changes apply straight away.</p>
       </div>
       
       <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">

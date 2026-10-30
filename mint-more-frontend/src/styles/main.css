@@ -11040,3 +11040,12 @@ p { text-wrap: pretty; }
   .dash-fill { animation: none; }
 }
 @keyframes dash-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Admin: section labels read as plain sentence-case labels, not tiny tracked capitals. */
+.admin-shell .h-eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-900);
+}

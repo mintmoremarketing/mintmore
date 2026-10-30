@@ -137,11 +137,11 @@ function UserWalletSearch() {
   const users = data?.users || []
 
   return (
-    <div className="card" style={{ padding: 22 }}>
-      <div className="h-eyebrow" style={{ marginBottom: 14 }}>Adjust user wallet balance</div>
+    <div>
+      <h2 className="m-0 mb-1 text-lg font-semibold text-ink-950">Correct a wallet</h2>
       <p style={{ fontSize: 13, color: 'var(--ink-600)', marginBottom: 16 }}>
-        Add or deduct funds from any client or freelancer wallet.
-        All adjustments are recorded in the transaction ledger.
+        Add or take money from a client's or freelancer's wallet, for refunds and fixes.
+        Every change is kept in the transaction ledger.
       </p>
 
       {/* Search */}
