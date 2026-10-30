@@ -139,10 +139,10 @@ export default function PurchasedItems() {
 	const savedAnswers = Object.fromEntries((selected?.brief || []).filter(answer => answer.type !== 'files').map(answer => [answer.key, answer.value]))
 
 	return (
-		<div className="mx-auto w-full max-w-6xl px-4 py-8 font-store md:px-8 md:py-10">
+		<div className="mx-auto w-full max-w-[1400px] px-4 py-8 font-store md:px-8 md:py-10">
 			{/* The orders get their own column from the top of the page. It sticks at the height it
 			    starts at (top bar + page padding), so it never moves while the brief scrolls. */}
-			<div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-10">
+			<div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[260px_minmax(0,1fr)_300px]">
 				<aside className="lg:sticky lg:top-[104px] lg:max-h-[calc(100dvh-128px)] lg:self-start lg:overflow-y-auto" aria-label="Orders in this purchase">
 					<Link to="/orders?tab=items" className="inline-flex items-center gap-2 text-[15px] text-ink-600 hover:text-ink-900">
 						<Icon name="arrowLeft" size={16} /> Purchased orders
@@ -169,7 +169,7 @@ export default function PurchasedItems() {
 						})}
 					</ol>
 					{purchase.shared_instructions && (
-						<div className="mt-4 px-1">
+						<div className="mt-4 px-1 xl:hidden">
 							<p className="text-sm font-medium text-ink-900">Note for every order</p>
 							<p className="mt-1 whitespace-pre-line text-sm text-ink-600">{purchase.shared_instructions}</p>
 						</div>
@@ -178,10 +178,10 @@ export default function PurchasedItems() {
 
 				<div className="min-w-0">
 					<h1 className="text-3xl font-medium leading-tight tracking-tight text-ink-900 [text-wrap:balance] md:text-[40px]">{snapshot.title || purchase.template_title}</h1>
-					<p className="mt-2 text-[15px] text-ink-600">
+					<p className="mt-2 text-[15px] text-ink-600 xl:hidden">
 						{purchase.item_count} orders · {variantLabel(snapshot, snapshot.option_group_label)}{Number(snapshot.pack_size) > 1 && purchase.item_count > Number(snapshot.pack_size) ? ` × ${purchase.item_count / Number(snapshot.pack_size)}` : ''} · paid {formatDate(purchase.paid_at)}
 					</p>
-					<p className="mt-1 max-w-[70ch] text-[15px] text-ink-600">{perItemDeliveryText(snapshot.delivery_days)}</p>
+					<p className="mt-1 max-w-[70ch] text-[15px] text-ink-600 xl:hidden">{perItemDeliveryText(snapshot.delivery_days)}</p>
 
 				<section id="item-panel" className="mt-8 min-w-0 scroll-mt-6" aria-live="polite">
 					{error && <p role="alert" className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
@@ -230,6 +230,23 @@ export default function PurchasedItems() {
 					)}
 				</section>
 				</div>
+
+				{/* Wide screens: what was bought sits beside the brief instead of above it. */}
+				<aside className="hidden xl:sticky xl:top-[104px] xl:block xl:self-start" aria-label="About this purchase">
+					<h2 className="text-[15px] font-semibold text-ink-900">About this purchase</h2>
+					<dl className="mt-3 divide-y divide-ink-100 rounded-2xl bg-ink-50 px-4 text-[14px]">
+						<div className="flex justify-between gap-3 py-3"><dt className="text-ink-600">Orders</dt><dd className="font-medium tabular-nums text-ink-900">{purchase.item_count}</dd></div>
+						<div className="flex justify-between gap-3 py-3"><dt className="text-ink-600">Option</dt><dd className="text-right font-medium text-ink-900">{variantLabel(snapshot, snapshot.option_group_label)}</dd></div>
+						<div className="flex justify-between gap-3 py-3"><dt className="text-ink-600">Paid</dt><dd className="font-medium text-ink-900">{formatDate(purchase.paid_at)}</dd></div>
+						<div className="py-3"><dt className="text-ink-600">Delivery</dt><dd className="mt-1 text-ink-900">{perItemDeliveryText(snapshot.delivery_days)}</dd></div>
+					</dl>
+					{purchase.shared_instructions && (
+						<div className="mt-5">
+							<p className="text-[15px] font-semibold text-ink-900">Note for every order</p>
+							<p className="mt-1 whitespace-pre-line text-[14px] text-ink-600">{purchase.shared_instructions}</p>
+						</div>
+					)}
+				</aside>
 			</div>
 		</div>
 	)
