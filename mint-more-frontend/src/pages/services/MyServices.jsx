@@ -119,12 +119,16 @@ export default function MyServices() {
 	const list = byCategory[active] || []
 
 	return (
-		<div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-7 font-store md:px-8 md:pt-9">
-			<h1 className="text-[26px] font-medium tracking-[-0.02em] text-ink-900 md:text-[30px]">My services</h1>
-			<p className="mt-1 max-w-[68ch] text-[15px] text-ink-600">
-				Turn on what you can deliver. Each booking is offered to one freelancer at a time, who has 30 minutes to accept.
-				{templates.length > 0 && <> You offer <span className="font-medium text-ink-900">{offered} of {templates.length}</span>.</>}
-			</p>
+		<div className="mx-auto w-full max-w-[1400px] px-4 py-8 font-store md:px-8 md:py-10">
+			<div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-2">
+				<div className="min-w-0">
+					<h1 className="text-3xl font-medium leading-tight tracking-tight text-ink-900 md:text-[40px]">My services</h1>
+					<p className="mt-1 max-w-[68ch] text-[15px] text-ink-600">
+						Turn on what you can deliver. Each booking is offered to one freelancer at a time, who has 30 minutes to accept.
+					</p>
+				</div>
+				{templates.length > 0 && <p className="text-[15px] text-ink-600">You offer <span className="font-medium tabular-nums text-ink-900">{offered} of {templates.length}</span></p>}
+			</div>
 
 			{data && !kycVerified && (
 				<p className="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-[14px] text-amber-800">
@@ -135,8 +139,9 @@ export default function MyServices() {
 			{isLoading ? (
 				<div className="mt-7 space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-ink-100" />)}</div>
 			) : (
-				<>
-					<div role="tablist" aria-label="Service categories" className="mt-6 flex gap-1 overflow-x-auto rounded-xl bg-ink-100 p-1 [scrollbar-width:none]">
+				// Desktop: categories down the left, their services beside them. Phones: tabs on top.
+				<div className="mt-7 grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-8">
+					<div role="tablist" aria-label="Service categories" className="flex gap-1 overflow-x-auto rounded-xl bg-ink-100 p-1 [scrollbar-width:none] lg:sticky lg:top-[88px] lg:flex-col lg:self-start lg:overflow-visible lg:bg-transparent lg:p-0">
 						{categories.map(category => {
 							const on = byCategory[category].filter(t => t.opted_in).length
 							const selected = category === active
@@ -147,14 +152,15 @@ export default function MyServices() {
 									role="tab"
 									aria-selected={selected}
 									onClick={() => setParams({ category }, { replace: true })}
-									className={`shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-[14px] font-medium transition-colors duration-150 ${selected ? 'bg-white text-ink-900 shadow-[0_1px_2px_rgba(0,0,0,0.08)]' : 'text-ink-600 hover:text-ink-900'}`}
+									className={`flex shrink-0 items-center justify-between gap-3 whitespace-nowrap rounded-lg px-3.5 py-2 text-left text-[14px] font-medium transition-colors duration-150 lg:py-2.5 lg:text-[15px] ${selected ? 'bg-white text-ink-900 shadow-[0_1px_2px_rgba(0,0,0,0.08)] lg:bg-ink-100 lg:shadow-none' : 'text-ink-600 hover:text-ink-900 lg:hover:bg-ink-50'}`}
 								>
-									{category} <span className={`ml-1 tabular-nums ${on ? 'text-mint-600' : 'text-ink-400'}`}>{on}/{byCategory[category].length}</span>
+									<span className="truncate">{category}</span>
+									<span className={`tabular-nums ${on ? 'text-mint-600' : 'text-ink-400'}`}>{on}/{byCategory[category].length}</span>
 								</button>
 							)
 						})}
 					</div>
-					<ul role="tabpanel" aria-label={active} className="mt-4 divide-y divide-ink-100 rounded-2xl border border-ink-200 bg-white">
+					<ul role="tabpanel" aria-label={active} className="divide-y divide-ink-100 self-start rounded-2xl border border-ink-200 bg-white">
 						{list.map(t => (
 							<ServiceRow
 								key={t.id}
@@ -164,7 +170,7 @@ export default function MyServices() {
 							/>
 						))}
 					</ul>
-				</>
+				</div>
 			)}
 		</div>
 	)

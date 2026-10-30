@@ -11,6 +11,7 @@ import { servicesApi } from '../../api/services'
 import OrderConversation from '../../components/services/OrderConversation'
 import OrderDetailsPane from '../../components/services/OrderDetailsPane'
 import InlineBriefEditor from '../../components/services/InlineBriefEditor'
+import { linkify } from '../../components/ui/linkify'
 import RaiseIssueSheet from '../../components/support/RaiseIssueSheet'
 
 const fileNameFromUrl = (url = '') => {
@@ -373,7 +374,7 @@ export default function Chat() {
 								if (system) {
 									return (
 										<div key={message.id} className="mx-auto max-w-md py-1 text-center text-[13px] text-ink-500">
-											<span className="whitespace-pre-wrap">{message.content}</span>
+											<span className="whitespace-pre-wrap">{linkify(message.content)}</span>
 											<span className="ml-1.5">· {timeAgo(message.created_at)}</span>
 										</div>
 									)
@@ -390,7 +391,7 @@ export default function Chat() {
 														<span className="text-sm text-ink-500">Open file</span>
 													</span>
 												</a>
-												{message.content && <p className="mt-3 whitespace-pre-wrap text-[15px] text-ink-800 [overflow-wrap:anywhere]">{message.content}</p>}
+												{message.content && <p className="mt-3 whitespace-pre-wrap text-[15px] text-ink-800 [overflow-wrap:anywhere]">{linkify(message.content)}</p>}
 												<div className="mt-3 text-xs text-ink-500">{meta}</div>
 											</div>
 										</div>
@@ -400,7 +401,7 @@ export default function Chat() {
 									<div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
 										<div className={`max-w-[78%] rounded-2xl px-4 py-2.5 ${mine ? 'rounded-br-md bg-ink-900 text-white' : 'rounded-bl-md border border-ink-200 bg-white text-ink-900'}`}>
 											{!mine && <div className="mb-0.5 text-[13px] font-medium text-ink-500">{message.sender_name}</div>}
-											<div className="whitespace-pre-wrap text-[15px] [overflow-wrap:anywhere]">{message.content}</div>
+											<div className="whitespace-pre-wrap text-[15px] [overflow-wrap:anywhere]">{linkify(message.content)}</div>
 											{message.attachment_url && (
 												<a href={message.attachment_url} target="_blank" rel="noreferrer" className={`mt-1 inline-flex items-center gap-1 text-sm underline underline-offset-2 ${mine ? 'text-white' : 'text-ink-900'}`}>
 													<Icon name="paperclip" size={12} /> Open attachment

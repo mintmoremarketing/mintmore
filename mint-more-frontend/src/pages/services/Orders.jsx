@@ -153,7 +153,7 @@ export default function Orders({ audience = 'client' }) {
 		<div className="mx-auto w-full max-w-[1400px] px-4 py-8 font-store md:px-8 md:py-10">
 			<div className="flex items-end justify-between gap-4">
 				<div className="min-w-0">
-					<h1 className="text-3xl font-medium tracking-tight text-ink-900 md:text-[40px]">{isClient ? 'My orders' : 'My work'}</h1>
+					<h1 className="text-3xl font-medium leading-tight tracking-tight text-ink-900 md:text-[40px]">{isClient ? 'My orders' : 'My work'}</h1>
 					{isClient || (!overdue && !dueToday) ? (
 						<p className="mt-1 text-ink-600">
 							{isClient ? 'Track progress, review deliveries and approve work.' : 'Everything assigned to you, by stage.'}
@@ -225,7 +225,7 @@ export default function Orders({ audience = 'client' }) {
 						Couldn't load orders. <button className="ml-2 font-medium text-ink-900 underline underline-offset-4" onClick={() => refetch()}>Retry</button>
 					</div>
 				) : visible.length === 0 ? (
-					<div className="py-10 text-center">
+					<div className="rounded-2xl bg-ink-50 px-6 py-8 md:px-8">
 						<h2 className="text-xl font-medium text-ink-900">{rows.length === 0 ? (isClient ? 'No orders yet' : 'No work assigned yet') : 'Nothing here right now'}</h2>
 						<p className="mt-1 text-ink-600">
 							{rows.length === 0

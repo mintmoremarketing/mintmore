@@ -42,7 +42,7 @@ function FilesInput({ id, files, onChange, names, alreadyUploaded = false }) {
  * The client brief form. Cart files stay in memory until payment; the post-payment
  * page uploads its selected files into the order before opening the order chat.
  */
-export default function BriefSheet({ title, fields, variantId, initial = {}, initialNotes = '', submitLabel = 'Continue', description, presentation = 'sheet', submitting = false, filesAttached = presentation === 'page', heading, onDraftChange, onSubmit, onClose }) {
+export default function BriefSheet({ title, fields, variantId, initial = {}, initialNotes = '', submitLabel = 'Continue', description, presentation = 'sheet', submitting = false, filesAttached = presentation === 'page', heading, onDraftChange, onSubmit, onClose, onLater }) {
 	const [answers, setAnswers] = useState(() => ({ ...initial }))
 	const [files, setFiles] = useState(() => ({ ...briefFiles.get(variantId) }))
 	const [notes, setNotes] = useState(initialNotes)
@@ -152,6 +152,7 @@ export default function BriefSheet({ title, fields, variantId, initial = {}, ini
 
 				<div className="flex items-center gap-3 border-t border-ink-100 px-5 py-4 md:px-7">
 					<span className="flex-1 text-sm tabular-nums text-ink-500">{done} of {fields.length} answered</span>
+					{onLater && <button type="button" onClick={onLater} disabled={submitting} className="rounded-xl px-4 py-3 text-[15px] font-medium text-ink-700 transition-colors hover:bg-ink-50 hover:text-ink-900 active:scale-[0.97] disabled:opacity-60">Save for later</button>}
 					<button type="submit" disabled={submitting} className="rounded-xl bg-black px-6 py-3 text-[15px] font-medium text-white transition-transform hover:bg-ink-800 active:scale-[0.97] disabled:cursor-wait disabled:opacity-60">{submitLabel}</button>
 				</div>
 		</form>

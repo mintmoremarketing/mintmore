@@ -6,6 +6,7 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../ui/Icon'
 import { inr, variantLabel } from './serviceUtils'
 import { useOrderOffers } from './useOrderOffers'
+import { linkify } from '../ui/linkify'
 
 const clock = (ms) => {
 	const total = Math.max(0, Math.floor(ms / 1000))
@@ -88,7 +89,7 @@ function BriefValue({ item }) {
 		const count = Array.isArray(item.value) ? item.value.length : 0
 		return <p className="text-[15px] text-ink-600">{count ? `${count} file${count === 1 ? '' : 's'}, shared in the chat once you accept` : 'Shared in the chat once you accept'}</p>
 	}
-	return <p className="whitespace-pre-line text-[15px] text-ink-900">{item.value}</p>
+	return <p className="whitespace-pre-line text-[15px] text-ink-900 [overflow-wrap:anywhere]">{linkify(item.value)}</p>
 }
 
 /** The whole offer: brief, scope and payout, with the same two choices. */

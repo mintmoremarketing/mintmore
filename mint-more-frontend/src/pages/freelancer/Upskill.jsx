@@ -27,22 +27,24 @@ function CourseCard({ course }) {
 /** Creatyv Academy: courses that help freelancers level up. */
 export default function Upskill() {
 	return (
-		<div className="mx-auto w-full max-w-[1200px] px-4 py-8 font-store md:px-10">
+		<div className="mx-auto w-full max-w-[1400px] px-4 py-8 font-store md:px-8 md:py-10">
 			<header className="rounded-3xl bg-ink-900 px-6 py-10 text-white md:px-10">
 				<h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Learn the skills clients book</h1>
 				<p className="mt-2 max-w-xl text-[15px] text-white/70">Short, practical courses on editing, design and getting clients — built for freelancers on Creatyv.</p>
 			</header>
 
-			<h2 className="mt-10 text-xl font-semibold text-ink-900">Featured Courses</h2>
+			<h2 className="mt-10 text-xl font-semibold text-ink-900">Featured courses</h2>
 			{COURSES.length ? (
 				<div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 					{COURSES.map(course => <CourseCard key={course.id} course={course} />)}
 				</div>
 			) : (
-				<div className="mt-4 flex flex-col items-center rounded-2xl border border-dashed border-ink-200 py-16 text-center">
-					<span className="grid h-12 w-12 place-items-center rounded-full bg-ink-100 text-ink-500"><Icon name="video" size={22} /></span>
-					<p className="mt-3 font-medium text-ink-900">Courses are on the way</p>
-					<p className="mt-1 max-w-sm text-sm text-ink-500">We're putting together the first Creatyv courses. They'll show up here as soon as they're live.</p>
+				<div className="mt-4 flex items-center gap-4 rounded-2xl bg-ink-50 px-5 py-5">
+					<span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-ink-500"><Icon name="video" size={20} /></span>
+					<div className="min-w-0">
+					<p className="font-medium text-ink-900">Courses are on the way</p>
+					<p className="mt-0.5 text-sm text-ink-600">We're putting together the first Creatyv courses. They'll show up here as soon as they're live.</p>
+					</div>
 				</div>
 			)}
 		</div>

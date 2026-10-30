@@ -220,7 +220,7 @@ export default function NotificationsInbox() {
 
 	if (isLoading) {
 		return (
-			<div className="flex flex-col gap-6 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
+			<div className="flex flex-col gap-6 px-4 py-8 md:px-8 md:py-10 w-full max-w-[1400px] mx-auto pb-16">
 				<SkeletonCard />
 				<SkeletonCard />
 			</div>
@@ -228,7 +228,7 @@ export default function NotificationsInbox() {
 	}
 
 	return (
-		<div className="flex flex-col gap-6 md:gap-8 p-4 md:p-8 w-full max-w-[1600px] mx-auto pb-16">
+		<div className="flex flex-col gap-6 md:gap-8 px-4 py-8 md:px-8 md:py-10 w-full max-w-[1400px] mx-auto pb-16">
 			<div className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 				<div>
 					<h1 className="text-3xl md:text-4xl font-display font-bold text-ink-900 tracking-tight m-0 pb-1">Notifications</h1>

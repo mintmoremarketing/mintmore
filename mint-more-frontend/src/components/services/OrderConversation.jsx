@@ -9,6 +9,7 @@ import Modal from '../ui/Modal'
 import Icon from '../ui/Icon'
 import Avatar from '../ui/Avatar'
 import ConversationComposer from './ConversationComposer'
+import { linkify } from '../ui/linkify'
 import MessageMediaGallery from './MessageMediaGallery'
 
 const RATING_FIELDS = [
@@ -486,7 +487,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 			return (
 				<div className="my-2 flex justify-center">
 					<div className="max-w-[86%] whitespace-pre-wrap rounded-lg bg-[#fff5c4] px-3 py-1.5 text-center text-[12.5px] leading-snug text-[#54656f] shadow-[0_1px_0.5px_rgba(0,0,0,0.13)]">
-						{m.content}
+						{linkify(m.content)}
 					</div>
 				</div>
 			)
@@ -510,7 +511,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 						<div className="text-[13px] font-semibold text-violet-700">Revision requested · v{versions[m.file_id] || '?'}</div>
 						<div className="truncate text-[13px] text-black/55">{m.file_name}</div>
 					</div>
-					<BubbleText mine={mine} edited={bubbleMenu.edited}>{m.content}</BubbleText>
+					<BubbleText mine={mine} edited={bubbleMenu.edited}>{linkify(m.content)}</BubbleText>
 				</Bubble>
 			)
 		}
@@ -528,7 +529,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 						</div>
 					)}
 					<FileBody kind={kindOf(m.file_mime)} src={src} name={m.file_name} size={m.file_size} preview={isDelivery && isClient && m.file_status !== 'approved'} />
-					{m.content && <p className="mt-1 whitespace-pre-wrap px-1 text-[16px] leading-[21px] [overflow-wrap:anywhere]">{m.content}</p>}
+					{m.content && <p className="mt-1 whitespace-pre-wrap px-1 text-[16px] leading-[21px] [overflow-wrap:anywhere]">{linkify(m.content)}</p>}
 					{isDelivery && isClient && isLatest && m.file_status === 'submitted' && !completed && (
 						<div className="mt-2 grid grid-cols-2 gap-2">
 							<button type="button" disabled={review.isPending || revisionsLeft === 0} onClick={() => setRevisionFor(m)} title={revisionsLeft === 0 ? 'No revisions left for this service' : undefined}
@@ -547,7 +548,7 @@ export default function OrderConversation({ booking, role, counterpartName, coun
 
 		return (
 			<Bubble mine={mine} time={time} receipt={receipt} {...bubbleMenu} inlineMeta>
-				<BubbleText mine={mine} edited={bubbleMenu.edited}>{m.content}</BubbleText>
+				<BubbleText mine={mine} edited={bubbleMenu.edited}>{linkify(m.content)}</BubbleText>
 			</Bubble>
 		)
 	}

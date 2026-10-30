@@ -14,9 +14,10 @@ const inputClass = 'h-11 w-full rounded-xl border border-ink-200 bg-white px-3.5
 
 function Section({ title, children }) {
 	return (
-		<section className="mt-8">
-			<h2 className="border-b border-ink-100 pb-3 text-base font-semibold text-ink-900">{title}</h2>
-			<div className="mt-5 space-y-4">{children}</div>
+		// Wide screens: the section name sits beside its fields instead of above them.
+		<section className="mt-8 max-w-[calc(220px+2.5rem+48rem)] border-t border-ink-100 pt-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10 lg:pt-8">
+			<h2 className="text-base font-semibold text-ink-900">{title}</h2>
+			<div className="mt-5 max-w-3xl space-y-4 lg:mt-0">{children}</div>
 		</section>
 	)
 }
@@ -187,7 +188,7 @@ export default function ManageAccount() {
 
 	if (isLoading || !form) {
 		return (
-			<div className="mx-auto w-full max-w-[720px] px-4 py-8 md:px-0">
+			<div className="mx-auto w-full max-w-[1400px] px-4 py-8 md:px-8">
 				<div className="h-7 w-64 animate-pulse rounded-lg bg-ink-100" />
 				<div className="mt-8 space-y-4">{[0, 1, 2, 3].map(i => <div key={i} className="h-11 animate-pulse rounded-xl bg-ink-100" />)}</div>
 			</div>
@@ -232,8 +233,8 @@ export default function ManageAccount() {
 	const initials = `${form.first} ${form.last}`.match(/\p{L}+/gu)?.slice(0, 2).map(word => word[0]).join('').toUpperCase() || 'C'
 
 	return (
-		<div className="mx-auto w-full max-w-[720px] px-4 py-6 font-store md:px-0 md:py-8">
-			<div className="flex items-start justify-between gap-4">
+		<div className="mx-auto w-full max-w-[1400px] px-4 py-8 font-store md:px-8 md:py-10">
+			<div className="flex max-w-[calc(220px+2.5rem+48rem)] items-start justify-between gap-4">
 				<div className="flex min-w-0 items-start gap-2">
 					<button type="button" onClick={() => navigate(-1)} aria-label="Back" className="-ml-2 grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-700 hover:bg-ink-100">
 						<Icon name="arrowLeft" size={20} />
@@ -248,7 +249,7 @@ export default function ManageAccount() {
 				</button>
 			</div>
 
-			<section className={`mt-6 rounded-2xl border p-4 md:p-5 ${welcome && !cv.source ? 'border-mint-300 bg-mint-50/60' : 'border-ink-200 bg-white'}`}>
+			<section className={`mt-6 max-w-[calc(220px+2.5rem+48rem)] rounded-2xl border p-4 md:p-5 ${welcome && !cv.source ? 'border-mint-300 bg-mint-50/60' : 'border-ink-200 bg-white'}`}>
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
 					<span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-mint-600 ring-1 ring-ink-200"><Icon name="file" size={20} /></span>
 					<div className="min-w-0 flex-1">
@@ -278,7 +279,7 @@ export default function ManageAccount() {
 				)}
 			</section>
 
-			<Section title="Profile Info">
+			<Section title="Profile info">
 				<div className="flex items-center gap-4">
 					<div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-ink-100 text-lg font-semibold text-ink-600">
 						{profile.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : initials}
@@ -296,8 +297,8 @@ export default function ManageAccount() {
 				</div>
 
 				<div className="grid gap-4 sm:grid-cols-2">
-					<Field label="First Name" required error={errors.first} fromCv={cv.filled.includes('first')}><input className={inputClass} value={form.first} onChange={set('first')} autoComplete="given-name" /></Field>
-					<Field label="Last Name" required error={errors.last} fromCv={cv.filled.includes('last')}><input className={inputClass} value={form.last} onChange={set('last')} autoComplete="family-name" /></Field>
+					<Field label="First name" required error={errors.first} fromCv={cv.filled.includes('first')}><input className={inputClass} value={form.first} onChange={set('first')} autoComplete="given-name" /></Field>
+					<Field label="Last name" required error={errors.last} fromCv={cv.filled.includes('last')}><input className={inputClass} value={form.last} onChange={set('last')} autoComplete="family-name" /></Field>
 					<Field label="Username" required error={errors.username} hint="Your public handle on Creatyv.">
 						<div className="relative">
 							<span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[15px] text-ink-400">@</span>
@@ -319,7 +320,7 @@ export default function ManageAccount() {
 					{!profile.tools?.length && <span className="text-sm text-ink-500">No tools added yet.</span>}
 				</div>
 				<button type="button" onClick={() => setToolsOpen(true)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-ink-200 px-3 text-sm font-medium text-ink-900 hover:bg-ink-50">
-					<Icon name="plus" size={14} /> {profile.tools?.length ? 'Edit tools' : 'Add Tools'}
+					<Icon name="plus" size={14} /> {profile.tools?.length ? 'Edit tools' : 'Add tools'}
 				</button>
 				{cv.tools.length > 0 && (
 					<div className="rounded-xl border border-dashed border-mint-300 bg-mint-50/50 p-3.5">
@@ -335,8 +336,8 @@ export default function ManageAccount() {
 				)}
 			</Section>
 
-			<Section title="Contact Info">
-				<Field label="Phone Number" error={errors.phone} hint={profile.phone ? 'Set during signup — contact support to change.' : 'Clients and our team use this to reach you.'}>
+			<Section title="Contact info">
+				<Field label="Phone number" error={errors.phone} hint={profile.phone ? 'Set during signup — contact support to change.' : 'Clients and our team use this to reach you.'}>
 					<div className="flex gap-2">
 						<span className="grid h-11 w-16 shrink-0 place-items-center rounded-xl border border-ink-200 bg-ink-50 text-[15px] text-ink-700">+91</span>
 						<input className={inputClass} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} disabled={Boolean(profile.phone)} inputMode="numeric" />
@@ -344,7 +345,7 @@ export default function ManageAccount() {
 				</Field>
 			</Section>
 
-			<Section title="Address Info">
+			<Section title="Address info">
 				<Field label="Country" fromCv={cv.filled.includes('country')}>
 					<select className={inputClass} value={form.country} onChange={set('country')}>
 						<option value="">Select country…</option>
@@ -371,7 +372,7 @@ export default function ManageAccount() {
 				</div>
 			</Section>
 
-			<div className="mt-10 flex justify-end">
+			<div className="mt-10 flex max-w-[calc(220px+2.5rem+48rem)] justify-end">
 				<button type="button" onClick={submit} disabled={save.isPending} className="h-11 rounded-xl bg-mint-500 px-8 text-sm font-semibold text-white transition-colors hover:bg-mint-600 disabled:opacity-60">
 					{save.isPending ? 'Saving…' : 'Save'}
 				</button>

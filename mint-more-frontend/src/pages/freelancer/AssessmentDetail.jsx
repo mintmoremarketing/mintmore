@@ -53,7 +53,7 @@ function ActionCard({ a, onStart, starting }) {
 
 function DetailSkeleton() {
 	return (
-		<div className="mx-auto w-full max-w-[1240px] px-4 pt-10 md:px-10">
+		<div className="mx-auto w-full max-w-[1400px] px-4 pt-10 md:px-8">
 			<div className="h-5 w-16 animate-pulse rounded bg-ink-100" />
 			<div className="mt-5 h-10 w-2/3 animate-pulse rounded bg-ink-100" />
 			<div className="mt-10 grid gap-8 md:grid-cols-[minmax(0,1fr)_400px]">
@@ -100,7 +100,7 @@ export default function AssessmentDetail() {
 	}
 
 	return (
-		<div className="mx-auto w-full max-w-[1240px] px-4 pb-16 pt-6 font-store md:px-10 md:pt-10">
+		<div className="mx-auto w-full max-w-[1400px] px-4 pb-16 pt-8 font-store md:px-8 md:pt-10">
 			<Link to={`/assessments?category=${a.category_slug}`} className="inline-flex items-center gap-1 text-sm text-ink-600 transition-colors hover:text-ink-900">
 				<Icon name="chevronLeft" size={15} /> Back
 			</Link>
