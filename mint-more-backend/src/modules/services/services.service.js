@@ -12,7 +12,7 @@ const { writeAudit } = require('../audit/audit.service');
 const { rankFreelancers } = require('./fairMatch');
 const { assertNoContactInfo, findContactInfo, CONTACT_BLOCKED_MESSAGE } = require('../../utils/contactGuard');
 const { getAiEditSettings, aiPrice } = require('../aiEdits/aiEdits.pricing');
-const { defaultBriefFields, resolveBriefFields, normalizeBriefFields, validateBriefAnswers, formatBrief } = require('./briefFields');
+const { defaultBriefFields, resolveBriefFields, normalizeBriefFields, validateBriefAnswers, formatBrief, firstDraftFormat } = require('./briefFields');
 const { allocateItems } = require('./allocate');
 
 const razorpay = env.payments.mockCheckout
@@ -1217,6 +1217,7 @@ const shapeBooking = (row, audience) => {
     ...row,
     stage,
     brief_complete: briefComplete,
+    first_draft_format: firstDraftFormat(row.category_slug),
     revisions_included: revisionsIncluded,
     revisions_left: Math.max(0, revisionsIncluded - Number(row.revisions_used || 0)),
   };

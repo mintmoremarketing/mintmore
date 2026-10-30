@@ -171,7 +171,7 @@ const env = {
           'application/x-rar-compressed', 'application/x-7z-compressed',
           'application/vnd.adobe.photoshop', 'application/x-photoshop',
           'image/vnd.adobe.photoshop', 'application/postscript',
-          'video/mp4', 'video/quicktime', 'video/webm',
+          'video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm',
           'audio/mpeg', 'audio/wav', 'audio/x-wav',
           'font/otf', 'font/ttf', 'font/woff', 'font/woff2',
           'application/vnd.ms-fontobject',
@@ -188,7 +188,7 @@ const env = {
       : [
           '.jpg', '.jpeg', '.png', '.webp', '.gif', '.tif', '.tiff', '.svg',
           '.pdf', '.zip', '.rar', '.7z', '.psd', '.ai', '.eps',
-          '.mp4', '.mov', '.webm', '.mp3', '.wav',
+          '.mp4', '.mov', '.m4v', '.webm', '.mp3', '.wav',
           '.otf', '.ttf', '.woff', '.woff2',
           '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt', '.csv',
         ],
