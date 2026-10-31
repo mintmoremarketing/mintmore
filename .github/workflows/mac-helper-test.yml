@@ -5,9 +5,10 @@ on:
     paths:
       - '.github/workflows/mac-helper-test.yml'
       - 'tools/creatyv-mac-helper/**'
+      - 'mint-more-frontend/src/components/services/aiEditor/HelperEditor.jsx'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   package:
     strategy:
@@ -43,3 +44,30 @@ jobs:
           path: tools/creatyv-mac-helper/dist/**/*.zip
           if-no-files-found: error
           retention-days: 7
+  publish-downloads:
+    needs: package
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: creatyv-helper-macos-*
+          path: mac-downloads
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mac-helper-latest
+          name: Creatyv Helper for Mac (Testing)
+          body: |
+            Unsigned Mac test builds for Creatyv AI editing.
+
+            Choose the archive that matches your Mac:
+            - `CreatyvHelper-arm64.zip` for Apple silicon (M1, M2, M3, M4).
+            - `CreatyvHelper-x64.zip` for Intel Macs.
+
+            These builds are unsigned and not notarized. They are for testing and may require allowing the app in macOS Privacy & Security settings. Full AI editing still needs to be tested on a Mac.
+          prerelease: true
+          make_latest: false
+          files: mac-downloads/*.zip
+          overwrite_files: true
+          fail_on_unmatched_files: true

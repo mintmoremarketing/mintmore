@@ -7,6 +7,7 @@ import VideoEditor from './VideoEditor'
 // The one-click Windows installer, served with the site from public/downloads. It is built by
 // scripts/build-helper.mjs in editing-os-saas. VITE_AI_HELPER_URL can point somewhere else.
 const HELPER_DOWNLOAD_URL = import.meta.env.VITE_AI_HELPER_URL || '/downloads/CreatyvHelperSetup.exe'
+const APPLE_HELPER_DOWNLOAD_URL = 'https://github.com/devdeepsaha/mintmore/releases/tag/mac-helper-latest'
 
 const press = 'transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]'
 const primary = `ai-make-btn inline-flex h-12 items-center justify-center gap-2 rounded-full px-7 text-base font-semibold text-ink-950 disabled:opacity-50 ${press}`
@@ -33,16 +34,20 @@ function InstallHelper({ looking }) {
 				It edits and renders on your computer, so your footage is never uploaded. You use it from this page. There's no separate app to open.
 			</p>
 			<ol className="mt-5 grid gap-4 text-[15px] md:grid-cols-3 md:gap-6">
-				<li><span className="font-medium text-ink-900">1. Download it.</span> <span className="text-ink-600">Windows only for now.</span></li>
-				<li><span className="font-medium text-ink-900">2. Open CreatyvHelperSetup.exe.</span> <span className="text-ink-600">If Windows says it protected your PC, choose More info, then Run anyway. It installs itself and starts with Windows.</span></li>
+				<li><span className="font-medium text-ink-900">1. Download it.</span> <span className="text-ink-600">Choose the Windows or Mac version for your computer.</span></li>
+				<li><span className="font-medium text-ink-900">2. Open the installer.</span> <span className="text-ink-600">On Windows, run CreatyvHelperSetup.exe and choose More info, then Run anyway if prompted. On Mac, unzip the download and open Creatyv Helper.app. These Mac builds are unsigned tests.</span></li>
 				<li><span className="font-medium text-ink-900">3. Come back here.</span> <span className="text-ink-600">This page finds it by itself. If the browser asks to reach apps on your device, allow it.</span></li>
 			</ol>
-			<div className="mt-6 flex flex-wrap items-center gap-4">
+			<div className="mt-6 flex flex-wrap items-center gap-3">
 				{HELPER_DOWNLOAD_URL ? (
-					<a href={HELPER_DOWNLOAD_URL} download className={primary}><Icon name="download" size={16} /> Download the helper</a>
+					<a href={HELPER_DOWNLOAD_URL} download className={primary}><Icon name="download" size={16} /> Download for Windows</a>
 				) : (
 					<p className="text-[15px] text-ink-900">The helper is in private testing and not available to download yet.</p>
 				)}
+				<a href={APPLE_HELPER_DOWNLOAD_URL} target="_blank" rel="noreferrer" className="inline-flex h-12 items-center justify-center rounded-full border border-ink-200 bg-white px-6 text-base font-semibold text-ink-900 transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-ink-50 active:scale-[0.97]">
+					Download for Apple
+				</a>
+				<span className="basis-full text-sm text-ink-600">On the Mac download page, choose Apple silicon or Intel.</span>
 				<span className="flex items-center gap-2 text-sm text-ink-600" aria-live="polite">
 					<span className={`h-2 w-2 rounded-full ${looking ? 'animate-pulse bg-amber-400' : 'bg-ink-300'}`} />
 					{looking ? 'Looking for the helper…' : 'Not found on this computer yet'}
