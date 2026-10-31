@@ -337,6 +337,37 @@ const listClientGallery = async (clientId, role) => {
   };
 };
 
+/** Admin media gallery: signed R2/Supabase URLs are generated server-side so storage
+ * paths never reach the browser. This intentionally mirrors the client delivery gallery
+ * while giving operations visibility across every order. */
+const listAdminGallery = async (role) => {
+  if (role !== 'admin') throw new AppError('Only admins have a media gallery', 403);
+  const result = await query(
+    `SELECT f.id, f.original_name, f.mime_type, f.size_bytes, f.file_category, f.status,
+            f.created_at, f.job_id, f.storage_path, f.uploaded_by,
+            j.title AS job_title, j.client_id,
+            client.full_name AS client_name,
+            creator.full_name AS creator_name,
+            b.booking_number, b.snapshot->>'title' AS service_title
+     FROM mintbox_files f
+     JOIN jobs j ON j.id = f.job_id
+     LEFT JOIN users client ON client.id = j.client_id
+     LEFT JOIN users creator ON creator.id = f.uploaded_by
+     LEFT JOIN service_bookings b ON b.job_id = j.id
+     WHERE f.deleted_at IS NULL
+       AND (f.mime_type LIKE 'image/%' OR f.mime_type LIKE 'video/%')
+     ORDER BY f.created_at DESC
+     LIMIT 2000`,
+  );
+  const files = await Promise.all(result.rows.map(async ({ storage_path: storagePath, ...file }) => ({
+    ...file,
+    order_title: file.service_title || file.job_title || 'Untitled order',
+    preview_url: await storage.createDownloadUrl(storagePath, 15 * 60).catch(() => null),
+    downloadable: true,
+  })));
+  return { files };
+};
+
 const getFolderByShareToken = async (token, requesterId, role) => {
   const folderResult = await query(
     `SELECT mf.*, j.client_id, j.active_freelancer_id, j.status AS job_status
@@ -1754,6 +1785,7 @@ module.exports = {
   getUploadPolicy,
   listClientFolders,
   listClientGallery,
+  listAdminGallery,
   getFolderByJob,
   listBrandLibrary,
   getBrandFolder,

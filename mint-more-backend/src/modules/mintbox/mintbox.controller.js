@@ -27,6 +27,13 @@ const listGallery = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const listAdminGallery = async (req, res, next) => {
+  try {
+    const result = await mintboxService.listAdminGallery(req.user.role);
+    return sendSuccess(res, { data: result });
+  } catch (err) { next(err); }
+};
+
 const listBrandLibrary = async (req, res, next) => {
   try {
     const result = await mintboxService.listBrandLibrary(req.user.sub, req.user.role);
@@ -321,6 +328,7 @@ const completeProject = async (req, res, next) => {
 module.exports = {
   listFolders,
   listGallery,
+  listAdminGallery,
   listBrandLibrary,
   getProjectFolder,
   getBrandFolder,

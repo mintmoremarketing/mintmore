@@ -42,6 +42,7 @@ export const ADMIN_NAV = [
   { route: '/admin/service-orders', icon: 'requests', label: 'Orders', group: 'Work', permission: 'ops.manage' },
   { route: '/admin/services', icon: 'layers', label: 'Service catalogue', group: 'Work', permission: 'ops.manage' },
   { route: '/admin/operations', icon: 'video', label: 'First drafts', group: 'Work', permission: 'ops.manage' },
+  { route: '/admin/files', icon: 'file', label: 'Files', group: 'Work', permission: 'ops.manage' },
   { route: '/admin/users', icon: 'users', label: 'Users & KYC', group: 'People', permission: 'users.manage' },
   { route: '/admin/assessments', icon: 'checkCircle', label: 'Assessments', group: 'People', permission: 'ops.manage' },
   { route: '/admin/wallet', icon: 'platform_wallet', label: 'Payouts & escrow', group: 'Money', permission: 'payments.manage' },

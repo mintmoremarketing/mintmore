@@ -86,6 +86,7 @@ import AdminBrands       from './pages/admin/Brands'
 import AdminServices     from './pages/admin/Services'
 import AdminServiceOrders from './pages/admin/ServiceOrders'
 import AdminAssessmentReviews from './pages/admin/AssessmentReviews'
+import AdminFiles         from './pages/admin/Files'
 
 // ── Role-aware route wrappers ─────────────────────────────────────────────────
 
@@ -325,6 +326,7 @@ export default function App() {
           <Route path="/admin/services"   element={<AdminOnly permission="ops.manage"><AdminServices /></AdminOnly>} />
           <Route path="/admin/service-orders" element={<AdminOnly permission="ops.manage"><AdminServiceOrders /></AdminOnly>} />
           <Route path="/admin/assessments" element={<AdminOnly permission="ops.manage"><AdminAssessmentReviews /></AdminOnly>} />
+          <Route path="/admin/files"      element={<AdminOnly permission="ops.manage"><AdminFiles /></AdminOnly>} />
         </Route>
         <Route path="*" element={<RootRedirect />} />
       </Routes>
