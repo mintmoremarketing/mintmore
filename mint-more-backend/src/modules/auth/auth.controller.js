@@ -1,5 +1,5 @@
 const authService = require('./auth.service');
-const { validateRegister, validateLogin, validateResetPassword } = require('./auth.validator');
+const { validateRegister, validateLogin, validateResetPassword, validateChangePassword } = require('./auth.validator');
 const { sendSuccess, sendError } = require('../../utils/apiResponse');
 
 const register = async (req, res, next) => {
@@ -75,4 +75,14 @@ const resetPassword = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, refresh, logout, getMe, resetPassword };
+const changePassword = async (req, res, next) => {
+  try {
+    validateChangePassword(req.body);
+    await authService.changePassword(req.user.sub, req.body);
+    return sendSuccess(res, { message: 'Password changed' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { register, login, refresh, logout, getMe, resetPassword, changePassword };

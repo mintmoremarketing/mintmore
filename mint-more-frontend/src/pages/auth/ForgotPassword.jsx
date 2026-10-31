@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { supabase } from '../../api/supabase'
 import { authApi } from '../../api/auth'
+import PasswordChecklist from '../../components/ui/PasswordChecklist'
+import { isStrongPassword } from '../../utils/passwordPolicy'
 import Icon from '../../components/ui/Icon'
 
 export default function ForgotPassword() {
@@ -71,7 +73,7 @@ export default function ForgotPassword() {
 			navigate('/login', { state: { message: 'Password reset successfully! Please log in.' } })
 		},
 		onError: (err) => {
-			setError(err.response?.data?.message || err.message || 'Failed to reset password')
+			setError(err.response?.data?.errors?.[0] || err.response?.data?.message || err.message || 'Failed to reset password')
 		}
 	})
 
@@ -234,7 +236,8 @@ export default function ForgotPassword() {
 									type={showPassword ? 'text' : 'password'}
 									value={newPassword}
 									onChange={(e) => setNewPassword(e.target.value)}
-									placeholder="At least 8 characters"
+									autoComplete="new-password"
+									aria-describedby="reset-password-rules"
 									autoFocus
 								/>
 								<button
@@ -248,11 +251,12 @@ export default function ForgotPassword() {
 									<Icon name={showPassword ? 'eyeOff' : 'eye'} size={18} />
 								</button>
 							</div>
+							<PasswordChecklist password={newPassword} id="reset-password-rules" />
 						</div>
 						<button 
 							className="btn primary 2xl:text-lg 2xl:p-4" 
 							onClick={() => resetPasswordMutation.mutate()} 
-							disabled={newPassword.length < 8 || resetPasswordMutation.isPending}
+							disabled={!isStrongPassword(newPassword) || resetPasswordMutation.isPending}
 						>
 							{resetPasswordMutation.isPending ? 'Resetting...' : 'Reset Password'}
 						</button>

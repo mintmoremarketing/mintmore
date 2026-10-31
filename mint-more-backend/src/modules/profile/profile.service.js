@@ -368,7 +368,9 @@ const getProfileCompletion = async (userId) => {
             (SELECT COUNT(*)::int FROM portfolio_items pi
               WHERE pi.freelancer_id = u.id AND pi.is_visible IS NOT FALSE) AS post_count,
             (SELECT COUNT(*)::int FROM freelancer_service_optins o
-              WHERE o.freelancer_id = u.id AND o.is_active) AS service_count
+              WHERE o.freelancer_id = u.id AND o.is_active) AS service_count,
+            (SELECT COUNT(*)::int FROM assessment_attempts t
+              WHERE t.freelancer_id = u.id AND t.status = 'passed') AS passed_count
      FROM users u WHERE u.id = $1`,
     [userId]
   );
@@ -401,7 +403,8 @@ const getProfileCompletion = async (userId) => {
     { key: 'tools', done: ok.tools },
     { key: 'posts', done: ok.posts, count: user.post_count, required: MIN_PORTFOLIO_POSTS },
     { key: 'kyc', done: ok.kyc, status: user.kyc_status },
-    { key: 'services', done: ok.service },
+    // Passing an assessment qualifies them; the step is done once they opt in to a service.
+    { key: 'services', done: ok.service, qualified: user.passed_count > 0, count: user.service_count },
   ];
   const completed = steps.filter((step) => step.done).length;
   const required = fields.filter((field) => field.required);

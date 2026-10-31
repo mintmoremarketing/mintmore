@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import Icon from '../../components/ui/Icon'
 import OrderOffers from '../../components/services/OrderOffers'
+import { videoOf } from '../../components/freelancer/postMedia'
 import { referenceVideos } from '../../components/storefront/referencePhotos'
 
 const PAGE_SIZE = 21
@@ -38,13 +39,35 @@ const toColumns = (items, count) => {
 
 const initialOf = name => (name || '').match(/\p{L}/u)?.[0]?.toUpperCase() || 'C'
 
+/** Plays muted while at least half on screen; loads nothing until it first is. */
+function useInViewPlayback(src) {
+	const ref = useRef(null)
+	useEffect(() => {
+		const video = ref.current
+		if (!video || !src || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+		const io = new IntersectionObserver(([entry]) => {
+			if (entry.isIntersecting) {
+				if (!video.src) video.src = src
+				video.play().catch(() => {})
+			} else video.pause()
+		}, { threshold: 0.5 })
+		io.observe(video)
+		return () => io.disconnect()
+	}, [src])
+	return ref
+}
+
 function PostCard({ post, index }) {
+	const video = videoOf(post)
+	const videoRef = useInViewPlayback(video)
 	return (
 		<article className="group relative overflow-hidden rounded-2xl bg-ink-100">
-			<div className={RATIOS[index % RATIOS.length]}>
-				{post.cover_image_url
-					? <img src={post.cover_image_url} alt={post.title} loading="lazy" className="h-full w-full object-cover" />
-					: <div className="grid h-full w-full place-items-center p-4 text-center text-sm text-ink-500">{post.title}</div>}
+			<div className={video ? 'aspect-[9/16] bg-ink-900' : RATIOS[index % RATIOS.length]}>
+				{video
+					? <video ref={videoRef} poster={post.cover_image_url || undefined} muted loop playsInline preload="none" aria-label={post.title} className="h-full w-full object-cover" />
+					: post.cover_image_url
+						? <img src={post.cover_image_url} alt={post.title} loading="lazy" className="h-full w-full object-cover" />
+						: <div className="grid h-full w-full place-items-center p-4 text-center text-sm text-ink-500">{post.title}</div>}
 			</div>
 			<div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent p-3 pt-10 text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
 				<p className="line-clamp-2 text-sm font-medium leading-snug">{post.title}</p>
@@ -61,19 +84,7 @@ function PostCard({ post, index }) {
 
 /** A muted reel that loads on first view and plays only while it's on screen. */
 function ReelCard({ clip }) {
-	const ref = useRef(null)
-	useEffect(() => {
-		const video = ref.current
-		if (!video || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-		const io = new IntersectionObserver(([entry]) => {
-			if (entry.isIntersecting) {
-				if (!video.src) video.src = clip.src
-				video.play().catch(() => {})
-			} else video.pause()
-		}, { threshold: 0.5 })
-		io.observe(video)
-		return () => io.disconnect()
-	}, [clip.src])
+	const ref = useInViewPlayback(clip.src)
 	return (
 		<Link to={`/services/${clip.slug}`} className="group relative block overflow-hidden rounded-2xl bg-ink-900">
 			<div className="aspect-[9/16]">
@@ -123,7 +134,7 @@ export default function Explore() {
 	const sized = wall.map((item, i) => ({
 		...item,
 		index: i,
-		height: item.type === 'reel' ? 16 / 9 : RATIO_HEIGHT[RATIOS[i % RATIOS.length]],
+		height: item.type === 'reel' || (item.type === 'post' && videoOf(item.post)) ? 16 / 9 : RATIO_HEIGHT[RATIOS[i % RATIOS.length]],
 	}))
 
 	if (isLoading) {

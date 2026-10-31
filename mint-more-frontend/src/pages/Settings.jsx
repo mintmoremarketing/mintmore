@@ -9,6 +9,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import VerificationPanel from '../components/settings/VerificationPanel'
 import { socialApi } from '../api/social'
 import AccountManager from '../components/social/AccountManager'
+import PasswordChecklist from '../components/ui/PasswordChecklist'
+import { isStrongPassword } from '../utils/passwordPolicy'
 import NotificationSettings from '../components/settings/NotificationSettings'
 
 const HIDDEN_CLIENT_SECTIONS = new Set(['brand-assets', 'social', 'google-business', 'posting-preferences', 'smart-festival-plan', 'setup'])
@@ -610,7 +612,8 @@ export default function Settings() {
 
   // Change password
   const { mutate: changePassword, isPending: changingPw } = useMutation({
-    mutationFn: () => api.patch('/profile/me', {
+    // The profile endpoint ignored these fields, so this used to "succeed" without changing anything.
+    mutationFn: () => api.post('/auth/change-password', {
       current_password: currentPw,
       new_password:     newPw,
     }),
@@ -619,7 +622,7 @@ export default function Settings() {
       setCurrentPw(''); setNewPw(''); setConfirmPw(''); setPwError('')
     },
     onError: err => {
-      const msg = err.response?.data?.message || 'Failed to change password'
+      const msg = err.response?.data?.errors?.[0] || err.response?.data?.message || 'Failed to change password'
       setPwError(msg)
       pushToast({ title: 'Failed', body: msg, tone: 'amber', icon: 'x' })
     },
@@ -844,7 +847,7 @@ export default function Settings() {
   function handlePasswordSubmit() {
     setPwError('')
     if (newPw !== confirmPw) { setPwError('Passwords do not match'); return }
-    if (newPw.length < 8) { setPwError('Password must be at least 8 characters'); return }
+    if (!isStrongPassword(newPw)) { setPwError('Your new password needs everything in the list under it.'); return }
     changePassword()
   }
 
@@ -1715,7 +1718,8 @@ export default function Settings() {
               </div>
               <div>
                 <label htmlFor="pw-new" className={FIELD_LABEL}>New password</label>
-                <input id="pw-new" className="input w-full" type="password" autoComplete="new-password" value={newPw} onChange={e => setNewPw(e.target.value)} />
+                <input id="pw-new" className="input w-full" type="password" autoComplete="new-password" aria-describedby="pw-new-rules" value={newPw} onChange={e => setNewPw(e.target.value)} />
+                <PasswordChecklist password={newPw} id="pw-new-rules" />
               </div>
               <div>
                 <label htmlFor="pw-confirm" className={FIELD_LABEL}>New password again</label>
@@ -1725,7 +1729,7 @@ export default function Settings() {
             </div>
           </div>
           <div className="border-t border-ink-100 px-5 py-4 md:px-6">
-            <button type="button" className={PRIMARY_BUTTON} onClick={handlePasswordSubmit} disabled={changingPw || !currentPw || !newPw || !confirmPw}>
+            <button type="button" className={PRIMARY_BUTTON} onClick={handlePasswordSubmit} disabled={changingPw || !currentPw || !isStrongPassword(newPw) || !confirmPw}>
               {changingPw ? 'Changing…' : 'Change password'}
             </button>
           </div>

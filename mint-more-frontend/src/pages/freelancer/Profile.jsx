@@ -7,6 +7,7 @@ import { servicesApi } from '../../api/services'
 import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import { PortfolioItemModal } from './Portfolio'
+import { videoOf } from '../../components/freelancer/postMedia'
 import { inr } from '../../components/services/serviceUtils'
 
 const TABS = [
@@ -51,6 +52,7 @@ function Posts({ onAdd, onEdit }) {
 			{items.map(item => (
 				<button key={item.id} type="button" onClick={() => onEdit(item)} className="group relative aspect-[4/5] overflow-hidden rounded-2xl bg-ink-100 text-left">
 					{item.cover_image_url && <img src={item.cover_image_url} alt={item.title} className="h-full w-full object-cover" loading="lazy" />}
+					{videoOf(item) && <span className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white" aria-label="Video"><Icon name="video" size={13} /></span>}
 					<span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-8 text-sm font-medium text-white">{item.title}</span>
 					{item.is_visible === false && <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs text-ink-700">Hidden</span>}
 				</button>

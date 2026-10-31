@@ -7,6 +7,46 @@ import Modal from '../../components/ui/Modal'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 import { announceProfileUpdated } from '../../components/freelancer/completionApi'
+import { videoOf } from '../../components/freelancer/postMedia'
+
+const MAX_POST_MB = 50
+const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm']
+
+/** A JPEG cover from a frame about a third of the way into the video, at most 1280px on the long side. */
+function coverFromVideo(file) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    const url = URL.createObjectURL(file)
+    const finish = (settle, value) => {
+      clearTimeout(timer)
+      video.removeAttribute('src'); video.load()
+      URL.revokeObjectURL(url)
+      settle(value)
+    }
+    const timer = setTimeout(() => finish(reject, new Error('No frame in time')), 8000)
+    video.muted = true
+    video.playsInline = true
+    video.setAttribute('playsinline', '')
+    video.preload = 'auto'
+    video.onloadedmetadata = () => {
+      // iOS only decodes frames once playback starts, so nudge it, then seek.
+      video.play().then(() => video.pause()).catch(() => {})
+      video.currentTime = Math.min(1, (video.duration || 3) / 3)
+    }
+    video.onseeked = () => {
+      const { videoWidth: w, videoHeight: h } = video
+      if (!w || !h) return finish(reject, new Error('No frame'))
+      const scale = Math.min(1, 1280 / Math.max(w, h))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(w * scale)
+      canvas.height = Math.round(h * scale)
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => (blob ? finish(resolve, new File([blob], 'cover.jpg', { type: 'image/jpeg' })) : finish(reject, new Error('No frame'))), 'image/jpeg', 0.85)
+    }
+    video.onerror = () => finish(reject, new Error('Unreadable video'))
+    video.src = url
+  })
+}
 
 export function PortfolioItemModal({ item, onClose, onSaved }) {
   const queryClient = useQueryClient()
@@ -23,6 +63,10 @@ export function PortfolioItemModal({ item, onClose, onSaved }) {
   const [tools,        setTools]        = useState(item?.tools_used?.join(', ') || '')
   const [coverFile,    setCoverFile]    = useState(null)
   const [coverPreview, setCoverPreview] = useState(item?.cover_image_url || null)
+  const [videoFile,    setVideoFile]    = useState(null)
+  const [videoPreview, setVideoPreview] = useState(() => videoOf(item))
+  const [coverBusy,    setCoverBusy]    = useState(false)
+  const coverRef = useRef(null)
 
   const createMutation = useMutation({
     mutationFn: () => {
@@ -35,6 +79,7 @@ export function PortfolioItemModal({ item, onClose, onSaved }) {
       if (tags) fd.append('tags', JSON.stringify(tags.split(',').map(t => t.trim()).filter(Boolean)))
       if (tools) fd.append('tools_used', JSON.stringify(tools.split(',').map(t => t.trim()).filter(Boolean)))
       if (coverFile) fd.append('cover_image', coverFile)
+      if (videoFile) fd.append('media', videoFile)
       return portfolioApi.create(fd)
     },
     onSuccess: () => {
@@ -68,8 +113,39 @@ export function PortfolioItemModal({ item, onClose, onSaved }) {
     onError: err => pushToast({ title: 'Failed', body: err.response?.data?.message, tone: 'amber', icon: 'x' }),
   })
 
-  function handleFileChange(e) {
+  async function handleFileChange(e) {
     const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (file.size > MAX_POST_MB * 1024 * 1024) {
+      pushToast({ title: 'File too large', body: `Posts can be up to ${MAX_POST_MB} MB.`, tone: 'amber', icon: 'x' })
+      return
+    }
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(file.name)
+    if (!isVideo) {
+      setVideoFile(null); setVideoPreview(null)
+      setCoverFile(file)
+      setCoverPreview(URL.createObjectURL(file))
+      return
+    }
+    setVideoFile(file)
+    setVideoPreview(URL.createObjectURL(file))
+    setCoverFile(null); setCoverPreview(null)
+    setCoverBusy(true)
+    try {
+      const cover = await coverFromVideo(file)
+      setCoverFile(cover)
+      setCoverPreview(URL.createObjectURL(cover))
+    } catch {
+      // Some phones won't hand over a frame; they pick a cover image instead.
+    } finally {
+      setCoverBusy(false)
+    }
+  }
+
+  function handleCoverChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
     setCoverFile(file)
     setCoverPreview(URL.createObjectURL(file))
@@ -88,7 +164,7 @@ export function PortfolioItemModal({ item, onClose, onSaved }) {
           <button
             className="px-5 py-2.5 rounded-xl font-semibold bg-ink-950 text-white hover:bg-ink-900 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => isEdit ? updateMutation.mutate() : createMutation.mutate()}
-            disabled={isPending || !title || (!isEdit && !coverFile)}
+            disabled={isPending || coverBusy || !title || (!isEdit && !coverFile)}
           >
             {isPending ? 'Saving…' : isEdit ? 'Update item' : 'Add to portfolio'}
           </button>
@@ -96,32 +172,39 @@ export function PortfolioItemModal({ item, onClose, onSaved }) {
       }
     >
       <div className="flex flex-col gap-6 p-1">
-        {/* Cover image */}
+        {/* The post itself: a photo, or a video with a cover frame taken from it */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-ink-900">
-            Cover image {!isEdit && <span className="text-rose-500">*</span>}
+            Photo or video {!isEdit && <span className="text-rose-500">*</span>}
           </label>
-          <div
-            onClick={() => fileRef.current?.click()}
-            className={`h-48 rounded-2xl border-2 border-dashed ${coverPreview ? 'border-transparent' : 'border-ink-200'} bg-ink-50/50 hover:bg-ink-50 flex items-center justify-center cursor-pointer overflow-hidden relative group transition-colors`}
+          <button
+            type="button"
+            onClick={() => !isEdit && fileRef.current?.click()}
+            disabled={isEdit}
+            className={`relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed ${coverPreview || videoPreview ? 'border-transparent bg-ink-900' : 'border-ink-200 bg-ink-50/50'} text-left transition-colors ${isEdit ? 'cursor-default' : 'hover:bg-ink-50'}`}
           >
-            {coverPreview ? (
-              <img src={coverPreview} alt="" className="w-full h-full object-cover" />
+            {videoPreview ? (
+              <video src={videoPreview} poster={coverPreview || undefined} muted playsInline controls className="h-full w-full object-contain" />
+            ) : coverPreview ? (
+              <img src={coverPreview} alt="" className="h-full w-full object-cover" />
             ) : (
-              <div className="text-center text-ink-400 group-hover:text-ink-600 transition-colors">
-                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-3">
-                  <Icon name="upload" size={20} />
-                </div>
-                <div className="text-sm font-medium">Click to upload cover image</div>
-              </div>
+              <span className="text-center text-ink-500">
+                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm"><Icon name="upload" size={20} /></span>
+                <span className="block text-[15px] font-medium text-ink-900">Add a photo or video</span>
+                <span className="mt-1 block text-[13px]">JPG, PNG, WebP, or MP4, MOV, WebM up to {MAX_POST_MB} MB</span>
+              </span>
             )}
-            {coverPreview && (
-              <div className="absolute inset-0 bg-ink-950/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
-                <div className="px-4 py-2 bg-white/20 backdrop-blur-md rounded-full text-white text-sm font-semibold">Change image</div>
-              </div>
-            )}
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          </button>
+          {!isEdit && (coverPreview || videoPreview) && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+              <button type="button" onClick={() => fileRef.current?.click()} className="font-medium text-ink-900 underline underline-offset-4">Choose another file</button>
+              {videoFile && <button type="button" onClick={() => coverRef.current?.click()} className="font-medium text-ink-900 underline underline-offset-4">{coverFile ? 'Change cover' : 'Add a cover image'}</button>}
+              {coverBusy && <span className="text-ink-500">Making a cover from your video…</span>}
+            </div>
+          )}
+          {videoFile && !coverFile && !coverBusy && <p className="text-[13px] text-amber-700">Add a cover image so your video shows up in feeds.</p>}
+          <input ref={fileRef} type="file" accept={`image/*,${VIDEO_TYPES.join(',')},.mov,.m4v`} className="hidden" onChange={handleFileChange} />
+          <input ref={coverRef} type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
         </div>
 
         <div className="flex flex-col gap-2">

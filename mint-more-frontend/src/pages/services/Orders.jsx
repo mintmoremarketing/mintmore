@@ -5,6 +5,7 @@ import Icon from '../../components/ui/Icon'
 import StageBadge from '../../components/services/StageBadge'
 import OrderOffers from '../../components/services/OrderOffers'
 import { StoreCard } from '../../components/storefront/storefront'
+import OptInPrompt from '../../components/freelancer/OptInPrompt'
 import { clientNextAction, dueText, formatDate, freelancerNextAction, inr, itemChatLink, itemStageText, STAGE_META, variantLabel } from '../../components/services/serviceUtils'
 
 const CLIENT_TABS = [
@@ -219,6 +220,8 @@ export default function Orders({ audience = 'client' }) {
 					{location.state.placed} orders placed. Each one gets its own freelancer and chat.
 				</div>
 			)}
+
+			{!isClient && <OptInPrompt showProfile={false} className="mt-6" />}
 
 			<div role="tablist" aria-label="Filter orders" className="mt-6 flex gap-6 overflow-x-auto border-b border-ink-200 [scrollbar-width:none]">
 				{tabs.map(item => {

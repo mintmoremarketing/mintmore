@@ -14,5 +14,7 @@ router.post('/refresh',  controller.refresh);
 // Protected routes (require valid access token)
 router.post('/logout',   authenticate, controller.logout);
 router.get('/me',        authenticate, controller.getMe);
+// Wrong-current-password guesses share the login limit.
+router.post('/change-password', authenticate, authLoginLimiter, controller.changePassword);
 
 module.exports = router;

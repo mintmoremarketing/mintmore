@@ -11062,3 +11062,29 @@ p { text-wrap: pretty; }
   .files-viewer-media { animation: dash-fade 150ms ease-out both; }
 }
 .chat-search-open { animation: dash-fade 150ms ease-out both; }
+
+/* ── Phones (iPhone Safari first) ───────────────────────────────────────── */
+html {
+  /* Keep text at its set size when the phone is turned sideways. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* No 300ms double-tap-zoom wait on taps. */
+a, button, [role="button"], label, summary, input, select, textarea { touch-action: manipulation; }
+@media (hover: none) and (pointer: coarse) {
+  /* iOS Safari zooms the whole page into any field under 16px and leaves it zoomed,
+     which reads as the layout breaking. 16px on touch screens stops that. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+/* iOS gives date and time fields a fixed native width that pushes past their column and makes
+   the page scroll sideways. Let them shrink like any other field. */
+input[type="date"], input[type="time"], input[type="datetime-local"], input[type="month"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  display: block;
+}

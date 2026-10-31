@@ -5,6 +5,8 @@ import { authApi } from '../../api/auth'
 import { supabase } from '../../api/supabase'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../../components/ui/Icon'
+import PasswordChecklist from '../../components/ui/PasswordChecklist'
+import { isStrongPassword } from '../../utils/passwordPolicy'
 import { nextPathFromSearch } from '../../utils/nextPath'
 
 function useIsMobile() {
@@ -57,6 +59,12 @@ export default function Register() {
         e.preventDefault()
         if (!agreed) {
             setError('Please accept the terms')
+            setErrorList([])
+            return
+        }
+        // Check before the email code is sent, not after it's typed in.
+        if (!isStrongPassword(password)) {
+            setError('Your password needs everything in the list under it.')
             setErrorList([])
             return
         }
@@ -213,7 +221,7 @@ export default function Register() {
                             <div className="field" style={{ marginBottom: 12 }}>
                                 <label className="field-label 2xl:text-base">Password</label>
                                 <div className="relative">
-                                    <input className="input 2xl:text-lg 2xl:p-4 w-full pr-10" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
+                                    <input className="input 2xl:text-lg 2xl:p-4 w-full pr-10" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" aria-describedby="register-password-rules" required />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
@@ -223,9 +231,7 @@ export default function Register() {
                                         <Icon name={showPassword ? 'eyeOff' : 'eye'} size={20} />
                                     </button>
                                 </div>
-                                <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
-                                    At least 8 characters, 1 uppercase letter, and 1 number.
-                                </div>
+                                <PasswordChecklist password={password} id="register-password-rules" />
                             </div>
 
                             <div className="row" style={{ gap: 8, alignItems: 'flex-start', marginTop: 8, marginBottom: 8 }}>

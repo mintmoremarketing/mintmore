@@ -180,15 +180,18 @@ export default function FreelancerTopbar({ isMobile, unreadCount = 0, withSideba
 						<span className="h-6 w-px bg-ink-200" aria-hidden="true" />
 					</>
 				)}
-				<Link to="/chat" className={iconBtn} aria-label={chatUnread ? `Messages, ${chatUnread} unread` : 'Messages'}>
-					<Icon name="chat" size={19} />
-					{chatUnread > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-mint-500" />}
-				</Link>
+				{/* Phones have Chat and the account menu in the bottom bar. */}
+				{!isMobile && (
+					<Link to="/chat" className={iconBtn} aria-label={chatUnread ? `Messages, ${chatUnread} unread` : 'Messages'}>
+						<Icon name="chat" size={19} />
+						{chatUnread > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-mint-500" />}
+					</Link>
+				)}
 				<Link to="/notifications" className={iconBtn} aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}>
 					<Icon name="bell" size={19} />
 					{unreadCount > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-mint-500" />}
 				</Link>
-				<AccountMenu />
+				{!isMobile && <AccountMenu />}
 			</div>
 		</header>
 	)

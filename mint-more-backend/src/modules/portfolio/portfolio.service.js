@@ -84,6 +84,10 @@ const createPortfolioItem = async (freelancerId, data, coverFile, extraFiles = [
 	if (!data.title) throw new AppError('title is required', 400);
 	assertCleanPortfolio(freelancerId, data);
 	if (!coverFile)  throw new AppError('cover_image is required', 400);
+	if (!String(coverFile.mimetype).startsWith('image/')) throw new AppError('The cover must be an image', 422);
+	if (extraFiles.filter((file) => String(file.mimetype).startsWith('video/')).length > 1) {
+		throw new AppError('Add one video per post', 422);
+	}
 
 	const coverExt  = path.extname(coverFile.originalname).toLowerCase() || '.jpg';
 	const coverPath = `portfolio/${freelancerId}/${uuidv4()}${coverExt}`;
@@ -96,7 +100,7 @@ const createPortfolioItem = async (freelancerId, data, coverFile, extraFiles = [
 
 	const mediaUrls = [];
 	for (const file of extraFiles) {
-		const ext      = path.extname(file.originalname).toLowerCase() || '.jpg';
+		const ext      = path.extname(file.originalname).toLowerCase() || (String(file.mimetype).startsWith('video/') ? '.mp4' : '.jpg');
 		const filePath = `portfolio/${freelancerId}/${uuidv4()}${ext}`;
 		const url      = await uploadFile('job-attachments', filePath, file.buffer, file.mimetype);
 		mediaUrls.push(toStoredRef(url));

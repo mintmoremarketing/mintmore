@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/ui/Icon'
 import { assessmentsApi } from '../../api/assessments'
 import { LevelAction, ProfileNotice } from '../../components/assessments/AssessmentBits'
+import OptInPrompt from '../../components/freelancer/OptInPrompt'
 import { durationLabel } from '../../utils/assessments'
 
 const FAQS = [
@@ -67,6 +68,7 @@ export default function Assessments() {
 			<p className="mt-2 text-[15px] text-ink-500 md:text-base">Pass a level to qualify for the services that need it, and start getting orders.</p>
 
 			{data && !data.profile.ready && <ProfileNotice className="mt-5" />}
+			<OptInPrompt showProfile={false} className="mt-5" />
 
 			{data?.open_attempt_id && (
 				<Link to={`/assessments/attempts/${data.open_attempt_id}`} className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-ink-200 px-4 py-3 text-sm text-ink-800 transition-colors hover:border-ink-300">

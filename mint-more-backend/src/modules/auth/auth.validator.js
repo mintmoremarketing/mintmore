@@ -1,4 +1,5 @@
 const AppError = require('../../utils/AppError');
+const { passwordProblem } = require('../../utils/passwordPolicy');
 
 /**
  * Minimal hand-rolled validators — Phase 3 will add Zod/Joi for
@@ -17,13 +18,8 @@ const validateRegister = (body) => {
     errors.push('A valid email is required');
   }
 
-  if (!password || password.length < 8) {
-    errors.push('Password must be at least 8 characters');
-  }
-
-  if (password && !/(?=.*[A-Z])(?=.*[0-9])/.test(password)) {
-    errors.push('Password must contain at least one uppercase letter and one number');
-  }
+  const problem = passwordProblem(password);
+  if (problem) errors.push(problem);
 
   const allowedRoles = ['client', 'freelancer'];
   if (role && !allowedRoles.includes(role)) {
@@ -64,9 +60,8 @@ const validateResetPassword = (body) => {
     errors.push('A valid email is required');
   }
 
-  if (!newPassword || newPassword.length < 8) {
-    errors.push('Password must be at least 8 characters');
-  }
+  const problem = passwordProblem(newPassword);
+  if (problem) errors.push(problem);
 
   if (errors.length > 0) {
     const err = new AppError('Validation failed', 422);
@@ -75,4 +70,19 @@ const validateResetPassword = (body) => {
   }
 };
 
-module.exports = { validateRegister, validateLogin, validateResetPassword };
+const validateChangePassword = (body) => {
+  const errors = [];
+  if (!body.current_password) errors.push('Enter your current password');
+  const problem = passwordProblem(body.new_password);
+  if (problem) errors.push(problem);
+  if (body.current_password && body.new_password && body.current_password === body.new_password) {
+    errors.push('Choose a password different from your current one');
+  }
+  if (errors.length > 0) {
+    const err = new AppError(errors[0], 422);
+    err.errors = errors;
+    throw err;
+  }
+};
+
+module.exports = { validateRegister, validateLogin, validateResetPassword, validateChangePassword };

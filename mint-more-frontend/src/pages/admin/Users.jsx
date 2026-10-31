@@ -10,6 +10,7 @@ import Tabs from '../../components/ui/Tabs'
 import { rupee, timeAgo } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 import { useEntitlements } from '../../hooks/useEntitlements'
+import PasswordChecklist from '../../components/ui/PasswordChecklist'
 import { useAuthStore } from '../../store/auth'
 
 // LAUNCH-HIDDEN: not part of the services launch, so the admin doesn't see them. Code kept;
@@ -288,8 +289,8 @@ function CreateAdminModal({ onClose }) {
             value={form.password}
             onChange={e => updateField('password', e.target.value)}
             autoComplete="new-password"
-            placeholder="Minimum 8 characters"
           />
+          <PasswordChecklist password={form.password} />
         </div>
       </div>
     </Modal>
