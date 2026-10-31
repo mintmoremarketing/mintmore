@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { useUIStore } from '../../store/ui'
@@ -57,15 +57,21 @@ export default function KycModal({ open, onClose }) {
 		queryKey: ['kyc-status'],
 		queryFn: () => api.get('/kyc/status').then(r => r.data.data),
 		enabled: open,
+		refetchOnWindowFocus: false,
 	})
 
+	// Start fresh only when the form opens. This used to rerun whenever the page around it re-rendered
+	// (the phone keyboard resizing the window, data refreshing after the file picker closed), which
+	// threw people back to the first step mid-way through and made the form look like it vanished.
+	const onCloseRef = useRef(onClose)
+	useEffect(() => { onCloseRef.current = onClose }, [onClose])
 	useEffect(() => {
 		if (!open) return
 		setStep('choose'); setError('')
-		const onKey = e => e.key === 'Escape' && onClose()
+		const onKey = e => e.key === 'Escape' && onCloseRef.current()
 		window.addEventListener('keydown', onKey)
 		return () => window.removeEventListener('keydown', onKey)
-	}, [open, onClose])
+	}, [open])
 
 	if (!open) return null
 

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { servicesApi } from '../../api/services'
 import { useAuthStore } from '../../store/auth'
 import Icon from '../../components/ui/Icon'
+import OptInPrompt from '../../components/freelancer/OptInPrompt'
 import { inr } from '../../components/services/serviceUtils'
 
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -144,7 +145,7 @@ export default function FreelancerHome() {
 	].filter(Boolean)
 
 	return (
-		<div className="mx-auto w-full max-w-[1280px] px-4 pb-16 pt-7 font-store md:px-8 md:pt-9">
+		<div className="mx-auto w-full max-w-[1400px] px-4 py-8 font-store md:px-8 md:py-10">
 			<div className="dash-rise" style={{ '--i': 0 }}>
 				<h1 className="text-[26px] font-medium tracking-[-0.02em] text-ink-900 md:text-[30px]">{firstName ? `Hi ${firstName}` : 'Dashboard'}</h1>
 				<p className="mt-1 max-w-[70ch] text-[15px] text-ink-600">
@@ -154,6 +155,8 @@ export default function FreelancerHome() {
 					{unread > 0 && <> {unread} new from your clients.</>}
 				</p>
 			</div>
+
+			<OptInPrompt className="mt-6" />
 
 			<div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
 				{/* Money first: the screen's question */}

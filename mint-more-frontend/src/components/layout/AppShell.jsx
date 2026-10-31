@@ -154,12 +154,12 @@ export default function AppShell() {
   // bookings switch, search and posting. Phones keep the top bar and bottom tabs.
   if (role === 'freelancer') {
     return (
-      <div className="flex min-h-screen bg-white text-ink-900 font-sans" style={{ '--bottom-nav-h': isMobile ? '64px' : '0px' }}>
+      <div className="flex min-h-screen bg-white text-ink-900 font-sans" style={{ '--bottom-nav-h': isMobile ? 'calc(64px + env(safe-area-inset-bottom))' : '0px' }}>
         {!isMobile && <Sidebar role={role} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />}
-        <div className={`fixed right-0 top-0 z-30 border-b border-ink-100 bg-white/95 backdrop-blur-md transition-all duration-200 ease-out ${!isMobile ? (sidebarCollapsed ? 'left-16' : 'left-56') : 'left-0'}`}>
+        <div className={`fixed right-0 top-0 z-30 border-b border-ink-100 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur-md transition-all duration-200 ease-out ${!isMobile ? (sidebarCollapsed ? 'left-16' : 'left-56') : 'left-0'}`}>
           <FreelancerTopbar isMobile={isMobile} unreadCount={unreadCount} withSidebar={!isMobile} />
         </div>
-        <main className={`flex min-w-0 flex-1 flex-col pt-16 transition-all duration-200 ease-out ${!isMobile ? (sidebarCollapsed ? 'ml-16' : 'ml-56') : 'pb-16'}`}>
+        <main className={`flex min-w-0 flex-1 flex-col pt-[calc(4rem+env(safe-area-inset-top))] transition-all duration-200 ease-out ${!isMobile ? (sidebarCollapsed ? 'ml-16' : 'ml-56') : 'pb-[calc(64px+env(safe-area-inset-bottom))]'}`}>
           <AdminImpersonationBanner />
           <GuestBanner />
           {!isGuest && <PushNotificationPrompt />}
@@ -179,7 +179,7 @@ export default function AppShell() {
 
   return (
     // --bottom-nav-h lets page-level sticky bars sit above the mobile tab bar.
-    <div className={`flex min-h-screen text-ink-900 font-sans ${isAdmin ? 'admin-shell bg-ink-50' : 'bg-mint-50/20'}`} style={{ '--bottom-nav-h': isMobile ? '64px' : '0px' }}>
+    <div className={`flex min-h-screen text-ink-900 font-sans ${isAdmin ? 'admin-shell bg-ink-50' : 'bg-mint-50/20'}`} style={{ '--bottom-nav-h': isMobile ? 'calc(64px + env(safe-area-inset-bottom))' : '0px' }}>
       {/* Desktop sidebar — hidden on mobile */}
       {!isMobile && (
         <SideNav
@@ -190,7 +190,7 @@ export default function AppShell() {
       )}
 
       {/* Topbar fixed to viewport */}
-      <div className={`fixed top-0 right-0 z-30 border-b transition-all duration-200 ease-out ${isAdmin ? 'border-ink-100 bg-white' : 'bg-white/80 backdrop-blur-md border-ink-200/50'} ${
+      <div className={`fixed top-0 right-0 z-30 border-b pt-[env(safe-area-inset-top)] transition-all duration-200 ease-out ${isAdmin ? 'border-ink-100 bg-white' : 'bg-white/80 backdrop-blur-md border-ink-200/50'} ${
         !isMobile ? (sidebarCollapsed ? 'left-16' : 'left-56') : 'left-0'
       }`}>
         <Topbar
@@ -208,9 +208,9 @@ export default function AppShell() {
       </div>
 
       {/* Main column */}
-      <main className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ease-out pt-[64px] ${
+      <main className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ease-out pt-[calc(64px+env(safe-area-inset-top))] ${
         !isMobile ? (sidebarCollapsed ? 'ml-16' : 'ml-56') : ''
-      } ${isMobile ? 'pb-16' : ''}`}>
+      } ${isMobile ? 'pb-[calc(64px+env(safe-area-inset-bottom))]' : ''}`}>
 
         <AdminImpersonationBanner />
         <GuestBanner />

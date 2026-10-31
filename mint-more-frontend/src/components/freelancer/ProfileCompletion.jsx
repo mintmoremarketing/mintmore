@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
@@ -6,11 +6,10 @@ import { useIsMobile } from '../../hooks/useIsMobile'
 import Icon from '../ui/Icon'
 import KycModal from './KycModal'
 import {
-	COMPLETION_QUERY_KEY, OPEN_COMPLETION_EVENT, OPEN_KYC_EVENT, PROFILE_UPDATED_EVENT, STEP_META, fetchCompletion,
+	COMPLETION_QUERY_KEY, OPEN_COMPLETION_EVENT, OPEN_KYC_EVENT, PROFILE_UPDATED_EVENT, fetchCompletion, stepMeta,
 } from './completionApi'
 
 const DISMISSED_KEY = 'creatyv_profile_pill_dismissed_at'
-const COLLAPSED_MOBILE_KEY = 'creatyv_profile_pill_collapsed_mobile'
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const readStorage = key => { try { return localStorage.getItem(key) } catch { return null } }
@@ -35,7 +34,7 @@ function Ring({ percent, size = 40 }) {
 }
 
 function StepRow({ step, onNavigate, onKyc, large = false }) {
-	const meta = STEP_META[step.key]
+	const meta = stepMeta(step)
 	const circle = large
 		? `h-6 w-6 border-2 ${step.done ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-300 bg-white'}`
 		: `h-5 w-5 border ${step.done ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-300 bg-white'}`
@@ -70,7 +69,7 @@ function StepRow({ step, onNavigate, onKyc, large = false }) {
 /**
  * Freelancer "Complete your profile" checklist.
  * Desktop: a card docked bottom-right that collapses to a progress ring button and can be hidden for 24 hours.
- * Mobile: a floating pill above the bottom nav that opens a draggable-style bottom sheet.
+ * Mobile: a bottom sheet, opened from the Menu tab or the dashboard (OPEN_COMPLETION_EVENT).
  */
 export default function ProfileCompletion() {
 	const isFreelancer = useAuthStore(s => s.user?.role === 'freelancer')
@@ -81,7 +80,6 @@ export default function ProfileCompletion() {
 	const [panelOpen, setPanelOpen] = useState(false)
 	const [panelState, setPanelState] = useState('in')
 	const [sheetOpen, setSheetOpen] = useState(false)
-	const [collapsed, setCollapsed] = useState(() => readStorage(COLLAPSED_MOBILE_KEY) === '1')
 	const [kycOpen, setKycOpen] = useState(false)
 
 	const { data } = useQuery({
@@ -90,6 +88,11 @@ export default function ProfileCompletion() {
 		enabled: isFreelancer,
 		staleTime: 30_000,
 	})
+
+	const openPanel = useCallback(() => {
+		setPanelOpen(true)
+		requestAnimationFrame(() => setPanelState('in'))
+	}, [])
 
 	useEffect(() => {
 		if (!isFreelancer) return
@@ -104,19 +107,8 @@ export default function ProfileCompletion() {
 			window.removeEventListener(OPEN_COMPLETION_EVENT, open)
 			window.removeEventListener(OPEN_KYC_EVENT, openKyc)
 		}
-	}, [isFreelancer, isMobile, queryClient])
+	}, [isFreelancer, isMobile, queryClient, openPanel])
 
-	// Space for the mobile pill so it never covers the last row of a page.
-	const showPill = isFreelancer && isMobile && data && !data.isComplete && !collapsed
-	useEffect(() => {
-		document.documentElement.style.setProperty('--completion-pill-space', showPill ? '76px' : '0px')
-		return () => document.documentElement.style.removeProperty('--completion-pill-space')
-	}, [showPill])
-
-	function openPanel() {
-		setPanelOpen(true)
-		requestAnimationFrame(() => setPanelState('in'))
-	}
 	const closePanel = () => {
 		setPanelState('out')
 		setTimeout(() => setPanelOpen(false), 280)
@@ -126,43 +118,21 @@ export default function ProfileCompletion() {
 		closePanel()
 		setTimeout(() => setHidden(true), 300)
 	}
-	const setMobileCollapsed = value => {
-		setCollapsed(value)
-		writeStorage(COLLAPSED_MOBILE_KEY, value ? '1' : '0')
-	}
 	const startKyc = () => { closePanel(); setSheetOpen(false); setKycOpen(true) }
+	const closeKyc = useCallback(() => setKycOpen(false), [])
 
-	const kycModal = <KycModal open={kycOpen} onClose={() => setKycOpen(false)} />
-	if (!isFreelancer || !data || data.isComplete || pathname.startsWith('/assessments/')) return kycModal
+	// The KYC form always renders in this one place, so nothing around it can remount it mid-way.
+	return <>{checklist()}<KycModal open={kycOpen} onClose={closeKyc} /></>
+
+	function checklist() {
+	if (!isFreelancer || !data || data.isComplete || pathname.startsWith('/assessments/')) return null
 
 	const { steps, completed, total, percent } = data
 
+	// Phones: no floating bar over the page. The checklist opens from Menu and the dashboard.
 	if (isMobile) {
 		return (
 			<>
-				<div aria-hidden="true" style={{ height: showPill ? 76 : 0 }} />
-				{collapsed ? (
-					<button
-						type="button"
-						onClick={() => setMobileCollapsed(false)}
-						aria-label={`Profile ${percent}% complete — expand`}
-						className="fixed left-3 z-40 grid h-[52px] w-[52px] place-items-center rounded-full border border-ink-100 bg-white shadow-[0_8px_28px_rgba(0,0,0,0.10)] active:bg-ink-50"
-						style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}
-					>
-						<Ring percent={percent} />
-					</button>
-				) : (
-					<div className="fixed left-3 right-3 z-40 flex items-center rounded-2xl border border-ink-100 bg-white font-store shadow-[0_8px_28px_rgba(0,0,0,0.10)]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 80px)' }}>
-						<button type="button" onClick={() => setSheetOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl py-3 pl-3 pr-1 text-left transition-colors active:bg-ink-50">
-							<Ring percent={percent} />
-							<span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold text-ink-900">Complete Your Profile</span>
-						</button>
-						<button type="button" onClick={() => setMobileCollapsed(true)} aria-label="Collapse" className="mr-1.5 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-400 active:bg-ink-100">
-							<Icon name="chevronRight" size={18} />
-						</button>
-					</div>
-				)}
-
 				{sheetOpen && (
 					<>
 						<div className="completion-backdrop fixed inset-0 z-50 bg-black/40" onClick={() => setSheetOpen(false)} />
@@ -190,12 +160,11 @@ export default function ProfileCompletion() {
 						</div>
 					</>
 				)}
-				{kycModal}
 			</>
 		)
 	}
 
-	if (hidden) return kycModal
+	if (hidden) return null
 
 	return (
 		<>
@@ -236,7 +205,7 @@ export default function ProfileCompletion() {
 					<Icon name="chevronDown" size={16} className="rotate-180 text-ink-500" />
 				</button>
 			)}
-			{kycModal}
 		</>
 	)
+	}
 }

@@ -55,13 +55,13 @@ const upload = createUpload();
  * Multer error wrapper — converts multer errors to AppError
  * so they flow through our global error handler cleanly.
  */
-const handleUploadError = (uploadMiddleware) => (req, res, next) => {
+const handleUploadError = (uploadMiddleware, { maxFileSizeMb = env.upload.maxFileSizeMb } = {}) => (req, res, next) => {
   uploadMiddleware(req, res, (err) => {
     if (!err) return next();
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return next(
-          new AppError(`File too large. Max size: ${env.upload.maxFileSizeMb}MB`, 413)
+          new AppError(`File too large. Max size: ${maxFileSizeMb}MB`, 413)
         );
       }
       return next(new AppError(`Upload error: ${err.message}`, 400));

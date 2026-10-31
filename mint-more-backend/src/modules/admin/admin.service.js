@@ -2,6 +2,7 @@ const { query, getClient } = require('../../config/database');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
 const { hashPassword } = require('../../utils/hash');
+const { passwordProblem } = require('../../utils/passwordPolicy');
 const { writeAudit } = require('../audit/audit.service');
 const { sanitizeSubmissions } = require('../kyc/kyc.service');
 const { signAccessToken, signRefreshToken } = require('../../utils/jwt');
@@ -269,6 +270,8 @@ const createAdminUser = async (adminId, { email, password, full_name, permission
     throw new AppError('An account with this email already exists', 409);
   }
 
+  const weak = passwordProblem(password);
+  if (weak) throw new AppError(weak, 422);
   const passwordHash = await hashPassword(password);
   const result = await query(
     `INSERT INTO users
@@ -310,6 +313,8 @@ const createDesignerUser = async (adminId, { email, password, full_name }) => {
   const existing = await query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
   if (existing.rows[0]) throw new AppError('An account with this email already exists', 409);
 
+  const weak = passwordProblem(password);
+  if (weak) throw new AppError(weak, 422);
   const passwordHash = await hashPassword(password);
   const result = await query(
     `INSERT INTO users

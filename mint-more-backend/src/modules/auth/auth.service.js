@@ -245,4 +245,20 @@ const resetPassword = async ({ email, newPassword, accessToken }) => {
   logger.info('User reset password', { userId: user.id });
 };
 
-module.exports = { register, login, refreshTokens, logout, getMe, resetPassword };
+/**
+ * Change the password of a signed-in user. They prove it's them with the current password.
+ * Other sessions are signed out; this one keeps working until its token next refreshes.
+ */
+const changePassword = async (userId, { current_password: currentPassword, new_password: newPassword }) => {
+  const result = await query('SELECT id, password_hash FROM users WHERE id = $1', [userId]);
+  const user = result.rows[0];
+  if (!user) throw new AppError('User not found', 404);
+  if (!user.password_hash || !(await comparePassword(currentPassword, user.password_hash))) {
+    throw new AppError('Your current password is not right', 400);
+  }
+  const passwordHash = await hashPassword(newPassword);
+  await query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
+  logger.info('User changed password', { userId });
+};
+
+module.exports = { register, login, refreshTokens, logout, getMe, resetPassword, changePassword };

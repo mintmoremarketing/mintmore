@@ -30,3 +30,8 @@ export const STEP_META = {
 	kyc: { label: 'Complete KYC', kind: 'kyc' },
 	services: { label: 'Get qualified for a service', href: '/assessments' },
 }
+
+/** A step's label and link. Once an assessment is passed, the last step is opting in, not qualifying. */
+export const stepMeta = step => (step.key === 'services' && step.qualified
+	? { label: 'Opt in to the services you qualified for', href: '/my-services' }
+	: STEP_META[step.key])
