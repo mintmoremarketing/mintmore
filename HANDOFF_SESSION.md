@@ -1,65 +1,93 @@
-# Creatyv session handoff (30 Oct 2026)
+# Creatyv handoff (31 Oct 2026)
 
-Read this first, then `AGENTS.md`. The design skills are in `.agents/skills/` (impeccable, emil-design-eng, design-taste-frontend).
+Read this first, then `AGENTS.md` and `DESIGN.md`. The three design skills the user wants used for every UI change are in `.agents/skills/`:
+- `impeccable`: the quality floor and craft rules.
+- `emil-design-eng`: motion and interaction.
+- `design-taste-frontend`: layout and frame.
 
 ## Project
-- Repo: `saas/`, GitHub `devdeepsaha/mintmore`. GitHub says it has moved to `mintmoremarketing/mintmore`; pushes still work through the redirect.
-- Work branch: `creatyv-services-storefront`.
-- Deploy with `git push origin creatyv-services-storefront:main`. Push **only** when the user says "Push it".
-  - The frontend (`mint-more-frontend`, React, Vite, Tailwind) goes to Vercel at mintmore.vercel.app.
-  - The backend (`mint-more-backend`, Express) goes to Railway at mintmore-production.up.railway.app.
-- The database is the remote Supabase Postgres that production also uses. Make only additive changes, and don't change DB feature flags.
-- File storage:
-  - Production uses Cloudflare R2 (`STORAGE_PROVIDER=r2`).
-  - The local `.env` uses Supabase storage, so anything uploaded through the local backend lands in Supabase.
-- The local dev server is at http://localhost:5173 and calls a local API at localhost:5000.
+- **Repo:** GitHub `mintmoremarketing/mintmore`, locally at `/home/user/mintmore` (it was `devdeepsaha/mintmore`; the redirect still works).
+- **Apps:**
+  - `mint-more-backend`: Express with `pg`, deployed on Railway.
+  - `mint-more-frontend`: React, Vite, Tailwind, react-query and zustand, deployed on Vercel.
+- **Work branch:** `claude/keen-newton-mpog2f`.
+- **Deploying to main:** the branch and main share content but not history, so don't merge.
+  1. `git fetch origin main`
+  2. `git checkout -B deploy-tmp origin/main`
+  3. `git cherry-pick <new commits>`
+  4. `git diff claude/keen-newton-mpog2f --stat` must print nothing.
+  5. `git push origin deploy-tmp:main`
+- Push to main **only when the user says "push"**.
+- **Database:** production is Supabase Postgres. Make only additive schema changes and don't change DB feature flags. The user runs SQL in Supabase themselves; give them the SQL to paste.
+- **Local setup (cloud container):**
+  - Postgres: `su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/pglocal/data -l /var/lib/pglocal/log -o '-p 5433 -k /tmp' start"`
+  - Redis: `cd /tmp && redis-server --daemonize yes --save "" --dir /tmp`. Run it from `/tmp` so it doesn't write `dump.rdb` into the repo.
+  - Backend: `cd mint-more-backend && node server.js`, on port 5000. The login rate limit is in memory, so restart the backend if logins return 429.
+  - Frontend: `cd mint-more-frontend && npx vite --port 5173 --host 127.0.0.1`.
+  - Local file storage is not available, so uploads fail locally. Test those in production.
+- **Demo users** end in `@creatyv-demo.test`. Their passwords are in the git-ignored `mint-more-backend/scripts/.demo-accounts.json`; don't print them.
 
 ## Rules the user set
 - Never print `.env` secrets. Never enter the user's real passwords.
-- Demo users end in `@creatyv-demo.test`. Their passwords are in the git-ignored `mint-more-backend/scripts/.demo-accounts.json`; don't repeat them.
-- Don't touch the real order CRV-10007 or job 18c39631… (client@test.com).
-- Hide features, don't delete them, and mark them `LAUNCH-HIDDEN`.
-- Don't write copy or features the user didn't ask for.
-- Keep UI minimal: no eyebrows, no tiny uppercase labels, and a word instead of a dot.
+- Don't touch the real order CRV-10007 or job 18c39631 (client@test.com).
+- Hide features, don't delete them, and mark them `LAUNCH-HIDDEN` (`const SHOW_X = false`, never `false &&`).
+- Don't add copy or features the user didn't ask for.
+- Keep the UI minimal: sentence-case labels, no eyebrows, no tiny uppercase labels, and a word instead of a coloured dot.
+- Easing is `cubic-bezier(0.23,1,0.32,1)`, motion only on entrance, and honour reduced motion.
+- Page frame: `mx-auto w-full max-w-[1400px] px-4 py-8 md:px-8 md:py-10`.
 - Use they/them for the user.
-- Ask before committing or pushing the editing-os-saas repo. Never give the licence or key to clients.
 
-## Shipped in this session (all on main)
-- **72662f9 First drafts.**
-  - A freelancer sends an MP4 first draft, and an admin reviews it in Operations > First drafts.
-  - The client sees it only after approval.
-  - Also in this commit: chat search, the media gallery, the inline brief editor, and the `delivery_approved` notification.
-- **7403841 and e2865c6 Creatyv Pro.**
-  - The Pro tab shows "Creatyv Pro", "Coming soon" and an "Edit with AI today" button (`ProComingSoon.jsx`).
-  - The tab has a "Soon" badge: a chip on screens `sm` and up, and a text line under the label on phones.
-  - The orange hero text is warm brown (`--hero-ink`).
-- **351dbc1, 23a930a and 796bd8a Ask-anything widget.** It closes on an outside click or Esc, the chips fold open and shut, and the panel grows out of the bar.
-- **7d9ad71 Home hero.**
-  - The search bar is hidden on `/` and `/services`.
-  - The hero is just the headline, one line and an "Explore services" button.
-  - Behind it, `SurfCards.jsx` runs a card wave ported from Surf mode in `kolkata-brand-news`. It uses 40 photos in `public/surf/*.webp`, listed in `surfPhotos.json`.
-  - Each card's height comes from its photo. The wave runs from the top right, through the text, to the bottom left. Corners are sharp.
-- **011d8a3** Assessment buttons grow to fit their label, with a 210px minimum.
-- **4d5afad** Two fixes:
-  - **Old chat files:** 24 of 25 are stored in Supabase but production signs R2 URLs, so they returned 404. `mintbox-storage.provider.js` now falls back to Supabase when a file isn't in R2. Not yet checked on the live site after deploy.
-  - **Freelancers** get only "Send first draft" in the chat + menu (`canAttach = !completed && role !== 'freelancer'` in `OrderConversation.jsx`).
-- 4ee34e8 (notification channels: web push, email, WhatsApp, migration 068) was added outside this session and hasn't been reviewed. `HANDOFF_NOTIFICATIONS.md` describes the notification setup.
+## SQL the user must run in Supabase (check with them whether it's done)
+1. **`chat_rooms` moderation columns** (`mint-more-backend/src/db/migrations/070_chat_moderation.sql`). Flag, Warn and Close chat in the admin chat return 503 without it.
+2. **Demo client photos** (`src/db/manual-only/071_demo_client_files.sql`). Main must have commit `67e2859` (demo photos served from `public/demo-files`) first.
+3. **Demo KYC for 3 testers** (`src/db/manual-only/072_demo_kyc_for_assessment_testers.sql`). Already given to the user.
 
-## Open items
-1. On the live site, confirm old chat videos and images play now (for example, the demo job 083e1056 chat).
-2. Design and thumbnail freelancers can't send work, because first drafts are MP4-only. The user may want image drafts for design orders.
-3. A delivery under review hides the client's download on purpose; download returns after approval. The user asked about this; nothing is broken.
-4. editing-os-saas helper: it's committed locally as cc7aecc. It needs a GitHub repo URL from the user before it can be pushed.
-5. Not started:
-   - an AI tab category grid (4 categories with AI-only buttons);
-   - both buttons on each service in the Hire tab;
-   - rebuilding the helper zip for Railway and setting `VITE_AI_HELPER_URL`;
-   - delivery protection options.
-6. Untracked and uncommitted: the `.agents/` run folders, `HANDOFF_NOTIFICATIONS.md` and this file.
+## Latest work (commit `ecd602b`, on the branch; check whether it's on main)
+These are fixes from user testing on iPhone Safari:
+- **Freelancer phone navigation** (`components/layout/MobileNav.jsx`):
+  - The bottom bar has Home (`/home`, the dashboard), Explore (`/dashboard`), Work, Chat and Menu.
+  - Menu opens a sheet with My services, Earnings (`/settings/freelancer?tab=earnings`), Assessments, Upskill, Inbox, Profile, Edit profile, Settings, Support, the profile checklist and sign out.
+  - On phones the top bar no longer shows Chat or the account menu.
+- **Profile checklist** (`ProfileCompletion.jsx`): no floating bar on phones any more. The sheet opens from Menu and from the dashboard card (`OPEN_COMPLETION_EVENT`).
+- **iPhone Safari:**
+  - `viewport-fit=cover` in `index.html`.
+  - Safe-area padding on the top and bottom bars (`AppShell.jsx`).
+  - Fields are 16px on touch screens, date fields can shrink, and taps use `touch-action: manipulation` (end of `styles/main.css`).
+- **KYC** (`KycModal.jsx`): the form reset to step one on every re-render of its parent, which looked like the page vanishing. It now resets only when it opens.
+- **Video posts:**
+  - The portfolio route accepts MP4, MOV, M4V and WebM up to 50 MB in `media`. The cover must be an image.
+  - The form grabs a cover frame in the browser (`pages/freelancer/Portfolio.jsx`).
+  - Video posts play muted in Explore and get a badge on the profile grid (`components/freelancer/postMedia.js`).
+- **After an assessment:**
+  - The completion API's services step has a `qualified` field.
+  - `OptInPrompt.jsx` shows "You aren't offering any services yet / Opt in now" on Dashboard (`pages/freelancer/Home.jsx`), My Work and Assessments.
+- **Passwords:**
+  - One rule everywhere: 8+ characters with uppercase, lowercase, a number and a special character.
+  - Server side: `src/utils/passwordPolicy.js`. Frontend: `utils/passwordPolicy.js` and `components/ui/PasswordChecklist.jsx`.
+  - The new `POST /auth/change-password` is used by Settings. The old call went to `PATCH /profile/me`, which ignored the password and still said it changed.
+  - Signup, reset and admin-created accounts use the same rule.
 
-## Later in the session (also on main)
-- **17a9820** Two fixes:
-  - Chat files return `Cross-Origin-Resource-Policy: cross-origin` on the content redirect. Helmet's same-origin default had made browsers block every chat video and image. Confirmed playing on mintmore.vercel.app after the deploy.
-  - The admin dashboard has a "First drafts to review" row that links to `/admin/operations?tab=first-drafts`.
-- The demo order's "Delivery v1" (job 083e1056) is a 3 KB test file, not a real video, so it stays blank.
-- The local backend needs Redis on 127.0.0.1:6379 to start.
+## What the user asked for next
+- The phone-level fixes above are done. The user said that once phone is sorted, they'll move on to **desktop-level fixes**. Ask them for their desktop list.
+- **Still worth checking on a real iPhone** (no WebKit was available here; testing used Chromium in iPhone mode):
+  - the Menu sheet;
+  - KYC submit;
+  - video post upload and cover grab;
+  - the client Services and service detail pages;
+  - the purchased-orders page.
+
+## Earlier this session (all on main unless noted)
+- **Purchases:** multi-order purchases with a separate brief per order, and "Save for later". The purchased-orders page has a fixed order list.
+- **First drafts:** video orders take MP4/MOV/M4V/WebM and other orders take JPG/PNG. Admins review them in Operations > First drafts.
+- **Delivery downloads:** locked until the client approves. The server refuses `?download=1` and share pages, and blocks non-previewable files.
+- **Order chat:**
+  - Links are clickable and blue.
+  - Search sits in the header.
+  - Brief files show as tiles in the order panel.
+  - One shared full-screen viewer (`components/ui/MediaViewer.jsx`) serves Files and chat.
+- **Admin chat:**
+  - Grouped by client or freelancer, with a flag icon.
+  - Flag, Warn, Close and Reopen, all written to the audit log.
+  - A Client view / Freelancer view switch.
+- **Client pages:** a month-grouped Files gallery and a cleaner My orders list.
+- **Layout:** freelancer pages use the shared 1400px frame, and My services has categories in a sidebar.
