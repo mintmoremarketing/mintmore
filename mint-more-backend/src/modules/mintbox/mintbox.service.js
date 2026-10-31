@@ -354,7 +354,7 @@ const listAdminGallery = async (role) => {
      LEFT JOIN users client ON client.id = j.client_id
      LEFT JOIN users creator ON creator.id = f.uploaded_by
      LEFT JOIN service_bookings b ON b.job_id = j.id
-     WHERE f.deleted_at IS NULL
+     WHERE f.deleted_by_client_at IS NULL
        AND (f.mime_type LIKE 'image/%' OR f.mime_type LIKE 'video/%')
      ORDER BY f.created_at DESC
      LIMIT 2000`,
