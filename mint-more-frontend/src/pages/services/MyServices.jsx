@@ -14,14 +14,14 @@ const payoutRange = (variants = []) => {
 }
 
 /** On/off for one service. The state is the switch itself, so the row needs no outline or badge. */
-function OfferSwitch({ on, busy, onToggle, label }) {
+function OfferSwitch({ on, busy, locked, onToggle, label }) {
 	return (
 		<button
 			type="button"
 			role="switch"
 			aria-checked={on}
-			aria-label={`${on ? 'Stop offering' : 'Offer'} ${label}`}
-			disabled={busy}
+			aria-label={locked ? `${label}: pass an assessment to unlock` : `${on ? 'Stop offering' : 'Offer'} ${label}`}
+			disabled={busy || locked}
 			onClick={onToggle}
 			className="group inline-flex shrink-0 items-center rounded-full p-1 focus-visible:outline-none disabled:cursor-wait disabled:opacity-60"
 		>
@@ -33,6 +33,7 @@ function OfferSwitch({ on, busy, onToggle, label }) {
 }
 
 function ServiceRow({ t, busy, onToggle }) {
+	const locked = t.can_opt_in === false && !t.opted_in
 	const days = [...new Set((t.variants || []).map(v => Number(v.delivery_days)))].sort((a, b) => a - b)
 	const turnaround = days.length > 1 ? `${days[0]}–${deliveryText(days[days.length - 1])}` : days.length ? deliveryText(days[0]) : null
 	return (
@@ -48,12 +49,13 @@ function ServiceRow({ t, busy, onToggle }) {
 						<p className="truncate text-[13px] text-ink-500 sm:hidden">
 							<span className="font-medium tabular-nums text-ink-900">{payoutRange(t.variants)}</span>{turnaround ? ` · ${turnaround}` : ''}
 						</p>
+						{locked && <p className="text-[13px] text-ink-600">Pass an assessment to unlock</p>}
 					</div>
 					<span className="hidden w-36 shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink-900 sm:block">{payoutRange(t.variants)}</span>
 					<Icon name="chevronDown" size={16} className="shrink-0 text-ink-400 transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-open/row:rotate-180" />
 					{/* The switch sits inside the summary; stop it from also opening the row. */}
 					<span onClick={event => event.preventDefault()} className="shrink-0">
-						<OfferSwitch on={t.opted_in} busy={busy} onToggle={onToggle} label={t.title} />
+						<OfferSwitch on={t.opted_in} busy={busy} locked={locked} onToggle={onToggle} label={t.title} />
 					</span>
 				</summary>
 				<div className="px-4 pb-4 md:px-5">

@@ -177,24 +177,19 @@ export function PortfolioItemModal({ item, onClose, onSaved }) {
           <label className="text-sm font-semibold text-ink-900">
             Photo or video {!isEdit && <span className="text-rose-500">*</span>}
           </label>
-          <button
-            type="button"
-            onClick={() => !isEdit && fileRef.current?.click()}
-            disabled={isEdit}
-            className={`relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed ${coverPreview || videoPreview ? 'border-transparent bg-ink-900' : 'border-ink-200 bg-ink-50/50'} text-left transition-colors ${isEdit ? 'cursor-default' : 'hover:bg-ink-50'}`}
-          >
+          <div className={`relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed ${coverPreview || videoPreview ? 'border-transparent bg-ink-900' : 'border-ink-200 bg-ink-50/50'} text-left transition-colors`}>
             {videoPreview ? (
               <video src={videoPreview} poster={coverPreview || undefined} muted playsInline controls className="h-full w-full object-contain" />
             ) : coverPreview ? (
               <img src={coverPreview} alt="" className="h-full w-full object-cover" />
             ) : (
-              <span className="text-center text-ink-500">
+              <button type="button" onClick={() => fileRef.current?.click()} disabled={isEdit} className="flex h-full w-full flex-col items-center justify-center text-center text-ink-500">
                 <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm"><Icon name="upload" size={20} /></span>
                 <span className="block text-[15px] font-medium text-ink-900">Add a photo or video</span>
                 <span className="mt-1 block text-[13px]">JPG, PNG, WebP, or MP4, MOV, WebM up to {MAX_POST_MB} MB</span>
-              </span>
+              </button>
             )}
-          </button>
+          </div>
           {!isEdit && (coverPreview || videoPreview) && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
               <button type="button" onClick={() => fileRef.current?.click()} className="font-medium text-ink-900 underline underline-offset-4">Choose another file</button>

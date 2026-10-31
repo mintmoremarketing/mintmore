@@ -5,6 +5,7 @@ import { api } from '../../api/client'
 import Icon from '../../components/ui/Icon'
 import OrderOffers from '../../components/services/OrderOffers'
 import { videoOf } from '../../components/freelancer/postMedia'
+import MediaViewer from '../../components/ui/MediaViewer'
 import { referenceVideos } from '../../components/storefront/referencePhotos'
 
 const PAGE_SIZE = 21
@@ -60,6 +61,7 @@ function useInViewPlayback(src) {
 function PostCard({ post, index }) {
 	const video = videoOf(post)
 	const videoRef = useInViewPlayback(video)
+	const [viewing, setViewing] = useState(false)
 	return (
 		<article className="group relative overflow-hidden rounded-2xl bg-ink-100">
 			<div className={video ? 'aspect-[9/16] bg-ink-900' : RATIOS[index % RATIOS.length]}>
@@ -69,6 +71,7 @@ function PostCard({ post, index }) {
 						? <img src={post.cover_image_url} alt={post.title} loading="lazy" className="h-full w-full object-cover" />
 						: <div className="grid h-full w-full place-items-center p-4 text-center text-sm text-ink-500">{post.title}</div>}
 			</div>
+			{video && <button type="button" onClick={() => setViewing(true)} aria-label={`Play ${post.title}`} className="absolute inset-0 z-10 w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"><span className="absolute right-3 top-3 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white">Play video</span></button>}
 			<div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent p-3 pt-10 text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
 				<p className="line-clamp-2 text-sm font-medium leading-snug">{post.title}</p>
 				<div className="mt-2 flex items-center gap-2 text-xs text-white/85">
@@ -78,6 +81,7 @@ function PostCard({ post, index }) {
 					<span className="truncate">{post.freelancer_name}</span>
 				</div>
 			</div>
+			{viewing && <MediaViewer items={[{ id: post.id, src: video, kind: 'video', name: post.title }]} index={0} onIndex={() => {}} onClose={() => setViewing(false)} label="Video post" />}
 		</article>
 	)
 }

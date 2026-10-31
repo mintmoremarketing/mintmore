@@ -6,6 +6,8 @@ import { useUIStore } from '../../store/ui'
 import Icon from '../../components/ui/Icon'
 import Avatar from '../../components/ui/Avatar'
 import Modal from '../../components/ui/Modal'
+import MediaViewer from '../../components/ui/MediaViewer'
+import { videoOf } from '../../components/freelancer/postMedia'
 import { rupee } from '../../utils/format'
 import { SkeletonCard } from '../../components/ui/Skeleton'
 
@@ -235,6 +237,7 @@ export default function FreelancerProfile() {
 	const [inquirePackage, setInquirePackage] = useState(null)
 	const [showInquiry, setShowInquiry] = useState(false)
 	const [reviewSort, setReviewSort] = useState('recent')
+	const [portfolioVideo, setPortfolioVideo] = useState(null)
 
 	const { data: profileData, isLoading } = useQuery({
 		queryKey: ['freelancer-profile', freelancerId],
@@ -508,7 +511,7 @@ export default function FreelancerProfile() {
 											border: '1px solid var(--hairline)',
 										}}
 									>
-										<div style={{ aspectRatio: '4/3', overflow: 'hidden', background: 'var(--paper-tint)' }}>
+										<div style={{ aspectRatio: '4/3', overflow: 'hidden', background: 'var(--paper-tint)', position: 'relative' }}>
 											{item.cover_image_url ? (
 												<img
 													src={item.cover_image_url}
@@ -528,6 +531,7 @@ export default function FreelancerProfile() {
 													<Icon name="image" size={24} />
 												</div>
 											)}
+											{videoOf(item) && <button type="button" onClick={() => setPortfolioVideo(item)} aria-label={`Play ${item.title}`} className="absolute inset-0 grid w-full place-items-center text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"><span className="grid h-12 w-12 place-items-center rounded-full bg-black/70"><Icon name="video" size={20} /></span></button>}
 										</div>
 										<div style={{ padding: '10px 12px' }}>
 											<div
@@ -765,6 +769,7 @@ export default function FreelancerProfile() {
 				</div>
 			</div>
 
+			{portfolioVideo && <MediaViewer items={[{ id: portfolioVideo.id, src: videoOf(portfolioVideo), kind: 'video', name: portfolioVideo.title }]} index={0} onIndex={() => {}} onClose={() => setPortfolioVideo(null)} label="Portfolio video" />}
 			{showInquiry && (
 				<InquiryModal
 					freelancer={f}

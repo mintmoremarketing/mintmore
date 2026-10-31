@@ -1372,6 +1372,15 @@ const listTemplatesForFreelancer = async (freelancerId) => {
       `SELECT t.id, t.slug, t.title, t.summary, t.unit_label, t.revisions, t.tools,
               c.name AS category_name, c.slug AS category_slug,
               COALESCE(o.is_active, false) AS opted_in,
+              (NOT EXISTS (
+                SELECT 1 FROM assessments assessment
+                WHERE assessment.is_active AND t.slug = ANY(assessment.unlock_slugs)
+              ) OR EXISTS (
+                SELECT 1 FROM assessment_attempts attempt
+                JOIN assessments assessment ON assessment.id = attempt.assessment_id
+                WHERE attempt.freelancer_id = $1 AND attempt.status = 'passed'
+                  AND t.slug = ANY(assessment.unlock_slugs)
+              )) AS can_opt_in,
               (SELECT COUNT(*)::int FROM freelancer_service_optins x WHERE x.template_id = t.id AND x.is_active) AS freelancer_count,
               COALESCE((
                 SELECT jsonb_agg(jsonb_build_object(
@@ -1394,8 +1403,24 @@ const listTemplatesForFreelancer = async (freelancerId) => {
 
 const setOptIn = async (freelancerId, templateId, optedIn) => {
   if (!UUID_PATTERN.test(String(templateId))) throw new AppError('Service not found', 404);
-  const template = await query('SELECT id FROM service_templates WHERE id = $1 AND is_active', [templateId]);
+  const template = await query(
+    `SELECT t.id,
+       EXISTS (SELECT 1 FROM freelancer_service_optins o
+               WHERE o.freelancer_id = $2 AND o.template_id = t.id AND o.is_active) AS already_offering,
+       (NOT EXISTS (SELECT 1 FROM assessments assessment
+                    WHERE assessment.is_active AND t.slug = ANY(assessment.unlock_slugs))
+        OR EXISTS (SELECT 1 FROM assessment_attempts attempt
+               JOIN assessments assessment ON assessment.id = attempt.assessment_id
+               WHERE attempt.freelancer_id = $2 AND attempt.status = 'passed'
+                 AND t.slug = ANY(assessment.unlock_slugs))) AS can_opt_in
+     FROM service_templates t WHERE t.id = $1 AND t.is_active`,
+    [templateId, freelancerId]
+  );
   if (!template.rows[0]) throw new AppError('Service not found', 404);
+  // Keep existing opt-ins and services without an active assessment available.
+  if (optedIn && !template.rows[0].can_opt_in && !template.rows[0].already_offering) {
+    throw new AppError('Pass an assessment that unlocks this service before offering it', 403);
+  }
   const result = await query(
     `INSERT INTO freelancer_service_optins (freelancer_id, template_id, is_active)
      VALUES ($1, $2, $3)

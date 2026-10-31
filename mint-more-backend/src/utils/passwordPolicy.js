@@ -8,7 +8,7 @@ const PASSWORD_RULES = [
   { test: (pw) => /[A-Z]/.test(pw), message: 'an uppercase letter' },
   { test: (pw) => /[a-z]/.test(pw), message: 'a lowercase letter' },
   { test: (pw) => /[0-9]/.test(pw), message: 'a number' },
-  { test: (pw) => /[^A-Za-z0-9]/.test(pw), message: 'a special character, like ! @ # or $' },
+  { test: (pw) => /[^\p{L}\p{N}\s]/u.test(pw), message: 'a special character, like ! @ # or $' },
 ];
 
 /** What the password is missing, as a sentence, or null when it passes. */

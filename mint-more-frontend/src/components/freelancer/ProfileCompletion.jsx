@@ -125,7 +125,7 @@ export default function ProfileCompletion() {
 	return <>{checklist()}<KycModal open={kycOpen} onClose={closeKyc} /></>
 
 	function checklist() {
-	if (!isFreelancer || !data || data.isComplete || pathname.startsWith('/assessments/')) return null
+	if (!isFreelancer || !data || data.isComplete || (pathname.startsWith('/assessments/') && !sheetOpen && !panelOpen)) return null
 
 	const { steps, completed, total, percent } = data
 

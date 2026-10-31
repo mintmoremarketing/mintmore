@@ -618,8 +618,10 @@ export default function Settings() {
       new_password:     newPw,
     }),
     onSuccess: () => {
-      pushToast({ title: 'Password changed!', icon: 'check' })
+      pushToast({ title: 'Password changed. Please sign in again.', icon: 'check' })
       setCurrentPw(''); setNewPw(''); setConfirmPw(''); setPwError('')
+      logout()
+      navigate('/login', { replace: true })
     },
     onError: err => {
       const msg = err.response?.data?.errors?.[0] || err.response?.data?.message || 'Failed to change password'

@@ -142,10 +142,10 @@ const submitIdentityKyc = async (userId, data, files) => {
     return serializePrivateFileRef(ref);
   };
 
-  if (!files.document_front?.[0]) {
+  if (!files?.document_front?.[0]) {
     throw new AppError('document_front image is required', 400);
   }
-  if (!files.selfie?.[0]) {
+  if (!files?.selfie?.[0]) {
     throw new AppError('selfie image is required', 400);
   }
 
@@ -209,7 +209,7 @@ const submitAddressKyc = async (userId, data, files) => {
     throw new AppError('Address KYC already submitted and under review', 409);
   }
 
-  if (!files.address_proof?.[0]) {
+  if (!files?.address_proof?.[0]) {
     throw new AppError('address_proof document is required', 400);
   }
 
@@ -368,9 +368,9 @@ const reviewSubmission = async (submissionId, adminId, { status, admin_note }) =
       }
       await client.query(
         `UPDATE users
-         SET kyc_level = $3, kyc_status = 'verified'
+         SET kyc_level = $2, kyc_status = 'verified'
          WHERE id = $1`,
-        [submission.user_id]
+        [submission.user_id, submission.level]
       );
     }
 

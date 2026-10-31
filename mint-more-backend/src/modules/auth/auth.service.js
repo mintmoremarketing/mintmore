@@ -247,7 +247,7 @@ const resetPassword = async ({ email, newPassword, accessToken }) => {
 
 /**
  * Change the password of a signed-in user. They prove it's them with the current password.
- * Other sessions are signed out; this one keeps working until its token next refreshes.
+ * Existing refresh tokens are revoked; access tokens remain valid until they expire.
  */
 const changePassword = async (userId, { current_password: currentPassword, new_password: newPassword }) => {
   const result = await query('SELECT id, password_hash FROM users WHERE id = $1', [userId]);
@@ -257,7 +257,7 @@ const changePassword = async (userId, { current_password: currentPassword, new_p
     throw new AppError('Your current password is not right', 400);
   }
   const passwordHash = await hashPassword(newPassword);
-  await query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
+  await query('UPDATE users SET password_hash = $1, refresh_token = NULL WHERE id = $2', [passwordHash, userId]);
   logger.info('User changed password', { userId });
 };
 

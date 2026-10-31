@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { useUIStore } from '../../store/ui'
 import Icon from '../ui/Icon'
 import { announceProfileUpdated } from './completionApi'
+import { latestByLevel, submitKyc, usable } from './submitKyc'
 
 const DOCUMENTS = [
 	{ value: 'aadhaar', label: 'Aadhaar Card', icon: 'user', pattern: /^\d{12}$/, hint: '12-digit Aadhaar number', back: true },
@@ -34,9 +35,6 @@ function FilePick({ label, file, onChange, accept = 'image/*,.pdf' }) {
 		</label>
 	)
 }
-
-const latestByLevel = (submissions = [], level) => submissions.find(item => item.level === level)
-const usable = submission => submission && ['pending', 'approved'].includes(submission.status)
 
 /**
  * "Complete your KYC": pick Aadhaar or PAN, then the details our review needs.
@@ -83,10 +81,11 @@ export default function KycModal({ open, onClose }) {
 	const underReview = kyc?.overall_status === 'pending' && usable(latestByLevel(submissions, 'address'))
 
 	const detailsError = () => {
-		if (!doc.pattern.test(form.document_number)) return `Enter a valid ${doc.hint}.`
+		const needsIdentity = !usable(latestByLevel(submissions, 'identity'))
+		if (needsIdentity && !doc.pattern.test(form.document_number)) return `Enter a valid ${doc.hint}.`
 		if (needsBasic && (!form.date_of_birth || !form.gender)) return 'Add your date of birth and gender.'
-		if (!files.document_front) return `Upload the front of your ${doc.label}.`
-		if (!files.selfie) return 'Add a selfie so we can match you to the document.'
+		if ((needsIdentity || doc.back) && !files.document_front) return `Upload the front of your ${doc.label}.`
+		if (needsIdentity && !files.selfie) return 'Add a selfie so we can match you to the document.'
 		return ''
 	}
 	const addressError = () => {
@@ -96,38 +95,12 @@ export default function KycModal({ open, onClose }) {
 		return ''
 	}
 
-	const multipart = values => {
-		const fd = new FormData()
-		Object.entries(values).forEach(([key, value]) => value !== null && value !== '' && fd.append(key, value))
-		return fd
-	}
-
 	const submit = async () => {
 		const problem = addressError()
 		if (problem) { setError(problem); return }
 		setError(''); setBusy(true)
 		try {
-			if (needsBasic) {
-				await api.post('/kyc/basic', { date_of_birth: form.date_of_birth, gender: form.gender, nationality: 'Indian' })
-			}
-			if (!usable(latestByLevel(submissions, 'identity'))) {
-				await api.post('/kyc/identity', multipart({
-					document_type: docType,
-					document_number: form.document_number,
-					document_front: files.document_front,
-					document_back: files.document_back,
-					selfie: files.selfie,
-				}))
-			}
-			await api.post('/kyc/address', multipart({
-				address_line1: form.address_line1,
-				city: form.city,
-				state: form.state,
-				pincode: form.pincode,
-				country: 'India',
-				// Aadhaar carries the address, so it doubles as the proof.
-				address_proof: files.address_proof || files.document_front,
-			}))
+			await submitKyc(api, { docType, form, files })
 			queryClient.invalidateQueries({ queryKey: ['kyc-status'] })
 			queryClient.invalidateQueries({ queryKey: ['my-profile'] })
 			announceProfileUpdated()
@@ -135,6 +108,7 @@ export default function KycModal({ open, onClose }) {
 			pushToast({ title: 'KYC submitted', body: 'We will review it and let you know.', icon: 'check' })
 			onClose()
 		} catch (err) {
+			await queryClient.invalidateQueries({ queryKey: ['kyc-status'] })
 			setError(err?.response?.data?.errors?.join(' ') || err?.response?.data?.message || 'Could not submit KYC. Please try again.')
 		} finally {
 			setBusy(false)
