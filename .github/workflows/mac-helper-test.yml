@@ -68,6 +68,6 @@ jobs:
             These builds are unsigned and not notarized. They are for testing and may require allowing the app in macOS Privacy & Security settings. Full AI editing still needs to be tested on a Mac.
           prerelease: true
           make_latest: false
-          files: mac-downloads/*.zip
+          files: mac-downloads/**/*.zip
           overwrite_files: true
           fail_on_unmatched_files: true
