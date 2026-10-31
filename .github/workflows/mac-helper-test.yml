@@ -1,0 +1,44 @@
+name: Build Mac helper for testing
+on:
+  push:
+    branches: [main, codex/mac-helper-test-build]
+    paths:
+      - '.github/workflows/mac-helper-test.yml'
+      - 'tools/creatyv-mac-helper/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build unsigned helper
+        working-directory: tools/creatyv-mac-helper
+        run: node scripts/build-mac-helper.mjs
+      - name: Verify helper starts and accepts Creatyv requests
+        working-directory: tools/creatyv-mac-helper
+        shell: bash
+        run: |
+          app="dist/creatyv-helper-mac-$(node -p process.arch)/Creatyv Helper.app"
+          "$app/Contents/MacOS/creatyv-helper" > /tmp/creatyv-helper.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent -H 'Origin: https://mintmore.vercel.app' http://127.0.0.1:4321/api/hello > /tmp/creatyv-hello.json; then break; fi
+            sleep 1
+          done
+          node -e "const a=require('/tmp/creatyv-hello.json'); if(a.app!=='creatyv-helper') process.exit(1)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: creatyv-helper-${{ matrix.runner }}
+          path: tools/creatyv-mac-helper/dist/**/*.zip
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,27 @@
+{
+  "name": "editing-os-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first Editing OS app: add footage and links, approve a plan, render on this computer.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "helper": "node server/index.mjs",
+    "dev": "node server/index.mjs --dev-ui",
+    "build": "vite build",
+    "start": "vite build && node server/index.mjs --prod"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "express": "^4.21.2",
+    "marked": "^15.0.7"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.4.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "vite": "^6.3.5"
+  }
+}

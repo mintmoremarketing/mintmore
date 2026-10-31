@@ -1,0 +1,13 @@
+{
+  "name": "editing-os-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Phase 0 job runner: Creator Editing OS studio + Claude Code headless on an API key.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/run-job.mjs"
+  }
+}
