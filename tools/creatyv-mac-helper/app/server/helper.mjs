@@ -8,7 +8,7 @@
  *   - Host must be this computer, which stops DNS-rebinding pages that pose as 127.0.0.1.
  */
 import {randomBytes} from 'node:crypto';
-import {existsSync, readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {APP_DATA, loadEnv, PORT} from './config.mjs';
 
@@ -19,6 +19,7 @@ export const allowedOrigins = (env = loadEnv()) =>
 
 /** A random key for this install, made once. */
 export function helperKey() {
+  mkdirSync(APP_DATA, {recursive: true});
   const path = join(APP_DATA, 'helper.json');
   if (existsSync(path)) return JSON.parse(readFileSync(path, 'utf8')).key;
   const key = randomBytes(24).toString('base64url');

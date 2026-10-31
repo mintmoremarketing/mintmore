@@ -15,7 +15,7 @@
  *   POST {api}/api/v1/ai-edits/app/state  {state}      the video's status, shown on Creatyv
  */
 import {randomUUID} from 'node:crypto';
-import {existsSync, readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {APP_DATA, loadEnv} from './config.mjs';
 
@@ -24,6 +24,7 @@ export const accessMode = (env = loadEnv()) => (apiUrl(env) ? 'paid' : 'dev');
 
 /** A random id for this install, so Creatyv can tie an unlock to one computer. */
 export function deviceId() {
+  mkdirSync(APP_DATA, {recursive: true});
   const path = join(APP_DATA, 'device.json');
   if (existsSync(path)) return JSON.parse(readFileSync(path, 'utf8')).id;
   const id = randomUUID();
